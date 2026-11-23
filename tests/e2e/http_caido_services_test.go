@@ -471,15 +471,13 @@ func copyHTTPHeaders(destination, source http.Header) {
 
 func writeHTTPAnalysisE2EWorkflow(t *testing.T, configRoot string) {
 	t.Helper()
-	// Keep the exact authored e2e Worker policy beside production worker@2;
-	// their filenames otherwise collide while their identities are distinct.
+	// Derive the isolated HTTP fixture from the exact authored e2e Worker policy;
+	// the derived policy has a separate identity from the production Worker.
 	worker, err := os.ReadFile(filepath.Join(repoRoot(t), "configs", "e2e", "model-policies", "worker.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(configRoot, "model-policies", "http_e2e_worker.yaml"), worker, 0o600); err != nil {
-		t.Fatal(err)
-	}
+
 	var policy map[string]any
 	if err := yaml.Unmarshal(worker, &policy); err != nil {
 		t.Fatal(err)
@@ -522,7 +520,7 @@ spec:
       instructions: {ref: instructions/http-analysis-e2e-planner.md}
       planner: passthrough@1
       agents:
-        explorer: {template: http_explorer@5, namespace: http}
+        explorer: {template: http_explorer@1, namespace: http}
       result:
         artifacts:
           report:

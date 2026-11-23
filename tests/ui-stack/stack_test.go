@@ -862,7 +862,7 @@ func stageUIStackConfiguration(
 		t.Fatalf("stage UI-stack configuration: %v", err)
 	}
 	// Imported e2e Workflows explicitly select worker@1. Keep its fixture
-	// model and budgets beside the production worker@2, without replacing it.
+	// model and budgets beside the production worker@1, without replacing it.
 	workerBytes, err := os.ReadFile(filepath.Join(source, "e2e", "model-policies", "worker.yaml"))
 	if err != nil {
 		t.Fatal(err)
@@ -891,8 +891,8 @@ func adaptUIStackCopyWorkflow(t *testing.T, source []byte) []byte {
 	if bytes.Count(source, workerPolicy) != 1 {
 		t.Fatal("UI copy fixture must select exactly one worker@1 policy")
 	}
-	result := bytes.ReplaceAll(source, []byte("modelPolicy: planner@1"), []byte("modelPolicy: planner@2"))
-	result = bytes.ReplaceAll(result, []byte("artifact_builder@4"), []byte("artifact_builder@3"))
+	result := bytes.ReplaceAll(source, []byte("modelPolicy: planner@1"), []byte("modelPolicy: planner@1"))
+	result = bytes.ReplaceAll(result, []byte("artifact_builder@1"), []byte("artifact_builder@1"))
 	// Template v2 has a terminal summarizer. Keep its original summarizer@1
 	// selection explicit now that Workflows own all model selections.
 	return bytes.Replace(result, workerPolicy,

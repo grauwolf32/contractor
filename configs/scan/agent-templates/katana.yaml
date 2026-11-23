@@ -1,6 +1,6 @@
 apiVersion: contractor/v1alpha1
 kind: AgentTemplate
-metadata: {name: katana-discovery, version: "1"}
+metadata: {name: katana-discovery, version: '1'}
 spec:
   description: Discover a bounded set of same-origin HTTP targets with Katana.
   runtime: tool@1

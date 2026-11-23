@@ -121,7 +121,7 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
     workers:`, 1)
 		text = strings.Replace(text, "planner: passthrough@1", "planner: "+layer+"@1", 1)
 		if layer == "router" {
-			text = strings.Replace(text, "      agents:\n        builder:", "      agents:\n        observer: {template: artifact_builder@4}\n        builder:", 1)
+			text = strings.Replace(text, "      agents:\n        builder:", "      agents:\n        observer: {template: artifact_builder@1}\n        builder:", 1)
 		} else {
 			gateway.streamline = true
 		}

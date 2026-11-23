@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 metadata:
   name: worker-summary-continuation
-  version: "1"
+  version: '1'
 spec:
   parameters:
     mode: {required: true}

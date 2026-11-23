@@ -511,6 +511,12 @@ content needs a new version ([AUD-R54](../audits/audits.md),
 [TPL-R36](agent-templates.md); for Workflow `presentation` metadata see
 [WFL-R12](workflows.md).
 
+The user-authorized offline pre-production reset on 2026-11-23 retains only
+the latest supplied definitions, resets their versions and references to `1`,
+and rebuilds the shipped lock. It removes obsolete instructions and selector
+history. This one-time source reset requires a fresh demo database; it does not
+add aliases, alter exact selection, or relax runtime publication immutability.
+
 **CAT-R74.** The shipped catalog has a committed `catalog.lock.json` with
 schema `contractor.catalog-lock/v1` and an `entries` object mapping
 `<subtree>/<name>@<version>` to a `sha256:` digest. Instruction entries use

@@ -533,7 +533,7 @@ spec:
   outputs:
     report: {required: true, mediaTypes: [text/markdown]}
   executionConfig:
-    workers: {modelPolicy: worker@2, llmGateway: local-litellm@1, credential: development-worker}
+    workers: {modelPolicy: worker@1, llmGateway: local-litellm@1, credential: development-worker}
   entryStage: analyze
   stages:
     analyze:

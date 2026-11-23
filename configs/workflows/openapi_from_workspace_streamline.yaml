@@ -1,0 +1,251 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: openapi-from-workspace-streamline
+  version: '1'
+
+spec:
+  parameters:
+    objective:
+      required: false
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+    existing_openapi:
+      required: false
+      mediaTypes: [application/yaml, application/json]
+
+  outputs:
+    openapi:
+      required: true
+      primary: true
+      mediaTypes: [application/yaml]
+    openapi_validation_report:
+      required: true
+      mediaTypes: [text/markdown]
+
+  executionConfig:
+    planner:
+      modelPolicy: planner@1
+      llmGateway: local-litellm@1
+      credential: development-planner
+      compactorModelPolicy: compactor@1
+    workers:
+      modelPolicy: worker@1
+      llmGateway: local-litellm@1
+      credential: development-worker
+
+    stages:
+      dependency_discovery:
+        agents:
+          analyst:
+            summarizerModelPolicy: summarizer@1
+      project_discovery:
+        agents:
+          analyst:
+            summarizerModelPolicy: summarizer@1
+      openapi_build:
+        agents:
+          builder:
+            summarizerModelPolicy: summarizer@1
+      openapi_validate:
+        agents:
+          validator:
+            summarizerModelPolicy: summarizer@1
+  entryStage: dependency_discovery
+  stages:
+    dependency_discovery:
+      objective: Inventory runtime dependencies from the hydrated project workspace
+      instructions:
+        ref: instructions/dependency-discovery-planner.md
+      planner: streamline@1
+      plannerContextManagement: &planner_compaction
+        strategy: compact@1
+        instructions:
+          ref: instructions/planner-compaction.md
+      agents:
+        analyst:
+          template: workspace_source_graph_analyst@1
+          namespace: analysis
+      context:
+        artifacts:
+          source: &source_artifact
+            namespace: inputs
+            name: source
+            required: true
+        workspace:
+          mode: overlay
+          sources:
+            - artifact: source
+              target: ""
+          export:
+            state: workspace_state
+            diff: workspace_diff
+      result:
+        artifacts:
+          dependency_report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: analysis, name: dependencies}
+          workspace_state: &workspace_state_output
+            required: true
+            mediaTypes: [application/vnd.contractor.workspace-overlay+json]
+          workspace_diff: &workspace_diff_output
+            required: true
+            mediaTypes: [text/x-diff]
+      on:
+        succeeded:
+          next: project_discovery
+        failed: &retry_policy
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
+        interrupted: *retry_policy
+
+    project_discovery:
+      objective: Map project structure, API surface, security controls, and runtime integrations
+      instructions:
+        ref: instructions/project-discovery-planner.md
+      planner: streamline@1
+      plannerContextManagement: *planner_compaction
+      agents:
+        analyst:
+          template: workspace_source_graph_analyst@1
+          namespace: analysis
+      context:
+        artifacts:
+          source: *source_artifact
+          dependency_report:
+            namespace: analysis
+            name: dependencies
+            required: true
+          prior_workspace_state:
+            namespace: analysis
+            name: workspace_state
+            required: true
+        workspace: &workspace_overlay
+          mode: overlay
+          sources:
+            - artifact: source
+              target: ""
+          state:
+            artifact: prior_workspace_state
+          export:
+            state: workspace_state
+            diff: workspace_diff
+      result:
+        artifacts:
+          project_report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: analysis, name: project}
+          workspace_state: *workspace_state_output
+          workspace_diff: *workspace_diff_output
+      on:
+        succeeded:
+          next: openapi_build
+        failed: *retry_policy
+        interrupted: *retry_policy
+
+    openapi_build:
+      objective: Build an evidence-linked OpenAPI document for the implemented inbound HTTP API
+      instructions:
+        ref: instructions/openapi-build-planner.md
+      planner: streamline@1
+      plannerContextManagement: *planner_compaction
+      agents:
+        builder:
+          template: workspace_openapi_builder@1
+          namespace: openapi
+      context:
+        artifacts:
+          source: *source_artifact
+          dependency_report:
+            namespace: analysis
+            name: dependencies
+            required: true
+          project_report:
+            namespace: analysis
+            name: project
+            required: true
+          existing_openapi:
+            namespace: inputs
+            name: existing_openapi
+            required: false
+          prior_workspace_state:
+            namespace: analysis
+            name: workspace_state
+            required: true
+        workspace: *workspace_overlay
+      result:
+        artifacts:
+          openapi:
+            required: true
+            mediaTypes: [application/yaml]
+            from: {namespace: openapi, name: openapi}
+          workspace_state: *workspace_state_output
+          workspace_diff: *workspace_diff_output
+      on:
+        succeeded:
+          next: openapi_validate
+        failed: &retry_policy_2
+          retry:
+            maxAttempts: 4
+            then:
+              fail: {}
+        interrupted: *retry_policy_2
+
+    openapi_validate:
+      objective: Validate and minimally repair the candidate OpenAPI document against source evidence
+      instructions:
+        ref: instructions/openapi-validate-planner.md
+      planner: streamline@1
+      plannerContextManagement: *planner_compaction
+      agents:
+        validator:
+          template: workspace_openapi_validator@1
+          namespace: openapi
+      context:
+        artifacts:
+          source: *source_artifact
+          dependency_report:
+            namespace: analysis
+            name: dependencies
+            required: true
+          project_report:
+            namespace: analysis
+            name: project
+            required: true
+          openapi_candidate:
+            namespace: openapi
+            name: openapi
+            required: true
+          prior_workspace_state:
+            namespace: openapi
+            name: workspace_state
+            required: true
+        workspace: *workspace_overlay
+      result:
+        artifacts:
+          openapi:
+            required: true
+            mediaTypes: [application/yaml]
+            from: {namespace: openapi, name: openapi}
+          validation_report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: openapi, name: validation-report}
+          workspace_state: *workspace_state_output
+          workspace_diff: *workspace_diff_output
+      workflowOutputs:
+        openapi: openapi
+        openapi_validation_report: validation_report
+      on:
+        succeeded:
+          succeed: {}
+        failed: *retry_policy
+        interrupted: *retry_policy

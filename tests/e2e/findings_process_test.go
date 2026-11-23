@@ -533,7 +533,7 @@ func runFindingsReader(t *testing.T, h *findingsHarness, key string, input any) 
 
 func createFindingsReader(t *testing.T, h *findingsHarness, key string, input any) string {
 	t.Helper()
-	body, err := json.Marshal(map[string]any{"workflow": "findings-review@2", "artifacts": map[string]any{"findings": input}})
+	body, err := json.Marshal(map[string]any{"workflow": "findings-review@1", "artifacts": map[string]any{"findings": input}})
 	if err != nil {
 		t.Fatal(err)
 	}

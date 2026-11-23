@@ -32,7 +32,7 @@ Project.
 
 The **Recommended Workflows** panel enables only Workflows whose required input
 media types can be satisfied by current Project bindings. Select
-`openapi-from-workspace@9` or `likec4-from-workspace@9`, review the exact
+`openapi-from-workspace@1` or `likec4-from-workspace@1`, review the exact
 revision chosen for each input, and start the Project Run. While it is active,
 the same Run appears in the top-level **Queue** with its safe Project identity.
 Queue is a lifecycle read model, not a second scheduler or a promise of numeric
@@ -99,14 +99,14 @@ See [RUN-R112–115](../spec/execution/runs.md#RUN-R112) and the
 
 ## OpenAPI from a standalone Run workspace
 
-`openapi-from-workspace@9` runs four serial Stages: graph-backed dependency
+`openapi-from-workspace@1` runs four serial Stages: graph-backed dependency
 discovery, graph-backed project discovery, incremental OpenAPI construction,
 and final validation/repair. Each Stage gets its own allocation and reconstructs
 one private workspace from the exact source and cumulative overlay state. The
 reports, document and workspace state move between Stages as exact RunScope
 artifact revisions rather than model memory or a shared directory.
 
-The catalog also includes `openapi-from-workspace-streamline@3` with a modeled
+The catalog also includes `openapi-from-workspace-streamline@1` with a modeled
 `streamline@1` Planner in each Stage and the same artifact contracts.
 
 The Runtime Agent host must have `vacuum` on its `PATH`:
@@ -165,7 +165,7 @@ RUN_ID="$(jq -n \
   --argjson source "$SOURCE_REF" \
   --argjson seed "$OPENAPI_SEED_REF" \
   --arg objective 'Document the implemented public HTTP API' \
-  '{workflow:"openapi-from-workspace@9",parameters:{objective:$objective},artifacts:{source:$source,existing_openapi:$seed}}' | \
+  '{workflow:"openapi-from-workspace@1",parameters:{objective:$objective},artifacts:{source:$source,existing_openapi:$seed}}' | \
   curl --fail --silent --show-error \
     -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
     -H "Idempotency-Key: openapi-run-$(date +%s)" \
@@ -245,16 +245,16 @@ same-UID process with write access is part of that host's trust boundary.
 
 ## LikeC4 from a standalone Run workspace
 
-`likec4-from-workspace@9` reuses the same graph-backed dependency and project
+`likec4-from-workspace@1` reuses the same graph-backed dependency and project
 discovery contracts as the OpenAPI Workflow, then builds and repair-validates
 one single-file architecture model. Reports, the model and cumulative overlay
 state cross Stage boundaries as exact artifact revisions; no Worker relies on
 another allocation's memory or live workspace. The final Run freezes
 `likec4`, `likec4_validation_report`, `workspace_state`, and `workspace_diff`.
 
-`likec4-from-workspace-streamline@5` has the same artifact and Stage contract,
+`likec4-from-workspace-streamline@1` has the same artifact and Stage contract,
 but each Stage uses a modeled `streamline@1` Planner. Use it when explicit
-subtask decomposition is useful; the `likec4-from-workspace@9` passthrough Workflow is the simpler
+subtask decomposition is useful; the `likec4-from-workspace@1` passthrough Workflow is the simpler
 default.
 
 Install the LikeC4 CLI directly on every Runtime Agent host and make it visible
@@ -287,7 +287,7 @@ RUN_ID="$(jq -n \
   --argjson source "$SOURCE_REF" \
   --argjson seed "$LIKEC4_SEED_REF" \
   --arg objective 'Model the implemented architecture and trust boundaries' \
-  '{workflow:"likec4-from-workspace@9",parameters:{objective:$objective},artifacts:{source:$source,existing_likec4:$seed}}' | \
+  '{workflow:"likec4-from-workspace@1",parameters:{objective:$objective},artifacts:{source:$source,existing_likec4:$seed}}' | \
   curl --fail --silent --show-error \
     -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
     -H "Idempotency-Key: likec4-run-$(date +%s)" \
@@ -320,7 +320,7 @@ retryable validation failure, never an implicit pass.
 
 ## Reusing explicit analysis reports
 
-`openapi-from-analysis@5` and `likec4-from-analysis@6` are two-Stage variants
+`openapi-from-analysis@1` and `likec4-from-analysis@1` are two-Stage variants
 for callers that already have reviewed dependency and project reports. They do
 not search prior Runs or choose a current artifact implicitly. The caller must
 upload exact `text/markdown` reports to UserScope and select their revisions
@@ -345,7 +345,7 @@ RUN_ID="$(jq -n \
   --argjson source "$SOURCE_REF" \
   --argjson dependencies "$DEPENDENCY_REPORT_REF" \
   --argjson project "$PROJECT_REPORT_REF" \
-  '{workflow:"openapi-from-analysis@5",parameters:{},artifacts:{source:$source,dependency_report:$dependencies,project_report:$project}}' | \
+  '{workflow:"openapi-from-analysis@1",parameters:{},artifacts:{source:$source,dependency_report:$dependencies,project_report:$project}}' | \
   curl --fail --silent --show-error \
     -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
     -H "Idempotency-Key: openapi-analysis-run-$(date +%s)" \
@@ -353,7 +353,7 @@ RUN_ID="$(jq -n \
     http://127.0.0.1:8080/v1/runs | jq -r .runId)"
 ```
 
-Use `likec4-from-analysis@6` in the same request to produce LikeC4. Optional
+Use `likec4-from-analysis@1` in the same request to produce LikeC4. Optional
 `existing_openapi` and `existing_likec4` inputs retain the contracts described
 above. Contractor v1alpha1 does not prove that a report revision was derived
 from the selected source revision; the caller owns that compatibility decision.

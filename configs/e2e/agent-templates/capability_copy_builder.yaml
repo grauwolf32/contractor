@@ -3,7 +3,7 @@ kind: AgentTemplate
 
 metadata:
   name: capability_copy_builder
-  version: "2"
+  version: '1'
 
 spec:
   description: Authors a report in an environment with LikeC4 validation capability

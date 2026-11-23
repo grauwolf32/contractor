@@ -3,7 +3,7 @@ kind: AgentTemplate
 
 metadata:
   name: artifact_reviewer
-  version: "2"
+  version: '1'
 
 spec:
   description: Reviews declared input and authors a text review

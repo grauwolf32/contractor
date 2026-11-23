@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: audit_openapi_operation_observer
-  version: "6"
+  version: '1'
 
 spec:
   description: Traces one pinned OpenAPI Audit operation through source and structural graph evidence and publishes its canonical result
   runtime: adk@1
   instructions:
-    ref: instructions/audit-openapi-operation-observer-worker-keyed-results-runtime-versions-investigation-sources-thin-results.md
+    ref: instructions/audit-openapi-operation-observer-worker.md
   toolsets:
     - ref: memory-tools@1
       tools:

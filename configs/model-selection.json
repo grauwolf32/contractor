@@ -12,8 +12,8 @@
       "contextWindowTokens": 1000000,
       "maxOutputTokens": 128000,
       "policies": {
-        "planner": "planner_glm_5_3_flash_cc78cc13596ab7d7@2",
-        "worker": "worker_glm_5_3_flash_cc78cc13596ab7d7@2",
+        "planner": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+        "worker": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
         "summarizer": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
         "audit_completion_worker": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1"
       }

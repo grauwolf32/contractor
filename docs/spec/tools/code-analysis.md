@@ -775,8 +775,8 @@ initial source artifacts are equal.
 ### Bundled code-analysis Workflows and discovery template
 
 **CAN-R90.** The default catalog publishes only the current
-graph-backed workspace choices. The bundled `openapi-from-workspace@5`,
-`likec4-from-workspace@5` and `likec4-from-workspace-streamline@2` Workflows
+graph-backed workspace choices. The bundled `openapi-from-workspace@1`,
+`likec4-from-workspace@1` and `likec4-from-workspace-streamline@1` Workflows
 ([Workflows](../configuration/workflows.md)) use the discovery AgentTemplate
 `workspace_source_graph_analyst@1`, which selects all eleven operations, so
 each waits for complete local graph capacity.
@@ -1090,7 +1090,7 @@ selects the complete local graph surface, all three annotation operations,
 bounded filesystem reads, workspace change inspection and text-artifact reads
 and writes.
 
-**CAN-R133.** The one-Stage `taint-trace-from-workspace@2`
+**CAN-R133.** The one-Stage `taint-trace-from-workspace@1`
 Workflow supplies `target`, optional `objective` and `context` strings,
 hydrates one required source ZIP in overlay mode, and maps the evidence report
 plus the cumulative overlay state and text diff to Workflow outputs.

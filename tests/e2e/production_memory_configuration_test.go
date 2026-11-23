@@ -33,7 +33,7 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 			if err := os.Remove(filepath.Join(configRoot, "catalog.lock.json")); err != nil {
 				t.Fatal(err)
 			}
-			path := filepath.Join(configRoot, "agent-templates/artifact_builder_v2_memory.yaml")
+			path := filepath.Join(configRoot, "agent-templates/artifact_builder.yaml")
 			data, err := os.ReadFile(path)
 			if err != nil {
 				t.Fatal(err)
@@ -78,7 +78,7 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expected, err := configloadtest.AgentTemplate(expectedCatalog, "artifact_builder@3")
+			expected, err := configloadtest.AgentTemplate(expectedCatalog, "artifact_builder@1")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -91,7 +91,7 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			actual, err := configloadtest.AgentTemplate(actualCatalog, "artifact_builder@3")
+			actual, err := configloadtest.AgentTemplate(actualCatalog, "artifact_builder@1")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -187,10 +187,9 @@ func assertProductionPlannerCompactionCatalog(t *testing.T) {
 			}
 		}
 	}
-	// The current Project Finding and document-review catalog adds two
-	// summarized continuations to the twenty retained by the common Audit cutover.
-	if direct != 8 || continuations != 22 {
-		t.Fatalf("modelled Planner coverage = %d direct/%d continuations, want 8/22", direct, continuations)
+	// Only the current definition of each Workflow contributes a continuation.
+	if direct != 8 || continuations != 21 {
+		t.Fatalf("modelled Planner coverage = %d direct/%d continuations, want 8/21", direct, continuations)
 	}
 	loaded := filepath.Join(t.TempDir(), "catalog")
 	if err := os.CopyFS(loaded, os.DirFS(root)); err != nil {

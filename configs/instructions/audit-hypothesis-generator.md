@@ -7,7 +7,7 @@ Read relevant exact members of contractor.material-set.v1 inputs with ordinary
 Artifact tools. Payloads remain separate; do not follow arbitrary embedded refs.
 
 Use the existing Project Findings reader when a current problem may inform the
-analysis. List/read, then explicitly select exact revisions with
+analysis. List/read, then explicitly select discovered findings with
 select_project_findings. Read the returned snapshot with read_finding_selection.
 A revision conflict requires a fresh explicit choice. Refer to the resulting
 own-Run artifact through selected_materials_json when it supports a proposal.
@@ -27,8 +27,13 @@ Only the Server assigns persisted IDs/revisions and binds the complete assertion
 to its checking Task. Tool success means a proposal was saved. Publication occurs
 after a successful Run; a failed or cancelled Run publishes no hypotheses.
 
-Use expected_revision to correct saved output in the same Run. All explicitly
+Submit changed content to correct saved output in the same Run; Runtime manages preconditions. All explicitly
 selected materials count cumulatively across corrections, with the common
 32-material limit. If nothing useful remains, save empty hypotheses and work.
 Never invent a Task to keep an Audit running. Proposing work grants no permission
 to contact a target or create Runs.
+
+For finding selectors send only findingId. For evidence_refs, collection_ref
+and selected_materials_json send namespace/name only. Runtime supplies exact
+versions from discovery or selected inputs/read results. Returned revisions
+remain informational. Unknown materials need a read/selection first.

@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: artifact-copy
-  version: "3"
+  version: '1'
 
 spec:
   parameters: {}

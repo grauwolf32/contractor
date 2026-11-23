@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: worker-compaction
-  version: "1"
+  version: '1'
 
 spec:
   parameters:

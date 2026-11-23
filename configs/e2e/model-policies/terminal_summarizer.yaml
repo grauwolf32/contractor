@@ -3,7 +3,7 @@ kind: ModelPolicy
 
 metadata:
   name: terminal_summarizer
-  version: "1"
+  version: '1'
 
 spec:
   model: worker-summarizer-model

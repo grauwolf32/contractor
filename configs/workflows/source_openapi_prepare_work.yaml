@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 metadata:
   name: source-openapi-prepare-work
-  version: "3"
+  version: '1'
 spec:
   parameters:
     objective:
@@ -57,7 +57,7 @@ spec:
       - application/json
   executionConfig:
     workers:
-      modelPolicy: worker@2
+      modelPolicy: worker@1
       llmGateway: local-litellm@1
       credential: development-worker
     stages:
@@ -86,7 +86,7 @@ spec:
       planner: passthrough@1
       agents:
         analyst:
-          template: workspace_source_graph_analyst@5
+          template: workspace_source_graph_analyst@1
           namespace: analysis
       context:
         artifacts:
@@ -143,7 +143,7 @@ spec:
             deadlineSeconds: 1800
             executionConfig:
               planner:
-                modelPolicy: planner@2
+                modelPolicy: planner@1
                 compactorModelPolicy: compactor@1
                 llmGateway: local-litellm@1
                 credential: development-planner
@@ -154,7 +154,7 @@ spec:
       planner: passthrough@1
       agents:
         analyst:
-          template: workspace_source_graph_analyst@5
+          template: workspace_source_graph_analyst@1
           namespace: analysis
       context:
         artifacts:
@@ -221,7 +221,7 @@ spec:
             deadlineSeconds: 1800
             executionConfig:
               planner:
-                modelPolicy: planner@2
+                modelPolicy: planner@1
                 compactorModelPolicy: compactor@1
                 llmGateway: local-litellm@1
                 credential: development-planner
@@ -232,7 +232,7 @@ spec:
       planner: passthrough@1
       agents:
         builder:
-          template: workspace_openapi_builder@4
+          template: workspace_openapi_builder@1
           namespace: openapi
       context:
         artifacts:
@@ -307,7 +307,7 @@ spec:
             deadlineSeconds: 1800
             executionConfig:
               planner:
-                modelPolicy: planner@2
+                modelPolicy: planner@1
                 compactorModelPolicy: compactor@1
                 llmGateway: local-litellm@1
                 credential: development-planner
@@ -318,7 +318,7 @@ spec:
       planner: passthrough@1
       agents:
         validator:
-          template: workspace_openapi_validator@4
+          template: workspace_openapi_validator@1
           namespace: openapi
       context:
         artifacts:
@@ -403,7 +403,7 @@ spec:
             deadlineSeconds: 1800
             executionConfig:
               planner:
-                modelPolicy: planner@2
+                modelPolicy: planner@1
                 compactorModelPolicy: compactor@1
                 llmGateway: local-litellm@1
                 credential: development-planner

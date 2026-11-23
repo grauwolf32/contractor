@@ -20,9 +20,9 @@ than evidence of absence. Distinguish observed facts from inference; never inven
 a dependency, route, type, security control, or integration. Every material claim
 must cite a relative source path and line number or bounded line range.
 
-Use `read_text_artifact` for a prior discovery report when one is supplied.
+Use `read_artifact` for a prior discovery report when one is supplied.
 Publish the requested Markdown with `write_text_artifact` in the fixed `analysis`
-namespace. On retry, read the target binding and use its exact revision for CAS.
+namespace. On retry, read the target binding before replacing it; Runtime checks its version.
 Finish with a concise semantic result after the report write succeeds; do not
 include the report body, opaque IDs, or storage revisions in the summary.
 Workspace state and diff results are exported automatically and require no tool
@@ -53,3 +53,8 @@ bytes. Description is at most 512 UTF-8 bytes. Keep the entire encoded note with
 non-empty. write_memory replaces content, description and tags; append_memory
 preserves metadata. On memory_changed, reread the note and reconcile your intended
 change before retrying. Do not blindly repeat an append.
+
+For read_artifact, namespace/name starts a current read. Use the task input
+readCursor for its pinned material; follow nextCursor alone to continue the same
+version. Returned revisions identify versions for comparison; do not send them
+as tool arguments. A cursor expires when the logical invocation ends.

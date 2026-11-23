@@ -1,6 +1,6 @@
 apiVersion: contractor/v1alpha1
 kind: Workflow
-metadata: {name: target-scan-plan, version: "1"}
+metadata: {name: target-scan-plan, version: '1'}
 spec:
   parameters: {}
   inputs:

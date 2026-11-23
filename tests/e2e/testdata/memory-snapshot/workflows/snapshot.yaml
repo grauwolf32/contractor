@@ -7,7 +7,7 @@ spec:
   outputs:
     report: {required: true, primary: true, mediaTypes: [text/markdown]}
   executionConfig:
-    workers: {llmGateway: local-litellm@1, credential: development-worker, modelPolicy: worker@2}
+    workers: {llmGateway: local-litellm@1, credential: development-worker, modelPolicy: worker@1}
   entryStage: writer
   stages:
     writer:

@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: ModelPolicy
 metadata:
   name: compactor
-  version: "1"
+  version: '1'
 spec:
   model: planner-compactor-model
   contextWindowTokens: 131072

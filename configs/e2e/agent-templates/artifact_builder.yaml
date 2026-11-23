@@ -3,7 +3,7 @@ kind: AgentTemplate
 
 metadata:
   name: artifact_builder
-  version: "4"
+  version: '1'
 
 spec:
   description: Reads declared input and authors a text report

@@ -1394,8 +1394,8 @@ inferred links or web previews.
 
 The configuration catalog provides these opt-in configurations:
 
-**FND-R147.** `openapi-operation-trace@3` binds
-`audit-openapi-operation-trace@3` and `audit_openapi_operation_tracer@3`. It
+**FND-R147.** `openapi-operation-trace@1` binds
+`audit-openapi-operation-trace@1` and `audit_openapi_operation_tracer@1`. It
 retains the structural graph and source tools, adds text evidence writing and
 `finding`, and uses human-required finding confirmation. Its canonical results
 carry the client keys of successful proposals; `operation-resolution`
@@ -1407,7 +1407,7 @@ It selects `list_findings`, `read_artifact` and text report writing. Its
 generic analysis requires no hypothesis, annotation, OpenAPI input or Audit
 origin.
 
-**FND-R149.** The ordinary `source-findings-review@4` Workflow uses the
+**FND-R149.** The ordinary `source-findings-review@1` Workflow uses the
 code facade. Source verifier and tracer templates select the code facade; the
 HTTP verifier selects the HTTP facade.
 

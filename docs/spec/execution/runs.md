@@ -168,7 +168,7 @@ class WorkflowRunCancellation(BaseModel):
 
 | Field | Shape | Meaning | Owner |
 | --- | --- | --- | --- |
-| `workflow` | Workflow selector, for example `likec4-from-workspace@5` | Selects the exact Workflow document | [Configuration catalog](../configuration/catalog.md) |
+| `workflow` | Workflow selector, for example `likec4-from-workspace@1` | Selects the exact Workflow document | [Configuration catalog](../configuration/catalog.md) |
 | `parameters` | string-to-string map | Workflow parameters | this document |
 | `artifacts` | Workflow input slot to `ArtifactRef` | Input bindings in the source scope of the endpoint | [Artifact store](../artifacts/artifact-store.md) (ART-R74) |
 | `runtimeLabels` | optional sorted unique array of names | Runtime-label selection | this document for the field; [RuntimeConfig](../configuration/runtime-config.md) for resolution |
@@ -1114,14 +1114,14 @@ artifacts:
 A create-Run body selecting Runtime labels:
 
 ```json
-{"workflow":"likec4-from-workspace@5","runtimeLabels":["caido","debug"],"labels":{"purpose":"eval"},"parameters":{},"artifacts":{}}
+{"workflow":"likec4-from-workspace@1","runtimeLabels":["caido","debug"],"labels":{"purpose":"eval"},"parameters":{},"artifacts":{}}
 ```
 
 A create-Run body with both label domains:
 
 ```json
 {
-  "workflow": "openapi-from-workspace@5",
+  "workflow": "openapi-from-workspace@1",
   "runtimeLabels": ["debug"],
   "labels": {
     "purpose": "eval",

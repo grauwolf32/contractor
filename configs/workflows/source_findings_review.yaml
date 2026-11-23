@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 metadata:
   name: source-findings-review
-  version: "4"
+  version: '1'
 spec:
   parameters: {}
   inputs:
@@ -18,7 +18,7 @@ spec:
     workers:
       llmGateway: local-litellm@1
       credential: development-worker
-      modelPolicy: worker@2
+      modelPolicy: worker@1
     stages:
       review:
         agents:
@@ -29,11 +29,11 @@ spec:
     review:
       objective: Inspect the supplied source and report supported security findings with exact source coordinates
       instructions:
-        ref: instructions/source-findings-reviewer-project-findings-investigation-sources.md
+        ref: instructions/source-findings-reviewer.md
       planner: passthrough@1
       agents:
         reviewer:
-          template: source_findings_reviewer@4
+          template: source_findings_reviewer@1
           namespace: source-findings
       context:
         artifacts:
@@ -61,7 +61,7 @@ spec:
             deadlineSeconds: 1800
             executionConfig:
               planner:
-                modelPolicy: planner@2
+                modelPolicy: planner@1
                 compactorModelPolicy: compactor@1
                 llmGateway: local-litellm@1
                 credential: development-planner

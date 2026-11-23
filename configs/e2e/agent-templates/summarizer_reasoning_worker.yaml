@@ -3,7 +3,7 @@ kind: AgentTemplate
 
 metadata:
   name: summarizer_reasoning_worker
-  version: "1"
+  version: '1'
 
 spec:
   description: Deterministic Worker fixture with terminal summarization that includes provider reasoning

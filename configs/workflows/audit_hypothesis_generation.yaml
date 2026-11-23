@@ -3,7 +3,7 @@
   "kind": "Workflow",
   "metadata": {
     "name": "audit-hypothesis-generation",
-    "version": "4"
+    "version": '1'
   },
   "spec": {
     "parameters": {},
@@ -62,7 +62,7 @@
       "workers": {
         "llmGateway": "local-litellm@1",
         "credential": "development-worker",
-        "modelPolicy": "worker@2"
+        "modelPolicy": "worker@1"
       }
     },
     "entryStage": "generate",
@@ -70,12 +70,12 @@
       "generate": {
         "objective": "Propose scoped observable assertions and allowed next checks from selected exact materials and ordinary results",
         "instructions": {
-          "ref": "instructions/audit-hypothesis-generator-runtime-versions-selected-materials.md"
+          "ref": "instructions/audit-hypothesis-generator.md"
         },
         "planner": "passthrough@1",
         "agents": {
           "generator": {
-            "template": "audit_hypothesis_generator@4",
+            "template": "audit_hypothesis_generator@1",
             "namespace": "generator"
           }
         },

@@ -10,11 +10,11 @@ The current shipped programs are:
 
 | Profile | Selected inputs | Work |
 | --- | --- | --- |
-| `openapi-operation-observe@2` | Source ZIP and OpenAPI | Separate passive operation observations |
+| `openapi-operation-observe@1` | Source ZIP and OpenAPI | Separate passive operation observations |
 | `openapi-operation-trace@1` | Source ZIP and OpenAPI | Source tracing with optional evidenced Project problems |
 | `openapi-sqlmap-scan@1` | OpenAPI, engagement and execution parameters | Separate selected request checks using SQLMap |
 | `openapi-nuclei-scan@1` | OpenAPI, engagement and execution parameters | Separate selected URL/template checks using Nuclei |
-| `source-openapi-sqlmap-scan@2` | Source ZIP, engagement and execution parameters | Ordinary source-to-OpenAPI Run, preparation and request checks |
+| `source-openapi-sqlmap-scan@1` | Source ZIP, engagement and execution parameters | Ordinary source-to-OpenAPI Run, preparation and request checks |
 | `web-scan@1` | Target, engagement and optional rulepack | One Task for the selected target |
 
 Fixed assertions also run through this same path: `source-checklist`,

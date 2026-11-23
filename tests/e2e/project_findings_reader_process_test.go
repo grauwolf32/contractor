@@ -138,7 +138,7 @@ func projectFindingsReview(t *testing.T, responseFailure string) {
 	negative := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "results", "negative", "application/json", []byte(`{"verdict":"refuted","tested_conditions":["selected baseline"],"finding":null}`))
 	workflowRef := "project-findings-review@1"
 	if recoverResponse {
-		workflowRef = "project-findings-review@2"
+		workflowRef = "project-findings-review@1"
 	}
 	body, _ := json.Marshal(map[string]any{"workflow": workflowRef, "artifacts": map[string]any{"check_results": negative}})
 	run := postProjectRun(t, h.client, h.baseURL, project.ProjectID, "project-review", body, false)

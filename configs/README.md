@@ -1,9 +1,7 @@
 # Contractor configuration
 
-For new Runs and Audits, use the versioned [working Memory catalog](MEMORY.md).
-It maps all 20 roles and their Workflow/AuditProfile references to explicit
-Memory selections. Superseded exact selectors are removed from this catalog;
-new requests must select an available version explicitly.
+The pre-production catalog was reset on 2026-11-23. Each supplied object has
+one current definition at `@1`; exact selectors and content locks still apply.
 
 This directory contains the executable default configuration for Contractor's
 Application Security orchestration platform. Versioned Workflows define checks
@@ -31,26 +29,26 @@ The current user-facing Workflow set is:
 
 - `audit-web-nuclei-scan@1` for the `web-scan@1` AuditProfile: one explicit
   target with installed or exact custom rules; see [scanner setup](../runtime/README.md#cli-scanners);
-- `openapi-from-workspace@9` and `likec4-from-workspace@9` for four-Stage local
+- `openapi-from-workspace@1` and `likec4-from-workspace@1` for four-Stage local
   graph-backed analysis and document generation;
-- `openapi-from-workspace-streamline@3` and `likec4-from-workspace-streamline@5`
+- `openapi-from-workspace-streamline@1` and `likec4-from-workspace-streamline@1`
   for the same document contracts with a modeled single-Worker Planner;
-- `openapi-from-analysis@5` and `likec4-from-analysis@6` when the caller already
+- `openapi-from-analysis@1` and `likec4-from-analysis@1` when the caller already
   has exact dependency and project reports;
-- `security-analysis@8` and `taint-trace-from-workspace@5` for their explicit
-  focused analysis contracts, and `taint-trace-from-workspace-compact@2`, the
+- `security-analysis@1` and `taint-trace-from-workspace@1` for their explicit
+  focused analysis contracts, and `taint-trace-from-workspace-compact@1`, the
   same trace with opt-in Worker context compaction;
 - `audit-openapi-operation-observe@1` for graph-backed operation analysis in
   the limited `openapi-operation-observe@1` comparison variant;
-- `audit-openapi-operation-trace@2` for graph-backed analysis and finding proposals
-  in `openapi-operation-trace@2`, plus `findings-review@2` for a supplied collection
+- `audit-openapi-operation-trace@1` for graph-backed analysis and finding proposals
+  in `openapi-operation-trace@1`, plus `findings-review@1` for a supplied collection
   and `source-findings-review@1` for exact source-backed proposal review;
   `project-findings-review@1` discovers current Project findings and retains an explicit exact selection;
 - `audit-openapi-nuclei-scan@1` and `audit-openapi-sqlmap-scan@1` for the
   `openapi-nuclei-scan@1` and `openapi-sqlmap-scan@1` AuditProfiles;
-- `project-facts-extract@4` for optional observation selection from an exact Memory snapshot, using one passthrough Worker and common record_fact;
-- `artifact-copy@3` as a deterministic Server copy over an exact source, without a Worker;
-- `podman-python-check@4` as the explicitly selected offline Podman execution fixture.
+- `project-facts-extract@1` for optional observation selection from an exact Memory snapshot, using one passthrough Worker and common fact;
+- `artifact-copy@1` as a deterministic Server copy over an exact source, without a Worker;
+- `podman-python-check@1` as the explicitly selected offline Podman execution fixture.
 
 The passthrough stages of the workspace and analysis-based OpenAPI/LikeC4
 Workflows, security analysis, taint tracing and both findings-review Workflows
@@ -97,16 +95,15 @@ Workflow snapshots; the Audit catalog now starts at `@1` with current completion
 This deliberate demo-era reset does not preserve pre-reset selector meanings. Process-only
 Router/Streamline Memory fixtures live under `configs/e2e` and do not enter the
 default catalog. The working successors listed above select Memory explicitly.
-[MEMORY.md](MEMORY.md) lists the retired identities and their active successors;
-it does not define aliases. Repeat is blocked with `workflow_unavailable` when
+Repeat is blocked with `workflow_unavailable` when
 the original exact Workflow is absent. Removing a bundled resource does not
 remove copies published into a separate managed or operator catalog. Frozen
 instruction-evaluation inputs retain their own exact catalog under `tests/eval`.
 
 The shipped Audit catalog contains six common programs:
-`openapi-operation-observe@1`, `openapi-operation-trace@2`,
+`openapi-operation-observe@1`, `openapi-operation-trace@1`,
 `openapi-sqlmap-scan@1`, `openapi-nuclei-scan@1`,
-`source-openapi-sqlmap-scan@2` and `web-scan@1`.
+`source-openapi-sqlmap-scan@1` and `web-scan@1`.
 Eight checklist/standard profiles execute fixed assertions through the common
 Task/Run/result path: `source-checklist`, Top 10 2025 source risk, ASVS 5.0 L1
 pilot/source review, and full/fast WSTG 4.2 source/active HTTP checks. Checklist
@@ -149,15 +146,15 @@ hydrated sources. An unchanged Stage therefore exports an identity state and
 empty diff. These are internal lineage artifacts retained for future explicit
 Workflow composition; no join behavior or implicit workspace sharing exists.
 
-`podman-python-check@4` is a separate opt-in **direct** workspace example. It
-selects `podman_python_fixer@4`, fixes a small offline Python fixture and publishes
+`podman-python-check@1` is a separate opt-in **direct** workspace example. It
+selects `podman_python_fixer@1`, fixes a small offline Python fixture and publishes
 only an explicitly written JSON report. It neither exports nor imports overlay
 state, mounts Skills nor downloads packages. See the [local Podman setup and
 source ZIP recipe](../runtime/README.md#local-podman-workflow). Existing agents
 need no policy changes; only agents advertising verified local/direct Podman
 execution can accept this workflow.
 
-The discovery Stages use `workspace_source_graph_analyst@4` and select all
+The discovery Stages use `workspace_source_graph_analyst@1` and select all
 eleven bounded structural operations. They wait for a Runtime Agent whose
 positive capability includes the complete local Trailmark graph surface; there
 is no automatic downgrade to shallow analysis.
@@ -184,7 +181,7 @@ select an exact policy without replacing a shared route. The initial selection
 is a deployment bootstrap; it is not a mutable setting of an active Run.
 E2E and optional Eval fixtures have their own policies outside this generator.
 
-The default catalog uses `planner@2` and `worker@2` for normal execution,
+The default catalog uses `planner@1` and `worker@1` for normal execution,
 `summarizer@1` for terminal summaries, `audit_completion_worker@1` for the
 separately selected Audit completion example and `compactor@1` for Workflows
 that select `compact@1`. Each model also has up to five exact model-specific
@@ -197,18 +194,18 @@ profile deployed for as long as its pinned Runs may still execute. A requested
 model identifier is not proof of a provider's observed weights revision.
 
 The Planner and Worker policies both permit 200 model calls at temperature 0.6.
-`planner@2` permits 2,500,000 cumulative provider-reported tokens, 16,384 output
-tokens per response and 200 Worker calls; `worker@2` permits 25,000,000 cumulative
+`planner@1` permits 2,500,000 cumulative provider-reported tokens, 16,384 output
+tokens per response and 200 Worker calls; `worker@1` permits 25,000,000 cumulative
 tokens, 32,768 output tokens per response and 200 tool calls. Cumulative token
 budgets are independent of model context; a larger context can exhaust the
 spending budget before the call budget. Model changes never raise these budgets.
 
-The passthrough workspace Workflows pin `worker@2`.
-`openapi-from-workspace-streamline@3` and `likec4-from-workspace-streamline@5`
+The passthrough workspace Workflows pin `worker@1`.
+`openapi-from-workspace-streamline@1` and `likec4-from-workspace-streamline@1`
 retain the exact graph-backed workspace, artifact handoffs, cumulative state/diff
-and output contracts of their respective `*-from-workspace@7` variants, with
-`streamline@1` in every Stage. Their modeled Planners use `planner@2`;
-their Workers use `worker@2`. The three OpenAPI workflow families retry validation
+and output contracts of their respective `*-from-workspace@1` variants, with
+`streamline@1` in every Stage. Their modeled Planners use `planner@1`;
+their Workers use `worker@1`. The three OpenAPI workflow families retry validation
 with `maxAttempts: 2`: the initial attempt and at most one retry for a retryable
 failure. The retry preserves the effective Run policy; no production escalation
 profile is published. Escalation fixtures remain under testdata.
@@ -294,12 +291,12 @@ capability requirements are recorded in its `assets/provenance.md`. It is seeded
 into the owner Skill catalog without changing existing Workflow selections.
 See [the Skill guide](../docs/guides/agent-skills.md) for selection and execution.
 
-`security-analysis@8` is an opt-in single-Stage workflow for authorized HTTP
+`security-analysis@1` is an opt-in single-Stage workflow for authorized HTTP
 and Caido analysis. It requires the caller to provide `objective`, `target` and
 `authorization_scope` string parameters, accepts one optional text context
-artifact, and freezes one Markdown report. Its `caido_analyst@7` template pins
+artifact, and freezes one Markdown report. Its `caido_analyst@1` template pins
 the versionless `skills/caido-stored-evidence` artifact and explicitly selects every HTTP and
-Caido operation named by that package. `http_explorer@4` provides a reusable
+Caido operation named by that package. `http_explorer@1` provides a reusable
 HTTP-only template without the Caido Skill or adapter requirement.
 
 Infrastructure is not embedded in those manifests. Before starting the

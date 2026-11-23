@@ -3,7 +3,7 @@ kind: AgentTemplate
 
 metadata:
   name: workspace_editor
-  version: "1"
+  version: '1'
 
 spec:
   description: Deterministically edits and exports one hydrated workspace fixture

@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: worker-session-streamline
-  version: "1"
+  version: '1'
 
 spec:
   parameters: {}

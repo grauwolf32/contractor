@@ -52,7 +52,7 @@ func TestArtifactFilePublicationAcrossProcesses(t *testing.T) {
 	// The shipped copy executes without a model or allocation, over arbitrary bytes.
 	payload := []byte("é😀\r\n \t\x00\xff")
 	source := uploadProjectArtifact(t, h.client, h.baseURL, "copy-source", "text/plain", payload)
-	copyRun := createWorkflowRun(t, h.client, h.baseURL, "artifact-copy@3", "server-copy", source)
+	copyRun := createWorkflowRun(t, h.client, h.baseURL, "artifact-copy@1", "server-copy", source)
 	copied := waitForFindingsRun(t, h, copyRun, "succeeded")
 	actual, _ := download(t, h.client, h.baseURL+"/v1/runs/"+url.PathEscape(copyRun)+"/outputs/result")
 	if !bytes.Equal(actual, payload) || copied.Attempts[0].Metrics != nil || h.gateway.CompletedStages() != 0 {

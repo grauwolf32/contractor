@@ -1,6 +1,6 @@
 apiVersion: contractor/v1alpha1
 kind: Workflow
-metadata: {name: project-facts-extract, version: "5"}
+metadata: {name: project-facts-extract, version: '1'}
 spec:
   parameters: {}
   inputs:
@@ -8,15 +8,15 @@ spec:
   outputs:
     report: {required: true, primary: true, mediaTypes: [text/markdown]}
   executionConfig:
-    workers: {llmGateway: local-litellm@1, credential: development-worker, modelPolicy: worker@2}
+    workers: {llmGateway: local-litellm@1, credential: development-worker, modelPolicy: worker@1}
   entryStage: extract
   stages:
     extract:
       objective: Select useful source-grounded Project facts; zero observations is valid
-      instructions: {ref: instructions/fact-extractor-v1-artifact-reader-sources.md}
+      instructions: {ref: instructions/project-facts-extract-stage.md}
       planner: passthrough@1
       agents:
-        extractor: {template: fact_extractor@3, namespace: facts}
+        extractor: {template: fact_extractor@1, namespace: facts}
       context:
         artifacts:
           memories: {namespace: inputs, name: memories, required: true}

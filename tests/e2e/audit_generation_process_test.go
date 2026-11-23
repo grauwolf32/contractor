@@ -311,7 +311,7 @@ func installGenerationAuditProgram(t *testing.T, root string, initial bool) {
 	check.Inputs["material"] = auditcontract.InputMapping{Source: "audit-input", Name: "report"}
 	p.Workflows["check"] = check
 	inputs := map[string]auditcontract.InputMapping{"context": {Source: "task-context"}, "analysis": {Source: "prior-results"}, "results": {Source: "task-results"}, "materials": {Source: "audit-input", Name: "materials"}, "material": {Source: "audit-input", Name: "report"}}
-	p.Workflows["generate"] = auditcontract.ProgramWorkflow{Ref: "audit-hypothesis-generation@4", Inputs: inputs, Parameters: map[string]string{}, Outputs: map[string]string{"proposals": "proposals"}}
+	p.Workflows["generate"] = auditcontract.ProgramWorkflow{Ref: "audit-hypothesis-generation@1", Inputs: inputs, Parameters: map[string]string{}, Outputs: map[string]string{"proposals": "proposals"}}
 	p.Continuation = &auditcontract.Continuation{Workflow: "generate"}
 	p.InitialWork = []auditcontract.InitialWork{{Key: "initial-generation", Workflow: "generate", Objective: "Propose a scoped check from selected materials"}}
 	if !initial {

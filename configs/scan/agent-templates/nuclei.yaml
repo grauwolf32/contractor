@@ -1,6 +1,6 @@
 apiVersion: contractor/v1alpha1
 kind: AgentTemplate
-metadata: {name: nuclei-scan, version: "1"}
+metadata: {name: nuclei-scan, version: '1'}
 spec:
   description: Scan one target using installed nuclei HTTP templates.
   runtime: tool@1

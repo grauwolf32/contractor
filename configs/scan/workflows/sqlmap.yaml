@@ -1,6 +1,6 @@
 apiVersion: contractor/v1alpha1
 kind: Workflow
-metadata: {name: sqlmap-request, version: "1"}
+metadata: {name: sqlmap-request, version: '1'}
 spec:
   parameters: {}
   inputs:

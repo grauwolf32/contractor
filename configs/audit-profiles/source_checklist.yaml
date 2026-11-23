@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: AuditProfile
 metadata:
   name: source-checklist
-  version: "8"
+  version: '1'
 spec:
   schema: contractor.audit.program.v1
   inputs:
@@ -17,7 +17,7 @@ spec:
       - application/yaml
   workflows:
     check:
-      ref: audit-source-check@8
+      ref: audit-source-check@1
       inputs:
         source:
           source: audit-input

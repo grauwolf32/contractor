@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 metadata:
   name: project-findings-review
-  version: "1"
+  version: '1'
 spec:
   parameters: {}
   inputs:
@@ -21,7 +21,7 @@ spec:
     workers:
       llmGateway: local-litellm@1
       credential: development-worker
-      modelPolicy: worker@2
+      modelPolicy: worker@1
     stages:
       analyze:
         agents:
@@ -77,7 +77,7 @@ spec:
             deadlineSeconds: 1800
             executionConfig:
               planner:
-                modelPolicy: planner@2
+                modelPolicy: planner@1
                 compactorModelPolicy: compactor@1
                 llmGateway: local-litellm@1
                 credential: development-planner

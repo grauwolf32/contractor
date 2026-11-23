@@ -660,6 +660,13 @@ database transition is included in this fold; crossing it with a populated
 database requires a separately authorized data-preserving operational change.
 Subsequent schema changes again use the next free migration version.
 
+The user-authorized pre-production reset on 2026-11-23 replaces the baseline
+and versions 000002–000010 with their final installed schema and seed values.
+The demo is replaced with a fresh database after backup restoration is verified;
+Projects are recreated through the public API. Previous execution history stays
+in the backup. Strict stale-ledger rejection remains; subsequent changes again
+start at the next migration version.
+
 **PER-R31.** The migration budget is the operation budget (PER-R19) of the
 migrator's transaction. The operator chooses it for each run, with
 `--statement-timeout` and `--lock-timeout` or with

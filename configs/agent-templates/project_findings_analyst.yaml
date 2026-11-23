@@ -2,10 +2,11 @@ apiVersion: contractor/v1alpha1
 kind: AgentTemplate
 metadata:
   name: project_findings_analyst
-  version: "1"
+  version: '1'
 spec:
   description: Reviews selected Project findings and writes an evidence-grounded report
   runtime: adk@1
+  responseRecovery: document@1
   instructions:
     ref: instructions/project-findings-analyst.md
   summarizer:

@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: AgentTemplate
 metadata:
   name: interactsh_analyst
-  version: "2"
+  version: '1'
 spec:
   description: Performs bounded authorized out-of-band checks and retains callback evidence
   runtime: adk@1

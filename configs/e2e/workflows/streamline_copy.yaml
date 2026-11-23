@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: streamline-copy
-  version: "1"
+  version: '1'
 
 spec:
   parameters:
@@ -40,7 +40,7 @@ spec:
       planner: streamline@1
       agents:
         builder:
-          template: artifact_builder@4
+          template: artifact_builder@1
       context:
         artifacts:
           source:

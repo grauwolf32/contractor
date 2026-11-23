@@ -105,7 +105,7 @@ func TestArtifactImagesAcrossProcesses(t *testing.T) {
 			"agent-templates/artifact_image_fixture.yaml":    imageFixtureTemplate,
 			"model-policies/image_fixture.yaml":              imageFixturePolicy,
 			"workflows/artifact_image_fixture.yaml":          imageFixtureWorkflow,
-			"workflows/artifact_image_unknown_fixture.yaml":  strings.ReplaceAll(strings.ReplaceAll(imageFixtureWorkflow, "artifact-image-fixture", "artifact-image-unknown-fixture"), "modelPolicy: image-fixture@1", "modelPolicy: worker@2"),
+			"workflows/artifact_image_unknown_fixture.yaml":  strings.ReplaceAll(strings.ReplaceAll(imageFixtureWorkflow, "artifact-image-fixture", "artifact-image-unknown-fixture"), "modelPolicy: image-fixture@1", "modelPolicy: worker@1"),
 			"instructions/artifact-image-fixture.md":         "Read the assigned source with read_artifact. Report whether the configured route received an image or an explicit unavailable outcome. Do not reconstruct source bytes.",
 			"instructions/artifact-image-planner-fixture.md": "Check image delivery through the prepared Worker.",
 		} {

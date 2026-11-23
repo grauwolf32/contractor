@@ -323,10 +323,10 @@ Each value is an object with the required `template` field and an optional
 ```yaml
 agents:
   oas_builder:
-    template: openapi_builder@4
+    template: openapi_builder@1
     namespace: oas
   reviewer:
-    template: openapi_validator@4
+    template: openapi_validator@1
 ```
 
 **WFL-R23.** The mapping key is the stable logical name visible to
@@ -393,7 +393,7 @@ invalid (no legacy reader). `template@1` has no other member.
 ```yaml
 agents:
   analyst:
-    template: workspace_taint_analyst@4
+    template: workspace_taint_analyst@1
     contextManagement:
       strategy: compact@1
       instructions:
@@ -624,7 +624,7 @@ summarized:
         ref: instructions/planner-compaction.md
     executionConfig:
       planner:
-        modelPolicy: planner@2
+        modelPolicy: planner@1
         compactorModelPolicy: compactor@1
         llmGateway: local-litellm@1
         credential: development-planner
@@ -811,9 +811,9 @@ catalog ([CAN-R90](../tools/code-analysis.md)) are:
 
 | Workflow | Planner | Discovery AgentTemplate | Placement effect |
 |---|---|---|---|
-| `openapi-from-workspace@5` | `passthrough@1` | `workspace_source_graph_analyst@1` | Selects all eleven operations; waits for complete local graph capacity |
-| `likec4-from-workspace@5` | `passthrough@1` | `workspace_source_graph_analyst@1` | Same graph placement contract |
-| `likec4-from-workspace-streamline@2` | `streamline@1` | `workspace_source_graph_analyst@1` | Same graph placement contract with modeled Stage decomposition |
+| `openapi-from-workspace@1` | `passthrough@1` | `workspace_source_graph_analyst@1` | Selects all eleven operations; waits for complete local graph capacity |
+| `likec4-from-workspace@1` | `passthrough@1` | `workspace_source_graph_analyst@1` | Same graph placement contract |
+| `likec4-from-workspace-streamline@1` | `streamline@1` | `workspace_source_graph_analyst@1` | Same graph placement contract with modeled Stage decomposition |
 
 **WFL-R78.** Historical source-backed and shallow/default workspace
 Workflow versions are not published or archived.
@@ -828,7 +828,7 @@ output slot names, including `openapi`, `likec4`, `docs` and domain-qualified
 report names.
 
 The discovery and taint AgentTemplates and the one-Stage
-`taint-trace-from-workspace@2` Workflow are specified in
+`taint-trace-from-workspace@1` Workflow are specified in
 [Code analysis](../tools/code-analysis.md) (CAN-R90, CAN-R92, CAN-R132,
 CAN-R133).
 

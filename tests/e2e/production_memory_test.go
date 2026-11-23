@@ -3,7 +3,6 @@
 package e2e
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,23 +41,6 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 			}
 		}
 	}
-	var catalog struct {
-		Templates []struct {
-			Active     string
-			ActiveFile string `json:"active_file"`
-		} `json:"templates"`
-		Workflows []struct {
-			Active     string
-			ActiveFile string `json:"active_file"`
-		} `json:"workflows"`
-	}
-	data, err := os.ReadFile(filepath.Join(repositoryRoot, "configs/memory-catalog.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(data, &catalog); err != nil {
-		t.Fatal(err)
-	}
 	template, workflow := "", ""
 	copyFile := func(relative string) []byte {
 		data, err := os.ReadFile(filepath.Join(repositoryRoot, relative))
@@ -82,13 +64,9 @@ func stageProductionMemoryConfiguration(t *testing.T, repositoryRoot, target str
 			}
 		}
 	}
-	for _, entry := range catalog.Templates {
-		if entry.Active == "artifact_builder@3" {
-			template = entry.Active
-			if err := yaml.Unmarshal(copyFile(entry.ActiveFile), &selected); err != nil {
-				t.Fatal(err)
-			}
-		}
+	template = "artifact_builder@1"
+	if err := yaml.Unmarshal(copyFile("configs/agent-templates/artifact_builder.yaml"), &selected); err != nil {
+		t.Fatal(err)
 	}
 	workflow = "artifact-report-memory-fixture@1"
 	fixture, err := os.ReadFile(filepath.Join(repoRoot(t), "tests/e2e/testdata/production-memory/workflow.yaml"))

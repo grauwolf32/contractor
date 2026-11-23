@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: capability-copy
-  version: "1"
+  version: '1'
 
 spec:
   parameters: {}
@@ -33,7 +33,7 @@ spec:
       planner: passthrough@1
       agents:
         builder:
-          template: capability_copy_builder@2
+          template: capability_copy_builder@1
       context:
         artifacts:
           source:
