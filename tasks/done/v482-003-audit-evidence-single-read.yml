@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V478-004
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: Each collection reads and validates the retained evidence once, then reuses it for final and interrupted result assembly.
@@ -44,3 +44,4 @@ verification:
   - The complete auditimport suite also rejects foreign sources, task identities and hypotheses, and excludes uncited assigned materials.
   - TestAuditIncrementalEvidenceAcrossProcesses passed and its complete Go event report was verified with the shared verifier.
   - make lint passed. Production Go shrinks by 17 lines across the three changed implementation files.
+implementation_commit: bfea9b628a43dc817184258ee75b7f291fd30b8a
