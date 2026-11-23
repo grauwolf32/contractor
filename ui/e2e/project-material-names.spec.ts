@@ -107,6 +107,7 @@ for (const theme of ["light", "dark", "black"])
       await expect(
         page.getByRole("link", { name: "sources/shop", exact: true }),
       ).toBeVisible();
+      await page.getByText("Filter by namespace", { exact: true }).click();
       await page.getByPlaceholder("all namespaces").fill("openapi");
       await page.getByRole("button", { name: "Apply", exact: true }).click();
       await expect(

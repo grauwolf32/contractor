@@ -580,7 +580,9 @@ for (const theme of ["light", "dark", "black"] as const) {
       });
       const results = page.getByRole("region", { name: "Recent results" });
       const output = results.getByRole("article", { name: "openapi" });
-      await expect(output.getByText("outputs/openapi@result-r1")).toBeVisible();
+      await expect(
+        output.getByTitle("outputs/openapi@result-r1"),
+      ).toBeVisible();
       const field = composer.getByRole("textbox");
       await expect(field).toHaveAttribute("maxlength", "4000");
       await expect(
@@ -677,9 +679,13 @@ for (const theme of ["light", "dark", "black"] as const) {
       await navigation
         .getByRole("link", { name: "Overview", exact: true })
         .click();
-      await expect(
-        page.getByRole("button", { name: "Refresh", exact: true }).last(),
-      ).toBeInViewport();
+      const refresh = page.getByRole("button", {
+        name: "Refresh project details",
+        exact: true,
+      });
+      await expect(refresh).toHaveCount(1);
+      await refresh.scrollIntoViewIfNeeded();
+      await expect(refresh).toBeInViewport();
       await expect
         .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
         .toBeLessThanOrEqual(width);

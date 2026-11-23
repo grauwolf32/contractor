@@ -10,7 +10,13 @@ import { ContextLink } from "../../app/context-navigation";
 import { ErrorNotice } from "../../app/error-notice";
 import { QueryView } from "../../app/query-view";
 import { RecordedTime } from "../../app/recorded-time";
-import { Button, IdChip, IconButton, StatusChip } from "../../ui";
+import {
+  Button,
+  IdChip,
+  IconButton,
+  StatusChip,
+  TechnicalDetails,
+} from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import {
   organizeRunOutputs,
@@ -146,7 +152,7 @@ function ProjectResult({
               ? "Primary result"
               : entry.kind === "declared"
                 ? "Supporting result"
-                : "Run output"}
+                : "Saved result"}
             {entry.declaration
               ? ` · ${entry.declaration.mediaTypes.map((type) => workflowFormats[type] ?? type).join(" / ")}`
               : ""}
@@ -171,7 +177,9 @@ function ProjectResult({
           />
         </div>
       </div>
-      <code className="projects-output-ref">{exactRef}</code>
+      <div className="projects-output-ref">
+        <IdChip value={exactRef} label={`${entry.slot} revision`} />
+      </div>
       {download.error === null ? null : (
         <ErrorNotice
           error={download.error}
@@ -246,12 +254,23 @@ function RecentRunResult({
       ) : (
         <>
           {contract.error ? (
-            <p className="ui-caption">
-              Output roles unavailable.{" "}
+            <TechnicalDetails
+              summary={
+                contract.data === undefined
+                  ? "Result labels could not be loaded"
+                  : "Result labels could not be refreshed"
+              }
+            >
+              <p className="ui-caption">
+                {contract.data === undefined
+                  ? "Saved files are still available. The primary and supporting labels are unknown until their Workflow is loaded."
+                  : "Showing the previously loaded primary and supporting labels."}
+              </p>
+              <p className="ui-caption">{contract.error.message}</p>
               <Button size="xs" onClick={() => void contract.refetch()}>
-                Retry output roles
+                Retry result labels
               </Button>
-            </p>
+            </TechnicalDetails>
           ) : null}
           {shown.length === 0 ? (
             <>

@@ -518,7 +518,7 @@ const FIRST_DECIDED =
   "Decision recorded on “Any user can read any report”: Not an issue.";
 
 describe("Inbox", () => {
-  it("labels a partial decision count as a lower bound and keeps the list selected", async () => {
+  it("labels a partial decision count as a lower bound and opens its loaded issue directly", async () => {
     const server = emptyServer();
     server.projects = [build.project("project_shop")];
     const one = finding(
@@ -527,6 +527,7 @@ describe("Inbox", () => {
       "A retained possible issue",
       1,
     );
+    server.findings = { project_shop: [one] };
     server.override = (url) => {
       if (
         url.pathname !== "/v1/findings" ||
@@ -540,7 +541,15 @@ describe("Inbox", () => {
     const view = renderApplication("/", { server: inboxServer(server) });
     expect(await screen.findByText("At least 1 needs you.")).toBeVisible();
     expect(screen.queryByText("Nothing needs you right now.")).toBeNull();
-    expect(view.router.state.location.search).toBe("");
+    await waitFor(() =>
+      expect(view.router.state.location.search).toContain(
+        "item=issue:project_shop:finding_partial",
+      ),
+    );
+    expect(
+      await screen.findByRole("heading", { name: one.title }),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
   });
 
   it("says plainly when a section is empty", async () => {

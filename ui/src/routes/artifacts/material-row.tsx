@@ -49,6 +49,8 @@ export function MaterialRow({
   returnLabel: string;
 }) {
   const identity = item.artifact;
+  const previewParams = new URLSearchParams(to.split("?")[1] ?? "");
+  previewParams.set("revision", identity.revision);
   return (
     <ListRow
       glyph={<MaterialKindIcon kind={materialKindOf(item)} />}
@@ -58,13 +60,21 @@ export function MaterialRow({
         <ContextLink
           className="materials-row-link"
           to={to}
+          aria-label={`${identity.namespace}/${identity.name}`}
           returnLabel={returnLabel}
         >
-          <MaterialName namespace={identity.namespace} name={identity.name} />
+          {identity.name}
         </ContextLink>
       }
       meta={[
-        formatLabel(item.mediaType),
+        <span key="format" title={item.mediaType}>
+          {formatLabel(item.mediaType).includes("/")
+            ? "File"
+            : formatLabel(item.mediaType)}
+        </span>,
+        <span key="namespace" className="materials-ns">
+          {identity.namespace}
+        </span>,
         formatBytes(item.size),
         <RecordedTime key="created" value={item.createdAt} />,
         item.gitSource === undefined ? null : (
@@ -77,6 +87,16 @@ export function MaterialRow({
           </span>
         ) : null,
       ]}
+      trailing={
+        <ContextLink
+          className="materials-row-preview"
+          to={`${to.split("?")[0]}?${previewParams.toString()}`}
+          returnLabel={returnLabel}
+          aria-label={`Preview ${identity.namespace}/${identity.name}`}
+        >
+          Preview →
+        </ContextLink>
+      }
     />
   );
 }

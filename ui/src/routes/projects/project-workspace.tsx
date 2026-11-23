@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { Link, Outlet, useLocation } from "react-router";
+import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 
 import { useDocumentTitle } from "../../app/document-title";
 import { ErrorNotice } from "../../app/error-notice";
@@ -33,6 +34,12 @@ import "../primary-actions.css";
  * then returns to /projects.
  */
 export function ProjectWorkspace({ projectId }: { projectId: string }) {
+  const client = useQueryClient();
+  const projectReads = {
+    predicate: (query: { queryKey: readonly unknown[] }) =>
+      query.queryKey.includes(projectId),
+  };
+  const refreshing = useIsFetching(projectReads) > 0;
   const { pathname } = useLocation();
   const section = projectSectionOf(pathname, projectId);
   const workspace = useWorkspaceProject(projectId, "project");
@@ -86,7 +93,16 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
           </span>
         </>
       }
-      actions={<ProjectActions workspace={workspace} noun="Project" />}
+      actions={
+        <ProjectActions
+          workspace={workspace}
+          noun="Project"
+          refreshing={refreshing}
+          onRefresh={() => {
+            void client.invalidateQueries(projectReads);
+          }}
+        />
+      }
     />
   );
 

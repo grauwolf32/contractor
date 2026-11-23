@@ -55,6 +55,14 @@ function Editor({
   const [rationale, setRationale] = useState("");
   const [target, setTarget] = useState("");
   const [notice, setNotice] = useState("");
+  const [editing, setEditing] = useState(false);
+  const wasEditing = useRef(false);
+  useLayoutEffect(() => {
+    if (wasEditing.current !== editing)
+      root.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    wasEditing.current = editing;
+  }, [editing]);
+  const review = presentation === "review";
   const [keys] = useState(
     () => new MutationDraftKeyring<EditOptions>("project-finding"),
   );
@@ -93,6 +101,7 @@ function Editor({
       setNotice("Assessment saved.");
       setRationale("");
       setVerdict(undefined);
+      setEditing(false);
       await refresh();
       onDecided?.(result);
     },
@@ -103,6 +112,12 @@ function Editor({
       onRecording?.(false);
     },
   });
+  const collapsed =
+    review &&
+    finding.analystVerdict !== null &&
+    !editing &&
+    verdict === undefined &&
+    !mutation.isPending;
   const draft =
     verdict === undefined
       ? undefined
@@ -139,6 +154,16 @@ function Editor({
     setNotice("");
     mutation.mutate(options);
   };
+  const summaryAction =
+    finding.claim?.description && (!review || verdict !== undefined) ? (
+      <Button
+        size="xs"
+        disabled={mutation.isPending || stale}
+        onClick={() => setRationale(aiSummary(finding))}
+      >
+        Use issue summary
+      </Button>
+    ) : undefined;
   return (
     <section
       ref={root}
@@ -146,121 +171,142 @@ function Editor({
       className="decisions-finding"
       data-review-layout={presentation === "review" || undefined}
     >
-      <p className="ui-caption">
-        This assessment belongs to the Project and is shared by every check.
-      </p>
-      {notice === "" ? null : <p role="status">{notice}</p>}
-      {stale ? (
-        <p role="alert">
-          This possible issue changed. Your draft is still here.{" "}
-          <Button
-            size="xs"
-            onClick={() => {
-              setBaseRevision(finding.revision);
-              mutation.reset();
-            }}
-          >
-            Use current revision
-          </Button>
+      {notice === "" ? null : (
+        <p className="decisions-save-notice" role="status">
+          {notice}
         </p>
-      ) : null}
-      <DecisionBar
-        deferDraft={presentation === "review"}
-        options={(Object.keys(VERDICT_ACTIONS) as FindingVerdict[])
-          .filter(
-            (id) =>
-              id !== "reopen" ||
-              finding.analystVerdict !== null ||
-              verdict === "reopen",
-          )
-          .map((id) => ({
-            id,
-            label:
-              presentation === "review" && id === "duplicate"
-                ? "Mark as duplicate"
-                : VERDICT_ACTIONS[id],
-            ...(shortcuts
-              ? {
-                  shortcut: {
-                    true_positive: "c",
-                    false_positive: "r",
-                    needs_evidence: "e",
-                    duplicate: "d",
-                    reopen: "o",
-                  }[id],
-                }
-              : {}),
-          }))}
-        more={
-          finding.claim?.description ? (
-            <Button
-              size="xs"
-              disabled={mutation.isPending || stale}
-              onClick={() => setRationale(aiSummary(finding))}
-            >
-              Use issue summary
-            </Button>
-          ) : undefined
-        }
-        selected={verdict}
-        onSelect={(value) => {
-          setVerdict(value as FindingVerdict);
-          setNotice("");
-        }}
-        severity={
-          verdict === "true_positive"
-            ? {
-                options: SEVERITY_OPTIONS,
-                value: severity,
-                onChange: (value) => setSeverity(value as FindingSeverity),
-                required: true,
-              }
-            : undefined
-        }
-        rationale={{
-          value: rationale,
-          onChange: setRationale,
-          maxLength: MAX_RATIONALE_BYTES,
-          placeholder: "What led you to this decision?",
-          hint: "Required. Saved with your assessment.",
-        }}
-        onSubmit={submit}
-        submitLabel="Record decision"
-        pending={mutation.isPending}
-        next={presentation === "review" ? undefined : next}
-        disabledReason={
-          stale ? "Review the current revision before saving." : undefined
-        }
-        validationProblem={problem}
-        extra={
-          verdict === "duplicate" ? (
-            <DuplicatePicker
-              projectId={finding.projectId}
-              findingId={finding.findingId}
-              value={target}
-              onChange={setTarget}
-            />
-          ) : undefined
-        }
-        error={
-          mutation.error === null ? undefined : (
-            <span>
-              {mutation.error.message}{" "}
-              {mutation.variables === undefined ? null : (
-                <Button
-                  size="xs"
-                  onClick={() => {
-                    onRecording?.(true);
-                    mutation.mutate(mutation.variables!);
-                  }}
-                >
-                  Retry this save
-                </Button>
-              )}
-            </span>
-          )
-        }
-      />
+      )}
+      {collapsed ? (
+        <div className="decisions-review-actions">
+          <Button size="sm" onClick={() => setEditing(true)}>
+            Change decision
+          </Button>
+        </div>
+      ) : (
+        <>
+          {stale ? (
+            <p role="alert">
+              This possible issue changed. Your draft is still here.{" "}
+              <Button
+                size="xs"
+                onClick={() => {
+                  setBaseRevision(finding.revision);
+                  mutation.reset();
+                }}
+              >
+                Use current revision
+              </Button>
+            </p>
+          ) : null}
+          <DecisionBar
+            deferDraft={presentation === "review"}
+            options={(Object.keys(VERDICT_ACTIONS) as FindingVerdict[])
+              .filter(
+                (id) =>
+                  id !== "reopen" ||
+                  finding.analystVerdict !== null ||
+                  verdict === "reopen",
+              )
+              .map((id) => ({
+                id,
+                label:
+                  presentation === "review" && id === "duplicate"
+                    ? "Mark as duplicate"
+                    : VERDICT_ACTIONS[id],
+                ...(shortcuts
+                  ? {
+                      shortcut: {
+                        true_positive: "c",
+                        false_positive: "r",
+                        needs_evidence: "e",
+                        duplicate: "d",
+                        reopen: "o",
+                      }[id],
+                    }
+                  : {}),
+              }))}
+            more={
+              review && editing ? (
+                <>
+                  {summaryAction}
+                  <Button
+                    size="xs"
+                    disabled={mutation.isPending}
+                    onClick={() => {
+                      setEditing(false);
+                      setVerdict(undefined);
+                      setRationale("");
+                      setNotice("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                summaryAction
+              )
+            }
+            selected={verdict}
+            onSelect={(value) => {
+              setVerdict(value as FindingVerdict);
+              setNotice("");
+            }}
+            severity={
+              verdict === "true_positive"
+                ? {
+                    options: SEVERITY_OPTIONS,
+                    value: severity,
+                    onChange: (value) => setSeverity(value as FindingSeverity),
+                    required: true,
+                  }
+                : undefined
+            }
+            rationale={{
+              value: rationale,
+              onChange: setRationale,
+              maxLength: MAX_RATIONALE_BYTES,
+              placeholder: "What led you to this decision?",
+              hint: "Required. Saved with your assessment.",
+            }}
+            onSubmit={submit}
+            submitLabel="Record decision"
+            pending={mutation.isPending}
+            next={presentation === "review" ? undefined : next}
+            disabledReason={
+              stale ? "Review the current revision before saving." : undefined
+            }
+            validationProblem={problem}
+            extra={
+              verdict === "duplicate" ? (
+                <DuplicatePicker
+                  projectId={finding.projectId}
+                  findingId={finding.findingId}
+                  value={target}
+                  onChange={setTarget}
+                />
+              ) : undefined
+            }
+            error={
+              mutation.error === null ? undefined : (
+                <span>
+                  {mutation.error.message}{" "}
+                  {mutation.variables === undefined ? null : (
+                    <Button
+                      size="xs"
+                      onClick={() => {
+                        onRecording?.(true);
+                        mutation.mutate(mutation.variables!);
+                      }}
+                    >
+                      Retry this save
+                    </Button>
+                  )}
+                </span>
+              )
+            }
+          />
+        </>
+      )}
     </section>
   );
 }

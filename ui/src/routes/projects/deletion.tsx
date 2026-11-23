@@ -50,9 +50,13 @@ const DELETION_PHASES: readonly ProjectDeletionPhase[] = [
 export function ProjectActions({
   workspace,
   noun,
+  onRefresh,
+  refreshing,
 }: {
   workspace: WorkspaceProject;
   noun: "Project" | "Workspace";
+  onRefresh?: (() => void) | undefined;
+  refreshing?: boolean | undefined;
 }) {
   const { project } = workspace;
   if (noun === "Project")
@@ -62,8 +66,8 @@ export function ProjectActions({
           label="Refresh project details"
           size="sm"
           icon={<Icon name="refresh" />}
-          pending={project.isFetching}
-          onClick={() => void project.refetch()}
+          pending={refreshing ?? project.isFetching}
+          onClick={onRefresh ?? (() => void project.refetch())}
         />
         {workspace.activeProject === undefined ? null : (
           <Button

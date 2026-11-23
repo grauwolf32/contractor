@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useLocation, useSearchParams } from "react-router";
 
 import type { ArtifactWriteResponse } from "../../api/artifacts";
@@ -18,6 +18,7 @@ import { MaterialList } from "../artifacts/material-list";
 import { MaterialRow } from "../artifacts/material-row";
 import { MaterialAddedNotice } from "../artifacts/notices";
 import { artifactDetailPath } from "../artifacts/paths";
+import { ProjectSectionActionsContext } from "./section-actions-context";
 import "../artifacts/materials.css";
 
 /** `?add=artifact` opens the "Add material" sheet (a deep link from Overview). */
@@ -33,6 +34,7 @@ const CURSOR_PARAM = "artifactsCursor";
  */
 export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
   const api = usePublicAPI();
+  const workspaceActions = useContext(ProjectSectionActionsContext);
   const [filters, setFilters] = useSearchParams();
   const location = useLocation();
   const pageNow = usePageLocationNow();
@@ -142,11 +144,7 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
     >
       <div className="materials-region-head">
         <p className="materials-region-intro">
-          Source code, API specs, architecture models and docs for checks and
-          Runs. Each check and Run reads one exact version, so a new version
-          never changes earlier results. Historical archives appear only when
-          their namespace is selected. Execution details are available in each
-          Run.
+          Source code, API specs and supporting files for your checks.
         </p>
         <div className="ui-toolbar">
           <Button
@@ -157,11 +155,13 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
           >
             Add material
           </Button>
-          <RefreshButton
-            isFetching={query.isFetching}
-            onRefresh={() => void query.refetch()}
-            label="Refresh"
-          />
+          {workspaceActions !== undefined ? null : (
+            <RefreshButton
+              isFetching={query.isFetching}
+              onRefresh={() => void query.refetch()}
+              label="Refresh"
+            />
+          )}
         </div>
       </div>
 
@@ -183,6 +183,7 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
           namespace={namespace}
           onNamespace={setNamespaceFilter}
           noun="materials"
+          advancedFilter
           empty={{
             title: "No materials yet",
             text: "Add source code, an API spec, an architecture model or docs so checks have something to read.",

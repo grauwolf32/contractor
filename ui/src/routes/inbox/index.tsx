@@ -225,7 +225,6 @@ export function InboxRoute() {
     }
     if (Object.values(data.pending).some(Boolean)) return;
     initialEntry.current = true;
-    if (data.incomplete || data.summary.truncated) return;
     const first = model.order[0];
     if (first !== undefined)
       void navigate(

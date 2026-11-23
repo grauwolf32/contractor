@@ -351,11 +351,12 @@ canonical unassessed Project Findings through the owner-scoped Finding list.
 Annotations do not block execution or completion. There are no item approval or
 report acceptance requests (ACT-R9).
 
-After successful initial reads, desktop entry selects the first listed item
-once. Explicit item links, partial reads and returning to the queue keep the
-user's selection; mobile entry starts with the queue. Unselected content is a
-compact continuation, loading, partial-read or empty state rather than duplicate
-section counters. Selected Findings reuse the complete Issues reader and
+Once initial reads settle, desktop entry selects the first loaded item once,
+including when other sources are incomplete. Partial-read notices remain in the
+queue. Explicit item links and returning to the queue keep the user's selection;
+mobile entry starts with the queue. Unselected content is a loading, partial-read,
+selection prompt or empty state; it does not repeat an item's title behind an
+extra Continue action. Selected Findings reuse the complete Issues reader and
 Project annotation owner; selected reports reuse the complete Reports reader,
 status, safe Markdown and downloads. A completed check without an aggregate
 report links to its ordinary task results. Inbox retains its queue navigation
@@ -1560,6 +1561,10 @@ refetch loaded settled pages. Navigation cancels obsolete reads. Use shared
 components and tokens at 390 px and in light, dark and black themes.
 The same actual-page-entry, closed-disclosure and cached-fact refresh rule as
 UI-R208 applies, including after navigation cancelled a terminal-state read.
+Messages and outcomes precede secondary fields; call references are compact
+and copy the full value. Call details retain exact codes, retryability and
+sanitized arguments. Missing measurements say Not recorded. Attempt diagnostics
+use the available width and remain separate from individual tool errors.
 
 ### Check-local SARIF export
 
@@ -1661,9 +1666,12 @@ allows. A recorded-decision surface uses only the actual analyst decision and
 keeps its actor, recorded time and rationale readable. The shared FindingDecision
 owner retains eligibility, required inputs, stale checks, receipts and focus rules;
 Mark as duplicate is an explicit action. The compact composer expands after a
-verdict is selected. Why sits above a full-width rationale field, with Record
+verdict is selected. Saved assessments expose Change decision before opening
+the editor. Idle review does not show draft-only hints or summary-copy actions;
+a failed stale edit keeps the complete draft visible. Why sits above a full-width rationale field, with Record
 decision on its own row (full width on phones) and the existing required-input
-help. At phone widths the header and full composer scroll with the content; the
+help. The expanded composer scrolls with the content at every width rather than
+covering the reader. At phone widths the header also scrolls with the content; the
 four review verdicts use two columns, and the redundant Next item footer action
 is omitted. Previous/count/Next share one header row and View in Project (or an explicitly selected check context)
 occupies the next; J/K navigation remains.
@@ -1774,6 +1782,11 @@ keyboard row focus avoids scrolling ancestors before revealing the row. The
 embedded API renderer updates its configuration without remounting for each
 operation. Intentional anchors, local references, mobile list/detail transitions
 and the existing keyboard focus contract remain available.
+Project sections share the same header typography, padding and metadata layout;
+switching Overview/Materials does not reposition the Project ID or tabs. One
+Project refresh action refreshes the loaded Project reads. Materials foreground
+the files and their formats, with namespace filtering available as an advanced
+disclosure; exact identities and media types remain available in the reader.
 
 
 **UI-R232.** Run, Check and Project show the Server-prepared retained LLM cost
@@ -1784,8 +1797,11 @@ section requests the visible execution IDs in one bounded read, including
 retained snapshots after source Run deletion. The browser never fans out over
 Run history, reprices tokens or sums child Runs into a Project total.
 Source (Reported, Estimate, Mixed sources) is independent from coverage
-(complete, partial, pending, unavailable). Missing amounts are a dash; known
-zero is explicit. Positive amounts below a cent display `<$0.01`, with the
+(complete, partial, pending, unavailable). A missing main amount is labelled
+No recorded cost (Awaiting cost data while pending), with an explanation of
+retention or pending reports. Empty Project partitions are not repeated as
+unexplained dashes. Missing breakdown amounts remain a dash; known zero is
+explicit. Positive amounts below a cent display `<$0.01`, with the
 exact decimal available in details. Details switch between activity and model
 breakdown and explain historical gaps. Monetary arithmetic uses exact decimal
 strings and integer units; display rounding never changes totals. Failed reads

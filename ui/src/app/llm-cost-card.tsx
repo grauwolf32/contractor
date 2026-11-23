@@ -71,15 +71,26 @@ export function LLMCostCard({
                   ? "Partial"
                   : coverage === "pending"
                     ? "Updating"
-                    : "Unavailable"}
+                    : "No cost data"}
               </StatusChip>
             ) : null}
           </div>
         </header>
         <div className="llm-cost-main">
           <div>
-            <div className="llm-cost-total">
-              <CostAmount amount={value.amount} />
+            <div
+              className="llm-cost-total"
+              data-empty={value.amount === null || undefined}
+            >
+              {value.amount === null ? (
+                value.pending ? (
+                  "Awaiting cost data"
+                ) : (
+                  "No recorded cost"
+                )
+              ) : (
+                <CostAmount amount={value.amount} />
+              )}
             </div>
             <p className="ui-caption">
               {project
@@ -101,7 +112,8 @@ export function LLMCostCard({
             <Icon name={open ? "chevron-up" : "chevron-down"} size={14} />
           </Button>
         </div>
-        {project ? (
+        {project &&
+        (value.checksAmount !== null || value.standaloneAmount !== null) ? (
           <dl className="llm-cost-split">
             <div>
               <dt>
@@ -121,7 +133,11 @@ export function LLMCostCard({
         ) : null}
         <p className="llm-cost-coverage ui-caption">
           {value.amount === null
-            ? "Monetary data is not available."
+            ? value.historicalGap
+              ? "Earlier work has no retained monetary data."
+              : value.pending
+                ? "Cost will update as reports arrive."
+                : "No monetary observations were retained for this work."
             : coverage === "partial"
               ? "Known subtotal · some cost is missing."
               : `${count(value.pricedCalls)} of ${count(value.calls)} recorded calls priced`}

@@ -93,10 +93,20 @@ describe("Project materials", () => {
       "Other",
     ]);
     const docs = within(screen.getByRole("region", { name: "Docs" }));
-    expect(docs.getAllByRole("link").map((link) => link.textContent)).toEqual([
-      "docs/readme",
-      "outputs/report",
-    ]);
+    expect(
+      docs
+        .getAllByRole("link")
+        .filter(
+          (link) => !link.getAttribute("aria-label")?.startsWith("Preview "),
+        )
+        .map((link) => link.textContent),
+    ).toEqual(["readme", "report"]);
+    expect(
+      docs.getByRole("link", { name: "Preview docs/readme" }),
+    ).toHaveAttribute(
+      "href",
+      `/projects/${PROJECT}/artifacts/docs/readme?revision=readme-r1`,
+    );
     // Everything fits one page: the counts are totals.
     expect(docs.getByText("2")).toHaveClass("ui-list-section-count");
     expect(screen.queryByText("on this page")).toBeNull();

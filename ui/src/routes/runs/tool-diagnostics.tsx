@@ -10,7 +10,14 @@ import { queryKeys } from "../../api/query-keys";
 import { getToolCallDiagnostics } from "../../api/tool-diagnostics";
 import type { StageAttempt } from "../../api/runs";
 import { ErrorNotice } from "../../app/error-notice";
-import { Button, Facts, Field } from "../../ui";
+import {
+  Button,
+  Facts,
+  Field,
+  IdChip,
+  StatusChip,
+  TechnicalDetails,
+} from "../../ui";
 
 export function ToolCallDiagnostics({
   runId,
@@ -148,53 +155,91 @@ export function ToolCallDiagnostics({
       <ol className="runs-record-list">
         {items?.map((item) => (
           <li key={item.callReference}>
-            <strong>{item.tool}</strong>
-            <p>Outcome {item.outcome}</p>
+            <div className="runs-tool-call-head">
+              <strong>{item.tool}</strong>
+              <StatusChip
+                size="sm"
+                tone={item.outcome === "failed" ? "blocked" : "done"}
+              >
+                {item.outcome === "failed" ? "Failed" : "Succeeded"}
+              </StatusChip>
+            </div>
+            {item.error === undefined ? null : <p>{item.error.message}</p>}
+            {item.error?.messageTruncated ? (
+              <p className="runs-block-note">Error message was shortened.</p>
+            ) : null}
             {item.toolTruncated ? (
               <p>
                 The source tool name could not be shown within the diagnostic
                 bound.
               </p>
             ) : null}
-            <Facts
-              items={[
-                { term: "Call reference", value: item.callReference },
-                { term: "Duration (ms)", value: item.durationMs ?? "unknown" },
-                {
-                  term: "Result size (bytes)",
-                  value: item.resultSizeBytes ?? "unknown",
-                },
-                ...(item.error === undefined
-                  ? []
-                  : [
-                      { term: "Error code", value: item.error.code },
-                      { term: "Error", value: item.error.message },
-                      {
-                        term: "Retryable",
-                        value:
-                          item.error.retryable === undefined
-                            ? "unknown"
-                            : String(item.error.retryable),
-                      },
-                    ]),
-              ]}
-            />
-            {item.error?.messageTruncated ? (
-              <p>Error message was shortened.</p>
-            ) : null}
-            {item.argumentsJson === undefined ? (
-              <p>No argument summary was retained.</p>
+            {item.durationMs === null && item.resultSizeBytes === null ? (
+              <p className="runs-block-note">
+                Duration and result size were not recorded.
+              </p>
             ) : (
-              <details>
-                <summary>Sanitized arguments</summary>
-                <p className="runs-tool-arguments">
-                  <code>{item.argumentsJson}</code>
-                </p>
-              </details>
+              <Facts
+                items={[
+                  {
+                    term: "Duration",
+                    value:
+                      item.durationMs === null
+                        ? "Not recorded"
+                        : `${item.durationMs} ms`,
+                  },
+                  {
+                    term: "Result size",
+                    value:
+                      item.resultSizeBytes === null
+                        ? "Not recorded"
+                        : `${item.resultSizeBytes} bytes`,
+                  },
+                ]}
+              />
             )}
-            {item.argumentsTruncated ? (
-              <p>Argument summary was shortened or redacted.</p>
-            ) : null}
+            <TechnicalDetails summary="Call details">
+              <Facts
+                items={[
+                  {
+                    term: "Call reference",
+                    value: (
+                      <IdChip
+                        value={item.callReference}
+                        label="call reference"
+                      />
+                    ),
+                  },
+                  ...(item.error === undefined
+                    ? []
+                    : [
+                        { term: "Error code", value: item.error.code },
+                        {
+                          term: "Retryability",
+                          value:
+                            item.error.retryable === undefined
+                              ? "Not reported"
+                              : item.error.retryable
+                                ? "Retryable"
+                                : "Not retryable",
+                        },
+                      ]),
+                ]}
+              />
+              {item.argumentsJson === undefined ? (
+                <p>No argument summary was retained.</p>
+              ) : (
+                <details>
+                  <summary>Sanitized arguments</summary>
+                  <p className="runs-tool-arguments">
+                    <code>{item.argumentsJson}</code>
+                  </p>
+                </details>
+              )}
+              {item.argumentsTruncated ? (
+                <p>Argument summary was shortened or redacted.</p>
+              ) : null}
+            </TechnicalDetails>
           </li>
         ))}
       </ol>

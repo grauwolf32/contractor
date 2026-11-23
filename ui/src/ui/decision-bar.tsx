@@ -156,7 +156,9 @@ export function DecisionBar({
     (pending
       ? "Recording…"
       : chosen === undefined
-        ? "Choose a decision."
+        ? deferDraft
+          ? undefined
+          : "Choose a decision."
         : severityMissing
           ? `Choose ${severityLabel.toLowerCase()}.`
           : reasonMissing
@@ -376,9 +378,11 @@ export function DecisionBar({
           </button>
         </div>
       ) : null}
-      <p id={`${id}-hint`} className="ui-decision-hint">
-        {hint}
-      </p>
+      {hint === undefined ? null : (
+        <p id={`${id}-hint`} className="ui-decision-hint">
+          {hint}
+        </p>
+      )}
       {isShown(error) ? (
         <p role="alert" className="ui-decision-error">
           {error}

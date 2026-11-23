@@ -20,7 +20,6 @@ import {
 } from "../../ui";
 import type { InboxData } from "./data";
 import type { InboxRow } from "./model";
-import { SECTIONS, checkName } from "./present";
 
 /** What every detail view needs from the page. */
 export interface DetailContext {
@@ -190,7 +189,7 @@ export function Block({
   );
 }
 
-/** A compact continuation when entry did not select an item. */
+/** Loading, empty and explicit deselection states; loaded items open directly. */
 export function Overview({ context }: { context: DetailContext }) {
   const { data } = context;
   const first = data.model.order[0];
@@ -208,15 +207,8 @@ export function Overview({ context }: { context: DetailContext }) {
     description =
       "Loaded items are still available in the queue. Retry to refresh the missing information.";
   } else if (first !== undefined) {
-    title =
-      first.type === "issue"
-        ? first.issue.finding.title
-        : first.type === "report"
-          ? `${first.report.project.name} report`
-          : first.type === "run"
-            ? first.run.workflow
-            : checkName(first.check);
-    description = "Choose an item from the queue, or continue with this one.";
+    title = "Choose an item";
+    description = "Open a possible issue, report or check from your Inbox.";
   }
   return (
     <DetailPane>
@@ -233,9 +225,6 @@ export function Overview({ context }: { context: DetailContext }) {
                   : "info"
           }
         />
-        {first !== undefined && !pending && !data.incomplete ? (
-          <p className="inbox-focus-eyebrow">{SECTIONS[first.section].title}</p>
-        ) : null}
         <h2 ref={heading} tabIndex={-1}>
           {title}
         </h2>
@@ -249,11 +238,7 @@ export function Overview({ context }: { context: DetailContext }) {
             </ButtonLink>
             <Link to="/projects">Browse projects</Link>
           </div>
-        ) : (
-          <Button variant="primary" onClick={() => context.onSelect(first)}>
-            Continue
-          </Button>
-        )}
+        ) : null}
       </div>
     </DetailPane>
   );

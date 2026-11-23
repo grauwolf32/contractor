@@ -291,7 +291,7 @@ function retryability(retryable: boolean | undefined): string {
 
 function DiagnosticsView({ diagnostics }: { diagnostics: Diagnostics }) {
   return (
-    <div className="runs-block">
+    <div className="runs-block runs-block-wide">
       <h4 className="runs-block-title">Attempt diagnostics</h4>
       {diagnostics.items.length === 0 ? (
         <p className="runs-block-note">
@@ -303,6 +303,7 @@ function DiagnosticsView({ diagnostics }: { diagnostics: Diagnostics }) {
             <li
               key={`${diagnostic.participant}-${diagnostic.logicalAgent ?? "planner"}-${diagnostic.code}-${index}`}
             >
+              <p>{diagnostic.message}</p>
               <div className="runs-record-head">
                 <strong>
                   {diagnostic.participant === "planner" ? "Planner" : "Worker"}
@@ -313,7 +314,6 @@ function DiagnosticsView({ diagnostics }: { diagnostics: Diagnostics }) {
                 <code>{diagnostic.code}</code>
                 <span>{retryability(diagnostic.retryable)}</span>
               </div>
-              <p>{diagnostic.message}</p>
             </li>
           ))}
         </ol>
@@ -518,14 +518,14 @@ export function StageAttemptView({
           attempt={attempt}
           open={diagnosticsEnabled && disclosure.open}
         />
+        {attempt.diagnostics === undefined ? null : (
+          <DiagnosticsView diagnostics={attempt.diagnostics} />
+        )}
         <ToolCallDiagnostics
           runId={runId}
           attempt={attempt}
           open={diagnosticsEnabled && disclosure.open}
         />
-        {attempt.diagnostics === undefined ? null : (
-          <DiagnosticsView diagnostics={attempt.diagnostics} />
-        )}
         <ResultView runId={runId} attempt={attempt} />
         {transitions.length === 0 ? null : (
           <div className="runs-block runs-block-wide">

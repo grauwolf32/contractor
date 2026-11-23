@@ -371,7 +371,7 @@ test("Reopening a failed Run refreshes both navigation-cancelled diagnostic read
       panel("Runtime adapter diagnostics").getByText("1", { exact: true }),
     ).toBeVisible();
     await expect(
-      panel("Tool calls").getByText("1", { exact: true }),
+      panel("Tool calls").getByText("1 ms", { exact: true }),
     ).toBeVisible();
     expect(reads).toEqual({ runtime: 1, tool: 1 });
     failed = true;
@@ -384,7 +384,7 @@ test("Reopening a failed Run refreshes both navigation-cancelled diagnostic read
       panel("Runtime adapter diagnostics").getByText("2", { exact: true }),
     ).toBeVisible();
     await expect(
-      panel("Tool calls").getByText("2", { exact: true }),
+      panel("Tool calls").getByText("2 ms", { exact: true }),
     ).toBeVisible();
     expect(reads).toEqual({ runtime: 3, tool: 3 });
   } finally {
@@ -414,8 +414,9 @@ for (const theme of ["light", "dark", "black"] as const) {
       has: page.getByRole("heading", { name: "Tool calls", exact: true }),
     });
     await expect(
-      panel.getByText("9223372036854775807", { exact: true }),
+      panel.getByText("9223372036854775807 ms", { exact: true }),
     ).toBeVisible();
+    await panel.getByText("Call details", { exact: true }).click();
     await panel.getByText("Sanitized arguments", { exact: true }).click();
     await expect(
       panel.getByText(
@@ -438,6 +439,9 @@ for (const theme of ["light", "dark", "black"] as const) {
         "Retained detail was shortened; older records may have been removed.",
       ),
     ).toBeVisible();
+    const callDetails = panel.locator("details.ui-tech");
+    if ((await callDetails.getAttribute("open")) === null)
+      await callDetails.locator(":scope > summary").click();
     await panel.getByText("Sanitized arguments", { exact: true }).click();
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth))

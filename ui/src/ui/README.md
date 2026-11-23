@@ -541,7 +541,8 @@ bar. Put it in `DetailPane`'s `footer` to pin it.
 
 - **`deferDraft`:** optional compact presentation. Rationale, severity and extra
   controls mount after a verdict is selected; the new rationale receives focus in
-  the same commit. Validation and pending locks are unchanged.
+  the same commit. The idle Choose a decision hint is omitted until drafting.
+  Validation and pending locks are unchanged.
 - **Severity:** a `role="radiogroup"` of native radios, so arrow keys work.
   It has `aria-required` when required.
 - **Verdicts:** `aria-pressed` buttons with `aria-keyshortcuts` and a Kbd hint.
