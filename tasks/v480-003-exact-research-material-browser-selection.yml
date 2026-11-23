@@ -1,0 +1,47 @@
+schema_version: '1.0'
+id: V480-003
+title: Select the exact research material in the production browser journey
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: defect
+priority: P2
+status: in_progress
+depends_on: []
+languages:
+- typescript
+- markdown
+goal: The real research browser journey publishes the exact selected material even when another receipt has the same display
+  name.
+context:
+  authority: Agent-proposed narrow prerequisite exposed by V480-001 full process verification on 2026-11-23; fixes only the
+    existing verification selector.
+  introduced_commit: ad2fdfe3e51fef5ca2a14715b507c1ba03907e34
+  provenance: The introducing commit has no identifiable task file (also documented by V457-007); retain the commit instead
+    of inventing an introduced_by task.
+  finding: ui/e2e/audit-research.production.ts:91-96 searches the entire page by material name. The real continuation produces
+    two accepted material cards with that same name, so Playwright strict mode rejects the heading before exact Project publication.
+  siblings: Multiple receipts can retain the same exact material. Resolve the matching exact descriptor through the ordinary
+    material API, then select one concrete receipt in the existing card details. The interrupted journey does not locate material
+    cards by name; other material browser selections are independent.
+scope:
+  in:
+  - Use existing selection and receipt details, verify exact namespace/name/revision/digest and retain publication assertions.
+  - Run both real PostgreSQL/Server/Runtime/browser research scenarios.
+  out:
+  - Production UI behavior, artifact identity, schema, or a new selector attribute.
+acceptance_criteria:
+- id: A1
+  text: The continuation journey locates one selected receipt and its expected name, then publishes its exact revision through
+    the ordinary API.
+- id: A2
+  text: Both continuation and interrupted research scenarios pass against real processes; the unmodified selector has an observed
+    strict-mode failure with two matching headings.
+tests:
+- command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^TestAuditResearchUIAcrossProductionProcesses$'
+  covers:
+  - A1
+  - A2
+- command: cd ui && corepack pnpm exec eslint e2e/audit-research.production.ts
+  covers:
+  - A1
+  - A2

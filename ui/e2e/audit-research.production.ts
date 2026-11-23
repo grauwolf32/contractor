@@ -88,12 +88,48 @@ test("research continuation, exact grounds and Project publication through real 
   ).toBeVisible();
   const ground = generated.document.sources![0]!;
   await page.getByRole("link", { name: new RegExp(ground.ref.name) }).click();
-  await expect(
-    page.getByRole("heading", { name: ground.ref.name, exact: true }),
-  ).toBeVisible();
-  const selectedMaterial = page.getByRole("article").filter({
-    has: page.getByRole("heading", { name: ground.ref.name, exact: true }),
+  const materialsResponse = await page.request.get(
+    api + `/v1/audits/${audit}/materials?limit=50`,
+  );
+  expect(materialsResponse.status()).toBe(200);
+  const materials = (
+    (await materialsResponse.json()) as Schemas["AuditMaterialPage"]
+  ).items;
+  const receipts = materials.filter(
+    ({ material }) =>
+      material.ref.namespace === ground.ref.namespace &&
+      material.ref.name === ground.ref.name &&
+      material.ref.revision === ground.ref.revision &&
+      material.digest === ground.digest,
+  );
+  expect(receipts.length).toBeGreaterThan(0);
+  const selectedMaterials = page.locator('article[data-selected="true"]');
+  await expect(selectedMaterials).toHaveCount(receipts.length);
+  // Multiple receipts may retain the same exact bytes. Select a concrete receipt.
+  for (const material of await selectedMaterials.all()) {
+    await material
+      .getByRole("button", { name: "details →", exact: true })
+      .click();
+  }
+  const selectedMaterial = selectedMaterials.filter({
+    has: page.getByText(receipts[0]!.key, { exact: true }),
   });
+  await expect(selectedMaterial).toHaveCount(1);
+  await expect(
+    selectedMaterial.getByRole("heading", {
+      name: ground.ref.name,
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    selectedMaterial.getByText(
+      `${ground.ref.namespace}/${ground.ref.name}@${ground.ref.revision}`,
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(
+    selectedMaterial.getByText(ground.digest, { exact: true }),
+  ).toBeVisible();
   await selectedMaterial
     .getByRole("button", { name: "Publish to Project", exact: true })
     .click();
