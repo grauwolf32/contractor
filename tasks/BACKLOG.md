@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-66 open tasks: 10 in progress, 43 pending, 13 deferred. 1695 finished: 1677 completed, 18 archived.
+65 open tasks: 10 in progress, 42 pending, 13 deferred. 1696 finished: 1678 completed, 18 archived.
 
 ## In progress
 
@@ -38,12 +38,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
-
-### Agent Skills (`agent-skills`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V485-002](v485-002-active-http-workers-offensive-skills.yml) | feature | P1 | — | Connect offensive-methodology Skills to active HTTP Workers |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -166,7 +160,7 @@ tasks in `introduced_by`.
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 99 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
-| Agent Skills (`agent-skills`) | 1 | 13 | 4 | 2 | 4 |
+| Agent Skills (`agent-skills`) | 0 | 13 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 26 | 38 | 16 | 39 |
