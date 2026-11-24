@@ -5,7 +5,8 @@ milestone: skills-vuln-finding-2026-11
 epic: agent-skills
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 5ea3e0df322f3debe377c0ba51601932b9d20f5c
 depends_on: [V485-002]
 languages: [go, yaml]
 goal: >-
