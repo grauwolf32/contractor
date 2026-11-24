@@ -53,4 +53,6 @@ spec:
   skills:
     - namespace: skills
       name: caido-stored-evidence
+    - namespace: skills
+      name: vulns
   sandboxProfile: local-workdir@1

@@ -1,0 +1,122 @@
+schema_version: "1.0"
+id: V485-003
+title: Model threats with stride and a LikeC4 modeling reference in the hypothesis generator
+milestone: skills-vuln-finding-2026-11
+epic: agent-skills
+kind: feature
+priority: P1
+status: completed
+implementation_commit: 5ea3e0df322f3debe377c0ba51601932b9d20f5c
+depends_on: [V485-002]
+languages: [go, yaml]
+goal: >-
+  The Audit hypothesis generator gains the bundled `stride` threat-modeling
+  skill, and the stride package gains an English LikeC4 threat-modeling
+  reference translated from the user-provided guide: assets and invariants,
+  component selection, trust boundaries, view and relation semantics, model
+  organization, a DSL example and a readiness checklist. Today the generator
+  formulates proposals without any methodology, and the stride package has
+  no references and no template selecting it.
+demonstration: >-
+  Inspect the Worker allocation of audit-hypothesis-generation@1: its resolved
+  skills contain `stride`, and the pinned instruction text tells the generator
+  to load it through `load_skill` and its `references/likec4-modeling.md` when
+  materials include a LikeC4 model. Offline validation, package validation
+  and the catalog lock digest change are the acceptance; no live-model
+  quality claim is made.
+context:
+  specification: "docs/spec/tools/skills.md#SKL-R6, docs/spec/tools/skills.md#SKL-R13, docs/spec/tools/skills.md#SKL-R14"
+  authority: "User decision 2026-11-24: iteration 3 proceeds; the user-provided LikeC4 threat-modeling guide (Russian, private page) is added to a skill in English; pre-release in-place @1 update, no new identities. Adding the guide as a stride reference rather than a separate package is an agent choice recorded here: stride already owns artifact-based threat modeling and its LikeC4 cross-correlation axis, so a second package would duplicate that domain (AGENTS.md 3.7, 3.11)."
+  design: "configs/README.md skill selection paragraphs; docs/guides/agent-skills.md"
+scope:
+  in:
+    - "configs/skills/stride/references/likec4-modeling.md: English translation of the user-provided guide with conditional authoring-operations disclosure"
+    - "configs/skills/stride/SKILL.md: reference disclosure section and metadata provenance"
+    - "audit_hypothesis_generator@1 selects stride; instructions/audit-hypothesis-generator.md directs load_skill and maps STRIDE threats to hypothesis proposals"
+    - "catalog.lock.json regeneration under unchanged @1 identities"
+    - "configs/README.md hypothesis generator paragraph"
+    - "Milestone exit task repointed to this task"
+  out:
+    - "Selecting stride for LikeC4 builder or validator Workers (separate decision if wanted; the likec4 package keeps DSL ownership)"
+    - "Editing other bundled SKILL.md packages"
+    - "Live-model or Eval quality measurement"
+    - "New @n manifest versions (pre-release in-place @1 per user decision)"
+requirements:
+  - id: R1
+    text: >-
+      The reference is a regular UTF-8 file below references/ within the
+      1 MiB per-resource bound, uses no Server-side configuration terms
+      (SKL-R14), and conditions authoring steps on operations actually
+      visible in the current Worker invocation (SKL-R15).
+  - id: R2
+    text: >-
+      The stride SKILL.md discloses the reference through its load path and
+      records its Contractor-authored provenance in metadata; the upstream
+      STRIDE methodology body is unchanged.
+  - id: R3
+    text: >-
+      audit_hypothesis_generator@1 selects stride; its Worker ModelPolicy
+      remains the tool-using worker@1 with maxToolCalls (SKL-R12).
+  - id: R4
+    text: >-
+      The generator instruction directs load_skill for stride, loads the
+      LikeC4 reference when relevant, maps each credible threat to one
+      observable hypothesis proposal, and subordinates skill guidance to
+      the proposal contract: no vulnerability reports, findings or Runs.
+  - id: R5
+    text: >-
+      Updated instruction and template digests are recorded by regenerating
+      catalog.lock.json; identities stay @1.
+failure_outcomes:
+  - operation: "Server startup or e2e packaging of the modified skill directory"
+    permanent: "an invalid reference file fails bundled validation before any artifact is written"
+    retryable: "not applicable; offline validation"
+    ambiguous: "not applicable"
+    cancelled: "not applicable"
+    timeout: "existing startup budgets; unchanged"
+  - operation: "Run initialization resolving the stride ref for the generator"
+    permanent: "invalid or missing current package fails that Run's initialization before scheduling with a bounded skill_* code"
+    retryable: "retryable Artifact failure during skill resolution is recovered by the Scheduler using the selected exact source"
+    ambiguous: "reconciled through the existing Skill pinning receipt in the Run snapshot"
+    cancelled: "existing allocation release path; no new mechanism"
+    timeout: "existing Stage/scheduler budgets; unchanged"
+cardinality:
+  - collection: "skills refs on audit_hypothesis_generator@1"
+    expected: "1"
+    maximum: "32 (LIM-SKL-1); WorkflowRun union 128 (LIM-SKL-2)"
+    bound: "validated at config load and Run initialization"
+  - collection: "reference files in the stride package"
+    expected: "1"
+    maximum: "bounded by package entry and byte limits (2000 entries, 32 MiB expanded)"
+    bound: "package validation at startup and e2e packaging"
+lifecycle:
+  - entity: "skills/stride catalog binding on an existing deployment"
+    delete: "not deleted; adopting the edited bundled source needs an explicit operator CAS upload (seed_drift semantics); fresh installs seed it"
+    cascade: "existing Runs keep their pinned revision"
+    retention: "immutable version history through the Skill catalog"
+acceptance_criteria:
+  - id: A1
+    given: "the stride source tree"
+    when: "go run ./cmd/contractor-skill validate configs/skills/stride"
+    then: "package validation passes with the new reference"
+  - id: A2
+    given: "the repository configs root"
+    when: "go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock"
+    then: "validation passes with the regenerated lock"
+  - id: A3
+    given: "the hypothesis generator template and instruction"
+    when: "resolved by config loading"
+    then: "the template selects stride and the instruction directs load_skill and the LikeC4 reference"
+  - id: A4
+    given: "references/likec4-modeling.md"
+    when: "read"
+    then: "the content is English, preserves the guide's methodology (assets/invariants, components, boundaries, views, relations, organization, DSL example, readiness checklist) and states conditional authoring operations"
+tests:
+  - command: "go run ./cmd/contractor-skill validate configs/skills/stride"
+    covers: [A1, A4]
+  - command: "go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock"
+    covers: [A2, A3]
+  - command: "go test -count=1 ./internal/agentskills/... ./internal/config/... ./internal/configload/..."
+    covers: [A1, A2, A3]
+  - command: "make lint"
+    covers: [A1, A2, A3]

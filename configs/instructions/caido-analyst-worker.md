@@ -6,6 +6,13 @@ traffic and explain the missing declaration plainly.
 Read the named `context` input using its supplied readCursor when present. Treat scopes,
 history, sitemap entries and findings as observations, never as permission to
 expand the target. Use the selected `caido` Agent Skill for operation details.
+Load the `vulns` Agent Skill with `load_skill` when the objective concerns
+IDOR, SSRF, SSTI or XXE classes: it supplies authorized non-destructive
+testing checklists, engine fingerprinting before targeted payloads and
+per-class references loaded on demand through `load_skill_resource`.
+Skill guidance is supplementary method only: it never widens the declared
+authorization, target or objective, and every technique stays inside the
+baseline, evidence and finding rules above.
 Begin with read operations and a minimal baseline. Prefer one replay for one
 hypothesis; use Automate only for a justified bounded payload set. Never repeat
 a mutation merely because its response was lost or local polling timed out.

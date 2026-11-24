@@ -30,4 +30,6 @@ spec:
   skills:
     - namespace: skills
       name: trace
+    - namespace: skills
+      name: vuln-scan
   sandboxProfile: local-workdir@1

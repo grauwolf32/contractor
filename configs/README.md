@@ -291,6 +291,29 @@ capability requirements are recorded in its `assets/provenance.md`. It is seeded
 into the owner Skill catalog without changing existing Workflow selections.
 See [the Skill guide](../docs/guides/agent-skills.md) for selection and execution.
 
+The four passive source-review Worker templates (`audit_source_checker@1`,
+`audit_risk_source_checker@1`, `audit_standard_source_verifier@1` and
+`audit_asvs_source_verifier@1`) select both `trace` and `vuln-scan`. Their
+instructions direct the Worker to load both through `load_skill` before
+investigating and keep the passive source-review contract: skill guidance is
+supplementary method and grants no authority to send requests or execute code.
+
+The active HTTP Workers select the offensive-methodology skills that match
+their operations: `audit_wstg_http_verifier@1` loads `exploit` (probe
+discipline, oracle calibration, the proof-of-exploitation ladder) and `auth`
+(authorized authentication-flow discovery and controlled two-user setup);
+`caido_analyst@1` adds `vulns` alongside its Caido package; `http_explorer@1`
+selects `vulns`; `interactsh_analyst@1` selects `exploit` for out-of-band
+probe design. Their instructions keep the engagement policy, target scope and
+evidence contracts mandatory over any skill technique.
+
+`audit_hypothesis_generator@1` selects `stride`: its instruction directs the
+generator to derive proposals from the entry-point catalog, IDOR/BOLA
+candidates and boundary crossings, and to load the package's
+`references/likec4-modeling.md` (the English LikeC4 threat-modeling guide)
+when materials include a LikeC4 model. STRIDE report shapes remain analysis
+aids; the generator publishes hypothesis proposals only.
+
 `security-analysis@1` is an opt-in single-Stage workflow for authorized HTTP
 and Caido analysis. It requires the caller to provide `objective`, `target` and
 `authorization_scope` string parameters, accepts one optional text context

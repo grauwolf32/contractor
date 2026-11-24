@@ -374,6 +374,18 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: skills-vuln-finding-2026-11
+    exit_task: V485-003
+    outcome: >-
+      Passive source-review Workers load the trace and vuln-scan skills,
+      active HTTP Workers load the offensive-methodology skills matching their
+      toolsets, and the hypothesis generator loads the stride skill with a
+      Contractor-authored English LikeC4 threat-modeling reference translated
+      from the user-provided guide. Instructions keep the completion,
+      evidence and scope contracts mandatory over any skill technique.
+      Offline configuration validation and the catalog lock digest change
+      are the acceptance; live-model quality improvement is claimed only by
+      a future Eval.
   - id: audit-evidence-results-2026-11
     exit_task: V478-005
     outcome: >-

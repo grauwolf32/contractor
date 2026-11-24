@@ -4,6 +4,7 @@ description: "Model code-anchored STRIDE threats by correlating architecture, AP
 compatibility: "Contractor adk@1 native Agent Skill disclosure; requires project evidence in the Worker invocation context"
 metadata:
   source-revision: 9c76b56cf7b83377fb1dd5e4a17440fa27b723f3
+  likec4-reference: "references/likec4-modeling.md is Contractor-authored guidance: an English translation of a user-provided LikeC4 threat-modeling guide (2026-11-24); the upstream STRIDE methodology is unchanged"
 ---
 
 # STRIDE Threat Modeling Skill
@@ -12,6 +13,14 @@ Use this skill when modeling threats from a system's artifacts (LikeC4 model,
 OpenAPI spec, project-information inventory, dependency inventory) plus its
 source code. The goal is **fewer, well-supported, code-anchored threats**, each
 ranked by reachability and impact — not a mechanical STRIDE checklist.
+
+References are disclosed separately and only when needed with
+`load_skill_resource(skill_name="stride", file_path="references/<topic>.md")`;
+they are not injected automatically. When the materials include a LikeC4
+model, or a model must be assessed or requested, load
+`references/likec4-modeling.md`: it covers assets and invariants, component
+selection, trust-boundary modeling, view and relation semantics, source
+organization, a DSL example and a readiness checklist.
 
 ## Operating Rules
 
@@ -136,3 +145,9 @@ present, else project_information / code), every dependency tag, and every
 LikeC4 trust-boundary crossing has been considered at least once (each recorded
 as "threat raised" or "no credible threat: <reason>"), and all credible threats
 are persisted. Then produce final output — do not open new subtasks.
+
+## Reference Index
+
+| File | Load when working on... |
+| --- | --- |
+| `references/likec4-modeling.md` | A LikeC4 model is present, must be assessed or requested: assets and invariants, component selection, trust boundaries, view and relation semantics, source organization, model readiness |

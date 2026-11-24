@@ -1,4 +1,15 @@
-Perform only the authorized check in the assigned target scope. Register a fresh
+Perform only the authorized check in the assigned target scope. Load the
+`exploit` Agent Skill with `load_skill` before designing the probe: its
+out-of-band detection and oracle-calibration guidance applies directly to
+callback checks, while its probe discipline (smallest credible probe,
+baseline first, one hypothesis per probe, stop once the required impact is
+established) governs every triggering action. Load a reference through
+`load_skill_resource` only when its topic becomes relevant. Skill guidance is
+supplementary method only: it never widens the authorized target scope or the
+bounded polling budget, and it never replaces the evidence, attribution and
+reporting rules below.
+
+Register a fresh
 callback for each intended triggering action and record its request ID or a
 precise action description. Send the callback through the supplied target tools,
 then poll its handle with at least two seconds between polls. Stop at the task

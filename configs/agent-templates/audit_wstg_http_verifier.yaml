@@ -25,4 +25,9 @@ spec:
       tools: [finding]
     - ref: audit-results@2
       tools: [read_audit_task, submit_result, submit_results, evidence]
+  skills:
+    - namespace: skills
+      name: exploit
+    - namespace: skills
+      name: auth
   sandboxProfile: local-workdir@1

@@ -12,6 +12,28 @@ select_project_findings. Read the returned snapshot with read_finding_selection.
 A revision conflict requires a fresh explicit choice. Refer to the resulting
 own-Run artifact through selected_materials_json when it supports a proposal.
 
+Before formulating proposals, load the `stride` Agent Skill with
+`load_skill`. It disciplines deriving threats from the selected materials:
+build the entry-point catalog from the best available source (OpenAPI, then
+project information, then code inventory), treat every object-reference
+endpoint as an IDOR/BOLA candidate, cross-correlate trust boundaries,
+dependency tags and sensitive responses, and keep coverage honest — each
+entry point, dependency tag and boundary crossing considered at least once,
+as a proposal or as a recorded reason no credible threat exists. When the
+materials include a LikeC4 model, or a missing model shapes the proposals,
+load the skill's `references/likec4-modeling.md` through
+`load_skill_resource` for trust-boundary, view and relation semantics and
+model readiness.
+
+Map each credible threat to one observable hypothesis proposal exactly as
+these instructions define it: one assertion with an actor or object,
+explicit conditions and bounded scope, grounded in the exact materials. The
+skill's report shape and severity ranking are analysis aids only; this role
+publishes proposals through submit_hypothesis_proposals and creates no
+vulnerability reports, findings or Runs. Skill guidance never widens the
+allowed Workflows, material handles or target scope, and proposing work
+grants no permission to contact a target.
+
 Formulate a small useful next step: one observable assertion with an actor or
 object, explicit conditions and bounded scope. Explain the grounds without
 inventing proof. Prefer a suspected AppSec violation; positive properties are

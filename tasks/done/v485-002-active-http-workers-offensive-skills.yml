@@ -1,0 +1,93 @@
+schema_version: "1.0"
+id: V485-002
+title: Connect offensive-methodology Skills to active HTTP Workers
+milestone: skills-vuln-finding-2026-11
+epic: agent-skills
+kind: feature
+priority: P1
+status: completed
+implementation_commit: adc480f1ef68aa7a874745115b846f9e24994ef4
+depends_on: [V485-001]
+languages: [go, yaml]
+goal: >-
+  Active HTTP Workers gain the bundled offensive-methodology skills that match
+  their toolsets: audit_wstg_http_verifier@1 loads probe discipline and auth
+  discovery (`exploit`, `auth`), caido_analyst@1 and http_explorer@1 load the
+  live web vulnerability classes (`vulns`), and interactsh_analyst@1 loads
+  probe discipline (`exploit`). Their instructions direct the Worker to load
+  the skills through `load_skill`, so the selection is not dead weight. Today
+  none of these templates selects any skill.
+demonstration: >-
+  Inspect the Worker allocation of audit-wstg-active-http@1, security-analysis@1
+  or the Interactsh analysis: resolved skills contain the new packages and the
+  pinned instruction text names them. Acceptance is offline validation plus the
+  catalog lock digest change; no live-model quality claim is made.
+context:
+  specification: "docs/spec/tools/skills.md#SKL-R6, docs/spec/tools/skills.md#SKL-R13"
+  authority: "User decision 2026-11-24: targeted connection of the most useful existing skills; active HTTP workers get the offensive methodology; no new @n versions while pre-release - update @1 in place and regenerate the catalog lock."
+  design: "configs/README.md skill selection paragraphs; docs/guides/agent-skills.md"
+scope:
+  in:
+    - "AgentTemplate skills additions for audit_wstg_http_verifier@1 (exploit, auth), caido_analyst@1 (vulns), http_explorer@1 (vulns), interactsh_analyst@1 (exploit)"
+    - "Instruction updates directing load_skill for the selected packages"
+    - "catalog.lock.json regeneration under unchanged @1 identities"
+    - "configs/README.md active HTTP Worker selection paragraph"
+  out:
+    - "Connecting code-exec (no run_python/execute_bash operations exist in any shipped toolset)"
+    - "Connecting stride to the hypothesis generator (separate later task if wanted)"
+    - "Editing SKILL.md package content"
+    - "Live-model or Eval quality measurement"
+requirements:
+  - id: R1
+    text: >-
+      Each modified template selects only skills whose compatibility
+      requirements its toolsets satisfy: exploit and auth need authorized HTTP
+      operations, vulns needs authorized HTTP testing facilities.
+  - id: R2
+    text: >-
+      Each instruction tells the Worker to load the selected skills through
+      load_skill, load references on demand, and states that skill guidance is
+      supplementary method that never overrides the engagement policy, target
+      scope, or the submission, evidence, fact and finding rules, and grants no
+      authority beyond the selected operations.
+  - id: R3
+    text: >-
+      Updated digests are recorded by regenerating catalog.lock.json;
+      identities stay @1.
+failure_outcomes:
+  - operation: "Run initialization resolving skills refs for the modified templates"
+    permanent: "invalid or missing current package fails that Run's initialization before scheduling with a bounded skill_* code"
+    retryable: "retryable Artifact failure during skill resolution is recovered by the Scheduler using the selected exact source"
+    ambiguous: "reconciled through the existing Skill pinning receipt in the Run snapshot"
+    cancelled: "existing allocation release path; no new mechanism"
+    timeout: "existing Stage/scheduler budgets; unchanged"
+cardinality:
+  - collection: "skills refs per template"
+    expected: "1-2"
+    maximum: "32 (LIM-SKL-1); WorkflowRun union 128 (LIM-SKL-2)"
+    bound: "validated at config load and Run initialization"
+lifecycle:
+  - entity: "catalog.lock.json"
+    delete: "regenerated in this change"
+    cascade: "none; entries are derived digests"
+    retention: "committed with the change"
+acceptance_criteria:
+  - id: A1
+    given: "the repository configs root"
+    when: "go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock"
+    then: "validation passes with the regenerated lock"
+  - id: A2
+    given: "the four modified templates"
+    when: "their YAML and instruction refs are resolved"
+    then: "each selects the planned packages and its instruction directs load_skill for them"
+  - id: A3
+    given: "an active HTTP Worker instruction"
+    when: "read by a Worker"
+    then: "it keeps the engagement policy and target scope mandatory and subordinates skill guidance to them"
+tests:
+  - command: "go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock"
+    covers: [A1, A2]
+  - command: "go run ./cmd/contractor-server config lock --root ./configs"
+    covers: [A3]
+  - command: "make lint"
+    covers: [A1, A2, A3]

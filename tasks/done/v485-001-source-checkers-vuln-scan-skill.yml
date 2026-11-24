@@ -1,0 +1,102 @@
+schema_version: "1.0"
+id: V485-001
+title: Connect and direct the vuln-scan Skill in passive source checkers
+milestone: skills-vuln-finding-2026-11
+epic: agent-skills
+kind: feature
+priority: P1
+status: completed
+implementation_commit: 03f06483d1b3426b9f922e69de2943c2f2d0ec6d
+depends_on: []
+languages: [go, yaml]
+goal: >-
+  Passive source-review Audit Workers (checklist, Top 10 source risk, WSTG and
+  ASVS source verification) can actually use the bundled `vuln-scan` Agent
+  Skill while checking items, and their instructions direct the Worker to load
+  the already-selected `trace` Skill. Today the four templates select `trace`
+  but their instructions never mention `load_skill`, so the Skill is dead
+  weight, and the `vuln-scan` package (endpoint controls, dangerous sinks,
+  absence detection, business logic, sensitive-data sweeps) is not selected by
+  any template at all.
+demonstration: >-
+  Start a Run of audit-source-check@1 (or the Top 10/WSTG/ASVS variants) and
+  inspect the Worker allocation: its resolved skills contain both `trace` and
+  `vuln-scan`, and the pinned instruction text tells the Worker to load both
+  through `load_skill` before investigating. Acceptance is offline validation
+  plus the catalog lock digest change; no live-model quality claim is made.
+context:
+  specification: "docs/spec/tools/skills.md#SKL-R6, docs/spec/tools/skills.md#SKL-R13"
+  authority: "User decision 2026-11-24: analyze agent prompts and skills to improve Contractor's vulnerability-finding capability; connect existing skills in a targeted way, most useful first; source reviewers should also find vulnerabilities; no new @n versions while pre-release - update @1 in place and regenerate the catalog lock."
+  design: "configs/README.md skill selection paragraphs; docs/guides/agent-skills.md"
+scope:
+  in:
+    - "AgentTemplate skills additions for audit_source_checker@1, audit_risk_source_checker@1, audit_standard_source_verifier@1, audit_asvs_source_verifier@1"
+    - "Instruction updates for the four templates that direct load_skill for trace and vuln-scan"
+    - "catalog.lock.json regeneration under unchanged @1 identities"
+    - "configs/README.md selection description update"
+  out:
+    - "Live-model or Eval quality measurement of the changed prompts (evals own that separately)"
+    - "Connecting offensive live-testing skills (vulns, exploit, auth) to passive source reviewers; active HTTP Workers are V485-002"
+    - "Editing SKILL.md package content (packages are already adapted to the Contractor disclosure contract)"
+    - "New @n manifest versions or instruction paths (user decision: pre-release in-place @1 update)"
+requirements:
+  - id: R1
+    text: >-
+      The four passive source-review AgentTemplates select both `trace` and
+      `vuln-scan` as logical skills/skills refs; config validation still
+      passes; the Worker ModelPolicy remains the existing tool-using worker@1.
+  - id: R2
+    text: >-
+      Each of the four instruction documents tells the Worker to load both
+      Skills through `load_skill` before investigating, to load references on
+      demand, and states that skill guidance is supplementary method that never
+      overrides the assigned item scope, the standard's evidence contract, the
+      submission/evidence/fact/finding rules, and grants no authority to send
+      requests or execute code.
+  - id: R3
+    text: >-
+      Updated instruction content and template digests are recorded by
+      regenerating catalog.lock.json; identities stay @1; no digest rewrite is
+      attempted through the ordinary lock extension path.
+  - id: R4
+    text: >-
+      The passive/active boundary is preserved: the instructions state this
+      review stays passive and treat active-probing guidance in a reference as
+      out of scope, matching profile policy active_operations: prohibited.
+failure_outcomes:
+  - operation: "Run initialization resolving skills refs for the modified templates"
+    permanent: "invalid or missing current package fails that Run's initialization before scheduling with a bounded skill_* code"
+    retryable: "retryable Artifact failure during skill resolution is recovered by the Scheduler using the selected exact source"
+    ambiguous: "reconciled through the existing Skill pinning receipt in the Run snapshot"
+    cancelled: "existing allocation release path; no new mechanism"
+    timeout: "existing Stage/scheduler budgets; unchanged"
+cardinality:
+  - collection: "skills refs per template"
+    expected: "2"
+    maximum: "32 (LIM-SKL-1); WorkflowRun union 128 (LIM-SKL-2)"
+    bound: "validated at config load and Run initialization"
+lifecycle:
+  - entity: "catalog.lock.json"
+    delete: "regenerated in this change; retired-entry retention rule is reset with the file by explicit pre-release decision"
+    cascade: "none; entries are derived digests"
+    retention: "committed with the change; future changes under live identities must use new versions again"
+acceptance_criteria:
+  - id: A1
+    given: "the repository configs root"
+    when: "go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock"
+    then: "validation passes with the regenerated lock"
+  - id: A2
+    given: "the four modified templates"
+    when: "their YAML and instruction refs are resolved"
+    then: "each selects trace and vuln-scan and its instruction directs load_skill for both"
+  - id: A3
+    given: "an instruction document"
+    when: "read by a Worker"
+    then: "it keeps the passive-review contract (no active requests) and subordinates skill guidance to the mandatory completion rules"
+tests:
+  - command: "go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock"
+    covers: [A1, A2]
+  - command: "go run ./cmd/contractor-server config lock --root ./configs"
+    covers: [A3]
+  - command: "make lint"
+    covers: [A1, A2, A3]
