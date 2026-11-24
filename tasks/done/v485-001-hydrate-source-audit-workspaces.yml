@@ -6,7 +6,7 @@ epic: workflows
 kind: defect
 introduced_by: V480-001
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [yaml, python, go]
 goal: Source Audit Workers inspect an automatically prepared exact source workspace without model-driven archive initialization.
@@ -76,3 +76,14 @@ tests:
     covers: [A1, A3, A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
+
+implementation_commit: b60d8e9002457898622e17b4814c7d806f2430ad
+verification: >-
+  All acceptance criteria passed. The exact Project ZIP hydrates through the
+  existing workspace path with 3248 readable text files and exact source capture.
+  46 Runtime cases, the complete default e2e package suite, 13 release catalog
+  fixtures, real PostgreSQL Server catalog restart, all four container blob
+  backend cases, shipped catalog validation and make lint pass. Node 24.20 UI
+  gates pass separately. Owned test databases and container images are removed.
+  New source Audit profiles are deployed locally; model settings, Project and
+  paused Audit are preserved. No live model rerun or complete release gate is claimed.
