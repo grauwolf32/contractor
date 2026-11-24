@@ -307,6 +307,13 @@ selects `vulns`; `interactsh_analyst@1` selects `exploit` for out-of-band
 probe design. Their instructions keep the engagement policy, target scope and
 evidence contracts mandatory over any skill technique.
 
+`audit_hypothesis_generator@1` selects `stride`: its instruction directs the
+generator to derive proposals from the entry-point catalog, IDOR/BOLA
+candidates and boundary crossings, and to load the package's
+`references/likec4-modeling.md` (the English LikeC4 threat-modeling guide)
+when materials include a LikeC4 model. STRIDE report shapes remain analysis
+aids; the generator publishes hypothesis proposals only.
+
 `security-analysis@1` is an opt-in single-Stage workflow for authorized HTTP
 and Caido analysis. It requires the caller to provide `objective`, `target` and
 `authorization_scope` string parameters, accepts one optional text context
