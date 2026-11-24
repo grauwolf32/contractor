@@ -298,6 +298,15 @@ instructions direct the Worker to load both through `load_skill` before
 investigating and keep the passive source-review contract: skill guidance is
 supplementary method and grants no authority to send requests or execute code.
 
+The active HTTP Workers select the offensive-methodology skills that match
+their operations: `audit_wstg_http_verifier@1` loads `exploit` (probe
+discipline, oracle calibration, the proof-of-exploitation ladder) and `auth`
+(authorized authentication-flow discovery and controlled two-user setup);
+`caido_analyst@1` adds `vulns` alongside its Caido package; `http_explorer@1`
+selects `vulns`; `interactsh_analyst@1` selects `exploit` for out-of-band
+probe design. Their instructions keep the engagement policy, target scope and
+evidence contracts mandatory over any skill technique.
+
 `security-analysis@1` is an opt-in single-Stage workflow for authorized HTTP
 and Caido analysis. It requires the caller to provide `objective`, `target` and
 `authorization_scope` string parameters, accepts one optional text context

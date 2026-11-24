@@ -19,4 +19,7 @@ spec:
       tools: [write_text_artifact]
     - ref: run-artifacts@1
       tools: [read_artifact]
+  skills:
+    - namespace: skills
+      name: exploit
   sandboxProfile: local-workdir@1
