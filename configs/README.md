@@ -291,6 +291,13 @@ capability requirements are recorded in its `assets/provenance.md`. It is seeded
 into the owner Skill catalog without changing existing Workflow selections.
 See [the Skill guide](../docs/guides/agent-skills.md) for selection and execution.
 
+The four passive source-review Worker templates (`audit_source_checker@1`,
+`audit_risk_source_checker@1`, `audit_standard_source_verifier@1` and
+`audit_asvs_source_verifier@1`) select both `trace` and `vuln-scan`. Their
+instructions direct the Worker to load both through `load_skill` before
+investigating and keep the passive source-review contract: skill guidance is
+supplementary method and grants no authority to send requests or execute code.
+
 `security-analysis@1` is an opt-in single-Stage workflow for authorized HTTP
 and Caido analysis. It requires the caller to provide `objective`, `target` and
 `authorization_scope` string parameters, accepts one optional text context
