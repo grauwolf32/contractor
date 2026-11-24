@@ -1,7 +1,9 @@
 # Contractor configuration
 
 The pre-production catalog was reset on 2026-11-23. Each supplied object has
-one current definition at `@1`; exact selectors and content locks still apply.
+one current definition; exact selectors and content locks still apply. Source Audit
+checkers and their dependent profiles use `@2` to prepare their workspace before
+model invocation. Other objects retain their current versions.
 
 This directory contains the executable default configuration for Contractor's
 Application Security orchestration platform. Versioned Workflows define checks
@@ -431,3 +433,10 @@ facts, and keep normal reports and Audit evidence/results. Facts require an acti
 Project; a publication denial is a reported limitation. Audit publication precedes
 final result submission. Builders, validators, scanners, hypothesis generation and
 existing-Finding review retain their existing roles. See FND-R242.
+
+Source checklist, Top 10, ASVS and WSTG source checks prepare the exact ZIP
+through `context.workspace` before the Worker starts. Their read-only filesystem
+tools inspect the prepared overlay; code evidence uses `workspace=true` to retain
+exact source provenance. Archive validation failures stop allocation preparation
+before a model call. Existing Audits retain their pinned definitions; select a
+new `@2` profile for checks using prepared workspaces.

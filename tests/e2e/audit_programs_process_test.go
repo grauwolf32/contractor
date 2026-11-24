@@ -166,8 +166,8 @@ DELETE FROM artifact_bindings
 var removedAuditProgramProfiles = map[string]bool{
 	"openapi-operation-observe@1":      true,
 	"openapi-operation-trace@1":        true,
-	"owasp-asvs-5-0-l1-source-pilot@1": true,
-	"owasp-top10-2025-source-risk@1":   true,
+	"owasp-asvs-5-0-l1-source-pilot@2": true,
+	"owasp-top10-2025-source-risk@2":   true,
 }
 
 func removeAuditProgramAuthoringEntries(t *testing.T, configRoot string) {
@@ -183,8 +183,8 @@ func removeAuditProgramAuthoringEntries(t *testing.T, configRoot string) {
 		"audit-standards/owasp-web-top10-2025",
 		"agent-templates/audit_asvs_source_verifier.yaml",
 		"agent-templates/audit_risk_source_checker.yaml",
-		"instructions/audit-asvs-source-verifier-worker.md",
-		"instructions/audit-risk-source-checker-worker.md",
+		"instructions/audit-asvs-source-verifier-worker-v2.md",
+		"instructions/audit-risk-source-checker-worker-v2.md",
 		"workflows/audit_asvs_source_verification.yaml",
 		"workflows/audit_top10_source_risk.yaml",
 	} {
@@ -206,8 +206,8 @@ func assertAuditProgramCatalogUnavailable(t *testing.T, client *http.Client, bas
 	}
 	auditProgramGET(t, client, baseURL+"/v1/audit-profiles?limit=100", &page)
 	remainingProfiles := map[string]bool{
-		"source-checklist@1":                false,
-		"owasp-asvs-5-0-l1-source-review@1": false,
+		"source-checklist@2":                false,
+		"owasp-asvs-5-0-l1-source-review@2": false,
 	}
 	for _, profile := range page.Items {
 		identity := profile.Ref.Name + "@" + profile.Ref.Version

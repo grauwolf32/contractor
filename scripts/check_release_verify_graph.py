@@ -97,6 +97,7 @@ EXPECTED_BROWSER_STACK_TESTS = {
 }
 
 EXPECTED_CONFIG_TESTS = {
+    "TestAuditSourceWorkspaceCatalog",
     "TestAuditCommonFixtureConfigurationLoads",
     "TestCodeAnalysisE2EConfigurationLoads",
     "TestAuditProgramsE2EConfigurationLoads",

@@ -5,6 +5,7 @@ package e2e
 import (
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -61,7 +62,7 @@ func TestAuditInvestigationInstructionCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, ref := range []string{"audit_source_checker@1", "audit_wstg_http_verifier@1", "audit_openapi_operation_tracer@1", "audit_openapi_operation_observer@1", "audit_asvs_source_verifier@1", "audit_standard_source_verifier@1", "audit_risk_source_checker@1", "source_findings_reviewer@1"} {
+	for _, ref := range []string{"audit_source_checker@2", "audit_wstg_http_verifier@1", "audit_openapi_operation_tracer@1", "audit_openapi_operation_observer@1", "audit_asvs_source_verifier@2", "audit_standard_source_verifier@2", "audit_risk_source_checker@2", "source_findings_reviewer@1"} {
 		template, err := configloadtest.AgentTemplate(snapshot, ref)
 		if err != nil {
 			t.Fatal(err)
@@ -83,6 +84,63 @@ func TestAuditInvestigationInstructionCatalog(t *testing.T) {
 		}
 		if strings.Contains(text, "expected_revision") {
 			t.Fatalf("%s asks for a model revision", ref)
+		}
+	}
+}
+
+// The shipped Audit definitions must hydrate source before any model call.
+// An archive opener otherwise fails on valid project names such as App::Identity.
+func TestAuditSourceWorkspaceCatalog(t *testing.T) {
+	snapshot, _, err := configload.LoadUnionReadOnly(filepath.Join(repoRoot(t), "configs"), filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"audit-source-check", "audit-top10-source-risk", "audit-asvs-source-verification", "audit-standard-source-review"} {
+		t.Run(name, func(t *testing.T) {
+			wf, err := snapshot.Workflow(name + "@2")
+			if err != nil {
+				t.Fatal(err)
+			}
+			stage := wf.Stages[wf.EntryStage]
+			workspace := stage.Context.Workspace
+			if workspace == nil || workspace.Mode != "overlay" || workspace.State != nil || workspace.Export != nil || len(workspace.Sources) != 1 || workspace.Sources[0].Artifact != "source" || workspace.Sources[0].Target != "" {
+				t.Fatalf("source must be hydrated before model invocation, retaining source capture: %+v", workspace)
+			}
+			source := stage.Context.Artifacts["source"]
+			if source.Namespace != "inputs" || source.Name != "source" || !source.Required {
+				t.Fatalf("wrong source binding: %+v", source)
+			}
+			for _, binding := range stage.Agents {
+				hasFilesystem := false
+				for _, selection := range binding.Template.Toolsets {
+					if selection.Ref.ToolsetID == "source-analysis" {
+						t.Fatal("model must not initialize a source archive")
+					}
+					if selection.Ref.ToolsetID == "filesystem" {
+						hasFilesystem = true
+						if !slices.Equal(selection.Tools, []string{"glob", "grep", "ls", "read_file"}) {
+							t.Fatalf("unexpected filesystem tools: %+v", selection.Tools)
+						}
+					}
+				}
+				if !hasFilesystem || binding.Template.Ref.Version != "2" {
+					t.Fatal("versioned source readers missing")
+				}
+				for _, text := range []string{stage.Instructions.Text, binding.Template.Instructions.Text} {
+					if !strings.Contains(text, "Runtime has already prepared") || !strings.Contains(text, "workspace=true") {
+						t.Fatal("source instructions omit preparation or exact workspace evidence")
+					}
+				}
+			}
+		})
+	}
+	for _, name := range []string{"source-checklist", "owasp-top10-2025-source-risk", "owasp-asvs-5-0-l1-source-pilot", "owasp-asvs-5-0-l1-source-review", "owasp-wstg-4-2-source-review", "owasp-wstg-4-2-fast-source-review", "hypothesis-research"} {
+		profile, err := snapshot.AuditProfile(name + "@2")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasSuffix(profile.Program.Workflows["check"].Ref, "@2") {
+			t.Fatalf("profile %s retains an unprepared source checker", name)
 		}
 	}
 }

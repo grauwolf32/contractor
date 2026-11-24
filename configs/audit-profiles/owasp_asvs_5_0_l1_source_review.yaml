@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: AuditProfile
 metadata:
   name: owasp-asvs-5-0-l1-source-review
-  version: '1'
+  version: '2'
 spec:
   schema: contractor.audit.program.v1
   inputs:
@@ -12,7 +12,7 @@ spec:
       - application/zip
   workflows:
     check:
-      ref: audit-standard-source-review@1
+      ref: audit-standard-source-review@2
       inputs:
         source:
           source: audit-input

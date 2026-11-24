@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: AuditProfile
 metadata:
   name: owasp-top10-2025-source-risk
-  version: '1'
+  version: '2'
 spec:
   schema: contractor.audit.program.v1
   inputs:
@@ -12,7 +12,7 @@ spec:
       - application/zip
   workflows:
     check:
-      ref: audit-top10-source-risk@1
+      ref: audit-top10-source-risk@2
       inputs:
         source:
           source: audit-input
