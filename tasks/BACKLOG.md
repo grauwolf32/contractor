@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 11 in progress, 43 pending, 13 deferred. 1694 finished: 1676 completed, 18 archived.
+66 open tasks: 10 in progress, 43 pending, 13 deferred. 1695 finished: 1677 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V485-001](v485-001-source-checkers-vuln-scan-skill.yml) | agent-skills | feature | P1 | Connect and direct the vuln-scan Skill in passive source checkers |
 
 ## Pending
 
@@ -44,7 +43,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V485-002](v485-002-active-http-workers-offensive-skills.yml) | feature | P1 | V485-001 | Connect offensive-methodology Skills to active HTTP Workers |
+| [V485-002](v485-002-active-http-workers-offensive-skills.yml) | feature | P1 | — | Connect offensive-methodology Skills to active HTTP Workers |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -167,7 +166,7 @@ tasks in `introduced_by`.
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 99 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
-| Agent Skills (`agent-skills`) | 2 | 13 | 4 | 2 | 4 |
+| Agent Skills (`agent-skills`) | 1 | 13 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 26 | 38 | 16 | 39 |
