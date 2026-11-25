@@ -56,16 +56,20 @@ class HTTPTransportFactory:
         self._engine = None
 
     async def probe(self) -> bool:
+        self._native_engine()
         return True
 
-    def create(self, spec: AllocationSpec) -> HTTPTransport:
+    def _native_engine(self):
         if self._engine is None:
             from contractor_runtime.adapters.bridge.mitmproxy import MitmproxyEngine
 
             self._engine = MitmproxyEngine()
+        return self._engine
+
+    def create(self, spec: AllocationSpec) -> HTTPTransport:
         return HTTPTransport(
             spec,
-            native_engine=self._engine,
+            native_engine=self._native_engine(),
             protected_urls=self._protected_urls,
             resolver=self._resolver,
         )

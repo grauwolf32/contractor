@@ -67,3 +67,54 @@ def test_shared_engine_fault_fences_every_session_and_retains_failed_cleanup(mon
             assert all(session.directory is None for session in sessions)
 
     asyncio.run(scenario())
+
+
+def test_factory_startup_probe_guards_version_and_shares_one_lazy_engine(monkeypatch):
+    import time
+
+    import pytest
+    from fakes.engagement_socket import SocketTarget, resolver_for, socket_spec
+
+    from contractor_runtime.adapters.bridge.mitmproxy import runtime
+    from contractor_runtime.adapters.http_transport import HTTPTransportFactory
+
+    async def scenario():
+        factory = HTTPTransportFactory()
+        version = runtime.importlib.metadata.version
+        monkeypatch.setattr(runtime.importlib.metadata, "version", lambda _: "unsupported")
+        with pytest.raises(RuntimeError, match="unsupported native HTTP engine"):
+            await factory.probe()
+        assert factory._engine is None
+        monkeypatch.setattr(runtime.importlib.metadata, "version", version)
+        assert await factory.probe()
+        assert factory._engine.master is None and runtime._active is None
+        async with SocketTarget() as target:
+            factory._resolver = resolver_for(target).resolver
+            owners = [
+                factory.create(
+                    socket_spec(target).model_copy(
+                        update={"allocation_id": f"allocation-{i}"},
+                        deep=True,
+                    )
+                )
+                for i in range(4)
+            ]
+            try:
+                for owner in owners:
+                    owner.configure(authority_deadline=lambda: time.monotonic() + 60)
+                results = await asyncio.gather(
+                    *(owner.request(target.origin + "/allowed") for owner in owners)
+                )
+                assert all(outcome.kind == "completed" for outcome, _ in results)
+                assert len(factory._engine.sessions) == 4
+                assert all(owner._engine.runtime is factory._engine for owner in owners)
+                await owners[0].close()
+                assert (await owners[1].request(target.origin + "/allowed"))[0].kind == "completed"
+                assert len(factory._engine.sessions) == 3
+            finally:
+                await asyncio.gather(*(owner.close() for owner in owners))
+                await factory.close()
+        assert factory._engine.master is None and not factory._engine.sessions
+        assert runtime._active is None
+
+    asyncio.run(scenario())

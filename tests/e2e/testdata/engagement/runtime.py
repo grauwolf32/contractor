@@ -80,16 +80,12 @@ class ObservedHTTPTransport(HTTPTransport):
 
 class VerifiedFixtureTargetFactory(HTTPTransportFactory):
     def create(self, spec):
-        if self._engine is None:
-            from contractor_runtime.adapters.bridge.mitmproxy import MitmproxyEngine
-
-            self._engine = MitmproxyEngine()
         context = ssl.create_default_context(
             cafile=os.environ["CONTRACTOR_TEST_TARGET_CA"]
         )
         return ObservedHTTPTransport(
             spec,
-            native_engine=self._engine,
+            native_engine=self._native_engine(),
             protected_urls=self._protected_urls,
             resolver=self._resolver,
             ssl_context=context,
