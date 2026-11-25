@@ -147,17 +147,18 @@ print(json.dumps({"template-id":"memory-fixture","info":{"severity":"info"}}))
 		}
 		return count("ready-*.json") == 4
 	})
-	agents := snapshot()
-	busy := 0
-	for _, agent := range agents {
-		busy += agent.BusySlots
-		if agent.AllocationSlots != slots {
-			t.Fatal("measurement capacity drift")
+	var agents []controlplane.RuntimeAgentObservation
+	wait(func() bool {
+		agents = snapshot()
+		busy := 0
+		for _, agent := range agents {
+			busy += agent.BusySlots
+			if agent.AllocationSlots != slots {
+				t.Fatal("measurement capacity drift")
+			}
 		}
-	}
-	if len(agents) != 4/slots || busy != 4 {
-		t.Fatal("measurement did not start four concurrent allocations")
-	}
+		return len(agents) == 4/slots && busy == 4
+	})
 	server, err := os.ReadFile(h.server.cmd.Path)
 	if err != nil {
 		t.Fatal(err)
