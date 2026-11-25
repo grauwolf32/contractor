@@ -260,7 +260,7 @@ class ControlledRuntimeTests(unittest.TestCase):
                 ):
                     runtime = await factory.AdkWorkerRuntimeFactory(lambda _: model).create(context)
                 try:
-                    self.assertIsNone(runtime._agent.before_model_callback)
+                    self.assertEqual(runtime._agent.before_model_callback, runtime._prepare_model_request)
                     result = await runtime.invoke(stage_request())
                     self.assertIsNone(result.failure)
                     self.assertEqual(result.result.result, "done")
