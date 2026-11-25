@@ -5,7 +5,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: http-tools
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - python
@@ -162,3 +162,4 @@ verification:
     the final full Runtime gate passed. Heavy-I/O remained opt-in and disabled. No test database was created.
   delivery: Experiment and grouping are on codex/runtime-multislot-proposal. Group 2 and group 3 remain
     pending. No production ownership/protocol implementation in this research change.
+implementation_commit: 9aa7b98f3d2fb527cd00d03299528981427fe024

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 11 in progress, 46 pending, 13 deferred. 1698 finished: 1680 completed, 18 archived.
+69 open tasks: 10 in progress, 46 pending, 13 deferred. 1699 finished: 1681 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V487-001](v487-001-shared-mitmproxy-isolation.yml) | http-tools | chore | P2 | Prove allocation session isolation in one shared mitmproxy engine |
 
 ## Pending
 
@@ -31,7 +30,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
 | [V469-002](v469-002-opencode-audit-runtime.yml) | feature | P1 | V469-001 | Run OpenCode in one retained Audit environment through existing A2A |
-| [V487-004](v487-004-runtime-allocation-slots.yml) | feature | P2 | V487-001 | Run bounded concurrent allocations in one configurable Runtime process |
+| [V487-004](v487-004-runtime-allocation-slots.yml) | feature | P2 | — | Run bounded concurrent allocations in one configurable Runtime process |
 | [V487-005](v487-005-runtime-multislot-acceptance.yml) | chore | P2 | V487-002, V487-003, V487-004 | Verify isolation cleanup and memory benefit of the multi-slot Runtime |
 
 ### Planners and the Worker model boundary (`planner-worker`)
@@ -51,7 +50,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-037](v410-037-allocation-openvpn-bridge-egress.yml) | feature | P2 | — | Route bridge egress through an allocation-owned OpenVPN tunnel |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
-| [V487-002](v487-002-runtime-http-sessions.yml) | feature | P2 | V487-001 | Share the Runtime HTTP engine through isolated allocation sessions |
+| [V487-002](v487-002-runtime-http-sessions.yml) | feature | P2 | — | Share the Runtime HTTP engine through isolated allocation sessions |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -97,7 +96,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V411-013](v411-013-pentest-sandbox-integration.yml) | feature | P1 | V411-015 | Compose the existing networked sandbox into HTTP investigations |
 | [V469-003](v469-003-opencode-audit-recovery.yml) | chore | P1 | V469-002 | Verify retained environment recovery and deletion across owner failures |
-| [V487-003](v487-003-runtime-podman-resources.yml) | feature | P2 | V487-001 | Manage allocation containers through one Runtime Podman owner |
+| [V487-003](v487-003-runtime-podman-resources.yml) | feature | P2 | — | Manage allocation containers through one Runtime Podman owner |
 
 ### Web UI (`ui`)
 
@@ -168,7 +167,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 14 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 7 | 27 | 38 | 17 | 39 |
+| HTTP and Caido tools (`http-tools`) | 6 | 27 | 38 | 17 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 22 | 16 | 13 | 30 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 16 | 27 |
