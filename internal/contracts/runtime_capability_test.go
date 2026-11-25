@@ -190,13 +190,13 @@ func TestSharedRuntimeCapabilityGoldenCases(t *testing.T) {
 			check(fmt.Sprintf("registration allocationId %q", identity), group.valid, registrationSchema,
 				registration(func(value map[string]any) {
 					value["observedState"] = "allocated"
-					value["allocationId"] = identity
+					value["allocations"] = []any{map[string]any{"allocationId": identity, "observedState": "allocated"}}
 				}), decodeRegistration)
 			heartbeat := wireCase(t, "agent-heartbeat.json")
 			heartbeat["instanceId"] = identity
 			check(fmt.Sprintf("heartbeat instanceId %q", identity), group.valid, heartbeatSchema, heartbeat, decodeHeartbeat)
 			heartbeat = wireCase(t, "agent-heartbeat.json")
-			heartbeat["allocationId"] = identity
+			heartbeat["allocations"] = []any{map[string]any{"allocationId": identity, "observedState": "allocated"}}
 			check(fmt.Sprintf("heartbeat allocationId %q", identity), group.valid, heartbeatSchema, heartbeat, decodeHeartbeat)
 		}
 	}

@@ -79,7 +79,9 @@ func (r *InMemoryRegistry) holdForModelStage(request ReservationRequest, edges [
 	for _, entry := range r.agents {
 		r.expireEntry(entry, monotonicNow)
 		if isCapacityLive(entry, monotonicNow) && contracts.PlacementLabelsMatch(request.RequiredPlacementLabels, entry.registration.PlacementLabels) {
-			live = append(live, entry)
+			for range entry.registration.AllocationSlots {
+				live = append(live, entry)
+			}
 		}
 	}
 	if len(bindings) > len(live) {
@@ -169,12 +171,17 @@ func (r *InMemoryRegistry) reserveAll(
 		}
 	}
 
+	if len(r.allocations)+len(normalizedBindings) > maximumOperationsItems {
+		return nil, ErrInsufficientCapacity
+	}
 	available := make([]*agentEntry, 0, len(r.agents))
 	for _, entry := range r.agents {
 		if isPlacementEligible(entry, monotonicNow) &&
 			contracts.PlacementLabelsMatch(request.RequiredPlacementLabels, entry.registration.PlacementLabels) &&
 			(!request.ModelFree || entry.modelStageHeldUntil <= monotonicNow) {
-			available = append(available, entry)
+			for range entry.availableSlots() {
+				available = append(available, entry)
+			}
 		}
 	}
 	sort.Slice(available, func(i, j int) bool {
@@ -231,8 +238,7 @@ func (r *InMemoryRegistry) reserveAll(
 			LeaseExpiresAt:            entry.confirmedLeaseExpiresAt,
 			initialLeaseExpiresAt:     entry.confirmedLeaseExpiresAt,
 		}
-		entry.authoritativeAllocationID = clone.Pointer(&allocationID)
-		entry.allocationActivated = false
+		entry.allocationIDs[allocationID] = struct{}{}
 		r.allocations[allocationID] = storedReservation{
 			reservation: reservation, phase: AllocationPreparing, writeGate: &sync.RWMutex{},
 		}
@@ -331,8 +337,7 @@ func (r *InMemoryRegistry) DiscardCandidateReservations(stageExecutionID string)
 			return ErrReservationConflict
 		}
 		entry, present := r.agents[stored.reservation.Grant.RuntimeInstanceID]
-		if !present || entry.authoritativeAllocationID == nil ||
-			*entry.authoritativeAllocationID != allocationID || entry.allocationActivated {
+		if !present || !entry.owns(allocationID) || stored.activated {
 			return ErrReservationConflict
 		}
 	}
@@ -396,8 +401,7 @@ func (r *InMemoryRegistry) DiscardUnpreparedReservations(stageExecutionID string
 			return ErrReservationConflict
 		}
 		entry, present := r.agents[stored.reservation.Grant.RuntimeInstanceID]
-		if !present || entry.authoritativeAllocationID == nil ||
-			*entry.authoritativeAllocationID != allocationID || entry.allocationActivated {
+		if !present || !entry.owns(allocationID) || stored.activated {
 			return ErrReservationConflict
 		}
 	}
@@ -423,10 +427,7 @@ func (r *InMemoryRegistry) existingReservations(existing stageReservation) ([]Re
 }
 
 func isPlacementEligible(entry *agentEntry, monotonicNow time.Duration) bool {
-	return entry.authoritativeAllocationID == nil && !entry.reconciliationRequired &&
-		!entry.leaseExpired && !entry.superseded && !entry.principalMissing && entry.blockedByInstanceID == nil &&
-		entry.registration.ObservedState == control.AgentIdle &&
-		entry.confirmedLeaseDeadline > monotonicNow
+	return entry.availableSlots() > 0 && entry.confirmedLeaseDeadline > monotonicNow
 }
 
 // isCapacityLive reports whether entry is a slot that placement could use

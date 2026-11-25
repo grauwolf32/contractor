@@ -4,6 +4,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
+from fakes.allocation import allocation_context, allocation_snapshot
 from fakes.spec import allocation_spec
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 from test_projectfs_zip import archive, workspace_inputs
@@ -109,10 +110,10 @@ def test_allocation_prepare_hydrates_before_ready_and_release_erases_project_tre
         spec.workspace = source_spec
 
         await service.prepare(spec)
-        snapshot = await service.snapshot()
+        snapshot = await allocation_snapshot(service)
         assert snapshot is not None and snapshot.has_project_workspace
-        assert service._context is not None
-        project_path = Path(service._context.project_workspace.storage.root)  # type: ignore[union-attr]
+        assert allocation_context(service) is not None
+        project_path = Path(allocation_context(service).project_workspace.storage.root)  # type: ignore[union-attr]
         assert (project_path / "run_workdir/src/main.py").read_text() == "print('ready')\n"
 
         await service.finalize(
@@ -128,7 +129,7 @@ def test_allocation_prepare_hydrates_before_ready_and_release_erases_project_tre
         )
         assert not project_path.exists()
         await service.confirm_release(spec.allocation_id)
-        assert await service.snapshot() is None
+        assert await allocation_snapshot(service) is None
 
     asyncio.run(scenario())
 
@@ -170,9 +171,9 @@ def test_abort_and_lease_loss_erase_project_tree_before_release(
         spec = allocation_spec(tools=["read_artifact"])
         spec.workspace = source_spec
         await service.prepare(spec)
-        assert service._context is not None
-        assert service._context.project_workspace is not None
-        project_path = Path(service._context.project_workspace.storage.root)
+        assert allocation_context(service) is not None
+        assert allocation_context(service).project_workspace is not None
+        project_path = Path(allocation_context(service).project_workspace.storage.root)
 
         if termination == "abort":
             await service.abort(
@@ -192,7 +193,7 @@ def test_abort_and_lease_loss_erase_project_tree_before_release(
             await service.expire_control_lease(1)
 
         assert not project_path.exists()
-        snapshot = await service.snapshot()
+        snapshot = await allocation_snapshot(service)
         assert snapshot is not None and not snapshot.has_project_workspace
         await service.release(
             ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)

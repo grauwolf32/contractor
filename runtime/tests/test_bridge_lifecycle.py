@@ -72,7 +72,7 @@ def test_failed_native_close_keeps_ownership_until_retry(monkeypatch, failure):
     from mitmproxy import ctx
     from mitmproxy.net import tls
 
-    from contractor_runtime.adapters.bridge.mitmproxy import engine as module
+    from contractor_runtime.adapters.bridge.mitmproxy import runtime
 
     previous = {key: getattr(ctx, key, None) for key in ("master", "options", "log")}
     logger = logging.getLogger("mitmproxy")
@@ -108,20 +108,22 @@ def test_failed_native_close_keeps_ownership_until_retry(monkeypatch, failure):
                 monkeypatch.setattr(engine.directory, "cleanup", cleanup)
             with pytest.raises(RuntimeError, match=r"injected .* failure"):
                 await owner.close()
-            assert owner._engine is engine and module._active is engine and not engine.closed
+            assert (
+                owner._engine is engine and runtime._active is engine.runtime and not engine.closed
+            )
             assert directory.exists() and tls.log_master_secret is None
-            contender = module.MitmproxyEngine(require_authority=lambda: None)
+            contender = runtime.MitmproxyEngine()
             with pytest.raises(RuntimeError, match="already belongs"):
                 await contender.start()
             await contender.close()
-            assert module._active is engine and tls.log_master_secret is None
+            assert runtime._active is engine.runtime and tls.log_master_secret is None
             rejected = False
             await owner.close()
-            assert engine.closed and module._active is None and not directory.exists()
+            assert engine.closed and runtime._active is None and not directory.exists()
             assert logger.handlers == handlers and logger.propagate == propagate
             assert tls.log_master_secret is keylog
             assert all(getattr(ctx, key, None) is value for key, value in previous.items())
-            replacement = module.MitmproxyEngine(require_authority=lambda: None)
+            replacement = runtime.MitmproxyEngine()
             await replacement.start()
             await replacement.close()
 
@@ -129,7 +131,8 @@ def test_failed_native_close_keeps_ownership_until_retry(monkeypatch, failure):
 
 
 def test_repeated_cancellation_joins_native_close_before_restoring_state(monkeypatch):
-    from contractor_runtime.adapters.bridge.mitmproxy import engine as module
+
+    from contractor_runtime.adapters.bridge.mitmproxy import runtime
 
     async def scenario():
         async with SocketTarget() as target, preflight(target) as (owner, _):
@@ -152,11 +155,11 @@ def test_repeated_cancellation_joins_native_close_before_restoring_state(monkeyp
             await asyncio.sleep(0)
             closing.cancel()
             await asyncio.sleep(0)
-            assert not engine.closed and module._active is engine
+            assert not engine.closed and runtime._active is engine.runtime
             release.set()
             with pytest.raises(asyncio.CancelledError):
                 await closing
-            assert engine.closed and module._active is None
+            assert engine.closed and runtime._active is engine.runtime
             assert not engine.pools and not engine.flows
 
     run(scenario)

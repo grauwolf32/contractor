@@ -29,6 +29,7 @@
       '--advertised-control-url', url,
       '--advertised-a2a-url', url,
       '--listen', listen_host ~ ':' ~ port,
+      '--allocation-slots', e.allocation_slots | default(contractor_runtime_allocation_slots),
       '--ca-file', pki ~ '/ca.crt',
       '--certificate-file', pki ~ '/' ~ e.name ~ '.crt',
       '--private-key-file', pki ~ '/' ~ e.name ~ '.key',

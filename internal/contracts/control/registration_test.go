@@ -84,11 +84,11 @@ func TestSharedPrivateRegistrationNormalizationFingerprintAndProjection(t *testi
 }
 
 func TestCompletionCapabilityCloneDoesNotGrantOrShareSupport(t *testing.T) {
-	empty := NormalizeAgentRegistration(AgentRegistration{})
+	empty := NormalizeAgentRegistration(AgentRegistration{AllocationSlots: 1, Allocations: []ObservedAllocation{}})
 	if empty.Capabilities != nil {
 		t.Fatal("omission invented completion capability")
 	}
-	original := AgentRegistration{Capabilities: &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}}
+	original := AgentRegistration{AllocationSlots: 1, Allocations: []ObservedAllocation{}, Capabilities: &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}}
 	cloned := NormalizeAgentRegistration(original)
 	cloned.Capabilities.CompletionContracts[0] = "changed"
 	if original.Capabilities.CompletionContracts[0] != contracts.AuditCheckResultsV1 {
@@ -143,16 +143,16 @@ func TestSharedRegistrationCloneAndNormalizationDetachObservations(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	original.AllocationID = &allocationID
+	original.Allocations = []ObservedAllocation{{AllocationID: allocationID, ObservedState: AgentAllocated}}
 	original.Capabilities = &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}
 	for _, detached := range []AgentRegistration{original.Clone(), NormalizeAgentRegistration(original)} {
-		*detached.AllocationID = "allocation-changed"
+		detached.Allocations[0].AllocationID = "allocation-changed"
 		detached.Capabilities.CompletionContracts[0] = "changed"
 		detached.SupportedRuntimes[0] = "changed@1"
 		detached.SupportedSandboxProfiles[0] = "changed@1"
 		detached.SupportedRuntimeAdapters[0] = runtimesettings.RuntimeAdapterHTTPTarget
 		detached.SupportedToolsets[0].Tools[0] = "changed"
-		if *original.AllocationID != "allocation-original" || original.Capabilities.CompletionContracts[0] != contracts.AuditCheckResultsV1 || original.SupportedRuntimes[0] == "changed@1" || original.SupportedSandboxProfiles[0] == "changed@1" || original.SupportedRuntimeAdapters[0] == runtimesettings.RuntimeAdapterHTTPTarget || original.SupportedToolsets[0].Tools[0] == "changed" {
+		if original.Allocations[0].AllocationID != "allocation-original" || original.Capabilities.CompletionContracts[0] != contracts.AuditCheckResultsV1 || original.SupportedRuntimes[0] == "changed@1" || original.SupportedSandboxProfiles[0] == "changed@1" || original.SupportedRuntimeAdapters[0] == runtimesettings.RuntimeAdapterHTTPTarget || original.SupportedToolsets[0].Tools[0] == "changed" {
 			t.Fatal("registration copy shares mutable data")
 		}
 	}

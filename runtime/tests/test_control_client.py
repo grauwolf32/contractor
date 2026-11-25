@@ -218,6 +218,7 @@ def test_valid_reconciliation_actions_are_applied_after_ack(
             reconciliation=handler,
         )
         await client.register()
+        await state.reserve_allocation("allocation-1")
         await state.commit_allocation("allocation-1")
         await client.heartbeat_once()
         await client.heartbeat_once()
@@ -305,9 +306,9 @@ def test_local_lease_loss_stays_fenced_until_release_registration_succeeds(
         transport = FakeTransport(
             [
                 registration_response(),
-                heartbeat_response(1, action="release"),
+                heartbeat_response(1, action="reregister"),
                 TimeoutError("registration unavailable"),
-                heartbeat_response(2, action="release"),
+                heartbeat_response(2, action="reregister"),
                 registration_response(),
             ]
         )
@@ -333,7 +334,8 @@ def test_local_lease_loss_stays_fenced_until_release_registration_succeeds(
         assert await watchdog.expire_if_due()
         assert (await state.snapshot()).process_state is ProcessState.FENCED
 
-        await client.heartbeat_once()
+        with pytest.raises(TimeoutError):
+            await client.heartbeat_once()
         await client.wait_for_reconciliation()
         assert (await state.snapshot()).process_state is ProcessState.FENCED
         assert watchdog.expired and watchdog.confirmed_deadline is None
@@ -686,14 +688,14 @@ def registration_response() -> Mapping[str, Any]:
 def heartbeat_response(
     sequence: int, *, action: str = "continue", allocation_id: str | None = None
 ) -> Mapping[str, Any]:
-    response: dict[str, Any] = {
+    return {
         "apiVersion": "contractor/v1alpha1",
         "ackSeq": sequence,
-        "action": action,
+        "action": "continue" if allocation_id is not None else action,
+        "allocationActions": [{"allocationId": allocation_id, "action": action}]
+        if allocation_id is not None
+        else [],
     }
-    if allocation_id is not None:
-        response["allocationId"] = allocation_id
-    return response
 
 
 async def noop_expiry() -> None:

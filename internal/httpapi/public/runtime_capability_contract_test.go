@@ -53,8 +53,8 @@ func TestSharedPublicRuntimeAgentObservationSchemaMatchesSharedCapabilityCases(t
 			"instanceId": "runtime-1", "softwareVersion": "0.1.0",
 			"supportedRuntimes": ["adk@1"], "supportedSandboxProfiles": ["local-workdir@1"],
 			"supportedToolsets": [{"ref": "run-artifacts@1", "tools": ["read_artifact"]}],
-			"supportedRuntimeAdapters": [], "observedState": "allocated", "slotState": "busy",
-			"currentAllocationId": "allocation-1"
+			"supportedRuntimeAdapters": [], "observedState": "allocated", "state": "busy", "allocationSlots":1, "availableSlots":0, "busySlots":1, "reservedSlots":0, "drainingSlots":0, "fencedSlots":0,
+            "observedAllocations":[{"allocationId":"allocation-1","observedState":"allocated"}], "authoritativeAllocationIds":["allocation-1"], "pendingReleaseAllocationIds":[]
 		}`), &observation); err != nil {
 			t.Fatal(err)
 		}
@@ -109,9 +109,13 @@ func TestSharedPublicRuntimeAgentObservationSchemaMatchesSharedCapabilityCases(t
 		{append([]string{strings.Repeat("a", cases.Identity.MaxLength+1)}, cases.Identity.Invalid...), false},
 	} {
 		for _, identity := range group.values {
-			for _, field := range []string{"instanceId", "currentAllocationId"} {
+			for _, field := range []string{"instanceId", "allocationId"} {
 				check(fmt.Sprintf("%s %q", field, identity), group.valid, func(observation map[string]any) {
-					observation[field] = identity
+					if field == "allocationId" {
+						observation["observedAllocations"] = []any{map[string]any{"allocationId": identity, "observedState": "allocated"}}
+					} else {
+						observation[field] = identity
+					}
 				})
 			}
 		}

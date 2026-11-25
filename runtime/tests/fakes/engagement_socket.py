@@ -22,10 +22,10 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 
-from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.contracts.engagement_allocation import EngagementAllocationProjection
 from contractor_runtime.core.target_policy import TargetPolicyConfig
 from fakes.engagement import preflight_spec
+from fakes.http_transport import HTTPTransport
 
 
 def private_interface():

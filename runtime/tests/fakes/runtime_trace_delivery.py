@@ -28,6 +28,7 @@ from contractor_runtime.digests import _model_policy_digest
 from contractor_runtime.log import configure_logging
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
+from fakes.allocation import allocation_context
 from fakes.model import scripted_model, tool_call
 
 SECRET = "cleanup-secret-canary"
@@ -61,7 +62,7 @@ async def run(endpoint: str, root: Path, operation: str, fault: str) -> None:
     spec.model_policy.max_tool_calls = 1
     spec.model_policy.ref.digest = _model_policy_digest(spec.model_policy)
     await service.prepare(spec)
-    context = service._context
+    context = allocation_context(service)
     completion = await context.worker.invoke(stage_request())
     assert completion.failure.code == "worker_budget_exhausted"
     instrumentation = context.adapter_host.handles.instrumentation

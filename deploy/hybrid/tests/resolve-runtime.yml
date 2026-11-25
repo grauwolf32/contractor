@@ -24,6 +24,7 @@
           - item.args | zip(item.args[1:]) | selectattr('0', 'equalto', '--placement-label') | map('last') | list == hybrid_expected_placement_labels
           - item.args | select('equalto', '--placement-label') | list | length == hybrid_expected_placement_labels | length
           - "'--initial-label' not in item.args"
+          - item.args[item.args.index('--allocation-slots') + 1] == contractor_runtime_allocation_slots | string
         quiet: true
         fail_msg: >-
           expected={{ hybrid_expected_placement_labels }}

@@ -105,7 +105,8 @@ export function CompletedAllocationListRoute() {
         )}
         <p className="ops-inventory-note">
           CPU and observed RSS peak cover the Runtime process, including service
-          work. Subprocesses and sandbox containers are excluded.
+          work and concurrent allocations. Subprocesses and sandbox containers
+          are excluded; overlapping measurements cannot be added.
         </p>
         <QueryView
           query={query}

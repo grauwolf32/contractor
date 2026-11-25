@@ -8,10 +8,10 @@ from types import SimpleNamespace
 
 import pytest
 from fakes.engagement_socket import SocketTarget, resolver_for, socket_spec, tls_contexts
+from fakes.http_transport import HTTPTransport
 from fakes.worker_state import WorkerState
 from test_engagement_identity import identity_spec
 
-from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.contracts.engagement import HTTPLimits
 from contractor_runtime.toolsets.scan import tools as scan

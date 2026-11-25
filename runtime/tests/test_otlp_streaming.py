@@ -6,6 +6,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from fakes.allocation import allocation_context
 from fakes.telemetry import SERVER_EXPORT
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
     ExportTraceServiceRequest,
@@ -453,8 +454,8 @@ def test_allocation_deadline_cancels_background_post_and_allows_release(
         spec.runtime_settings.telemetry = _settings(4096)
         spec.runtime_settings.telemetry.export.max_pending_spans = 1
         await service.prepare(spec)
-        assert service._context is not None
-        instrumentation = service._context.adapter_host.handles.instrumentation
+        assert allocation_context(service) is not None
+        instrumentation = allocation_context(service).adapter_host.handles.instrumentation
         assert instrumentation is not None
         instrumentation.start_span("contractor.worker.model").end(outcome="succeeded")
         await asyncio.wait_for(entered.wait(), timeout=1)

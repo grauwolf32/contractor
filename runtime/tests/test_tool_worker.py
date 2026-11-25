@@ -12,6 +12,7 @@ import pytest
 from a2a.client import ClientConfig, ClientFactory
 from a2a.types import AgentCard
 from a2a.utils.constants import TransportProtocol
+from fakes.allocation import allocation_context
 from fakes.process_markers import atomic_marker_source
 from fakes.worker_state import WorkerState
 from google.protobuf.json_format import ParseDict
@@ -698,7 +699,7 @@ def test_shared_real_allocation_and_a2a_use_scanner_without_model(tmp_path, monk
                 assert "failure" not in result, result
                 assert result["result"]["artifacts"]["report"]["revision"] == "revision-2"
             else:
-                runtime = service._context.worker
+                runtime = allocation_context(service).worker
                 invocation = asyncio.create_task(runtime.invoke(request(spec)))
                 async with asyncio.timeout(2):
                     while not pid_file.exists():
@@ -912,7 +913,7 @@ def test_shared_sqlmap_prepared_request_allocation_report_and_replay(tmp_path, m
         service = await scanner_allocation(tmp_path, store, spec)
         try:
             stage_request = prepared_request(spec)
-            result = await service._context.worker.invoke(stage_request)
+            result = await allocation_context(service).worker.invoke(stage_request)
             assert result.failure is None, result
             assert marker.read_text() == "scan\n"
             report = json.loads(store.values[(spec.namespace, "report")][0])
@@ -933,7 +934,7 @@ def test_shared_sqlmap_prepared_request_allocation_report_and_replay(tmp_path, m
         spec.allocation_id = "replacement-allocation"
         replacement = await scanner_allocation(tmp_path, store, spec)
         try:
-            replay = await replacement._context.worker.invoke(stage_request)
+            replay = await allocation_context(replacement).worker.invoke(stage_request)
             assert replay.failure is None
             assert replay.result.artifacts == result.result.artifacts
             assert marker.read_text() == "scan\n"
@@ -979,7 +980,7 @@ def test_shared_sqlmap_unreadable_request_never_launches(tmp_path, monkeypatch, 
         store, spec = UnreadableRequestStore(), sqlmap_spec()
         service = await scanner_allocation(tmp_path, store, spec)
         try:
-            result = await service._context.worker.invoke(prepared_request(spec))
+            result = await allocation_context(service).worker.invoke(prepared_request(spec))
             assert result.failure.code == "tool_input_invalid"
             assert not result.failure.retryable
             assert not marker.exists()
@@ -1064,7 +1065,7 @@ def test_shared_ffuf_wordlist_allocation_report_and_replay(tmp_path, monkeypatch
         service = await scanner_allocation(tmp_path, store, spec)
         try:
             stage_request = ffuf_request(spec)
-            result = await service._context.worker.invoke(stage_request)
+            result = await allocation_context(service).worker.invoke(stage_request)
             assert result.failure is None, result
             assert marker.read_text() == "scan\n"
             report = json.loads(store.values[(spec.namespace, "report")][0])
@@ -1093,7 +1094,7 @@ def test_shared_ffuf_wordlist_allocation_report_and_replay(tmp_path, monkeypatch
         spec.allocation_id = "replacement-allocation"
         replacement = await scanner_allocation(tmp_path, store, spec)
         try:
-            replay = await replacement._context.worker.invoke(stage_request)
+            replay = await allocation_context(replacement).worker.invoke(stage_request)
             assert replay.failure is None
             assert replay.result.artifacts == result.result.artifacts
             assert marker.read_text() == "scan\n"
@@ -1130,7 +1131,7 @@ def test_shared_ffuf_request_failure_publishes_partial_report_without_rescan(tmp
         service = await scanner_allocation(tmp_path, store, spec)
         try:
             stage_request = ffuf_request(spec)
-            result = await service._context.worker.invoke(stage_request)
+            result = await allocation_context(service).worker.invoke(stage_request)
             assert result.failure.code == "tool_execution_failed"
             report = json.loads(store.values[(spec.namespace, "report")][0])
             observation = report["observation"]
@@ -1140,7 +1141,7 @@ def test_shared_ffuf_request_failure_publishes_partial_report_without_rescan(tmp
             assert observation["requestErrors"] == 1
             assert observation["results"][0]["input"] == {"FUZZ": "foo"}
             original_state = await service.agent_state_snapshot(spec.allocation_id)
-            replay = await service._context.worker.invoke(stage_request)
+            replay = await allocation_context(service).worker.invoke(stage_request)
             assert replay.failure.code == "tool_execution_failed"
             assert marker.read_text() == "scan\n"
             snapshot = await service.agent_state_snapshot(spec.allocation_id)

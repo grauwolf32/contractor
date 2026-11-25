@@ -152,7 +152,7 @@ func startFindingsHarnessForBrowser(t *testing.T, stages []domainGatewayStage, b
 		prepare(prepared)
 	}
 	workRoot := filepath.Join(temporaryRoot, "runtime-work")
-	runtimeArguments := []string{"-m", "contractor_runtime",
+	runtimeArguments := []string{"-m", "contractor_runtime", "--allocation-slots", "1",
 		"--control-plane-url", prepared.runtimeControlPlaneURL,
 		"--advertised-control-url", runtimeBaseURL,
 		"--advertised-a2a-url", runtimeBaseURL,

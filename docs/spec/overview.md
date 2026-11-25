@@ -62,8 +62,8 @@ defines:
 - **Execution core** — the generic machinery in which the Workflow Scheduler
   manages Run and Stage lifecycles without branching on security-check types.
 - **Single-VM baseline** — the baseline deployment layout in which one
-  Contractor Server process, PostgreSQL and one or two single-slot Runtime
-  Agent processes (the second only if concurrency is needed) run on one VM.
+  Contractor Server process, PostgreSQL and one or more Runtime
+  Agent processes with configured allocation capacity run on one VM.
 - **Aborting path** — the path a Stage takes when Scheduler-owned cancellation
   or interruption wins before `finalizing`: StageTermination is stored, writes
   are fenced and a bounded best-effort drain ends in `cancelled` or
@@ -98,7 +98,7 @@ them:
 ### Deployables and topology
 
 A deployment consists of the Contractor Server with its Control Plane,
-PostgreSQL, one or more single-slot Runtime Agent processes and the UI static
+PostgreSQL, one or more Runtime Agent processes with 1..4 slots each and the UI static
 service (SYS-R10 to SYS-R17). The diagram shows the single-host baseline and
 the transport rules between deployables (SYS-R15, SYS-R18, SYS-R19).
 
@@ -109,8 +109,8 @@ flowchart LR
     subgraph HOST["One VM or one physical host"]
         S["Contractor Server / Control Plane (one active)"]
         PG[("PostgreSQL: authority for execution and artifact metadata")]
-        RA1["Runtime Agent 1: one slot, in-process Worker runtime"]
-        RA2["Runtime Agent 2: one slot, only if concurrency is needed"]
+        RA1["Runtime Agent 1: 1..4 slots, in-process Workers"]
+        RA2["Runtime Agent 2: optional additional capacity"]
         SB["Separate tool sandbox, where a tool requires it"]
     end
     B -->|"public UI origin, browser-session rules"| UI
@@ -138,8 +138,8 @@ The baseline deployment may use this layout (SYS-R14):
 one VM
   Contractor Server process
   PostgreSQL
-  Runtime Agent process 1 (one slot, Worker runtime executes in-process)
-  Runtime Agent process 2 (one slot, only if concurrency is needed)
+  Runtime Agent process 1 (1..4 slots, Workers execute in-process)
+  Runtime Agent process 2 (optional additional capacity)
 ```
 
 ### End-to-end path of one Run
@@ -254,7 +254,7 @@ PostgreSQL database is [LIM-PER-1](platform/limits.md),
 Runtime Agent processes (LIM-SYS-3) may all run on, and share, that host.
 Remote Runtime processes preserve the same single-active-Server authority.
 
-**SYS-R11.** Each Runtime Agent has a single slot
+**SYS-R11.** Each Runtime Agent has 1..4 allocation slots
 ([LIM-CTL-4](platform/limits.md), [CTL-R112](execution/control-plane.md)).
 
 **SYS-R12.** A Runtime Agent and its Worker runtime are one process: the Worker
@@ -265,8 +265,8 @@ requires it.
 
 **SYS-R14.** The baseline deployment may use the
 [single-VM baseline](#single-vm-baseline) layout: one Contractor Server
-process, PostgreSQL, one single-slot Runtime Agent process, and a second
-single-slot Runtime Agent process only if concurrency is needed (LIM-SYS-3).
+process, PostgreSQL, one Runtime Agent process with configured capacity, and additional
+processes as resource use or isolation needs require (LIM-SYS-3).
 
 **SYS-R15.** On the single VM, control, A2A and artifact transports may use
 loopback.
@@ -326,7 +326,7 @@ Registry entries owned by this document:
   deployment host, enforced by the advisory lease of
   [PER-R2](platform/persistence.md) (SYS-R10); see also LIM-PER-1.
 - [LIM-SYS-3](platform/limits.md): one or more Runtime Agent processes; in the
-  single-VM baseline, a second one only if concurrency is needed (SYS-R10,
+  single-VM baseline, with additional processes when needed (SYS-R10,
   SYS-R14).
 - [LIM-SYS-5](platform/limits.md): one process for a Runtime Agent and its
   Worker runtime (SYS-R12).

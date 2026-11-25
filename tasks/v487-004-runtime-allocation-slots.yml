@@ -5,7 +5,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: execution-core
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V487-001
 languages:
@@ -43,7 +43,9 @@ context:
     are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. Implementation
     tasks remain pending. User follow-up 2026-11-25 requests grouping and execution in the minimum number
     of passes. Execution groups are isolation assessment, coordinated resource/capacity implementation,
-    and integrated acceptance.'
+    and integrated acceptance. User instruction 2026-11-25 explicitly authorizes completing execution
+    groups 2 and 3 end to end, simplifying and reducing code and reusing existing mechanisms wherever
+    possible.'
   execution_group: 2
   execution_batch: Group 2 executes V487-002, V487-003 and V487-004 as one coordinated implementation
     pass after successful V487-001 evidence. These tasks share the same integration branch. Reconcile
@@ -53,6 +55,11 @@ context:
     No task is complete before its own acceptance and the combined gates pass.
   start_condition: V487-001 is completed and evidence demonstrates shared-engine isolation. A negative
     verdict leaves this group pending with context.decision_needed.
+  verification_execution: 'User request 2026-11-25 asks for the minimum number of passes. Final verification
+    uses the existing release-verify consolidation rather than repeating all family suites: actual Go/Runtime/shared-fixture,
+    race, integration, process and browser reports must demonstrate nonzero required cases. Family targets
+    skipped by RELEASE_CONSOLIDATED are not independent passing coverage. The Linux rootless Podman gate
+    stays separate.'
 scope:
   in:
   - Per-Runtime --allocation-slots startup parsing and immutable registration capacity, bounded multi-allocation
@@ -211,24 +218,15 @@ acceptance_criteria:
   then: One-slot assumptions and replaced fields are removed, shared mechanisms retained and added code
     justified.
 tests:
-- command: make test-go
+- command: make release-verify
   covers:
   - A1
   - A2
-  - A3
-  - A6
-  - A7
-- command: make test-runtime
-  covers:
   - A3
   - A4
   - A5
-- command: make test-e2e
-  covers:
-  - A1
-  - A2
-  - A3
-  - A4
+  - A6
+  - A7
 - command: make test-podman-release
   covers:
   - A3
@@ -236,19 +234,3 @@ tests:
   covers:
   - A2
   - A6
-- command: make verify-public-api-postgres
-  covers:
-  - A6
-- command: make ui-verify
-  covers:
-  - A6
-- command: make test-ansible test-hybrid
-  covers:
-  - A6
-- command: make verify-architecture
-  covers:
-  - A7
-- command: make lint
-  covers:
-  - A6
-  - A7

@@ -18100,7 +18100,7 @@ components:
     RuntimeAgentObservation:
       type: object
       additionalProperties: false
-      required: [instanceId, softwareVersion, supportedRuntimes, supportedToolsets, supportedSandboxProfiles, supportedRuntimeAdapters, observedState, slotState]
+      required: [instanceId, softwareVersion, supportedRuntimes, supportedToolsets, supportedSandboxProfiles, supportedRuntimeAdapters, observedState, state, allocationSlots, availableSlots, busySlots, reservedSlots, drainingSlots, fencedSlots, observedAllocations, authoritativeAllocationIds, pendingReleaseAllocationIds]
       properties:
         placementLabels: {$ref: '#/components/schemas/PlacementLabels'}
         instanceId: {$ref: '#/components/schemas/ResourceId'}
@@ -18128,11 +18128,35 @@ components:
           items: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
         workspaceCapabilities: {$ref: '#/components/schemas/WorkspaceCapabilities'}
         observedState: {type: string, enum: [idle, allocated, draining, fenced]}
-        slotState: {type: string, enum: [idle, reserved, busy, draining, fenced]}
+        state: {type: string, enum: [idle, reserved, busy, draining, fenced]}
         lastAcceptedHeartbeat: {type: string, format: date-time}
         confirmedLeaseUntil: {type: string, format: date-time}
-        currentAllocationId: {$ref: '#/components/schemas/ResourceId'}
-        authoritativeAllocationId: {$ref: '#/components/schemas/ResourceId'}
+        allocationSlots: {type: integer, minimum: 1, maximum: 4}
+        availableSlots: {type: integer, minimum: 0, maximum: 4}
+        busySlots: {type: integer, minimum: 0, maximum: 4}
+        reservedSlots: {type: integer, minimum: 0, maximum: 4}
+        drainingSlots: {type: integer, minimum: 0, maximum: 4}
+        fencedSlots: {type: integer, minimum: 0, maximum: 4}
+        observedAllocations:
+          type: array
+          maxItems: 4
+          items:
+            type: object
+            additionalProperties: false
+            required: [allocationId, observedState]
+            properties:
+              allocationId: {$ref: '#/components/schemas/ResourceId'}
+              observedState: {type: string, enum: [allocated, draining, fenced]}
+        authoritativeAllocationIds:
+          type: array
+          maxItems: 4
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/ResourceId'}
+        pendingReleaseAllocationIds:
+          type: array
+          maxItems: 4
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/ResourceId'}
         reconciliationReason: {$ref: '#/components/schemas/SafeReason'}
     RuntimeAgentPrincipalAvailability:
       type: string

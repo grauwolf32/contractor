@@ -1,9 +1,7 @@
-"""Evaluate the minimum shared-engine extraction with real isolated HTTP owners.
+"""Exercise production shared HTTP sessions with real socket and TLS fixtures.
 
-Run from runtime with its locked environment. Only local fixture endpoints are used.
-The prototype keeps one native Master and extracts existing exchange methods into
-allocation session facades. It compares global trust with task-local native options
-and per-session TLS configuration. Production modules are imported unchanged.
+The original extraction experiment and its evidence remain at e40825690.
+This matrix now uses the ordinary Runtime owner and HTTPTransport initialization.
 """
 
 # ruff: noqa: E402
@@ -12,8 +10,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import contextvars
-import copy
 import gc
 import hashlib
 import importlib.metadata
@@ -34,7 +30,7 @@ sys.path[:0] = [str(ROOT / "runtime/src"), str(ROOT / "runtime/tests")]
 
 import httpx
 from contractor_runtime.adapters.bridge import HTTPProxyBridge
-from contractor_runtime.adapters.bridge.mitmproxy.engine import (
+from contractor_runtime.adapters.bridge.mitmproxy.runtime import (
     MitmproxyEngine,
 )
 from contractor_runtime.adapters.http_session import PrivateResponse
@@ -62,102 +58,22 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
-_current_options = contextvars.ContextVar("assessment_native_options")
-
-
-class ContextOptions:
-    """Stable process binding with task/thread-specific native settings."""
-
-    def __getattr__(self, name):
-        return getattr(_current_options.get(), name)
-
-
 async def open_engine(trust, *, contextual=True):
-    engine = MitmproxyEngine(
-        require_authority=lambda: None, ssl_context=None if contextual else trust
-    )
+    engine = MitmproxyEngine()
     await engine.start()
-    engine.assessment_options = ctx.options
-    if contextual:
-        ctx.options = ContextOptions()
-    if contextual:
-        try:
-            _ = ctx.options.ssl_verify_upstream_trusted_ca
-        except LookupError:
-            pass
-        else:
-            raise RuntimeError("unowned TLS options must fail closed")
+    # Deliberately give every owner the same trust only for the negative control.
+    engine.assessment_trust = None if contextual else trust
+    try:
+        _ = ctx.options.ssl_verify_upstream_trusted_ca
+    except LookupError:
+        pass
+    else:
+        raise RuntimeError("unowned TLS options must fail closed")
     return engine
 
 
 async def close_engine(engine):
-    ctx.options = engine.assessment_options
     await engine.close()
-
-
-class Session:
-    """Reuse current native methods with private pools/flows and one common engine."""
-
-    async def handle_hook(self, *args):
-        token = _current_options.set(self.options)
-        try:
-            return await MitmproxyEngine.handle_hook(self, *args)
-        finally:
-            _current_options.reset(token)
-
-    _release_exchange = MitmproxyEngine._release_exchange
-
-    def __init__(self, engine, owner):
-        self.options, self.tls, self.next_layer = (
-            engine.options,
-            engine.tls,
-            engine.next_layer,
-        )
-        self.contextual = isinstance(ctx.options, ContextOptions)
-        self.require_authority = owner._require_authority
-        self.pools, self.flows, self.ingresses = {}, {}, set()
-        self.closed = False
-
-    async def request(self, *args):
-        self.require_authority()
-        token = _current_options.set(self.options)
-        try:
-            return await MitmproxyEngine.request(self, *args)
-        finally:
-            _current_options.reset(token)
-
-    def create_ingress(self, bridge, reader, writer):
-        token = _current_options.set(self.options)
-        try:
-            handler = MitmproxyEngine.create_ingress(self, bridge, reader, writer)
-            original = handler.handle_client
-
-            async def run():
-                token = _current_options.set(self.options)
-                try:
-                    await original()
-                finally:
-                    _current_options.reset(token)
-
-            handler.handle_client = run
-            return handler
-        finally:
-            _current_options.reset(token)
-
-    async def close(self):
-        for bridge in tuple(self.ingresses):
-            await bridge.__aexit__()
-        for pool in self.pools.values():
-            await pool.close()
-        self.pools.clear()
-        self.flows.clear()
-        if self.contextual:
-            native_tls.create_proxy_server_context.cache_clear()
-            native_tls.create_client_proxy_context.cache_clear()
-            self.directory.cleanup()
-        self.require_authority = None
-        self.options = self.tls = self.next_layer = None
-        self.closed = True
 
 
 async def owner_for(stack, engine, target, trust, tag):
@@ -177,30 +93,12 @@ async def owner_for(stack, engine, target, trust, tag):
     }
     owner = HTTPTransport(
         AllocationSpec.model_validate_json(json.dumps(raw)),
-        ssl_context=trust,
+        ssl_context=engine.assessment_trust or trust,
+        native_engine=engine,
         resolver=resolver_for(target).resolver,
     )
     owner.configure(authority_deadline=lambda: time.monotonic() + 120)
-    await owner._policy.initialize(owner._settings)
-    owner._engine = Session(engine, owner)
-    if isinstance(ctx.options, ContextOptions):
-        session = owner._engine
-        session.directory = tempfile.TemporaryDirectory(prefix="contractor-shared-session-")
-        trusted = Path(session.directory.name) / "trusted.pem"
-        trusted.write_text(
-            "".join(ssl.DER_cert_to_PEM_cert(c) for c in trust.get_ca_certs(binary_form=True))
-        )
-        session.options = copy.deepcopy(engine.options)
-        session.options.update(
-            confdir=session.directory.name, ssl_verify_upstream_trusted_ca=str(trusted)
-        )
-        session.tls = TlsConfig()
-        token = _current_options.set(session.options)
-        try:
-            await asyncio.to_thread(session.tls.configure, set(session.options.keys()))
-        finally:
-            _current_options.reset(token)
-    owner._initialized = True
+    await owner._initialize()
     identity = owner._sessions[1]
     identity.receive(
         PrivateResponse(

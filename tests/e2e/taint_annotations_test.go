@@ -241,7 +241,7 @@ func TestTaintAnnotationsAcrossRealRuntimeProcess(t *testing.T) {
 	agents, initialSnapshot := waitForObservedRuntimeAgents(
 		t, ctx, server, runtimes, publicClient, publicBaseURL,
 		func(items []observedRuntimeAgent) bool {
-			return len(items) == 1 && items[0].SlotState == "idle" &&
+			return len(items) == 1 && items[0].State == "idle" &&
 				items[0].ConfirmedLeaseUntil != nil
 		},
 	)
@@ -298,10 +298,10 @@ func TestTaintAnnotationsAcrossRealRuntimeProcess(t *testing.T) {
 		t, ctx, server, runtimes, publicClient, publicBaseURL,
 		func(items []observedRuntimeAgent) bool {
 			return len(items) == 1 && items[0].InstanceID == runtimeAgent.InstanceID &&
-				items[0].SlotState == "fenced" && items[0].ObservedState == "idle" &&
-				items[0].CurrentAllocationID == nil &&
-				items[0].AuthoritativeAllocationID != nil &&
-				*items[0].AuthoritativeAllocationID == initialAllocation.AllocationID
+				items[0].State == "fenced" && items[0].ObservedState == "idle" &&
+				len(items[0].ObservedAllocations) == 0 &&
+				len(items[0].AuthoritativeAllocationIDs) != 0 &&
+				items[0].AuthoritativeAllocationIDs[0] == initialAllocation.AllocationID
 		},
 	)
 	releaseProxy.allowReleaseAcknowledgement()
@@ -309,8 +309,8 @@ func TestTaintAnnotationsAcrossRealRuntimeProcess(t *testing.T) {
 		t, ctx, server, runtimes, publicClient, publicBaseURL,
 		func(items []observedRuntimeAgent) bool {
 			return len(items) == 1 && items[0].InstanceID == runtimeAgent.InstanceID &&
-				items[0].SlotState == "idle" && items[0].ObservedState == "idle" &&
-				items[0].CurrentAllocationID == nil && items[0].AuthoritativeAllocationID == nil
+				items[0].State == "idle" && items[0].ObservedState == "idle" &&
+				len(items[0].ObservedAllocations) == 0 && len(items[0].AuthoritativeAllocationIDs) == 0
 		},
 	)
 	waitForRuntimeReleased(
@@ -342,8 +342,8 @@ func TestTaintAnnotationsAcrossRealRuntimeProcess(t *testing.T) {
 		t, ctx, server, runtimes, publicClient, publicBaseURL,
 		func(items []observedRuntimeAgent) bool {
 			return len(items) == 1 && items[0].InstanceID == runtimeAgent.InstanceID &&
-				items[0].SlotState == "idle" && items[0].ObservedState == "idle" &&
-				items[0].CurrentAllocationID == nil && items[0].AuthoritativeAllocationID == nil
+				items[0].State == "idle" && items[0].ObservedState == "idle" &&
+				len(items[0].ObservedAllocations) == 0 && len(items[0].AuthoritativeAllocationIDs) == 0
 		},
 	)
 	if len(finalAgents) != 1 || !workRootEmpty(workRoot) || !workRootEmpty(workspaceRoot) {
@@ -393,7 +393,7 @@ func startTaintAnnotationsRuntime(
 	return startProcess(
 		t, "Python local taint-annotations Runtime", filepath.Join(repositoryRoot, "runtime"),
 		map[string]string{"PYTHONUNBUFFERED": "1"}, python,
-		"-m", "contractor_runtime",
+		"-m", "contractor_runtime", "--allocation-slots", "1",
 		"--control-plane-url", controlPlaneURL,
 		"--advertised-control-url", advertisedURL,
 		"--advertised-a2a-url", advertisedURL,

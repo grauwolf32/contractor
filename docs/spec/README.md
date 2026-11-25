@@ -10,7 +10,7 @@ Contractor is an Application Security orchestration platform. Versioned
 Workflows define security checks and supporting analyses; a Run executes one
 Workflow; an Audit coordinates many ordinary Runs inside a Project against a
 pinned baseline and tracks coverage, evidence, findings and human review.
-Everything runs on one host: Server, PostgreSQL and one or more single-slot
+Everything runs on one host: Server, PostgreSQL and one or more multi-slot
 Runtime Agents.
 
 ## Start here

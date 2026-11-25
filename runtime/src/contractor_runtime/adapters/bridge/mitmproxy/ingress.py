@@ -22,6 +22,7 @@ from contractor_runtime.adapters.bridge.mitmproxy.messages import (
     request_target,
     response_message,
 )
+from contractor_runtime.adapters.bridge.mitmproxy.runtime import native_options
 from contractor_runtime.contracts.engagement import canonical_url
 from contractor_runtime.core.http_limits import MAX_HEADERS, request_header_max_bytes
 from contractor_runtime.core.tool_errors import ToolExecutionError
@@ -124,6 +125,10 @@ class Ingress(OwnedHandler, server.LiveConnectionHandler):
         self.received = self.authenticated = False
         self.pending: set[str] = set()
         self.completed = 0
+
+    async def handle_client(self):
+        with native_options(self.engine.options):
+            await super().handle_client()
 
     def log(self, message, level=logging.INFO, exc_info=None):
         if exc_info:

@@ -19,7 +19,9 @@ def run(scenario):
 
 
 def observe_connections(monkeypatch):
-    from contractor_runtime.adapters.bridge.mitmproxy.engine import MitmproxyEngine
+    from contractor_runtime.adapters.bridge.mitmproxy.engine import (
+        MitmproxySession as MitmproxyEngine,
+    )
 
     original = MitmproxyEngine.handle_hook
     opened, parsers = [], []

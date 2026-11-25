@@ -167,12 +167,20 @@ func runtimePrincipal(instanceID string) controlplane.AuthenticatedPrincipal {
 	}
 }
 
+func (r *runtimeHarness) observations() []control.ObservedAllocation {
+	result := []control.ObservedAllocation{}
+	if r.allocation != nil {
+		result = append(result, control.ObservedAllocation{AllocationID: *r.allocation, ObservedState: r.state})
+	}
+	return result
+}
+
 func (r *runtimeHarness) heartbeat(echoed uint64) control.AgentHeartbeat {
 	r.sequence++
-	return control.AgentHeartbeat{
+	return control.AgentHeartbeat{Allocations: r.observations(),
 		APIVersion: contracts.APIVersion, InstanceID: r.instanceID,
 		HeartbeatSeq: r.sequence, EchoedAckSeq: echoed,
-		ObservedState: r.state, AllocationID: cloneString(r.allocation),
+		ObservedState: r.state,
 	}
 }
 
@@ -181,19 +189,21 @@ func (r *runtimeHarness) receive(response control.HeartbeatResponse, now time.Du
 		r.echoedAck = response.AckSeq
 		r.deadline = now + confirmedLease
 	}
-	switch response.Action {
-	case control.ActionDrain:
-		if r.allocation != nil && response.AllocationID != nil && *r.allocation == *response.AllocationID {
+	for _, action := range response.AllocationActions {
+		if r.allocation == nil || *r.allocation != action.AllocationID {
+			continue
+		}
+		switch action.Action {
+		case control.ActionDrain:
 			r.workerLive = false
 			r.state = control.AgentFenced
-		}
-	case control.ActionRelease:
-		if sameOptionalString(r.allocation, response.AllocationID) {
+		case control.ActionRelease:
 			r.workerLive = false
 			r.state = control.AgentIdle
 			r.allocation = nil
 		}
 	}
+
 }
 
 func (r *runtimeHarness) expire(now time.Duration) {
@@ -249,7 +259,7 @@ func registerRuntime(
 	clock *faultClock,
 ) {
 	t.Helper()
-	_, err := registry.RegisterAuthenticated(runtime.principal, control.AgentRegistration{
+	_, err := registry.RegisterAuthenticated(runtime.principal, control.AgentRegistration{AllocationSlots: 1, Allocations: runtime.observations(),
 		SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{},
 		APIVersion:               contracts.APIVersion, InstanceID: runtime.instanceID, SoftwareVersion: "0.1.0",
 		StartedAt: clock.Now(), ControlURL: runtime.controlURL, A2AURL: runtime.a2aURL,
@@ -259,7 +269,6 @@ func registerRuntime(
 		}},
 		SupportedSandboxProfiles: []string{"local-workdir@1"},
 		ObservedState:            runtime.state,
-		AllocationID:             cloneString(runtime.allocation),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -322,16 +331,4 @@ func assertSingleLoss(t *testing.T, losses []controlplane.AllocationLoss, alloca
 		losses[0].Reason != controlplane.LossControlLeaseExpired {
 		t.Fatalf("allocation losses = %+v", losses)
 	}
-}
-
-func cloneString(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	result := *value
-	return &result
-}
-
-func sameOptionalString(left, right *string) bool {
-	return left == nil && right == nil || left != nil && right != nil && *left == *right
 }

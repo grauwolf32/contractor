@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 
 from contractor_runtime.adapters.bridge import BridgeFailure
 from contractor_runtime.adapters.http_session import PrivateRequest, PrivateResponse
-from contractor_runtime.adapters.http_transport import HTTPTransport
+from fakes.http_transport import HTTPTransport
 
 
 def reply(status=200, headers=(), body=b"ok", *, truncated=False):

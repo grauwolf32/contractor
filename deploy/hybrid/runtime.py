@@ -16,6 +16,7 @@ from pathlib import Path
 from common import DEFAULT_STATE, ROOT, load_state, run, secure_write, ssh
 
 from contractor_runtime.contracts.placement import validate_placement_labels
+from contractor_runtime.contracts.registration import MAX_ALLOCATION_SLOTS
 
 ANSIBLE = ["uvx", "--from", "ansible-core==2.21.5", "ansible-playbook"]
 
@@ -24,6 +25,9 @@ def inventory(args, state, doc):
     # The deployment manifest is the durable operator input. Never infer a
     # location from SSH aliases or infrastructure configuration labels.
     for host in doc["hosts"]:
+        capacity = host.get("allocation_slots", MAX_ALLOCATION_SLOTS)
+        if type(capacity) is not int or not 1 <= capacity <= MAX_ALLOCATION_SLOTS:
+            raise ValueError(f"allocation_slots must be an integer in 1..{MAX_ALLOCATION_SLOTS}")
         labels = host.get("placement_labels")
         if not isinstance(labels, list) or any(not isinstance(label, str) for label in labels):
             raise ValueError("set each deployment.json host's placement_labels to a list of paths")
@@ -68,6 +72,9 @@ def inventory(args, state, doc):
             "contractor_runtime_listen_host": host["address"],
             "contractor_runtime_advertise_host": host["address"],
             "contractor_runtime_instances": instances,
+            "contractor_runtime_allocation_slots": host.get(
+                "allocation_slots", MAX_ALLOCATION_SLOTS
+            ),
             "contractor_runtime_placement_labels": list(host["placement_labels"]),
         }
     document = {

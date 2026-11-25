@@ -4,6 +4,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
+from fakes.allocation import allocation_snapshot
 from fakes.spec import allocation_spec
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 from test_agent_skill_toolset import resolved_value, skill_package
@@ -46,7 +47,7 @@ def test_non_skill_runtime_rejects_selected_skills_before_workspace(tmp_path: Pa
         assert captured.value.code == "skill_runtime_unsupported"
         assert captured.value.retryable is False
         assert (await state.snapshot()).process_state is ProcessState.IDLE
-        assert await service.snapshot() is None
+        assert await allocation_snapshot(service) is None
         assert list(tmp_path.iterdir()) == []
 
     asyncio.run(scenario())

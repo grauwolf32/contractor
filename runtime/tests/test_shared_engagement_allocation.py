@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fakes.allocation import allocation_snapshot
 from fakes.spec import allocation_spec
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 
@@ -64,7 +65,7 @@ def test_shared_engagement_prepare_reads_metadata_and_rejects_target_transport(
             assert "engagement metadata" in str(rejected.value)
             assert rejected.value.status_code == 422
             assert not rejected.value.retryable
-            assert await service.snapshot() is None
+            assert await allocation_snapshot(service) is None
             assert not list(tmp_path.iterdir())
             return
         first = await service.prepare(spec)
@@ -86,7 +87,7 @@ def test_shared_engagement_prepare_reads_metadata_and_rejects_target_transport(
         await service.release(request)
         await service.release(request)
         await service.confirm_release(spec.allocation_id)
-        assert await service.snapshot() is None
+        assert await allocation_snapshot(service) is None
 
     asyncio.run(scenario())
 

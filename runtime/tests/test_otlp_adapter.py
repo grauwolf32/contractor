@@ -9,6 +9,7 @@ from typing import Any
 
 import httpx
 import pytest
+from fakes.allocation import allocation_context
 from fakes.spec import allocation_spec
 from fakes.telemetry import SERVER_EXPORT
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory
@@ -326,8 +327,8 @@ def test_slow_collector_flush_timeout_does_not_change_worker_result_or_release(
         )
         spec = configured_allocation()
         await service.prepare(spec)
-        assert service._context is not None
-        instrumentation = service._context.adapter_host.handles.instrumentation
+        assert allocation_context(service) is not None
+        instrumentation = allocation_context(service).adapter_host.handles.instrumentation
         assert instrumentation is not None
         instrumentation.start_span(
             "contractor.worker.a2a_task",
@@ -375,8 +376,8 @@ def test_allocation_without_telemetry_never_constructs_or_calls_exporter(
         )
         spec = allocation_spec(tools=["read_artifact"])
         await service.prepare(spec)
-        assert service._context is not None
-        assert service._context.adapter_host.refs == ()
+        assert allocation_context(service) is not None
+        assert allocation_context(service).adapter_host.refs == ()
         response = await service.finalize(
             FinalizeAllocationRequest(
                 apiVersion=API_VERSION,

@@ -4633,6 +4633,27 @@ func (e RuntimeAdapterDiagnosticRef) Valid() bool {
 	}
 }
 
+// Defines values for RuntimeAgentObservationObservedAllocationsObservedState.
+const (
+	RuntimeAgentObservationObservedAllocationsObservedStateAllocated RuntimeAgentObservationObservedAllocationsObservedState = "allocated"
+	RuntimeAgentObservationObservedAllocationsObservedStateDraining  RuntimeAgentObservationObservedAllocationsObservedState = "draining"
+	RuntimeAgentObservationObservedAllocationsObservedStateFenced    RuntimeAgentObservationObservedAllocationsObservedState = "fenced"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeAgentObservationObservedAllocationsObservedState enum.
+func (e RuntimeAgentObservationObservedAllocationsObservedState) Valid() bool {
+	switch e {
+	case RuntimeAgentObservationObservedAllocationsObservedStateAllocated:
+		return true
+	case RuntimeAgentObservationObservedAllocationsObservedStateDraining:
+		return true
+	case RuntimeAgentObservationObservedAllocationsObservedStateFenced:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RuntimeAgentObservationObservedState.
 const (
 	RuntimeAgentObservationObservedStateAllocated RuntimeAgentObservationObservedState = "allocated"
@@ -4657,27 +4678,27 @@ func (e RuntimeAgentObservationObservedState) Valid() bool {
 	}
 }
 
-// Defines values for RuntimeAgentObservationSlotState.
+// Defines values for RuntimeAgentObservationState.
 const (
-	RuntimeAgentObservationSlotStateBusy     RuntimeAgentObservationSlotState = "busy"
-	RuntimeAgentObservationSlotStateDraining RuntimeAgentObservationSlotState = "draining"
-	RuntimeAgentObservationSlotStateFenced   RuntimeAgentObservationSlotState = "fenced"
-	RuntimeAgentObservationSlotStateIdle     RuntimeAgentObservationSlotState = "idle"
-	RuntimeAgentObservationSlotStateReserved RuntimeAgentObservationSlotState = "reserved"
+	RuntimeAgentObservationStateBusy     RuntimeAgentObservationState = "busy"
+	RuntimeAgentObservationStateDraining RuntimeAgentObservationState = "draining"
+	RuntimeAgentObservationStateFenced   RuntimeAgentObservationState = "fenced"
+	RuntimeAgentObservationStateIdle     RuntimeAgentObservationState = "idle"
+	RuntimeAgentObservationStateReserved RuntimeAgentObservationState = "reserved"
 )
 
-// Valid indicates whether the value is a known member of the RuntimeAgentObservationSlotState enum.
-func (e RuntimeAgentObservationSlotState) Valid() bool {
+// Valid indicates whether the value is a known member of the RuntimeAgentObservationState enum.
+func (e RuntimeAgentObservationState) Valid() bool {
 	switch e {
-	case RuntimeAgentObservationSlotStateBusy:
+	case RuntimeAgentObservationStateBusy:
 		return true
-	case RuntimeAgentObservationSlotStateDraining:
+	case RuntimeAgentObservationStateDraining:
 		return true
-	case RuntimeAgentObservationSlotStateFenced:
+	case RuntimeAgentObservationStateFenced:
 		return true
-	case RuntimeAgentObservationSlotStateIdle:
+	case RuntimeAgentObservationStateIdle:
 		return true
-	case RuntimeAgentObservationSlotStateReserved:
+	case RuntimeAgentObservationStateReserved:
 		return true
 	default:
 		return false
@@ -11119,30 +11140,43 @@ type RuntimeAgentLabelsMutation struct {
 
 // RuntimeAgentObservation defines model for RuntimeAgentObservation.
 type RuntimeAgentObservation struct {
-	AuthoritativeAllocationId *ResourceId                          `json:"authoritativeAllocationId,omitempty"`
-	ConfirmedLeaseUntil       *time.Time                           `json:"confirmedLeaseUntil,omitempty"`
-	CurrentAllocationId       *ResourceId                          `json:"currentAllocationId,omitempty"`
-	InstanceId                ResourceId                           `json:"instanceId"`
-	LastAcceptedHeartbeat     *time.Time                           `json:"lastAcceptedHeartbeat,omitempty"`
-	ObservedState             RuntimeAgentObservationObservedState `json:"observedState"`
+	AllocationSlots            int          `json:"allocationSlots"`
+	AuthoritativeAllocationIds []ResourceId `json:"authoritativeAllocationIds"`
+	AvailableSlots             int          `json:"availableSlots"`
+	BusySlots                  int          `json:"busySlots"`
+	ConfirmedLeaseUntil        *time.Time   `json:"confirmedLeaseUntil,omitempty"`
+	DrainingSlots              int          `json:"drainingSlots"`
+	FencedSlots                int          `json:"fencedSlots"`
+	InstanceId                 ResourceId   `json:"instanceId"`
+	LastAcceptedHeartbeat      *time.Time   `json:"lastAcceptedHeartbeat,omitempty"`
+	ObservedAllocations        []struct {
+		AllocationId  ResourceId                                              `json:"allocationId"`
+		ObservedState RuntimeAgentObservationObservedAllocationsObservedState `json:"observedState"`
+	} `json:"observedAllocations"`
+	ObservedState               RuntimeAgentObservationObservedState `json:"observedState"`
+	PendingReleaseAllocationIds []ResourceId                         `json:"pendingReleaseAllocationIds"`
 
 	// PlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
-	PlacementLabels          *PlacementLabels                 `json:"placementLabels,omitempty"`
-	ReconciliationReason     *SafeReason                      `json:"reconciliationReason,omitempty"`
-	SlotState                RuntimeAgentObservationSlotState `json:"slotState"`
-	SoftwareVersion          string                           `json:"softwareVersion"`
-	SupportedRuntimeAdapters []RuntimeCapabilityRef           `json:"supportedRuntimeAdapters"`
-	SupportedRuntimes        []RuntimeCapabilityRef           `json:"supportedRuntimes"`
-	SupportedSandboxProfiles []RuntimeCapabilityRef           `json:"supportedSandboxProfiles"`
-	SupportedToolsets        []RuntimeToolsetCapability       `json:"supportedToolsets"`
-	WorkspaceCapabilities    *WorkspaceCapabilities           `json:"workspaceCapabilities,omitempty"`
+	PlacementLabels          *PlacementLabels             `json:"placementLabels,omitempty"`
+	ReconciliationReason     *SafeReason                  `json:"reconciliationReason,omitempty"`
+	ReservedSlots            int                          `json:"reservedSlots"`
+	SoftwareVersion          string                       `json:"softwareVersion"`
+	State                    RuntimeAgentObservationState `json:"state"`
+	SupportedRuntimeAdapters []RuntimeCapabilityRef       `json:"supportedRuntimeAdapters"`
+	SupportedRuntimes        []RuntimeCapabilityRef       `json:"supportedRuntimes"`
+	SupportedSandboxProfiles []RuntimeCapabilityRef       `json:"supportedSandboxProfiles"`
+	SupportedToolsets        []RuntimeToolsetCapability   `json:"supportedToolsets"`
+	WorkspaceCapabilities    *WorkspaceCapabilities       `json:"workspaceCapabilities,omitempty"`
 }
+
+// RuntimeAgentObservationObservedAllocationsObservedState defines model for RuntimeAgentObservation.ObservedAllocations.ObservedState.
+type RuntimeAgentObservationObservedAllocationsObservedState string
 
 // RuntimeAgentObservationObservedState defines model for RuntimeAgentObservation.ObservedState.
 type RuntimeAgentObservationObservedState string
 
-// RuntimeAgentObservationSlotState defines model for RuntimeAgentObservation.SlotState.
-type RuntimeAgentObservationSlotState string
+// RuntimeAgentObservationState defines model for RuntimeAgentObservation.State.
+type RuntimeAgentObservationState string
 
 // RuntimeAgentPage defines model for RuntimeAgentPage.
 type RuntimeAgentPage struct {

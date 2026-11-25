@@ -263,8 +263,8 @@ func TestPlacementPostgresRechecksBindingChangedAfterOptimisticPass(t *testing.T
 }
 
 func TestPlacementPerformanceCollectionPolicyDoesNotFilterCandidates(t *testing.T) {
-	unsupported := control.AgentRegistration{}
-	supported := control.AgentRegistration{
+	unsupported := control.AgentRegistration{AllocationSlots: 1, Allocations: []control.ObservedAllocation{}}
+	supported := control.AgentRegistration{AllocationSlots: 1, Allocations: []control.ObservedAllocation{},
 		SupportedPerformanceMetricsVersions: reporting.PerformanceMetricsVersions{1},
 	}
 	for _, test := range []struct {
@@ -310,7 +310,7 @@ func TestPlacementPostgresDiscardsProvisionalBatchOnPrincipalRevisionChange(t *t
 		t.Fatalf("placement did not retry with current principal: %+v, %v", reservations, err)
 	}
 	agent, err := fixture.registry.GetAgent("runtime-racy")
-	if err != nil || agent.AuthoritativeAllocationID == nil || agent.Principal.LabelRevision != 2 {
+	if err != nil || len(agent.AuthoritativeAllocationIDs) == 0 || agent.Principal.LabelRevision != 2 {
 		t.Fatalf("refreshed principal or committed slot = (%+v, %v)", agent, err)
 	}
 	allocations, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageAllocations(ctx, fixture.stageExecutionID)
@@ -375,7 +375,7 @@ func TestPlacementPostgresAdmissionDenialLeavesNoDurableAllocation(t *testing.T)
 		t.Fatalf("denied placement error = %v", err)
 	}
 	agent, err := fixture.registry.GetAgent("runtime-gated")
-	if err != nil || agent.AuthoritativeAllocationID != nil {
+	if err != nil || len(agent.AuthoritativeAllocationIDs) != 0 {
 		t.Fatalf("denied candidate was not discarded: (%+v, %v)", agent, err)
 	}
 	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
@@ -414,7 +414,7 @@ func TestPlacementPostgresDiscardedUnpreparedReservationIsPlacedAgain(t *testing
 		t.Fatalf("discard unprepared reservation: %v", err)
 	}
 	agent, err := fixture.registry.GetAgent("runtime-discard")
-	if err != nil || agent.AuthoritativeAllocationID != nil {
+	if err != nil || len(agent.AuthoritativeAllocationIDs) != 0 {
 		t.Fatalf("discarded reservation still owns the Runtime: (%+v, %v)", agent, err)
 	}
 	if _, err := fixture.allocator.GetGrant(first[0].Grant.AllocationID); !errors.Is(err, ErrAllocationNotFound) {
@@ -706,7 +706,7 @@ func (f *placementFixture) candidateRegistration(
 	adapters []runtimesettings.RuntimeAdapterRef,
 	labels []string,
 ) control.AgentRegistration {
-	return control.AgentRegistration{
+	return control.AgentRegistration{AllocationSlots: 1, Allocations: []control.ObservedAllocation{},
 		SupportedRuntimes: []string{f.template.Runtime.RuntimeID + "@" + f.template.Runtime.Version},
 		SupportedToolsets: []control.ToolsetCapability{{
 			Ref:   f.template.Toolsets[0].Ref.ToolsetID + "@" + f.template.Toolsets[0].Ref.Version,
@@ -763,13 +763,13 @@ func (f *placementFixture) registerPrincipalProcess(
 	if _, err := f.registry.RegisterAuthenticated(authenticated, registration); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.registry.HeartbeatAuthenticated(runtimeAgentID, control.AgentHeartbeat{
+	if _, err := f.registry.HeartbeatAuthenticated(runtimeAgentID, control.AgentHeartbeat{Allocations: []control.ObservedAllocation{},
 		APIVersion: contracts.APIVersion, InstanceID: instanceID,
 		HeartbeatSeq: 1, ObservedState: control.AgentIdle,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.registry.HeartbeatAuthenticated(runtimeAgentID, control.AgentHeartbeat{
+	if _, err := f.registry.HeartbeatAuthenticated(runtimeAgentID, control.AgentHeartbeat{Allocations: []control.ObservedAllocation{},
 		APIVersion: contracts.APIVersion, InstanceID: instanceID,
 		HeartbeatSeq: 2, EchoedAckSeq: 1, ObservedState: control.AgentIdle,
 	}); err != nil {

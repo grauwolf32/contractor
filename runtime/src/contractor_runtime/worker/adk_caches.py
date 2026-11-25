@@ -12,9 +12,10 @@ pinned google-adk 2.15.0 three process-wide LRU caches retain callable keys:
 
 Without a release step each released tool, and through it its ArtifactClient,
 Toolset session, Worker State and MetricsState, would stay reachable until 1024
-newer callables evicted it. The Runtime has one allocation slot, so no other
-allocation's entries exist when release clears them; the next allocation's new
-tool instances miss the cache anyway and build each declaration once.
+newer callables evicted it. These caches memoize pure introspection.
+Clearing may rebuild a live neighbor's
+declaration, without changing its callable or invocation state. The released
+allocation joins all users before clearing, so none can repopulate its keys.
 
 All names are resolved at import, so an ADK upgrade that renames or removes
 one fails Runtime startup instead of silently retaining tools again.

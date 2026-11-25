@@ -33,14 +33,14 @@ func (a *PlacementAllocator) pinReservations(
 	policies map[string]reporting.PerformanceCollectionPolicy,
 ) error {
 	labels := make(map[string]struct{})
-	principalIDs := make([]string, 0, len(reservations))
+	principalIDs := make(map[string]struct{}, len(reservations))
 	for _, reservation := range reservations {
 		candidate, ok := candidates[reservation.Grant.RuntimeInstanceID]
 		if !ok || candidate.Principal.RuntimeAgentID != reservation.Grant.RuntimeAgentID ||
 			candidate.Principal.LabelRevision != reservation.RuntimeAgentLabelRevision {
 			return errPlacementRevisionChanged
 		}
-		principalIDs = append(principalIDs, candidate.Principal.RuntimeAgentID)
+		principalIDs[candidate.Principal.RuntimeAgentID] = struct{}{}
 		for _, label := range candidate.Principal.Labels {
 			labels[label] = struct{}{}
 		}
@@ -52,7 +52,7 @@ func (a *PlacementAllocator) pinReservations(
 			return placementCatalogError(err)
 		}
 	}
-	principals, err := agentprincipal.NewRepository(tx).LockMany(ctx, principalIDs)
+	principals, err := agentprincipal.NewRepository(tx).LockMany(ctx, sortedStringSet(principalIDs))
 	if err != nil {
 		return placementCatalogError(err)
 	}

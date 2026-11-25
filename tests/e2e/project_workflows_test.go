@@ -500,7 +500,7 @@ func startProjectRuntime(
 			"PATH":             validatorBin + string(os.PathListSeparator) + "/usr/bin:/bin",
 			"PYTHONUNBUFFERED": "1",
 		},
-		python, "-m", "contractor_runtime",
+		python, "-m", "contractor_runtime", "--allocation-slots", "1",
 		"--control-plane-url", privateBaseURL,
 		"--advertised-control-url", baseURL,
 		"--advertised-a2a-url", baseURL,

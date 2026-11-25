@@ -202,7 +202,8 @@ export function AllocationResourceList({
             <small>
               RSS is an observed Runtime-process peak. It excludes child
               processes and containers and is not guaranteed to be the true
-              allocation peak.
+              allocation peak. Concurrent allocations share these process
+              intervals; their memory and CPU measurements cannot be added.
             </small>
           </article>
         );

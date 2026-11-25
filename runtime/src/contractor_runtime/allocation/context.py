@@ -25,24 +25,10 @@ from contractor_runtime.projectfs import (
 )
 from contractor_runtime.sandbox.lifecycle import PreparedExecution
 from contractor_runtime.sitemap_collection import SitemapCollector
-from contractor_runtime.state import ProcessState
 from contractor_runtime.telemetry.resources import ResourceCollector
 from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.worker.state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
-
-
-@dataclass(frozen=True, slots=True)
-class AllocationSnapshot:
-    allocation_id: str
-    stage_execution_id: str
-    process_state: ProcessState
-    workspace: str
-    tool_names: tuple[str, ...]
-    has_runtime_settings: bool
-    has_worker: bool
-    runtime_adapter_refs: tuple[str, ...]
-    has_project_workspace: bool
 
 
 @dataclass(slots=True)

@@ -85,7 +85,7 @@ func TestSharedRegistrationRejectsWhatOperationsCannotShow(t *testing.T) {
 		"allocation id with a slash": func(registration *control.AgentRegistration) {
 			allocationID := "allocation/1"
 			registration.ObservedState = control.AgentAllocated
-			registration.AllocationID = &allocationID
+			registration.Allocations = []control.ObservedAllocation{{AllocationID: allocationID, ObservedState: registration.ObservedState}}
 		},
 	}
 	for name, mutate := range tests {
@@ -161,15 +161,15 @@ func TestSharedAcceptedRegistrationAlwaysYieldsValidOperationsSnapshot(t *testin
 	toolList := func() []string {
 		return list(cases.ToolsPerToolset.MaxItems, "tool_%03d", validTools, invalidTools)
 	}
-	observation := func() (control.AgentObservedState, *string) {
+	observation := func() (control.AgentObservedState, []control.ObservedAllocation) {
 		switch random.IntN(3) {
 		case 0:
-			return control.AgentIdle, nil
+			return control.AgentIdle, []control.ObservedAllocation{}
 		case 1:
-			return control.AgentFenced, nil
+			return control.AgentFenced, []control.ObservedAllocation{}
 		default:
 			allocationID := choose(validIdentities, invalidIdentities)
-			return control.AgentAllocated, &allocationID
+			return control.AgentAllocated, []control.ObservedAllocation{{AllocationID: allocationID, ObservedState: control.AgentAllocated}}
 		}
 	}
 
@@ -184,7 +184,7 @@ func TestSharedAcceptedRegistrationAlwaysYieldsValidOperationsSnapshot(t *testin
 		for index, ref := range toolsetRefs {
 			registration.SupportedToolsets[index] = control.ToolsetCapability{Ref: ref, Tools: toolList()}
 		}
-		registration.ObservedState, registration.AllocationID = observation()
+		registration.ObservedState, registration.Allocations = observation()
 
 		registry, err := NewRegistry(RegistryOptions{})
 		if err != nil {
@@ -202,7 +202,7 @@ func TestSharedAcceptedRegistrationAlwaysYieldsValidOperationsSnapshot(t *testin
 			t.Fatalf("iteration %d: accepted registration of %q yields invalid Operations snapshot: %v", iteration, registration.InstanceID, err)
 		}
 		next := heartbeat(registration.InstanceID, 1, 0)
-		next.ObservedState, next.AllocationID = observation()
+		next.ObservedState, next.Allocations = observation()
 		if _, err := registry.Heartbeat(next); err != nil {
 			continue
 		}
@@ -228,7 +228,7 @@ func TestSharedOperationsCapabilityRulesAreTheRegistrationRules(t *testing.T) {
 			SupportedRuntimes:        []string{"adk@1"},
 			SupportedToolsets:        []RuntimeToolsetCapability{{Ref: "run-artifacts@1", Tools: []string{"read_artifact"}}},
 			SupportedSandboxProfiles: []string{"local-workdir@1"},
-			ObservedState:            control.AgentIdle, SlotState: SlotIdle,
+			ObservedState:            control.AgentIdle, State: SlotIdle, AllocationSlots: 1, AvailableSlots: 1, ObservedAllocations: []control.ObservedAllocation{}, AuthoritativeAllocationIDs: []string{}, PendingReleaseAllocationIDs: []string{},
 		}
 	}
 	for _, group := range []struct {

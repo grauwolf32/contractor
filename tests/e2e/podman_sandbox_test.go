@@ -7,8 +7,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -62,6 +64,31 @@ func TestPodmanSandboxAcrossProductionProcesses(t *testing.T) {
 	}})
 	t.Cleanup(gateway.close)
 	config := stageE2EConfiguration(t, filepath.Join(root, "configs"), filepath.Join(temporary, "configs"), gateway.URL())
+	// Reuse the model-free placement fixture beside the ordinary Podman Worker.
+	for _, name := range []string{"agent-templates/probe.yaml", "workflows/probe.yaml", "instructions/probe.md"} {
+		data, err := os.ReadFile(filepath.Join(root, "tests/e2e/testdata/runtime-placement", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		data = bytes.ReplaceAll(data, []byte("value: 10}"), []byte("value: 120}"))
+		data = bytes.ReplaceAll(data, []byte("timeoutSeconds: 20"), []byte("timeoutSeconds: 180"))
+		if err := os.WriteFile(filepath.Join(config, name), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	markers, release := filepath.Join(temporary, "scan-markers"), filepath.Join(temporary, "scan-release")
+	scannerBin, templates := filepath.Join(temporary, "scan-bin"), filepath.Join(temporary, "templates")
+	for _, path := range []string{markers, scannerBin, templates} {
+		if err := os.Mkdir(path, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	python := filepath.Join(root, "runtime/.venv/bin/python")
+	writePlacementScannerFixture(t, scannerBin, python, filepath.Join(temporary, "scan-failure"))
+	script := fmt.Sprintf("from pathlib import Path\nimport os,time,json\nPath(%q,str(os.getpid())).touch()\nwhile not Path(%q).exists(): time.sleep(0.02)\nprint(json.dumps({'template-id':'mixed-slots','info':{'severity':'info'}}))\n", markers, release)
+	if err := os.WriteFile(filepath.Join(scannerBin, "nuclei.py"), []byte(script), 0600); err != nil {
+		t.Fatal(err)
+	}
 	publicAddress, privateAddress, runtimeAddress := freeAddress(t), freeAddress(t), freeAddress(t)
 	publicURL, privateURL, runtimeURL := "http://"+publicAddress, "https://"+privateAddress, "https://"+runtimeAddress
 	user := "podman-e2e-" + randomHex(t, 8)
@@ -79,12 +106,13 @@ func TestPodmanSandboxAcrossProductionProcesses(t *testing.T) {
 	owner := "e2e-" + randomHex(t, 8)
 	scratch, projectRoot := filepath.Join(temporary, "scratch"), filepath.Join(temporary, "project")
 	runtime := startProcess(t, "Podman Python Runtime", filepath.Join(root, "runtime"), map[string]string{
+		"PATH": scannerBin + string(os.PathListSeparator) + os.Getenv("PATH"), "NUCLEI_TEMPLATES_DIR": templates,
 		"PYTHONUNBUFFERED": "1", "CONTRACTOR_PODMAN_ENABLED": "true", "CONTRACTOR_PODMAN_IMAGE": image, "CONTRACTOR_PODMAN_OWNER": owner,
-	}, filepath.Join(root, "runtime/.venv/bin/python"), "-m", "contractor_runtime",
+	}, filepath.Join(root, "runtime/.venv/bin/python"), "-m", "contractor_runtime", "--allocation-slots", "4",
 		"--control-plane-url", privateURL, "--advertised-control-url", runtimeURL, "--advertised-a2a-url", runtimeURL,
 		"--ca-file", ca.Certificate, "--certificate-file", agent.Certificate, "--private-key-file", agent.PrivateKey,
 		"--listen", runtimeAddress, "--work-root", scratch, "--workspace-storage", "local", "--workspace-work-root", projectRoot,
-		"--request-timeout-seconds", "12", "--shutdown-grace-seconds", "30")
+		"--request-timeout-seconds", "12", "--shutdown-grace-seconds", "30", "--allowed-target-network", "127.0.0.0/8")
 	waitForProcessLog(t, ctx, runtime, "runtime agent registered")
 	observed, _ := waitForObservedRuntimeAgents(t, ctx, server, []*childProcess{runtime}, client, publicURL,
 		func(agents []observedRuntimeAgent) bool {
@@ -125,10 +153,55 @@ func TestPodmanSandboxAcrossProductionProcesses(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("Worker did not reach deterministic gateway")
 	}
-	// Model is paused: a single hydrated allocation container is already owned.
+	// Keep the model paused while three unrelated tool Workers share its Runtime.
+	target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	t.Cleanup(target.Close)
+	operations := &runtimeOperations{t: t, client: client, baseURL: publicURL}
+	_, etag := getSchedulerSettings(t, client, publicURL)
+	operations.request(http.MethodPut, "/v1/operations/settings/scheduler", map[string]int{"maxConcurrentRuns": 1, "maxConcurrentToolRuns": 3}, http.StatusOK, map[string]string{"If-Match": etag})
+	scans := []string{}
+	for range 3 {
+		data := operations.request(http.MethodPost, "/v1/runs", map[string]any{"workflow": "placement-probe@1", "parameters": map[string]string{"target": target.URL}, "artifacts": map[string]any{}, "labels": map[string]string{}}, http.StatusAccepted, map[string]string{"Idempotency-Key": "mixed-" + randomHex(t, 8)})
+		var created runCreateResponse
+		if err := json.Unmarshal(data, &created); err != nil || created.RunID == "" {
+			t.Fatalf("mixed tool Run: %v", err)
+		}
+		scans = append(scans, created.RunID)
+	}
+	for {
+		entries, err := os.ReadDir(markers)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) == 3 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("mixed tool Workers did not start")
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	waitForObservedRuntimeAgents(t, ctx, server, []*childProcess{runtime}, client, publicURL, func(agents []observedRuntimeAgent) bool {
+		return len(agents) == 1 && agents[0].InstanceID == compatible.InstanceID && agents[0].AllocationSlots == 4 && len(agents[0].AuthoritativeAllocationIDs) == 4
+	})
+	// Only the Podman allocation owns a container; the three scan Workers do not.
+
 	containers := podmanOwnedIDs(t, ctx, owner)
 	if len(containers) != 1 {
 		t.Fatalf("allocation containers = %v", containers)
+	}
+	if err := os.WriteFile(release, []byte("continue"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range scans {
+		status := waitForRunTerminalAcross(t, ctx, server, []*childProcess{runtime}, client, publicURL, id)
+		if status.State != "succeeded" {
+			t.Fatalf("mixed tool Run: %+v", status)
+		}
+	}
+	if ids := podmanOwnedIDs(t, ctx, owner); len(ids) != 1 {
+		t.Fatalf("neighbor release removed Podman: %v", ids)
 	}
 	gateway.releaseBlockedRequest()
 	status := waitForRun(t, ctx, server, runtime, gateway, client, publicURL, runID)
@@ -155,7 +228,7 @@ func TestPodmanSandboxAcrossProductionProcesses(t *testing.T) {
 	waitForObservedRuntimeAgents(t, ctx, server, []*childProcess{runtime}, client, publicURL,
 		func(agents []observedRuntimeAgent) bool {
 			for _, candidate := range agents {
-				if candidate.InstanceID == compatible.InstanceID && candidate.SlotState == "idle" && candidate.AuthoritativeAllocationID == nil && candidate.CurrentAllocationID == nil {
+				if candidate.InstanceID == compatible.InstanceID && candidate.State == "idle" && len(candidate.AuthoritativeAllocationIDs) == 0 && len(candidate.ObservedAllocations) == 0 {
 					return true
 				}
 			}

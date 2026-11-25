@@ -14,6 +14,7 @@ from typing import Any
 
 import httpx
 import pytest
+from fakes.allocation import allocation_context, allocation_snapshot
 from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.private_codec import encode_private
@@ -35,6 +36,7 @@ from contractor_runtime.adapters.interactsh import InteractshClient
 from contractor_runtime.agent_skills.runtime import AgentSkillPreparationError
 from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.allocation.preparation import AllocationPreparation
+from contractor_runtime.allocation.service import Allocation
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -113,7 +115,7 @@ def test_prepare_uses_pinned_summary_model_without_changing_template(
             return StubWorkerRuntime(context)
 
     async def scenario() -> None:
-        state = RuntimeState(instance_id="summary-selection-test")
+        state = RuntimeState(instance_id="summary-selection-test", allocation_slots=1)
         await state.mark_registered()
         registry = replace(
             built_in_factories(tmp_path), worker_runtimes={"adk@1": CapturingFactory()}
@@ -183,19 +185,19 @@ def test_prepare_is_single_slot_idempotent_and_constructs_only_selected_tools(
         assert first.worker_handle.allocation_id == spec.allocation_id
         assert first.worker_handle.lease_expires_at == spec.lease_expires_at
         assert SECRET not in repr(first)
-        snapshot = await service.snapshot()
+        snapshot = await allocation_snapshot(service)
         assert snapshot is not None
         assert snapshot.tool_names == ("read_artifact",)
         assert snapshot.has_runtime_settings
         assert snapshot.has_worker
         assert Path(snapshot.workspace).is_dir()
-        assert SECRET not in repr(service._context)
+        assert SECRET not in repr(allocation_context(service))
 
         other = make_spec(allocation_id="allocation-other")
-        with pytest.raises(AllocationError, match="another allocation") as conflict:
+        with pytest.raises(AllocationError, match="capacity is unavailable") as conflict:
             await service.prepare(other)
         assert conflict.value.code == "allocation_conflict"
-        assert (await state.snapshot()).process_state is ProcessState.ALLOCATED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.ALLOCATED
 
         changed_project = make_spec().model_copy(update={"project_id": "other-project"})
         with pytest.raises(AllocationError, match="differs from the active allocation"):
@@ -230,7 +232,7 @@ def test_prepare_rejects_every_purpose_reserved_agent_namespace(
             await service.prepare(spec)
         assert raised.value.code == "invalid_agent_namespace"
         assert not raised.value.retryable
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
 
@@ -246,7 +248,7 @@ def test_shared_bad_digests_and_unsupported_ref_leave_no_residue(
             await service.prepare(bad_digest)
         assert mismatch.value.code == "template_digest_mismatch"
         assert not mismatch.value.retryable
-        assert await service.snapshot() is None
+        assert await allocation_snapshot(service) is None
         assert list(tmp_path.iterdir()) == []
 
         bad_policy_digest = make_spec()
@@ -255,7 +257,7 @@ def test_shared_bad_digests_and_unsupported_ref_leave_no_residue(
             await service.prepare(bad_policy_digest)
         assert policy_mismatch.value.code == "template_digest_mismatch"
         assert not policy_mismatch.value.retryable
-        assert await service.snapshot() is None
+        assert await allocation_snapshot(service) is None
         assert list(tmp_path.iterdir()) == []
 
         # Compactor policy integrity belongs to the captured execution selection,
@@ -271,7 +273,7 @@ def test_shared_bad_digests_and_unsupported_ref_leave_no_residue(
             await service.prepare(bad_compactor)
         assert compactor_mismatch.value.code == "template_digest_mismatch"
         assert not compactor_mismatch.value.retryable
-        assert await service.snapshot() is None
+        assert await allocation_snapshot(service) is None
         assert list(tmp_path.iterdir()) == []
 
         unsupported = make_spec()
@@ -280,8 +282,8 @@ def test_shared_bad_digests_and_unsupported_ref_leave_no_residue(
         with pytest.raises(AllocationError) as missing:
             await service.prepare(unsupported)
         assert missing.value.code == "unsupported_worker_runtime"
-        assert await service.snapshot() is None
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert await allocation_snapshot(service) is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
 
@@ -298,8 +300,8 @@ def test_mutated_run_metadata_labels_fail_before_resource_creation(
             await service.prepare(spec)
         assert failure.value.code == "invalid_run_metadata_labels"
         assert not failure.value.retryable
-        assert await service.snapshot() is None
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert await allocation_snapshot(service) is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
         assert list(tmp_path.iterdir()) == []
 
     asyncio.run(scenario())
@@ -320,8 +322,8 @@ def test_tool_omitted_from_snapshot_is_rejected_before_workspace_creation(
             await service.prepare(make_spec(tools=["write_artifact"]))
 
         assert unsupported.value.code == "unsupported_tool"
-        assert await service.snapshot() is None
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert await allocation_snapshot(service) is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
         assert list(tmp_path.iterdir()) == []
 
     asyncio.run(scenario())
@@ -331,7 +333,7 @@ def test_prepare_failure_rolls_back_workspace_tools_and_slot(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-test")
+        state = RuntimeState(instance_id="runtime-test", allocation_slots=1)
         await state.mark_registered()
         sandbox = LocalWorkdirFactory(tmp_path)
         failing_tools = FailingToolsetFactory()
@@ -351,8 +353,8 @@ def test_prepare_failure_rolls_back_workspace_tools_and_slot(
         with pytest.raises(AllocationError) as failure:
             await service.prepare(make_spec())
         assert failure.value.code == "allocation_preparation_failed"
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
-        assert await service.snapshot() is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
+        assert await allocation_snapshot(service) is None
         assert list(tmp_path.iterdir()) == []
 
     asyncio.run(scenario())
@@ -379,7 +381,7 @@ def test_prepare_keeps_findings_error_code_and_retryability(
             raise error
 
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-test")
+        state = RuntimeState(instance_id="runtime-test", allocation_slots=1)
         await state.mark_registered()
         registry = FactoryRegistry(
             worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
@@ -406,8 +408,8 @@ def test_prepare_keeps_findings_error_code_and_retryability(
             "retryable": error.retryable,
         }
         assert failure.value.status_code == status_code
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
-        assert await service.snapshot() is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
+        assert await allocation_snapshot(service) is None
         assert list(tmp_path.iterdir()) == []
 
     asyncio.run(scenario())
@@ -439,9 +441,9 @@ def test_failed_prepare_rolls_back_once_before_classifying(
     async def scenario() -> None:
         state, service = await make_service(tmp_path, runtime_capabilities)
         exits: list[int] = []
-        service._force_exit = exits.append
+        service._exit_process = exits.append
         rollbacks = []
-        rollback = service._rollback_prepare
+        rollback = Allocation._rollback_prepare
 
         async def fail(*args: object, **kwargs: object) -> None:
             raise error
@@ -451,7 +453,7 @@ def test_failed_prepare_rolls_back_once_before_classifying(
             await rollback(*args, **kwargs)
 
         monkeypatch.setattr(AllocationPreparation, "_create_tools", fail)
-        monkeypatch.setattr(service, "_rollback_prepare", track_rollback)
+        monkeypatch.setattr(Allocation, "_rollback_prepare", track_rollback)
         expected = (
             asyncio.CancelledError if isinstance(error, asyncio.CancelledError) else AllocationError
         )
@@ -459,13 +461,15 @@ def test_failed_prepare_rolls_back_once_before_classifying(
             await service.prepare(make_spec())
         assert rollbacks == ["rollback"]
         assert list(tmp_path.iterdir()) == []
-        assert await service.snapshot() is None
+        assert await allocation_snapshot(service) is None
         fenced = (
             isinstance(error, (AdapterPreparationError, WorkspacePreparationError))
             and not error.cleanup_confirmed
         )
         assert exits == ([70] if fenced else [])
-        assert ((await state.snapshot()).process_state is ProcessState.IDLE) is not fenced
+        assert (
+            (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
+        ) is not fenced
         if isinstance(error, (AllocationError, asyncio.CancelledError)):
             assert failure.value is error
         else:
@@ -515,7 +519,7 @@ def test_prepare_does_not_translate_rollback_failure(
             raise cleanup_error
 
         monkeypatch.setattr(AllocationPreparation, "_create_tools", fail_prepare)
-        monkeypatch.setattr(service, "_rollback_prepare", fail_rollback)
+        monkeypatch.setattr(Allocation, "_rollback_prepare", fail_rollback)
         with pytest.raises(RuntimeError) as failure:
             await service.prepare(make_spec())
         assert failure.value is cleanup_error
@@ -538,7 +542,7 @@ def test_prepare_recovery_deadline_uses_the_monotonic_clock(
             self.deadlines.append(deadline)
 
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-test")
+        state = RuntimeState(instance_id="runtime-test", allocation_slots=1)
         await state.mark_registered()
         lifecycle = RecordingRecovery()
         registry = FactoryRegistry(
@@ -588,7 +592,7 @@ def test_partial_tool_preparation_retains_cleanup_ownership(
                     return {"read_artifact": second}
                 return {"write_artifact": second}
 
-        state = RuntimeState(instance_id="runtime-partial-tools")
+        state = RuntimeState(instance_id="runtime-partial-tools", allocation_slots=1)
         await state.mark_registered()
         factories = FactoryRegistry(
             worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
@@ -627,8 +631,8 @@ def test_partial_tool_preparation_retains_cleanup_ownership(
         assert first.close_calls == 1
         assert second.close_calls == (1 if failure_kind in {"wrong_set", "wrong_name"} else 0)
         assert exit_codes == []
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
-        assert await service.snapshot() is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
+        assert await allocation_snapshot(service) is None
         assert list(tmp_path.iterdir()) == []
 
     asyncio.run(scenario())
@@ -641,7 +645,7 @@ def test_finalize_report_and_release_erase_context_and_workspace(
         state, service = await make_service(tmp_path, runtime_capabilities)
         spec = make_spec()
         await service.prepare(spec)
-        workspace = Path((await service.snapshot()).workspace)  # type: ignore[union-attr]
+        workspace = Path((await allocation_snapshot(service)).workspace)  # type: ignore[union-attr]
         request = FinalizeAllocationRequest(
             apiVersion=API_VERSION,
             allocationId=spec.allocation_id,
@@ -659,8 +663,8 @@ def test_finalize_report_and_release_erase_context_and_workspace(
         with pytest.raises(AllocationError) as conflict:
             await service.finalize(request.model_copy(update={"finalization_id": "finalization-2"}))
         assert conflict.value.code == "allocation_conflict"
-        assert (await state.snapshot()).process_state is ProcessState.DRAINING
-        assert not (await service.snapshot()).has_worker  # type: ignore[union-attr]
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.DRAINING
+        assert not (await allocation_snapshot(service)).has_worker  # type: ignore[union-attr]
 
         release = ReleaseAllocationRequest(
             apiVersion=API_VERSION,
@@ -668,16 +672,16 @@ def test_finalize_report_and_release_erase_context_and_workspace(
         )
         await service.release(release)
         await service.release(release)
-        assert await service.snapshot() is not None
+        assert await allocation_snapshot(service) is not None
         assert not workspace.exists()
-        state_snapshot = await state.snapshot()
+        state_snapshot = await state.snapshot("allocation-1")
         assert state_snapshot.process_state is ProcessState.FENCED
         assert state_snapshot.allocation_id == spec.allocation_id
 
         await service.confirm_release(spec.allocation_id)
         await service.confirm_release(spec.allocation_id)
-        assert await service.snapshot() is None
-        state_snapshot = await state.snapshot()
+        assert await allocation_snapshot(service) is None
+        state_snapshot = await state.snapshot("allocation-1")
         assert state_snapshot.process_state is ProcessState.IDLE
         assert state_snapshot.allocation_id is None
 
@@ -696,8 +700,11 @@ def test_maximum_worker_detail_crosses_the_private_report_boundary(
         _, service = await make_service(tmp_path, runtime_capabilities)
         spec = make_spec()
         await service.prepare(spec)
-        assert service._context is not None and service._context.worker_state is not None
-        metrics = service._context.worker_state.metrics
+        assert (
+            allocation_context(service) is not None
+            and allocation_context(service).worker_state is not None
+        )
+        metrics = allocation_context(service).worker_state.metrics
         message = "界" * 1365 + "a"  # 4096 UTF-8 bytes, the error-message bound
         for index in range(MAX_METRIC_TOOL_CALLS):
             failed = index >= MAX_METRIC_TOOL_CALLS - MAX_METRIC_ERRORS
@@ -747,7 +754,7 @@ def test_finalize_closes_allocation_tools_before_return_and_release_does_not_rep
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-terminal-tools")
+        state = RuntimeState(instance_id="runtime-terminal-tools", allocation_slots=1)
         await state.mark_registered()
         tool = TrackingTool()
         toolset = TrackingToolsetFactory(tool)
@@ -775,7 +782,7 @@ def test_finalize_closes_allocation_tools_before_return_and_release_does_not_rep
             )
         )
         assert tool.close_calls == 1
-        assert service._context is not None and service._context.tools == {}
+        assert allocation_context(service) is not None and allocation_context(service).tools == {}
 
         release = ReleaseAllocationRequest(
             apiVersion=API_VERSION,
@@ -791,7 +798,7 @@ def test_unconfirmed_terminal_tool_cleanup_fences_slot_and_requests_process_exit
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-failed-tool-cleanup")
+        state = RuntimeState(instance_id="runtime-failed-tool-cleanup", allocation_slots=1)
         await state.mark_registered()
         tool = TrackingTool(fail=True)
         toolset = TrackingToolsetFactory(tool)
@@ -825,12 +832,12 @@ def test_unconfirmed_terminal_tool_cleanup_fences_slot_and_requests_process_exit
         assert not rejected.value.retryable
         assert tool.close_calls == 1
         assert exits == [70]
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
 
     asyncio.run(scenario())
 
 
-def test_release_of_unknown_allocation_is_idempotent_only_when_slot_is_empty(
+def test_release_of_unknown_allocation_preserves_its_neighbor(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
     async def scenario() -> None:
@@ -844,10 +851,8 @@ def test_release_of_unknown_allocation_is_idempotent_only_when_slot_is_empty(
 
         active = make_spec()
         await service.prepare(active)
-        with pytest.raises(AllocationError) as conflict:
-            await service.release(unknown)
-        assert conflict.value.code == "allocation_not_found"
-        snapshot = await service.snapshot()
+        await service.release(unknown)
+        snapshot = await allocation_snapshot(service)
         assert snapshot is not None
         assert snapshot.allocation_id == active.allocation_id
 
@@ -858,7 +863,7 @@ def test_cleanup_failure_fences_slot_until_idempotent_release_retry(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-test")
+        state = RuntimeState(instance_id="runtime-test", allocation_slots=1)
         await state.mark_registered()
         sandbox = FailOnceSandbox(tmp_path)
         registry = FactoryRegistry(
@@ -892,15 +897,15 @@ def test_cleanup_failure_fences_slot_until_idempotent_release_retry(
             await service.release(release)
         assert cleanup.value.code == "allocation_cleanup_failed"
         assert cleanup.value.retryable
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
-        assert (await service.snapshot()).has_runtime_settings  # type: ignore[union-attr]
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
+        assert (await allocation_snapshot(service)).has_runtime_settings  # type: ignore[union-attr]
         with pytest.raises(AllocationError):
             await service.prepare(make_spec(allocation_id="allocation-new"))
 
         await service.release(release)
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
         await service.confirm_release(spec.allocation_id)
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
 
@@ -916,7 +921,7 @@ def test_release_timeout_retains_one_cleanup_task_and_keeps_loop_responsive(
     safety_net_seconds = 30.0
 
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-test")
+        state = RuntimeState(instance_id="runtime-test", allocation_slots=1)
         await state.mark_registered()
         sandbox = BlockingCleanupSandbox(tmp_path)
         registry = FactoryRegistry(
@@ -953,7 +958,7 @@ def test_release_timeout_retains_one_cleanup_task_and_keeps_loop_responsive(
         # The cleanup is deliberately stuck, but unrelated Runtime state work
         # must still be scheduled by the event loop.
         heartbeat = await asyncio.wait_for(state.heartbeat(1, 0), timeout=0.1)
-        assert heartbeat.allocation_id == spec.allocation_id
+        assert [item.allocation_id for item in heartbeat.allocations] == [spec.allocation_id]
 
         # The stuck cleanup outlives the release request budget.
         assert not first_release.done()
@@ -962,8 +967,8 @@ def test_release_timeout_retains_one_cleanup_task_and_keeps_loop_responsive(
             await asyncio.wait_for(first_release, safety_net_seconds)
         assert timed_out.value.code == "allocation_cleanup_failed"
         assert timed_out.value.retryable
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
-        context = service._context
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
+        context = allocation_context(service)
         assert context is not None
         retained_task = context.release_cleanup_task
         assert retained_task is not None
@@ -979,10 +984,10 @@ def test_release_timeout_retains_one_cleanup_task_and_keeps_loop_responsive(
         assert retained_task.done()
         assert context.release_prepared
         assert sandbox.cleanup_attempts == 1
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
 
         await service.confirm_release(spec.allocation_id)
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     run_with_advanceable_clock(scenario())
 
@@ -991,7 +996,7 @@ def test_abort_adds_reason_and_forces_exit_if_worker_cannot_stop(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-test")
+        state = RuntimeState(instance_id="runtime-test", allocation_slots=1)
         await state.mark_registered()
         runtime_factory = FailingStopRuntimeFactory()
         builtins = built_in_factories(tmp_path)
@@ -1025,7 +1030,7 @@ def test_abort_adds_reason_and_forces_exit_if_worker_cannot_stop(
             await service.abort(request)
         assert stopped.value.code == "worker_stop_unconfirmed"
         assert exit_codes == [70]
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
 
     asyncio.run(scenario())
 
@@ -1036,8 +1041,9 @@ async def make_service(
     *,
     artifact_client_factory: Callable[[str, RuntimeSettings], Any] | None = None,
     model_factory: Callable[[WorkerBuildContext], Any] | None = None,
+    allocation_slots: int = 1,
 ) -> tuple[RuntimeState, AllocationService]:
-    state = RuntimeState(instance_id="runtime-test")
+    state = RuntimeState(instance_id="runtime-test", allocation_slots=allocation_slots)
     await state.mark_registered()
     factories = built_in_factories(
         tmp_path,
@@ -1236,7 +1242,7 @@ def test_resource_collection_disabled_never_constructs_sampler(
         def forbidden() -> ResourceCollector:
             pytest.fail("disabled metrics must not construct a sampler or perform reads")
 
-        service._resource_collector_factory = forbidden
+        service._options["resource_collector_factory"] = forbidden
         await asyncio.sleep(0)
         await service.prepare(allocation_spec())
         result = await service.finalize(
@@ -1272,7 +1278,7 @@ def test_resources_cover_prepare_and_teardown_freeze_before_release_and_reset(
     async def scenario() -> None:
         _, service = await make_service(tmp_path, runtime_capabilities)
         probe = ResourceProbe()
-        service._resource_collector_factory = probe.factory
+        service._options["resource_collector_factory"] = probe.factory
         sandbox = service._factories.sandbox_profiles["local-workdir@1"]
         original_prepare = sandbox.prepare
 
@@ -1288,7 +1294,7 @@ def test_resources_cover_prepare_and_teardown_freeze_before_release_and_reset(
             probe.rss = 1000 if index == 0 else 100
             await service.prepare(spec)
             await service.prepare(spec)  # Retry must not start a second sampler.
-            context = service._context
+            context = allocation_context(service)
             assert context is not None and context.worker is not None
             worker = context.worker
 
@@ -1348,6 +1354,8 @@ def test_resources_cover_prepare_and_teardown_freeze_before_release_and_reset(
                 )
             )
             await service.confirm_release(spec.allocation_id)
+            if operation == "lease":
+                await service._state.confirm_release(None)  # A new registration generation.
             await asyncio.sleep(0)
             assert probe.collectors[-1]._task.done()
             assert probe.reads == [True] * (2 * (index + 1))
@@ -1366,7 +1374,7 @@ def test_resource_sampler_discarded_after_failed_or_cancelled_prepare(
     async def scenario() -> None:
         state, service = await make_service(tmp_path, runtime_capabilities)
         probe = ResourceProbe()
-        service._resource_collector_factory = probe.factory
+        service._options["resource_collector_factory"] = probe.factory
         entered = asyncio.Event()
 
         async def fail(*args: object, **kwargs: object) -> None:
@@ -1387,9 +1395,9 @@ def test_resource_sampler_discarded_after_failed_or_cancelled_prepare(
         await asyncio.sleep(0)
         assert probe.reads == [True]
         assert probe.collectors[0]._task.done()
-        assert service._context is None
+        assert allocation_context(service) is None
         assert list(tmp_path.iterdir()) == []
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
 
@@ -1404,11 +1412,11 @@ def test_unconfirmed_stop_discards_resources_without_recovered_final_report(
     async def scenario() -> None:
         state, service = await make_service(tmp_path, runtime_capabilities)
         probe = ResourceProbe()
-        service._resource_collector_factory = probe.factory
+        service._options["resource_collector_factory"] = probe.factory
         spec = allocation_spec()
         spec.performance_metrics = PerformanceMetricsRequest(version=1, intervalSeconds=15)
         await service.prepare(spec)
-        context = service._context
+        context = allocation_context(service)
         assert context is not None
         entered = asyncio.Event()
 
@@ -1438,7 +1446,7 @@ def test_unconfirmed_stop_discards_resources_without_recovered_final_report(
         assert probe.reads == [True]
         assert probe.collectors[0]._task.done()
         assert context.terminal_response is None
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
 
     asyncio.run(scenario())
 
@@ -1460,7 +1468,7 @@ def test_resource_failure_does_not_change_worker_completeness_or_slot_reuse(
                 raise OSError("secret-canary")
             return ResourceCollector(reader=unavailable)
 
-        service._resource_collector_factory = factory
+        service._options["resource_collector_factory"] = factory
         spec = allocation_spec()
         spec.performance_metrics = PerformanceMetricsRequest(version=1, intervalSeconds=15)
         await service.prepare(spec)
@@ -1483,7 +1491,7 @@ def test_resource_failure_does_not_change_worker_completeness_or_slot_reuse(
             )
         )
         await service.confirm_release(spec.allocation_id)
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
 
@@ -1548,7 +1556,7 @@ def authored_report_spec(**kwargs):
 def allocation_references(service: AllocationService) -> dict[str, weakref.ref[Any]]:
     """Weak references to everything release must make unreachable (LIFE-WRK-3)."""
 
-    context = service._context
+    context = allocation_context(service)
     if context is None or context.worker is None or context.worker_state is None:
         raise AssertionError("allocation is not prepared")
     worker: Any = context.worker
@@ -1683,7 +1691,7 @@ def test_release_collects_allocation_graph_captured_by_declared_tool_closure(
             )
 
     async def scenario() -> None:
-        state = RuntimeState(instance_id="closure-release-test")
+        state = RuntimeState(instance_id="closure-release-test", allocation_slots=1)
         await state.mark_registered()
         factories = built_in_factories(
             tmp_path,
@@ -1709,8 +1717,11 @@ def test_release_collects_allocation_graph_captured_by_declared_tool_closure(
         spec = authored_report_spec()
         await service.prepare(spec)
         references = allocation_references(service)
-        assert service._context is not None and service._context.worker is not None
-        completion = await service._context.worker.invoke(adk_stage_request())
+        assert (
+            allocation_context(service) is not None
+            and allocation_context(service).worker is not None
+        )
+        completion = await allocation_context(service).worker.invoke(adk_stage_request())
         assert completion.failure is None and completion.result is not None
         assert completion.result.artifacts["report"].revision == "write-r1"
         del completion
@@ -1747,8 +1758,11 @@ def test_release_leaves_no_allocation_tool_reachable_after_an_invocation(
         assert {"tool:read_artifact", "adk:read_artifact", "tool:write_text_artifact"} <= set(
             references
         )
-        assert service._context is not None and service._context.worker is not None
-        completion = await service._context.worker.invoke(adk_stage_request())
+        assert (
+            allocation_context(service) is not None
+            and allocation_context(service).worker is not None
+        )
+        completion = await allocation_context(service).worker.invoke(adk_stage_request())
         assert completion.failure is None and completion.result is not None
         assert completion.result.artifacts["report"].revision == "write-r1"
         del completion
@@ -1806,12 +1820,15 @@ def test_failed_cache_release_keeps_the_slot_fenced_until_the_retry_repeats_it(
         assert cleanup.value.code == "allocation_cleanup_failed"
         assert cleanup.value.retryable
         del cleanup
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
-        snapshot = await service.snapshot()
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
+        snapshot = await allocation_snapshot(service)
         # State and secrets were already dropped; only the cache step failed.
         assert snapshot is not None and not snapshot.has_runtime_settings
-        assert service._context is not None and service._context.worker_state is None
-        assert not service._context.release_prepared
+        assert (
+            allocation_context(service) is not None
+            and allocation_context(service).worker_state is None
+        )
+        assert not allocation_context(service).release_prepared
         assert "tool:read_artifact" in live_references(references)
         with pytest.raises(AllocationError):
             await service.prepare(authored_report_spec(allocation_id="allocation-new"))
@@ -1821,7 +1838,7 @@ def test_failed_cache_release_keeps_the_slot_fenced_until_the_retry_repeats_it(
         assert live_references(references) == []
         assert clients.live() == 0
         await service.confirm_release(spec.allocation_id)
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
 
@@ -1850,7 +1867,7 @@ def test_failed_prepare_rollback_leaves_no_allocation_tool_reachable(
         assert failure.value.code == "allocation_preparation_failed"
         # The suppressed context holds the prepare frame and its locals.
         del failure
-        assert await service.snapshot() is None
+        assert await allocation_snapshot(service) is None
         assert len(clients.created) == 2
         assert clients.live() == 0
 
@@ -1889,8 +1906,11 @@ def test_next_allocation_rebuilds_identical_tool_declarations(
         )
         for allocation_id in ("allocation-1", "allocation-2"):
             await service.prepare(authored_report_spec(allocation_id=allocation_id))
-            assert service._context is not None and service._context.worker is not None
-            completion = await service._context.worker.invoke(adk_stage_request())
+            assert (
+                allocation_context(service) is not None
+                and allocation_context(service).worker is not None
+            )
+            completion = await allocation_context(service).worker.invoke(adk_stage_request())
             assert completion.failure is None and completion.result is not None
             # The model's read_artifact call ran this allocation's tool.
             assert {
@@ -1900,7 +1920,7 @@ def test_next_allocation_rebuilds_identical_tool_declarations(
             del completion
             await finalize_and_release(service, allocation_id)
             await service.confirm_release(allocation_id)
-            assert (await state.snapshot()).process_state is ProcessState.IDLE
+            assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
         assert len(clients.created) == 4
         assert clients.live() == 0
@@ -2077,7 +2097,7 @@ def test_release_retains_no_adapter_secret_or_session_credential(
             sandbox_profiles=factories.sandbox_profiles,
             runtime_adapters=factories.runtime_adapters,
         )
-        state = RuntimeState(instance_id="runtime-adapter-secrets")
+        state = RuntimeState(instance_id="runtime-adapter-secrets", allocation_slots=1)
         await state.mark_registered()
         service = AllocationService(
             state,
@@ -2141,8 +2161,11 @@ def test_release_retains_no_adapter_secret_or_session_credential(
             "tool:caido_history",
             "tool:interactsh_register",
         } <= set(references)
-        assert service._context is not None and service._context.worker is not None
-        completion = await service._context.worker.invoke(adk_stage_request())
+        assert (
+            allocation_context(service) is not None
+            and allocation_context(service).worker is not None
+        )
+        completion = await allocation_context(service).worker.invoke(adk_stage_request())
         assert completion.failure is None and completion.result is not None
         del completion
         assert http_paths == ["/probe"]
@@ -2183,7 +2206,7 @@ def test_prepare_rejects_a_tool_whose_workspace_observation_differs_from_its_dec
     factory: Callable[[], TrackingToolsetFactory],
 ) -> None:
     async def scenario() -> None:
-        state = RuntimeState(instance_id="runtime-test")
+        state = RuntimeState(instance_id="runtime-test", allocation_slots=1)
         await state.mark_registered()
         toolsets = factory()
         registry = FactoryRegistry(
@@ -2204,6 +2227,6 @@ def test_prepare_rejects_a_tool_whose_workspace_observation_differs_from_its_dec
         assert failure.value.payload()["code"] == "invalid_toolset_factory"
         assert failure.value.status_code == 500
         assert toolsets.tool.close_calls == 1
-        assert await service.snapshot() is None
+        assert await allocation_snapshot(service) is None
 
     asyncio.run(scenario())

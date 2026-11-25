@@ -9,11 +9,11 @@ from pathlib import Path
 
 import pytest
 from fakes.engagement_socket import SocketTarget, resolver_for, socket_spec, tls_contexts
+from fakes.http_transport import HTTPTransport
 from fakes.worker_state import WorkerState
 from test_engagement_identity import identity_spec
 from test_tool_worker import ArtifactStore
 
-from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.contracts.engagement import HTTPLimits

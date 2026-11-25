@@ -4,7 +4,7 @@ project:
   name: contractor-v2
   objective: >-
     Deliver a single-VM workflow runtime whose Control Plane and public server
-    are implemented in Go and whose single-slot Runtime Agent is implemented in
+    are implemented in Go and whose bounded multi-slot Runtime Agent is implemented in
     Python.
 
 execution_policy:

@@ -91,6 +91,13 @@ describe("Operations routes", () => {
           ...snapshot(snapshotReads === 1 ? "7" : "8"),
           runtimeAgents: [
             {
+              allocationSlots: 1,
+              availableSlots: 0,
+              busySlots: 0,
+              reservedSlots: 0,
+              drainingSlots: 0,
+              fencedSlots: 1,
+              pendingReleaseAllocationIds: [],
               instanceId: "runtime-vm-1",
               softwareVersion: "0.1.0",
               supportedRuntimes: ["python@1", "adk@1"],
@@ -103,17 +110,31 @@ describe("Operations routes", () => {
               supportedSandboxProfiles: ["local-workdir@1"],
               supportedRuntimeAdapters: [],
               observedState: "fenced",
-              slotState: "fenced",
+              state: "fenced",
               lastAcceptedHeartbeat: "2026-08-31T12:00:00Z",
               confirmedLeaseUntil: "2026-08-31T12:01:00Z",
-              currentAllocationId: "allocation-observed",
-              authoritativeAllocationId: "allocation-authoritative",
+              observedAllocations: [
+                {
+                  allocationId: "allocation-observed",
+                  observedState: "allocated",
+                },
+              ],
+              authoritativeAllocationIds: ["allocation-authoritative"],
               reconciliationReason: {
                 code: "lease_confirmation_lost",
                 retryable: true,
               },
             },
             {
+              allocationSlots: 1,
+              availableSlots: 1,
+              busySlots: 0,
+              reservedSlots: 0,
+              drainingSlots: 0,
+              fencedSlots: 0,
+              authoritativeAllocationIds: [],
+              observedAllocations: [],
+              pendingReleaseAllocationIds: [],
               instanceId: "runtime-vm-minimal",
               softwareVersion: "0.1.0",
               supportedRuntimes: ["adk@1"],
@@ -121,7 +142,7 @@ describe("Operations routes", () => {
               supportedSandboxProfiles: ["local-workdir@1"],
               supportedRuntimeAdapters: [],
               observedState: "idle",
-              slotState: "idle",
+              state: "idle",
             },
           ],
         });
@@ -1178,6 +1199,15 @@ describe("Operations routes", () => {
               availability: "adapter_capability_mismatch",
               missingRuntimeAdapters: ["otlp-http@1"],
               live: {
+                allocationSlots: 1,
+                availableSlots: 1,
+                busySlots: 0,
+                reservedSlots: 0,
+                drainingSlots: 0,
+                fencedSlots: 0,
+                authoritativeAllocationIds: [],
+                observedAllocations: [],
+                pendingReleaseAllocationIds: [],
                 instanceId: "runtime-incompatible",
                 softwareVersion: "0.1.0",
                 supportedRuntimes: ["adk@1"],
@@ -1185,7 +1215,7 @@ describe("Operations routes", () => {
                 supportedSandboxProfiles: ["none@1"],
                 supportedRuntimeAdapters: [],
                 observedState: "idle",
-                slotState: "idle",
+                state: "idle",
               },
             },
           ],
@@ -1262,13 +1292,22 @@ describe("Operations routes", () => {
       updatedAt: "2026-08-31T12:01:00Z",
     };
     const live = {
+      allocationSlots: 1,
+      availableSlots: 1,
+      busySlots: 0,
+      reservedSlots: 0,
+      drainingSlots: 0,
+      fencedSlots: 0,
+      authoritativeAllocationIds: [],
+      observedAllocations: [],
+      pendingReleaseAllocationIds: [],
       softwareVersion: "0.1.0",
       supportedRuntimes: ["adk@1"],
       supportedToolsets: [],
       supportedSandboxProfiles: ["none@1"],
       supportedRuntimeAdapters: [],
       observedState: "idle",
-      slotState: "idle",
+      state: "idle",
     };
     let items: unknown[] = [
       {
@@ -1372,6 +1411,15 @@ describe("Runtime Agent cards", () => {
     updatedBy: "user_local",
     updatedAt: "2026-08-31T12:01:00Z",
     live: {
+      allocationSlots: 1,
+      availableSlots: 1,
+      busySlots: 0,
+      reservedSlots: 0,
+      drainingSlots: 0,
+      fencedSlots: 0,
+      authoritativeAllocationIds: [],
+      observedAllocations: [],
+      pendingReleaseAllocationIds: [],
       instanceId: "runtime-card",
       softwareVersion: "0.1.0",
       supportedRuntimes: ["adk@1"],
@@ -1379,7 +1427,7 @@ describe("Runtime Agent cards", () => {
       supportedSandboxProfiles: ["local-workdir@1"],
       supportedRuntimeAdapters: ["otlp-http@1", "caido-graphql@1"],
       observedState: "idle",
-      slotState: "idle",
+      state: "idle",
     },
   };
   const bindings = ["default", "caido", "debug"].map((label) => ({
@@ -1667,14 +1715,25 @@ describe("Runtime Agent cards", () => {
     principal = {
       ...principalBase,
       availability: "busy",
-      live: { ...principalBase.live!, slotState: "reserved" },
+      live: {
+        ...principalBase.live!,
+        state: "reserved",
+        allocationSlots: 1,
+        availableSlots: 0,
+        busySlots: 0,
+        reservedSlots: 1,
+        drainingSlots: 0,
+        fencedSlots: 0,
+      },
     };
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Refresh" }));
     expect(await within(card).findByText("Busy")).toBeVisible();
     await user.click(card.querySelector("summary")!);
     expect(
-      within(card).getByText("reserved", { selector: "small" }),
+      within(card).getByText("occupied · 0 free · 0 fenced", {
+        selector: "small",
+      }),
     ).toBeVisible();
     expect(within(card).queryByText("Available")).toBeNull();
   });
@@ -1685,9 +1744,15 @@ describe("Runtime Agent cards", () => {
       availability: "slot_unavailable",
       live: {
         ...principalBase.live!,
-        slotState: "fenced",
-        authoritativeAllocationId: "allocation-current",
+        state: "fenced",
+        authoritativeAllocationIds: ["allocation-current"],
         reconciliationReason: { code: "release_pending", retryable: true },
+        allocationSlots: 1,
+        availableSlots: 0,
+        busySlots: 0,
+        reservedSlots: 0,
+        drainingSlots: 0,
+        fencedSlots: 1,
       },
     };
     const api: Fallback = async (request) => {

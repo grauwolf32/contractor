@@ -33,6 +33,7 @@ const mockedSpecs = [
   "e2e/git-artifacts.spec.ts",
   "e2e/model-selection.spec.ts",
   "e2e/operations-forms.spec.ts",
+  "e2e/runtime-slots.spec.ts",
   "e2e/owner-lists.spec.ts",
   "e2e/responsive-layout.spec.ts",
   "e2e/run-drafts.spec.ts",

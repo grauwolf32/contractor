@@ -125,8 +125,9 @@ RuntimeAgentRegistration
   control endpoint
   A2A endpoint
   frozen startup WorkerRuntime, Toolset/tool, SandboxProfile and RuntimeAdapter capabilities
+  allocation_slots      integer 1..4, immutable for this instance_id
   observed_state
-  allocation_id?
+  allocations[]        allocation_id, observed_state
   apiVersion: contractor/v1alpha1
 ```
 
@@ -164,8 +165,7 @@ RuntimeAgentHeartbeat
   sequence
   last_ack_sequence?
   observed_state       idle | allocated | draining | fenced
-  allocation_id?
-  worker_stopped?
+  allocations[]        at most 4 unique allocation IDs, each allocated | draining | fenced
 ```
 
 Control Plane responds with:
@@ -173,8 +173,8 @@ Control Plane responds with:
 ```text
 RuntimeAgentHeartbeatAck
   ack_sequence         equal to the accepted request sequence
-  action               continue | drain | release | reregister
-  allocation_id?
+  action               continue | reregister
+  allocation_actions[] at most 8 unique allocation IDs, each drain | release
 ```
 
 ```mermaid
@@ -512,7 +512,7 @@ follows the flag ahead of the HTTP status and never logs `message`
 
 **CTL-R13.** For the live instance, Control Plane records the last
 accepted registration/heartbeat request, the issued and confirmed heartbeat
-sequences, and the observed and authoritative single-slot facts.
+sequences, and the configured capacity and observed and authoritative allocation facts.
 
 **CTL-R14.** `software_version` is a bounded version string reported by
 the Runtime Agent binary itself. It is observation metadata for Operations and
@@ -730,8 +730,7 @@ both sides expire (FAIL-CTL-2).
 **CTL-R45.** An active allocation is live only while the confirmed control
 lease is valid and the observed allocation matches Control Plane's
 authoritative record, subject to the preparation transition of
-CTL-R52. An idle process is eligible for placement only after the same
-round trip is confirmed and both sides agree that no allocation exists.
+CTL-R52. Free capacity is eligible only after the same round trip is confirmed. Every preparing, active, draining or fenced allocation consumes one slot; observed foreign allocations and release confirmations also occupy capacity until reconciled.
 
 **CTL-R46.** A heartbeat is only an observation: `idle`,
 `fenced` or a different `allocation_id` can trigger reconciliation but can
@@ -1010,8 +1009,8 @@ matching or RuntimeConfig merge provenance, and a Runtime process does not
 interpret `purpose` or `eval.*` ([runs](runs.md)).
 
 **CTL-R83.** For a multi-Agent Stage, Control Plane must find a
-complete injective matching between logical bindings and eligible single-slot
-Runtime Agents before reserving anything. It must not greedily consume a
+complete injective matching between logical bindings and eligible allocation slots
+across Runtime Agents before reserving anything. It must not greedily consume a
 broadly capable agent when that would hide an existing complete assignment. A
 deterministic maximum bipartite matching or an equivalent complete algorithm
 satisfies this contract; the particular equally valid assignment is not
@@ -1246,16 +1245,28 @@ Runtime's card shape and the leak cases in
 
 ### Capacity and execution scope
 
-**CTL-R112.** One Runtime Agent process has one active slot (LIM-CTL-4)
-and at most one in-process Worker instance; it never hosts multiple Workers
-concurrently.
+**CTL-R112.** One Runtime Agent process supplies the capacity configured at
+startup with `--allocation-slots`: an integer from 1 through 4, default 4
+(LIM-CTL-4). Each allocation has one in-process Worker instance and its own
+lifecycle lock. Different Runtime processes may declare different capacities.
+Capacity is part of immutable registration identity; changing it requires a
+restart with a fresh `instance_id`, including a restart at lower capacity under
+the same certificate principal. Ordinary predecessor reconciliation applies.
 
-**CTL-R142.** A Runtime Agent process may create its next Worker only after
-the prior allocation is released and fully cleared.
+**CTL-R142.** A preparing, active, draining or fenced allocation consumes its
+slot until confirmed cleanup and the existing two-phase release complete.
+Long preparation, shutdown or state serialization for one allocation cannot
+hold the process admission lock or block another allocation's A2A dispatch.
+An unconfirmed producer stop retains the process-fatal fence: all allocations
+in that process lose authority together. Released ownership is removed;
+transient replay and reconciliation state is bounded by live capacity.
 
-**CTL-R143.** A Stage needs one available Runtime Agent process per declared
-named Worker before the Planner starts, and those processes may all run on the
-same VM: a Stage declaring three named Workers needs three processes.
+**CTL-R143.** A Stage needs one available compatible slot per named Worker
+before the Planner starts. Several slots may belong to one Runtime process.
+The complete Stage assignment is reserved atomically; candidate snapshots
+confer no capacity, and the Registry rechecks free slots under its existing
+mutex. Model Stage holds apply to compatible process capacity, including busy
+slots which could become available; no partial matching reserves or holds slots.
 
 How slots relate to Scheduler lanes is specified in [scheduler](scheduler.md).
 
@@ -1529,7 +1540,7 @@ The private live-state route is
   (CTL-R39, CTL-R48).
 - [LIM-CTL-3](../platform/limits.md): at most 64 RuntimeAdapter refs per
   registration (CTL-R33).
-- [LIM-CTL-4](../platform/limits.md): one active slot per Runtime Agent
+- [LIM-CTL-4](../platform/limits.md): 1..4 allocation slots per Runtime Agent
   process (CTL-R112).
 - [LIM-CTL-5](../platform/limits.md): 16 UTF-8 bytes, the minimum secret
   length matched anywhere inside an Agent Card value and scanned for in every
@@ -1626,9 +1637,8 @@ own the domain policy, private ingress and lifecycle.
    Planner (CTL-R3).
 2. One declared Stage Agent name maps to one allocation and handle
    (CTL-R105).
-3. One Runtime Agent process has one slot and at most one in-process Worker
-   instance; it never hosts multiple Workers concurrently and may create the
-   next Worker only after the prior allocation is released and fully cleared
+3. Each Runtime has 1..4 independent allocation slots. Preparing and cleanup
+   consume capacity, and reuse waits for authoritative release confirmation
    (CTL-R112, CTL-R142).
 4. Runtime Agent owns transport and allocation checks; its current Worker
    runtime owns every A2A Task under the allocation
@@ -1825,3 +1835,34 @@ constants or another operator config file. It is deliberately limited to
 shared policy with an actual Runtime or UI consumer; Server-only policy stays local.
 Reopen startup-only delivery if policy needs to change during an active Runtime
 process; version/digest do not implement live reload or registration fencing.
+
+**CTL-R172.** A Runtime has one heartbeat sequence and one confirmed process
+lease for all of its allocations. Registration includes required
+`allocationSlots` and `allocations`; heartbeats include required `allocations`.
+Each observation names a unique resource ID and `allocated`, `draining` or
+`fenced` state. Arrays contain at most the declared capacity (LIM-CTL-4).
+Process `idle` requires no observations; `allocated` and `draining` require
+at least one; process `fenced` may retain observations while cleanup runs.
+Internal preparing reservations consume local capacity before becoming wire
+observations. Unknown observations never adopt or replace Server authority.
+
+Heartbeat replies carry required `allocationActions`, at most twice the
+capacity ceiling, with unique allocation IDs and `drain` or `release` actions.
+The process action is `continue` or `reregister`; `reregister` has no allocation
+actions. Actions are ordered per allocation, may run concurrently across
+allocations, and are joined at shutdown. A released grant keeps its capacity
+barrier until the Runtime reports that exact ID absent while echoing an
+issued acknowledgement carrying its release action (or a later issued ack).
+An older or unissued echo cannot clear the barrier. A process-wide lease loss
+fences every grant and produces one ordinary loss edge per allocation; a
+mismatch of one allocation leaves neighbors' grants intact.
+
+**CTL-R173.** Operations replaces singular allocation fields with
+`allocationSlots`, `availableSlots`, `busySlots`, `reservedSlots`,
+`drainingSlots`, `fencedSlots`, `observedAllocations`,
+`authoritativeAllocationIds` and `pendingReleaseAllocationIds`. The five
+slot counts partition declared capacity. `state` is an aggregate process
+projection, not a statement that every slot has that state. Principal
+availability is `available` while compatible free slots remain even if other
+allocations run. Runtime process metrics keep their `runtime_process` scope;
+overlapping allocation intervals cannot be summed as independent process use.

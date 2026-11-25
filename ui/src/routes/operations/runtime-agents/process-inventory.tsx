@@ -1,3 +1,4 @@
+import { observationsAgree } from "./capacity";
 import { Link, useLocation } from "react-router";
 
 import { Icon } from "../../../app/icon";
@@ -83,12 +84,20 @@ function ProcessFacts({ agent }: { agent: RuntimeAgentObservation }) {
             ),
         },
         {
-          term: "Agent-reported allocation",
-          value: <code>{agent.currentAllocationId ?? "none"}</code>,
+          term: "Agent-reported allocations",
+          value: (
+            <code>
+              {agent.observedAllocations
+                .map((item) => `${item.allocationId} (${item.observedState})`)
+                .join(", ") || "none"}
+            </code>
+          ),
         },
         {
-          term: "Control Plane allocation",
-          value: <code>{agent.authoritativeAllocationId ?? "none"}</code>,
+          term: "Control Plane allocations",
+          value: (
+            <code>{agent.authoritativeAllocationIds.join(", ") || "none"}</code>
+          ),
         },
         {
           term: "Reconciliation reason",
@@ -118,11 +127,9 @@ export function ProcessRow({
           <Icon name="operations" />
           <strong>{agent.instanceId}</strong>
         </span>
-        <OperationsState state={agent.slotState} />
+        <OperationsState state={agent.state} />
         <span className="ops-process-context">
-          {agent.authoritativeAllocationId === undefined
-            ? "No allocation assigned"
-            : `Assigned ${agent.authoritativeAllocationId}`}
+          {`${agent.allocationSlots - agent.availableSlots} / ${agent.allocationSlots} occupied · ${agent.availableSlots} free · ${agent.fencedSlots} fenced`}
         </span>
         <DisclosureChevron />
       </summary>
@@ -140,7 +147,7 @@ export function ProcessRow({
             },
             {
               term: "Assigned slot",
-              value: <OperationsState state={agent.slotState} />,
+              value: <OperationsState state={agent.state} />,
             },
             {
               term: "Last accepted heartbeat",
@@ -153,14 +160,15 @@ export function ProcessRow({
           ]}
         />
         <ProcessFacts agent={agent} />
-        {agent.authoritativeAllocationId === undefined ? null : (
+        {agent.authoritativeAllocationIds.map((id) => (
           <Link
+            key={id}
             className="ops-details-link"
-            to={`/operations/allocations#${encodeURIComponent(agent.authoritativeAllocationId)}`}
+            to={`/operations/allocations#${encodeURIComponent(id)}`}
           >
-            Inspect assigned allocation →
+            Inspect allocation {id} →
           </Link>
-        )}
+        ))}
       </div>
     </details>
   );
@@ -182,7 +190,7 @@ export function ProcessInventory() {
       <TechnicalDetails
         summary="Process inventory and lease diagnostics"
         defaultOpen={hash.startsWith("#process-")}
-        description={`${count} current · A Runtime Agent is one deployed, long-running single-slot process.`}
+        description={`${count} current · A Runtime Agent is one deployed, long-running process with 1–4 allocation slots.`}
       >
         <div className="ops-stack">
           <div className="ops-section-head">
@@ -211,10 +219,7 @@ export function ProcessInventory() {
                 </thead>
                 <tbody>
                   {snapshot.runtimeAgents.map((agent) => {
-                    const reconciled =
-                      agent.currentAllocationId ===
-                        agent.authoritativeAllocationId &&
-                      agent.reconciliationReason === undefined;
+                    const reconciled = observationsAgree(agent);
                     return (
                       <tr
                         key={agent.instanceId}
@@ -237,7 +242,7 @@ export function ProcessInventory() {
                           <OperationsState state={agent.observedState} />
                         </td>
                         <td data-label="Assigned slot">
-                          <OperationsState state={agent.slotState} />
+                          <OperationsState state={agent.state} />
                         </td>
                         <td data-label="Last accepted heartbeat">
                           <OptionalTimestamp
@@ -250,16 +255,23 @@ export function ProcessInventory() {
                           />
                         </td>
                         <td data-label="Allocation binding">
-                          {agent.authoritativeAllocationId === undefined ? (
+                          {agent.authoritativeAllocationIds.length === 0 ? (
                             <span className="ops-muted">Unallocated</span>
                           ) : (
-                            <Link
-                              className="ui-mono"
-                              to={`/operations/allocations#${encodeURIComponent(agent.authoritativeAllocationId)}`}
-                            >
-                              {agent.authoritativeAllocationId}
-                            </Link>
+                            agent.authoritativeAllocationIds.map((id) => (
+                              <Link
+                                key={id}
+                                className="ui-mono"
+                                to={`/operations/allocations#${encodeURIComponent(id)}`}
+                              >
+                                {id}
+                              </Link>
+                            ))
                           )}
+                          <small>
+                            {agent.availableSlots} / {agent.allocationSlots}{" "}
+                            free · {agent.fencedSlots} fenced
+                          </small>
                           <small
                             className="ops-reconcile"
                             data-pending={reconciled ? undefined : ""}

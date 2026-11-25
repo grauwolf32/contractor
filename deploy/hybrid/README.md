@@ -202,7 +202,8 @@ registered declarations. Drain affected slots and rerun without that flag to
 apply the new declaration. A failed or interrupted deployment can be rerun from
 the same source manifest without changing the desired location.
 
-Start with one slot per host and size additional slots against measured CPU
+`hosts[].slots` counts Runtime processes. `hosts[].allocation_slots` configures
+1..4 allocations per process (default 4). Size both against measured CPU
 and memory capacity, including LiteLLM on the gateway host. The default profile provides source analysis with
 local workspaces and tree-sitter parsers. It omits Podman, external scanners,
 and external OpenAPI/LikeC4 validators. `--full-capabilities` installs the full

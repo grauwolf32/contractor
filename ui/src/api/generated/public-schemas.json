@@ -12573,7 +12573,16 @@
         "supportedSandboxProfiles",
         "supportedRuntimeAdapters",
         "observedState",
-        "slotState"
+        "state",
+        "allocationSlots",
+        "availableSlots",
+        "busySlots",
+        "reservedSlots",
+        "drainingSlots",
+        "fencedSlots",
+        "observedAllocations",
+        "authoritativeAllocationIds",
+        "pendingReleaseAllocationIds"
       ],
       "properties": {
         "placementLabels": {
@@ -12628,17 +12637,51 @@
           "type": "string",
           "enum": ["idle", "allocated", "draining", "fenced"]
         },
-        "slotState": {
+        "state": {
           "type": "string",
           "enum": ["idle", "reserved", "busy", "draining", "fenced"]
         },
         "lastAcceptedHeartbeat": { "type": "string", "format": "date-time" },
         "confirmedLeaseUntil": { "type": "string", "format": "date-time" },
-        "currentAllocationId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        "allocationSlots": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "availableSlots": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "busySlots": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "reservedSlots": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "drainingSlots": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "fencedSlots": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "observedAllocations": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["allocationId", "observedState"],
+            "properties": {
+              "allocationId": {
+                "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+              },
+              "observedState": {
+                "type": "string",
+                "enum": ["allocated", "draining", "fenced"]
+              }
+            }
+          }
         },
-        "authoritativeAllocationId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        "authoritativeAllocationIds": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+          }
+        },
+        "pendingReleaseAllocationIds": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+          }
         },
         "reconciliationReason": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SafeReason"

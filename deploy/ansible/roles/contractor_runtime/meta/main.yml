@@ -2,7 +2,7 @@
 galaxy_info:
   role_name: contractor_runtime
   author: Contractor maintainers
-  description: Deploy single-slot Contractor Runtime Agents with configurable capabilities.
+  description: Deploy Contractor Runtime Agents with configurable allocation capacity and capabilities.
   min_ansible_version: "2.19"
   platforms:
     - name: Debian

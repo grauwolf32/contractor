@@ -8,10 +8,19 @@ import { json, page } from "../../test/responses";
 
 function agent(
   instanceId: string,
-  slotState: RuntimeAgentObservation["slotState"],
+  slotState: RuntimeAgentObservation["state"],
   extra: Partial<RuntimeAgentObservation> = {},
 ): RuntimeAgentObservation {
   return {
+    allocationSlots: 1,
+    availableSlots: Number(slotState === "idle"),
+    busySlots: Number(slotState === "busy"),
+    reservedSlots: Number(slotState === "reserved"),
+    drainingSlots: Number(slotState === "draining"),
+    fencedSlots: Number(slotState === "fenced"),
+    observedAllocations: [],
+    authoritativeAllocationIds: [],
+    pendingReleaseAllocationIds: [],
     instanceId,
     softwareVersion: "0.1.0",
     supportedRuntimes: ["adk@1"],
@@ -19,7 +28,7 @@ function agent(
     supportedSandboxProfiles: ["local-workdir@1"],
     supportedRuntimeAdapters: [],
     observedState: slotState === "fenced" ? "fenced" : "idle",
-    slotState,
+    state: slotState,
     ...extra,
   };
 }
@@ -43,8 +52,10 @@ describe("Operations overview", () => {
       agent("runtime-reserved-b", "reserved"),
       agent("runtime-draining", "draining"),
       agent("runtime-fenced", "fenced", {
-        currentAllocationId: "allocation-observed",
-        authoritativeAllocationId: "allocation-authoritative",
+        observedAllocations: [
+          { allocationId: "allocation-observed", observedState: "allocated" },
+        ],
+        authoritativeAllocationIds: ["allocation-authoritative"],
       }),
     ]);
     expect(
@@ -101,7 +112,7 @@ describe("Operations overview", () => {
     renderOverview(
       Array.from({ length: 120 }, (_, index) =>
         agent(`runtime-${index}`, "reserved", {
-          authoritativeAllocationId: `allocation-${index}`,
+          authoritativeAllocationIds: [`allocation-${index}`],
         }),
       ),
     );
@@ -137,7 +148,7 @@ describe("Operations overview", () => {
         agent(`idle-${index}`, "idle"),
       ),
       agent("runtime-outside-preview", "reserved", {
-        authoritativeAllocationId: "allocation-pending",
+        authoritativeAllocationIds: ["allocation-pending"],
       }),
     ]);
     const inspection = await screen.findByRole("region", {

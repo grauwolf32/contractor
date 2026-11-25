@@ -399,9 +399,9 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 			}},
 			SupportedSandboxProfiles: []string{"local-workdir@1"},
 			SupportedRuntimeAdapters: []string{},
-			ObservedState:            control.AgentIdle, SlotState: controlplane.SlotReserved,
-			LastAcceptedHeartbeat:     &operationsNow,
-			AuthoritativeAllocationID: stringPointer("allocation-contract"),
+			ObservedState:            control.AgentIdle, State: controlplane.SlotReserved, AllocationSlots: 1, ReservedSlots: 1, ObservedAllocations: []control.ObservedAllocation{}, PendingReleaseAllocationIDs: []string{},
+			LastAcceptedHeartbeat:      &operationsNow,
+			AuthoritativeAllocationIDs: []string{"allocation-contract"},
 		}},
 		Allocations: []controlplane.AllocationObservation{{
 			AllocationID: "allocation-contract", RunID: "run-contract",
@@ -583,7 +583,7 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 			InstanceID: "runtime-principal-contract", SoftwareVersion: "0.1.0",
 			SupportedRuntimes: []string{"adk@1"}, SupportedToolsets: []controlplane.RuntimeToolsetCapability{},
 			SupportedSandboxProfiles: []string{"local-workdir@1"}, SupportedRuntimeAdapters: []string{},
-			ObservedState: control.AgentIdle, SlotState: controlplane.SlotIdle,
+			ObservedState: control.AgentIdle, State: controlplane.SlotIdle, AllocationSlots: 1, AvailableSlots: 1, ObservedAllocations: []control.ObservedAllocation{}, AuthoritativeAllocationIDs: []string{}, PendingReleaseAllocationIDs: []string{},
 		},
 	}
 	for name, path := range map[string]string{

@@ -81,6 +81,7 @@ class PodmanEngine:
         directory = owner_directory or Path(f"/run/user/{self._uid}/contractor-podman-owners")
         self._owner_lock = ServiceOwnerLock(directory, self._owner)
         self._operations = OwnedOperations()
+        self._allocation_operations: dict[str, OwnedOperations] = {}
         self._records: dict[str, _Creation] = {}
         self._opened = False
         self._closed = False
@@ -185,7 +186,7 @@ class PodmanEngine:
             await asyncio.to_thread(record.content.verify)
             return identity
 
-        return await self._operations.run(operation, deadline)
+        return await self._allocation_operation(allocation_id).run(operation, deadline)
 
     async def inspect(self, identity: SandboxIdentity, *, deadline: float) -> ContainerState | None:
         async def operation() -> ContainerState | None:
@@ -193,7 +194,7 @@ class PodmanEngine:
             return await self._inspect(identity, deadline)
 
         deadline = self._deadline(deadline)
-        return await self._operations.run(operation, deadline)
+        return await self._allocation_operation(identity.allocation_id).run(operation, deadline)
 
     async def supervisor_state(self, identity: SandboxIdentity, *, deadline: float) -> dict:
         """Private verified attachment record; never a tool-visible inspect API."""
@@ -214,7 +215,9 @@ class PodmanEngine:
                 raise SandboxContractError(SandboxErrorCode.OUTCOME_UNKNOWN)
             return raw[0]["State"]
 
-        return await self._operations.run(operation, self._deadline(deadline))
+        return await self._allocation_operation(identity.allocation_id).run(
+            operation, self._deadline(deadline)
+        )
 
     async def confirm_removed(self, allocation_id: str, *, deadline: float) -> None:
         async def operation():
@@ -230,7 +233,8 @@ class PodmanEngine:
                 await asyncio.to_thread(record.content.close)
                 del self._records[allocation_id]
 
-        await self._operations.run(operation, self._deadline(deadline))
+        await self._allocation_operation(allocation_id).run(operation, self._deadline(deadline))
+        self._allocation_operations.pop(allocation_id, None)
 
     async def start(self, identity: SandboxIdentity, *, deadline: float) -> None:
         deadline = self._deadline(deadline)
@@ -254,7 +258,7 @@ class PodmanEngine:
             if state is None or not state.running or state.status != "running":
                 raise SandboxContractError(SandboxErrorCode.OUTCOME_UNKNOWN)
 
-        await self._operations.run(operation, deadline)
+        await self._allocation_operation(identity.allocation_id).run(operation, deadline)
 
     async def execute(
         self,
@@ -286,7 +290,7 @@ class PodmanEngine:
                 identity, request.command, request.cwd, deadline=launch_deadline, revoked=revoked
             )
 
-        return await self._operations.run(operation, deadline)
+        return await self._allocation_operation(identity.allocation_id).run(operation, deadline)
 
     async def stop(self, identity: SandboxIdentity, *, deadline: float) -> None:
         deadline = self._deadline(deadline)
@@ -295,7 +299,7 @@ class PodmanEngine:
             await self._ready()
             await self._stop(identity, deadline)
 
-        await self._operations.run(operation, deadline)
+        await self._allocation_operation(identity.allocation_id).run(operation, deadline)
 
     async def remove(self, identity: SandboxIdentity, *, deadline: float) -> None:
         deadline = self._deadline(deadline)
@@ -317,19 +321,46 @@ class PodmanEngine:
                 await asyncio.to_thread(record.content.close)
                 del self._records[identity.allocation_id]
 
-        await self._operations.run(operation, deadline)
+        await self._allocation_operation(identity.allocation_id).run(operation, deadline)
+        self._allocation_operations.pop(identity.allocation_id, None)
 
-    async def discover(self, *, deadline: float) -> tuple[SandboxIdentity, ...]:
+    async def discover(
+        self, *, deadline: float, allocation_id: str | None = None
+    ) -> tuple[SandboxIdentity, ...]:
         deadline = self._deadline(deadline)
 
-        async def operation() -> tuple[SandboxIdentity, ...]:
+        async def operation():
             await self._ready()
-            return await self._discover(deadline)
+            return await self._discover(deadline, allocation_id=allocation_id)
 
+        if allocation_id is not None:
+            return await self._allocation_operation(allocation_id).run(operation, deadline)
+        await self._join_allocations(deadline)
         return await self._operations.run(operation, deadline)
+
+    def _allocation_operation(self, allocation_id: str) -> OwnedOperations:
+        operation = self._allocation_operations.get(allocation_id)
+        if operation is None:
+            if len(self._allocation_operations) >= MAX_OWNED_CONTAINERS:
+                raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
+            operation = OwnedOperations()
+            self._allocation_operations[allocation_id] = operation
+        return operation
+
+    async def _join_allocations(self, deadline: float) -> None:
+        async def joined():
+            return None
+
+        await asyncio.gather(
+            *(
+                operation.run(joined, deadline)
+                for operation in tuple(self._allocation_operations.values())
+            )
+        )
 
     async def close(self, *, deadline: float) -> None:
         deadline = self._deadline(deadline)
+        await self._join_allocations(deadline)
 
         async def operation() -> None:
             if self._closed:
@@ -425,7 +456,7 @@ class PodmanEngine:
             raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE) from None
 
     async def _discover(
-        self, deadline: float, creation: str | None = None
+        self, deadline: float, creation: str | None = None, allocation_id: str | None = None
     ) -> tuple[SandboxIdentity, ...]:
         filters = (
             f"--filter=label={LABEL_PREFIX}managed=1",
@@ -433,6 +464,8 @@ class PodmanEngine:
         )
         if creation is not None:
             filters += (f"--filter=label={LABEL_PREFIX}creation={creation}",)
+        if allocation_id is not None:
+            filters += (f"--filter=label={LABEL_PREFIX}allocation={allocation_id}",)
         result = await self._call(
             ("ps", "--all", "--no-trunc", "--format={{.ID}}", *filters), deadline
         )
@@ -449,6 +482,8 @@ class PodmanEngine:
             state = await self._inspect_id(container_id, deadline)
             if state is not None:
                 if creation is not None and state.identity.creation_id != creation:
+                    raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
+                if allocation_id is not None and state.identity.allocation_id != allocation_id:
                     raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
                 found.append(state.identity)
         return tuple(found)

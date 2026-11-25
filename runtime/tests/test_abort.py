@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fakes.allocation import allocation_context, allocation_snapshot
 from fakes.spec import allocation_spec
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory, StubWorkerRuntime
 
@@ -28,9 +29,9 @@ def test_abort_is_idempotent_and_returns_cached_metrics(
         state, service = await make_service(tmp_path, runtime_capabilities)
         spec = allocation_spec()
         await service.prepare(spec)
-        assert service._context is not None
-        assert service._context.worker_state is not None
-        service._context.worker_state.metrics.record_model_call()
+        assert allocation_context(service) is not None
+        assert allocation_context(service).worker_state is not None
+        allocation_context(service).worker_state.metrics.record_model_call()
         request = abort_request(spec.allocation_id, "abort-1")
 
         first = await service.abort(request)
@@ -41,8 +42,8 @@ def test_abort_is_idempotent_and_returns_cached_metrics(
         assert first.report.runtime.complete
         assert first.report.worker.metrics.model_calls == 1
         assert [error.code for error in first.report.worker.errors] == ["user_cancelled"]
-        assert (await state.snapshot()).process_state is ProcessState.DRAINING
-        assert not (await service.snapshot()).has_worker  # type: ignore[union-attr]
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.DRAINING
+        assert not (await allocation_snapshot(service)).has_worker  # type: ignore[union-attr]
 
         with pytest.raises(AllocationError) as different_id:
             await service.abort(abort_request(spec.allocation_id, "abort-2"))
@@ -77,7 +78,7 @@ def test_abort_deadline_fences_slot_and_requests_process_exit(
         assert unconfirmed.value.code == "worker_stop_unconfirmed"
         assert not unconfirmed.value.retryable
         assert exits == [70]
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
         with pytest.raises(AllocationError, match="still incomplete") as repeated:
             await service.abort(request)
         assert repeated.value.code == "allocation_conflict"
@@ -116,7 +117,7 @@ def test_cancelled_abort_request_still_fences_and_requests_process_exit(
             await task
 
         assert exits == [70]
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
 
     asyncio.run(scenario())
 

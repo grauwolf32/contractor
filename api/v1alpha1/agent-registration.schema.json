@@ -168,9 +168,6 @@
         "fenced"
       ]
     },
-    "allocationId": {
-      "$ref": "common.schema.json#/$defs/resourceId"
-    },
     "capabilities": {
       "anyOf": [
         {
@@ -218,6 +215,35 @@
           "pattern": "[^a-z0-9_/-]"
         }
       }
+    },
+    "allocationSlots": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4
+    },
+    "allocations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "allocationId",
+          "observedState"
+        ],
+        "properties": {
+          "allocationId": {
+            "$ref": "common.schema.json#/$defs/resourceId"
+          },
+          "observedState": {
+            "enum": [
+              "allocated",
+              "draining",
+              "fenced"
+            ]
+          }
+        }
+      },
+      "maxItems": 4
     }
   },
   "required": [
@@ -231,13 +257,31 @@
     "supportedToolsets",
     "supportedSandboxProfiles",
     "observedState",
-    "supportedRuntimeAdapters"
+    "supportedRuntimeAdapters",
+    "allocationSlots",
+    "allocations"
   ],
   "title": "AgentRegistration",
   "type": "object",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contractor.local/schema/v1alpha1/agent-registration.schema.json",
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "observedState": {
+            "const": "idle"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "allocations": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": {
@@ -250,24 +294,58 @@
         }
       },
       "then": {
-        "required": [
-          "allocationId"
-        ]
+        "properties": {
+          "allocations": {
+            "minItems": 1
+          }
+        }
       }
     },
     {
       "if": {
         "properties": {
-          "observedState": {
-            "const": "idle"
+          "allocationSlots": {
+            "const": 1
           }
         }
       },
       "then": {
-        "not": {
-          "required": [
-            "allocationId"
-          ]
+        "properties": {
+          "allocations": {
+            "maxItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "allocationSlots": {
+            "const": 2
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "allocations": {
+            "maxItems": 2
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "allocationSlots": {
+            "const": 3
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "allocations": {
+            "maxItems": 3
+          }
         }
       }
     }

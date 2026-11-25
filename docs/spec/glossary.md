@@ -914,7 +914,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Runtime adapter metrics** — Per-adapter counters in a Runtime report, keyed by the exact RuntimeAdapter ref selected by trusted Server provenance. Owner: [Observability](platform/observability.md).
 
-**Runtime Agent** — One long-running process with one exclusive slot whose code implements both the Runtime Agent and the in-process Worker behaviour. Owner: [Runtime Agent](execution/runtime-agent.md).
+**Runtime Agent** — One long-running process with 1..4 allocation slots whose code implements both the Runtime Agent and the in-process Worker behaviour. Owner: [Runtime Agent](execution/runtime-agent.md).
 
 **Runtime Agent principal** — The stable runtime_agent_id, lowercase hex SHA-256 of the authenticated leaf certificate's DER SubjectPublicKeyInfo, together with its durable Agent labels. Owner: [Control Plane](execution/control-plane.md).
 
@@ -997,13 +997,13 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Shutdown grace** — The bound (CONTRACTOR_SHUTDOWN_GRACE_SECONDS, default 10 seconds) within which the Runtime stops and destroys its Worker after lease loss, before forced termination. Owner: [Runtime Agent](execution/runtime-agent.md).
 
-**Single-VM baseline** — The baseline deployment layout in which one Contractor Server process, PostgreSQL and one or two single-slot Runtime Agent processes (the second only if concurrency is needed) run on one VM. Owner: [System overview](overview.md).
+**Single-VM baseline** — The baseline deployment layout in which one Contractor Server process, PostgreSQL and one or more Runtime Agent processes with configured allocation capacity run on one VM. Owner: [System overview](overview.md).
 
 **Skill package** — see **Agent Skill**.
 
 **SkillCatalog** — The Server's internal ArtifactStore-backed boundary that discovers bundled sources, validates packages, resolves owner refs and forks exact packages into RunScope, with no HTTP endpoint or database schema of its own. Owner: [Agent Skills](tools/skills.md).
 
-**Slot** — The single unit of Runtime Agent capacity; one Runtime Agent process has exactly one. Owner: [Control Plane](execution/control-plane.md).
+**Slot** — One unit of allocation capacity; each Runtime Agent process declares 1..4 at startup. Owner: [Control Plane](execution/control-plane.md).
 
 **Snapshot revision** — An unsigned decimal counter of the Operations snapshot that every observable registry change advances. Owner: [Operations](operations/operations.md).
 

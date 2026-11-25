@@ -9,6 +9,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from fakes.allocation import allocation_context
 from fakes.model import text_result
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
@@ -117,7 +118,7 @@ def test_shared_completion_diagnostics_gate_the_agent_state_endpoint(
     async def scenario():
         state, service = await make_service(tmp_path, runtime_capabilities)
         await service.prepare(make_spec())
-        worker_state = service._context.worker_state
+        worker_state = allocation_context(service).worker_state
         app = create_app(state, allocation_service=service, require_verified_peer=False)
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"

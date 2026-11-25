@@ -12,7 +12,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
-	"github.com/grauwolf32/contractor/internal/helpers/clone"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
@@ -34,7 +33,8 @@ type AgentRegistration struct {
 	SupportedPerformanceMetricsVersions reporting.PerformanceMetricsVersions `json:"supportedPerformanceMetricsVersions,omitempty"`
 	WorkspaceCapabilities               *contracts.WorkspaceCapabilities     `json:"workspaceCapabilities,omitempty" strictjson:"nullable"`
 	ObservedState                       AgentObservedState                   `json:"observedState" strictjson:"required"`
-	AllocationID                        *string                              `json:"allocationId,omitempty"`
+	AllocationSlots                     int                                  `json:"allocationSlots" strictjson:"required"`
+	Allocations                         []ObservedAllocation                 `json:"allocations" strictjson:"required"`
 }
 
 func (r AgentRegistration) Validate() error {
@@ -79,7 +79,7 @@ func (r AgentRegistration) Validate() error {
 			return err
 		}
 	}
-	return validateObservedAllocation(r.ObservedState, r.AllocationID)
+	return validateObservedAllocations(r.ObservedState, r.Allocations, r.AllocationSlots)
 }
 
 type AgentRegistrationResponse struct {
@@ -102,7 +102,7 @@ func (r AgentRegistrationResponse) Validate() error {
 // Clone returns a detached registration, including mutable observations and all capability lists.
 func (source AgentRegistration) Clone() AgentRegistration {
 	result := source
-	result.AllocationID = clone.Pointer(source.AllocationID)
+	result.Allocations = append([]ObservedAllocation{}, source.Allocations...)
 	if source.Capabilities != nil {
 		value := *source.Capabilities
 		value.CompletionContracts = append([]string{}, source.Capabilities.CompletionContracts...)
@@ -152,7 +152,7 @@ func NormalizeAgentRegistration(source AgentRegistration) AgentRegistration {
 func AgentRegistrationFingerprint(source AgentRegistration) (string, error) {
 	normalized := NormalizeAgentRegistration(source)
 	normalized.ObservedState = ""
-	normalized.AllocationID = nil
+	normalized.Allocations = nil
 	canonical, err := strictjson.Canonical(normalized)
 	if err != nil {
 		return "", err
@@ -169,4 +169,14 @@ func RuntimeAdapterCapabilityProjection(source AgentRegistration) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+// ObservedAllocation returns the latest observation for one globally unique allocation.
+func (r AgentRegistration) ObservedAllocation(allocationID string) (AgentObservedState, bool) {
+	for _, item := range r.Allocations {
+		if item.AllocationID == allocationID {
+			return item.ObservedState, true
+		}
+	}
+	return "", false
 }

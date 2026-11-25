@@ -214,7 +214,7 @@ func TestScanToolsAcrossProductionProcesses(t *testing.T) {
 		}
 		waitForObservedRuntimeAgents(t, h.ctx, h.server, []*childProcess{h.runtime}, h.client, h.baseURL, func(agents []observedRuntimeAgent) bool {
 			for _, agent := range agents {
-				if agent.InstanceID == allocations[0].RuntimeAgentInstanceID && agent.SlotState == "idle" && agent.CurrentAllocationID == nil && agent.AuthoritativeAllocationID == nil {
+				if agent.InstanceID == allocations[0].RuntimeAgentInstanceID && agent.State == "idle" && len(agent.ObservedAllocations) == 0 && len(agent.AuthoritativeAllocationIDs) == 0 {
 					return true
 				}
 			}
@@ -391,7 +391,7 @@ http:
 		if h.runtimePathPrefix != "" {
 			runtimePath = h.runtimePathPrefix + string(os.PathListSeparator) + runtimePath
 		}
-		arguments := []string{"-m", "contractor_runtime", "--control-plane-url", privateURL,
+		arguments := []string{"-m", "contractor_runtime", "--allocation-slots", "1", "--control-plane-url", privateURL,
 			"--advertised-control-url", baseURL, "--advertised-a2a-url", baseURL,
 			"--ca-file", caPaths.Certificate, "--certificate-file", identity.Certificate, "--private-key-file", identity.PrivateKey,
 			"--listen", address, "--work-root", filepath.Join(h.temporaryRoot, name), "--request-timeout-seconds", "10", "--shutdown-grace-seconds", "5",

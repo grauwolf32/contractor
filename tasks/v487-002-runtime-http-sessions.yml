@@ -5,7 +5,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: http-tools
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V487-001
 languages:
@@ -32,7 +32,9 @@ context:
     are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. Implementation
     tasks remain pending. User follow-up 2026-11-25 requests grouping and execution in the minimum number
     of passes. Execution groups are isolation assessment, coordinated resource/capacity implementation,
-    and integrated acceptance.'
+    and integrated acceptance. User instruction 2026-11-25 explicitly authorizes completing execution
+    groups 2 and 3 end to end, simplifying and reducing code and reusing existing mechanisms wherever
+    possible.'
   start_condition: V487-001 is completed and evidence demonstrates shared-engine isolation. A negative
     verdict leaves this group pending with context.decision_needed.
   related_plan_review: Before implementation inspect current V410-037/V411-013 code if landed. Their allocation-specific
@@ -46,6 +48,11 @@ context:
     regressions during changes and one combined set of full gates against the integrated result. If build/wire
     callers require atomic landing, commit the batch together under the AGENTS.md build-green exception.
     No task is complete before its own acceptance and the combined gates pass.
+  verification_execution: 'User request 2026-11-25 asks for the minimum number of passes. Final verification
+    uses the existing release-verify consolidation rather than repeating all family suites: actual Go/Runtime/shared-fixture,
+    race, integration, process and browser reports must demonstrate nonzero required cases. Family targets
+    skipped by RELEASE_CONSOLIDATED are not independent passing coverage. The Linux rootless Podman gate
+    stays separate.'
 scope:
   in:
   - Move engine lifetime to existing Runtime composition and give ordinary HTTPTransport callers allocation-owned
@@ -63,9 +70,10 @@ requirements:
     line delta separately from tests/generated/docs, with reasons for remaining growth. Reuse current
     IDs, receipts, leases and Artifact mechanisms.
 - id: R1a
-  text: Apply the proven stable task-local ctx.options boundary with separate session TLS configuration. Initialize the common engine from process defaults and never retain the first allocation TLS configuration as shared defaults.
-    Guard the pinned native integration at startup and test that unowned TLS context access fails closed.
-    Reuse existing protocol methods and avoid copying native TLS implementation.
+  text: Apply the proven stable task-local ctx.options boundary with separate session TLS configuration.
+    Initialize the common engine from process defaults and never retain the first allocation TLS configuration
+    as shared defaults. Guard the pinned native integration at startup and test that unowned TLS context
+    access fails closed. Reuse existing protocol methods and avoid copying native TLS implementation.
 - id: R2
   text: Implement only the proven design from V487-001. One lazily started engine is shared by at most
     four live sessions, while policy, target authority, cookies, credentials, TLS profile, capture IDs
@@ -130,20 +138,9 @@ acceptance_criteria:
   then: Old allocation engine ownership and duplicated cleanup are removed, every new API has a caller,
     and line growth is explained.
 tests:
-- command: make test-runtime
+- command: make release-verify
   covers:
   - A1
   - A2
   - A3
-- command: make test-http-caido-hardening
-  covers:
-  - A1
-  - A2
-  - A3
-- command: make verify-architecture
-  covers:
-  - A4
-- command: make lint
-  covers:
-  - A1
   - A4

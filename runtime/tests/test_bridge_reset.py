@@ -19,16 +19,17 @@ def run(scenario):
 
 
 def assert_erased(engine, pool, directory):
-    from contractor_runtime.adapters.bridge.mitmproxy import engine as module
 
-    assert engine.closed and module._active is None and not directory.exists()
+    from contractor_runtime.adapters.bridge.mitmproxy import runtime
+
+    assert engine.closed and runtime._active is None and not directory.exists()
     assert not engine.pools and not engine.flows and not engine.ingresses
     assert not pool.writers and not pool.transports and not pool.parsers
     assert not pool._connection_tasks and not pool._writer_closes
     assert not pool.hooks and not pool.wakeup_timer and not pool._wakeups
     assert not pool.connecting and not pool.verified and not pool.exchanges
     assert not pool.layer.connections and not pool.layer.command_sources
-    assert engine.master is engine.options is engine.tls is engine.ssl_context is None
+    assert engine.options is engine.tls is engine.ssl_context is None
 
 
 def test_early_404_with_unread_post_body_closes_and_reuses_process():
@@ -70,7 +71,7 @@ def test_target_tcp_reset_preserves_response_outcome_and_never_replays(
         server.set_alpn_protocols(["h2"] if protocol == "h2" else ["http/1.1"])
         headers = asyncio.Event()
         handlers = []
-        original = module.MitmproxyEngine.handle_hook
+        original = module.MitmproxySession.handle_hook
 
         async def observe(engine, pool, hook):
             await original(engine, pool, hook)
@@ -79,7 +80,7 @@ def test_target_tcp_reset_preserves_response_outcome_and_never_replays(
             if hook.name == "responseheaders":
                 headers.set()
 
-        monkeypatch.setattr(module.MitmproxyEngine, "handle_hook", observe)
+        monkeypatch.setattr(module.MitmproxySession, "handle_hook", observe)
         async with (
             ResetTarget(
                 ssl_context=server if protocol != "http" else None, partial=partial
@@ -154,8 +155,9 @@ def test_close_error_requires_both_expected_error_and_closed_descriptor(
 
 
 def test_detached_native_failure_is_observed_reported_and_cleanup_can_retry(monkeypatch):
+    from contractor_runtime.adapters.bridge.mitmproxy import runtime
+
     async def scenario():
-        from contractor_runtime.adapters.bridge.mitmproxy import engine as module
 
         failures = []
         asyncio.get_running_loop().set_exception_handler(lambda _, value: failures.append(value))
@@ -180,7 +182,7 @@ def test_detached_native_failure_is_observed_reported_and_cleanup_can_retry(monk
             assert not handler._log_traceback
             with pytest.raises(RuntimeError, match="injected native retirement defect"):
                 await owner.close()
-            assert module._active is engine and not engine.closed
+            assert runtime._active is engine.runtime and not engine.closed
             assert not pool._connection_tasks
             await owner.close()
             gc.collect()
@@ -202,9 +204,9 @@ def test_scanner_reset_joins_private_ingress(tmp_path, protocol, during):
     from fakes.engagement_socket import SocketTarget
 
     from contractor_runtime.adapters.bridge import HTTPProxyBridge
+    from contractor_runtime.adapters.bridge.mitmproxy import runtime
 
     async def scenario():
-        from contractor_runtime.adapters.bridge.mitmproxy import engine as module
 
         release = asyncio.Event()
 
@@ -314,14 +316,15 @@ def test_scanner_reset_joins_private_ingress(tmp_path, protocol, during):
             assert not bridge._private_values and bridge._authorization == b""
             assert owner._request_count == 1
             await owner.close()
-            assert module._active is None
+            assert runtime._active is None
 
     run(scenario)
 
 
 def test_reset_close_is_joined_through_concurrent_repeated_cancellation(monkeypatch):
+    from contractor_runtime.adapters.bridge.mitmproxy import runtime
+
     async def scenario():
-        from contractor_runtime.adapters.bridge.mitmproxy import engine as module
 
         async with ResetTarget() as target, preflight(target) as (owner, _):
             owner.configure(authority_deadline=lambda: time.monotonic() + 60)
@@ -351,7 +354,7 @@ def test_reset_close_is_joined_through_concurrent_repeated_cancellation(monkeypa
                     concurrent.cancel()
                 await asyncio.sleep(0)
                 assert not closing.done() and not concurrent.done()
-                assert module._active is engine and writer in pool.writers
+                assert runtime._active is engine.runtime and writer in pool.writers
                 assert not engine.closed and waits == [True]
             finally:
                 finish.set()

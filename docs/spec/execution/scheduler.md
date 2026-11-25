@@ -1519,7 +1519,7 @@ is still observed by the restarted Server. The HTTP response does not promise
 that a newly added lane has already acquired Runtime capacity before returning
 (FAIL-SCH-17).
 
-**SCH-R139.** Each Runtime Agent process supplies exactly one slot
+**SCH-R139.** Each Runtime Agent process supplies its configured 1..4 allocation slots
 ([LIM-CTL-4](../platform/limits.md)). One WorkflowRun counts as one Scheduler
 lane (LIM-SCH-7) even when its selected Stage needs several named Workers and therefore
 several Runtime Agent slots. The setting is consequently an upper bound, not a

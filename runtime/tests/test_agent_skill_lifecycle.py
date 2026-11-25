@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fakes.allocation import allocation_context, allocation_snapshot
 from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
@@ -130,7 +131,7 @@ async def graph_service(tmp_path, monkeypatch, *, unhashable=False):
     base = built_in_factories(tmp_path, client_factory, model_factory)
     factories = replace(base, worker_runtimes={"adk@1": Factory(model_factory, client_factory)})
     capabilities = capabilities_for(factories)
-    state = RuntimeState(instance_id="skill-graph", capabilities=capabilities)
+    state = RuntimeState(allocation_slots=1, instance_id="skill-graph", capabilities=capabilities)
     await state.mark_registered()
     service = AllocationService(
         state,
@@ -167,7 +168,7 @@ def test_used_skill_graph_is_collected_and_next_allocation_is_independent(
             spec.worker_session_mode = WorkerSessionMode.SHARED
             await service.prepare(spec)
             del spec
-            context = service._context
+            context = allocation_context(service)
             worker = context.worker
             owner = worker._agent_skills
             assert owner.disclosure.used == 0
@@ -223,7 +224,7 @@ def test_used_skill_graph_is_collected_and_next_allocation_is_independent(
             assert live_references(references) == []
             gc.collect()
             assert all(reference() is None for reference in clients)
-            assert (await state.snapshot()).process_state is ProcessState.IDLE
+            assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
 
@@ -246,14 +247,14 @@ def test_failed_prepare_after_skill_and_declaration_build_collects_graph(
                 await service.prepare(allocation_spec(skills=[pin]))
             assert failed.value.code == "allocation_preparation_failed"
             del failed
-        assert await service.snapshot() is None
+        assert await allocation_snapshot(service) is None
         assert list(tmp_path.iterdir()) == []
         assert live_references(built[0]) == []
         assert all(reference() is None for reference in clients)
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
         spec = allocation_spec(allocation_id="allocation-recovered", skills=[pin])
         await service.prepare(spec)
-        completion = await service._context.worker.invoke(worker_request())
+        completion = await allocation_context(service).worker.invoke(worker_request())
         assert completion.failure is None
         await service.abort(
             AbortAllocationRequest(
@@ -282,9 +283,9 @@ def test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced(
     async def scenario() -> None:
         service, state, pin, _, _, _ = await graph_service(tmp_path, monkeypatch)
         exits = []
-        service._force_exit = exits.append
+        service._exit_process = exits.append
         await service.prepare(allocation_spec(skills=[pin]))
-        worker = service._context.worker
+        worker = allocation_context(service).worker
         owner = worker._agent_skills
         targets = {
             "runner": worker._runner,
@@ -316,7 +317,7 @@ def test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced(
             )
             await asyncio.wait_for(started.wait(), 5)
             assert not running.done()
-            assert service._context.workspace.path.is_dir()
+            assert allocation_context(service).workspace.path.is_dir()
             if cancelled:
                 running.cancel()
                 with pytest.raises(asyncio.CancelledError):
@@ -336,8 +337,8 @@ def test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced(
             assert calls and len(calls) <= 2
             assert all(task.done() for task in closing_tasks)
         assert exits == [70]
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
-        assert service._context.worker is not None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
+        assert allocation_context(service).worker is not None
         with pytest.raises(AllocationError):
             await service.prepare(allocation_spec(allocation_id="forbidden-new", skills=[pin]))
         with pytest.raises(AllocationError):
@@ -358,7 +359,7 @@ def test_cancelled_release_joins_one_cleanup_before_skill_slot_reuse(
     async def scenario() -> None:
         service, state, pin, _, clients, built = await graph_service(tmp_path, monkeypatch)
         await service.prepare(allocation_spec(skills=[pin]))
-        completion = await service._context.worker.invoke(worker_request())
+        completion = await allocation_context(service).worker.invoke(worker_request())
         assert completion.failure is None
         del completion
         references = allocation_references(service) | built[-1]
@@ -370,7 +371,7 @@ def test_cancelled_release_joins_one_cleanup_before_skill_slot_reuse(
                 deadline=datetime.now(UTC) + timedelta(seconds=10),
             )
         )
-        context = service._context
+        context = allocation_context(service)
         original = context.sandbox.cleanup
         started, resume = asyncio.Event(), asyncio.Event()
         calls = []
@@ -392,7 +393,7 @@ def test_cancelled_release_joins_one_cleanup_before_skill_slot_reuse(
                 await running
             assert retained is context.release_cleanup_task and not retained.done()
             assert context.workspace.path.is_dir()
-            assert (await state.snapshot()).process_state is ProcessState.FENCED
+            assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
             with pytest.raises(AllocationError):
                 await service.prepare(allocation_spec(allocation_id="too-early", skills=[pin]))
             retry = asyncio.create_task(service.release(request))
@@ -406,12 +407,12 @@ def test_cancelled_release_joins_one_cleanup_before_skill_slot_reuse(
         del context, retained, retry, running
         assert live_references(references) == []
         assert all(reference() is None for reference in clients)
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
         next_id = "allocation-after-cancel"
         await service.prepare(allocation_spec(allocation_id=next_id, skills=[pin]))
-        assert service._context.worker._agent_skills.disclosure.used == 0
-        assert service._context.worker._session_lifecycle.shared_session_id is None
-        completion = await service._context.worker.invoke(worker_request())
+        assert allocation_context(service).worker._agent_skills.disclosure.used == 0
+        assert allocation_context(service).worker._session_lifecycle.shared_session_id is None
+        completion = await allocation_context(service).worker.invoke(worker_request())
         assert completion.failure is None
         del completion
         await service.abort(
@@ -440,7 +441,7 @@ def test_skill_state_is_erased_before_slot_can_return_idle(
     async def scenario() -> None:
         service, state, spec = await skilled_service(tmp_path)
         await service.prepare(spec)
-        snapshot = await service.snapshot()
+        snapshot = await allocation_snapshot(service)
         assert snapshot is not None
         workspace = Path(snapshot.workspace)
         extraction = workspace / ".agent-skills"
@@ -472,10 +473,10 @@ def test_skill_state_is_erased_before_slot_can_return_idle(
             await service.expire_control_lease(2)
 
         assert not extraction.exists()
-        service_snapshot = await service.snapshot()
+        service_snapshot = await allocation_snapshot(service)
         assert service_snapshot is not None
         assert not service_snapshot.has_worker
-        assert (await state.snapshot()).process_state in {
+        assert (await state.snapshot("allocation-1")).process_state in {
             ProcessState.DRAINING,
             ProcessState.FENCED,
         }
@@ -484,7 +485,9 @@ def test_skill_state_is_erased_before_slot_can_return_idle(
             ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
         )
         await service.confirm_release(spec.allocation_id)
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        if termination == "lease":
+            await state.confirm_release(None)
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
         assert not workspace.exists()
 
     asyncio.run(scenario())
@@ -502,7 +505,9 @@ def test_skill_preparation_failure_maps_exact_code_and_rolls_back(tmp_path: Path
             lambda _: scripted_model([]),
         )
         capabilities = capabilities_for(factories)
-        state = RuntimeState(instance_id="runtime-skills", capabilities=capabilities)
+        state = RuntimeState(
+            allocation_slots=1, instance_id="runtime-skills", capabilities=capabilities
+        )
         await state.mark_registered()
         service = AllocationService(
             state,
@@ -517,8 +522,8 @@ def test_skill_preparation_failure_maps_exact_code_and_rolls_back(tmp_path: Path
             await service.prepare(spec)
         assert captured.value.code == "skill_digest_mismatch"
         assert captured.value.retryable is False
-        assert await service.snapshot() is None
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert await allocation_snapshot(service) is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
         assert list(tmp_path.iterdir()) == []
 
     asyncio.run(scenario())
@@ -529,7 +534,7 @@ def test_skill_deletion_failure_fences_and_forces_process_exit(tmp_path: Path) -
         exit_codes: list[int] = []
         service, state, spec = await skilled_service(tmp_path, exit_codes=exit_codes)
         await service.prepare(spec)
-        context = service._context
+        context = allocation_context(service)
         assert context is not None
         runtime = context.worker
         owner = runtime._agent_skills
@@ -550,7 +555,7 @@ def test_skill_deletion_failure_fences_and_forces_process_exit(tmp_path: Path) -
                 )
             )
         assert captured.value.code == "worker_stop_unconfirmed"
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
         assert exit_codes == [70]
         assert extraction.exists()
         assert "synthetic private deletion failure" not in captured.value.message
@@ -571,7 +576,9 @@ async def skilled_service(
         lambda _: scripted_model([]),
     )
     capabilities = capabilities_for(factories)
-    state = RuntimeState(instance_id="runtime-skills", capabilities=capabilities)
+    state = RuntimeState(
+        allocation_slots=1, instance_id="runtime-skills", capabilities=capabilities
+    )
     await state.mark_registered()
     service = AllocationService(
         state,

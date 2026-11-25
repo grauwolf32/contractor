@@ -325,7 +325,7 @@ func TestReserveCandidateEdgesLeavesEverySlotFreeWithoutCompleteMatching(t *test
 	}
 	for _, instanceID := range []string{"agent-a", "agent-b"} {
 		agent, err := registry.GetAgent(instanceID)
-		if err != nil || agent.AuthoritativeAllocationID != nil {
+		if err != nil || len(agent.AuthoritativeAllocationIDs) != 0 {
 			t.Fatalf("failed matching mutated %s: (%+v, %v)", instanceID, agent, err)
 		}
 	}
@@ -457,10 +457,10 @@ func TestWriteFencedMatchingAllocationHeartbeatAlwaysDrains(t *testing.T) {
 	}
 	allocationID := reservations[0].Grant.AllocationID
 	allocated := func(sequence, echoed uint64) control.AgentHeartbeat {
-		return control.AgentHeartbeat{
+		return control.AgentHeartbeat{Allocations: []control.ObservedAllocation{{AllocationID: allocationID, ObservedState: control.AgentAllocated}},
 			APIVersion: contracts.APIVersion, InstanceID: registration.InstanceID,
 			HeartbeatSeq: sequence, EchoedAckSeq: echoed,
-			ObservedState: control.AgentAllocated, AllocationID: &allocationID,
+			ObservedState: control.AgentAllocated,
 		}
 	}
 	if response, err := registry.Heartbeat(allocated(3, 2)); err != nil || response.Action != control.ActionContinue {
@@ -469,16 +469,16 @@ func TestWriteFencedMatchingAllocationHeartbeatAlwaysDrains(t *testing.T) {
 	if err := registry.SetWriteFence(allocationID); err != nil {
 		t.Fatal(err)
 	}
-	if response, err := registry.Heartbeat(allocated(4, 3)); err != nil || response.Action != control.ActionDrain {
+	if response, err := registry.Heartbeat(allocated(4, 3)); err != nil || (len(response.AllocationActions) != 1 || response.AllocationActions[0].Action != control.ActionDrain) {
 		t.Fatalf("write-fenced heartbeat = (%+v, %v)", response, err)
 	}
 
 	registration.ObservedState = control.AgentAllocated
-	registration.AllocationID = &allocationID
+	registration.Allocations = []control.ObservedAllocation{{AllocationID: allocationID, ObservedState: registration.ObservedState}}
 	if snapshot, err := registry.Register(registration); err != nil || !snapshot.ReconciliationRequired {
 		t.Fatalf("write-fenced re-registration = (%+v, %v)", snapshot, err)
 	}
-	if response, err := registry.Heartbeat(allocated(5, 4)); err != nil || response.Action != control.ActionDrain {
+	if response, err := registry.Heartbeat(allocated(5, 4)); err != nil || (len(response.AllocationActions) != 1 || response.AllocationActions[0].Action != control.ActionDrain) {
 		t.Fatalf("heartbeat after re-registration = (%+v, %v)", response, err)
 	}
 }
@@ -653,7 +653,7 @@ func TestCapabilityMatchingRequiresExactRefsAndSelectedTools(t *testing.T) {
 			}
 			after := registry.SnapshotOperations()
 			if after.Cursor != before.Cursor || len(after.Allocations) != 0 ||
-				after.RuntimeAgents[0].AuthoritativeAllocationID != nil {
+				len(after.RuntimeAgents[0].AuthoritativeAllocationIDs) != 0 {
 				t.Fatalf("failed %s match mutated Operations: before=%+v after=%+v", test.name, before, after)
 			}
 		})
@@ -694,20 +694,20 @@ func TestRegistrationNeverAdoptsObservedAllocation(t *testing.T) {
 	registration := testRegistration("agent-orphan")
 	orphan := "allocation-from-old-control-plane"
 	registration.ObservedState = control.AgentFenced
-	registration.AllocationID = &orphan
+	registration.Allocations = []control.ObservedAllocation{{AllocationID: orphan, ObservedState: registration.ObservedState}}
 	snapshot, err := registry.Register(registration)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.AuthoritativeAllocationID != nil || !snapshot.ReconciliationRequired {
+	if len(snapshot.AuthoritativeAllocationIDs) != 0 || !snapshot.ReconciliationRequired {
 		t.Fatalf("orphan registration was adopted: %+v", snapshot)
 	}
-	heartbeatRequest := control.AgentHeartbeat{
+	heartbeatRequest := control.AgentHeartbeat{Allocations: []control.ObservedAllocation{{AllocationID: orphan, ObservedState: control.AgentFenced}},
 		APIVersion: contracts.APIVersion, InstanceID: registration.InstanceID,
-		HeartbeatSeq: 1, ObservedState: control.AgentFenced, AllocationID: &orphan,
+		HeartbeatSeq: 1, ObservedState: control.AgentFenced,
 	}
 	response, err := registry.Heartbeat(heartbeatRequest)
-	if err != nil || response.Action != control.ActionRelease || response.AllocationID == nil || *response.AllocationID != orphan {
+	if err != nil || (len(response.AllocationActions) != 1 || response.AllocationActions[0].Action != control.ActionRelease) || len(response.AllocationActions) == 0 || response.AllocationActions[0].AllocationID != orphan {
 		t.Fatalf("orphan reconciliation response = (%+v, %v)", response, err)
 	}
 }
@@ -723,7 +723,7 @@ func TestRegistrationResponseLossRetryIsIdempotent(t *testing.T) {
 	clock.Advance(time.Second)
 	replayed, err := registry.Register(registration)
 	if err != nil || replayed.Registration.InstanceID != first.Registration.InstanceID ||
-		replayed.AuthoritativeAllocationID != nil {
+		len(replayed.AuthoritativeAllocationIDs) != 0 {
 		t.Fatalf("registration retry = (%+v, %v), first %+v", replayed, err, first)
 	}
 	changed := registration
@@ -869,10 +869,10 @@ func TestLeaseExpiryAfterResponsePartitionIsIrreversible(t *testing.T) {
 	// Ack 2 was received before the simulated response-only partition. Every
 	// later request repeats it and therefore cannot renew the confirmed lease.
 	allocated := func(sequence, echoed uint64) control.AgentHeartbeat {
-		return control.AgentHeartbeat{
+		return control.AgentHeartbeat{Allocations: []control.ObservedAllocation{{AllocationID: allocationID, ObservedState: control.AgentAllocated}},
 			APIVersion: contracts.APIVersion, InstanceID: "agent-1",
 			HeartbeatSeq: sequence, EchoedAckSeq: echoed,
-			ObservedState: control.AgentAllocated, AllocationID: &allocationID,
+			ObservedState: control.AgentAllocated,
 		}
 	}
 	if _, err := registry.Heartbeat(allocated(3, 2)); err != nil {
@@ -899,7 +899,7 @@ func TestLeaseExpiryAfterResponsePartitionIsIrreversible(t *testing.T) {
 	}
 	// Ack 7 was issued while responses were supposedly lost. Even a delayed
 	// echo cannot revive the already-lost allocation.
-	if response, err := registry.Heartbeat(allocated(9, 7)); err != nil || response.Action != control.ActionDrain {
+	if response, err := registry.Heartbeat(allocated(9, 7)); err != nil || (len(response.AllocationActions) != 1 || response.AllocationActions[0].Action != control.ActionDrain) {
 		t.Fatalf("late ack response = (%+v, %v)", response, err)
 	}
 	if losses := registry.PollAllocationLosses(); len(losses) != 0 {
@@ -930,16 +930,16 @@ func TestReservationAllowsIdleOnlyUntilAllocationIsObservedActive(t *testing.T) 
 	if losses := registry.PollAllocationLosses(); len(losses) != 0 {
 		t.Fatalf("reservation-to-prepare transition was lost: %+v", losses)
 	}
-	active := control.AgentHeartbeat{
+	active := control.AgentHeartbeat{Allocations: []control.ObservedAllocation{{AllocationID: allocationID, ObservedState: control.AgentAllocated}},
 		APIVersion: contracts.APIVersion, InstanceID: "agent-1",
 		HeartbeatSeq: 4, EchoedAckSeq: 3,
-		ObservedState: control.AgentAllocated, AllocationID: &allocationID,
+		ObservedState: control.AgentAllocated,
 	}
 	if response, err = registry.Heartbeat(active); err != nil || response.Action != control.ActionContinue {
 		t.Fatalf("allocation activation = (%+v, %v)", response, err)
 	}
 	response, err = registry.Heartbeat(heartbeat("agent-1", 5, 4))
-	if err != nil || response.Action != control.ActionDrain {
+	if err != nil || (len(response.AllocationActions) != 1 || response.AllocationActions[0].Action != control.ActionDrain) {
 		t.Fatalf("post-activation idle mismatch = (%+v, %v)", response, err)
 	}
 	losses := registry.PollAllocationLosses()
@@ -1134,7 +1134,7 @@ func TestForeignPrincipalEndpointRegistrationDoesNotSupersedeLiveAgent(t *testin
 		t.Fatalf("victim grant after foreign registration = (%+v, %v)", grant, err)
 	}
 	entry := registry.agents[victim.InstanceID]
-	if entry == nil || entry.superseded || entry.allocationLost {
+	if entry == nil || entry.superseded {
 		t.Fatal("foreign registration superseded the live victim process")
 	}
 	if blocked := registry.agents[intruder.InstanceID].blockedByInstanceID; blocked != nil {
@@ -1161,16 +1161,16 @@ func TestReconcileLostReleaseResponseRepeatsReleaseWithoutSlotReuse(t *testing.T
 		t.Fatal(err)
 	}
 	fenced := func(sequence, echoed uint64) control.AgentHeartbeat {
-		return control.AgentHeartbeat{
+		return control.AgentHeartbeat{Allocations: []control.ObservedAllocation{{AllocationID: allocationID, ObservedState: control.AgentFenced}},
 			APIVersion: contracts.APIVersion, InstanceID: "agent-1",
 			HeartbeatSeq: sequence, EchoedAckSeq: echoed,
-			ObservedState: control.AgentFenced, AllocationID: &allocationID,
+			ObservedState: control.AgentFenced,
 		}
 	}
 	for sequence := uint64(3); sequence <= 4; sequence++ {
 		response, err := registry.Heartbeat(fenced(sequence, sequence-1))
-		if err != nil || response.Action != control.ActionRelease ||
-			response.AllocationID == nil || *response.AllocationID != allocationID {
+		if err != nil || (len(response.AllocationActions) != 1 || response.AllocationActions[0].Action != control.ActionRelease) ||
+			len(response.AllocationActions) == 0 || response.AllocationActions[0].AllocationID != allocationID {
 			t.Fatalf("release reconciliation %d = (%+v, %v)", sequence, response, err)
 		}
 	}
@@ -1243,7 +1243,7 @@ func TestReleaseDoesNotReuseSlotFromStaleIdleHeartbeat(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapshot, err := registry.GetAgent("agent-1")
-	if err != nil || snapshot.AuthoritativeAllocationID != nil || !snapshot.ReconciliationRequired {
+	if err != nil || len(snapshot.AuthoritativeAllocationIDs) != 0 || !snapshot.ReconciliationRequired {
 		t.Fatalf("released stale-idle slot = (%+v, %v)", snapshot, err)
 	}
 	if _, err := registry.ReserveAll(ReservationRequest{
@@ -1256,6 +1256,12 @@ func TestReleaseDoesNotReuseSlotFromStaleIdleHeartbeat(t *testing.T) {
 	response, err := registry.Heartbeat(heartbeat("agent-1", 3, 2))
 	if err != nil || response.Action != control.ActionContinue {
 		t.Fatalf("post-release idle confirmation = (%+v, %v)", response, err)
+	}
+	if len(response.AllocationActions) != 1 || response.AllocationActions[0].AllocationID != allocationID {
+		t.Fatalf("missing addressed release: %+v", response)
+	}
+	if _, err := registry.Heartbeat(heartbeat("agent-1", 4, 3)); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := registry.ReserveAll(ReservationRequest{
 		RunID: "run-after-confirm", StageExecutionID: "stage-after-idle-confirm",
@@ -1328,7 +1334,7 @@ func testBinding(
 }
 
 func testRegistration(instanceID string) control.AgentRegistration {
-	return control.AgentRegistration{
+	return control.AgentRegistration{AllocationSlots: 1, Allocations: []control.ObservedAllocation{},
 		SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{},
 		APIVersion:               contracts.APIVersion, InstanceID: instanceID, SoftwareVersion: "0.1.0",
 		StartedAt:         time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
@@ -1343,7 +1349,7 @@ func testRegistration(instanceID string) control.AgentRegistration {
 }
 
 func heartbeat(instanceID string, sequence, echoed uint64) control.AgentHeartbeat {
-	return control.AgentHeartbeat{
+	return control.AgentHeartbeat{Allocations: []control.ObservedAllocation{},
 		APIVersion: contracts.APIVersion, InstanceID: instanceID,
 		HeartbeatSeq: sequence, EchoedAckSeq: echoed, ObservedState: control.AgentIdle,
 	}

@@ -151,7 +151,7 @@ async def _bootstrap(
     shutdown: _ShutdownDeadline,
 ) -> None:
     stop = stop_requested or asyncio.Event()
-    runtime_state = state or RuntimeState()
+    runtime_state = state or RuntimeState(allocation_slots=settings.allocation_slots)
     connections = None
     loop = asyncio.get_running_loop()
     handled_signals = (signal.SIGINT, signal.SIGTERM)
@@ -272,6 +272,7 @@ async def _serve(
     # The process owns its private connections and closes them last (CTL-R164):
     # registration and heartbeats never wait behind Artifact transfers.
     artifact_connections = PrivateConnections(outgoing_tls, verify_control_plane_peer)
+    factories = None
     try:
         trust_fingerprint = await to_thread_until_done(
             tls_trust_fingerprint, outgoing_tls, name="archive-cache-trust"
@@ -384,13 +385,17 @@ async def _serve(
             # Every profile owns an in-process Worker and tool resources. Stop them
             # while Artifact connections and the private listener still exist.
             with contextlib.suppress(Exception):
-                await allocation_service.expire_control_lease(shutdown.remaining())
+                await allocation_service.close(shutdown.remaining())
             await runtime_state.begin_stopping()
             server.should_exit = True
             await server_task
     finally:
         shutdown.start()
-        await artifact_connections.aclose()
+        try:
+            if factories is not None and factories.http_transport_factory is not None:
+                await factories.http_transport_factory.close()
+        finally:
+            await artifact_connections.aclose()
 
 
 def _target_policy(settings: Settings) -> TargetPolicyConfig:

@@ -65,7 +65,7 @@ It leaves to other documents:
 Terms are defined once in [the glossary](../glossary.md); the ones this
 document owns are:
 
-- **Runtime Agent.** One long-running process with one exclusive slot whose
+- **Runtime Agent.** One long-running process with 1..4 allocation slots whose
   code implements both the Runtime Agent and the Worker behaviour.
 - **Worker runtime factory.** An in-process factory, known by an exact
   WorkerRuntime ref such as `adk@1`, that creates the Worker instance of an
@@ -113,9 +113,10 @@ release in [Control Plane](control-plane.md); SandboxProfile in
 
 ### Slot states
 
-A Runtime Agent reports its slot as `idle`, `allocated`, `draining` or
-`fenced` in every heartbeat ([Control Plane](control-plane.md)). On the
-Runtime side the slot moves as follows:
+A Runtime Agent reports process admission and an addressed list of allocation
+states in every heartbeat ([Control Plane](control-plane.md)). On the
+Runtime side each slot moves as follows (process lease loss fences admission
+for all slots until an empty re-registration establishes a fresh lease):
 
 ```mermaid
 stateDiagram-v2
@@ -179,8 +180,8 @@ sequenceDiagram
 
 ### Process and Worker runtime
 
-**RTA-R1.** A Runtime Agent is one long-running process with one
-exclusive slot (LIM-CTL-4). Runtime Agent and Worker behaviour are implemented by the same
+**RTA-R1.** A Runtime Agent is one long-running process with 1..4
+allocation slots, configured by `--allocation-slots` (default 4; LIM-CTL-4). Runtime Agent and Worker behaviour are implemented by the same
 code and execute in that same process. `Worker` names the temporary
 allocation-scoped role and runtime instance, not another service, daemon,
 subprocess or container.
@@ -885,10 +886,12 @@ keeps the slot fenced, and the idempotent release retry repeats the step
 (RTA-R91, FAIL-RTA-5). The Runtime resolves all three cache functions when it
 starts, so a google-adk version that renames or removes one fails startup.
 
-Rationale: the Runtime has one allocation slot, so the caches hold no other
-allocation's entries when release clears them, and a new allocation's tool
-instances would miss them anyway; the cost is one declaration build per tool
-per allocation. The caches belong to google-adk (2.15.0 is pinned), which the
+Rationale: these caches memoize pure introspection and declaration results.
+Clearing them drops retained callable keys and may make a neighboring live
+Worker rebuild its declaration; it does not change that Worker's tools or
+invocation state. All work using the released allocation's callables joins
+before clearing, so it cannot repopulate their entries afterwards. Neighboring
+Workers retain their own callable objects and continue normally. The caches belong to google-adk (2.15.0 is pinned), which the
 Runtime does not patch. Handing `FunctionTool` an allocation-agnostic wrapper
 that reaches the tool through a weak reference was rejected: ADK derives the
 declaration and the call from the wrapped callable's signature, type hints,
@@ -1041,7 +1044,7 @@ Limits ([registry](../platform/limits.md)):
 - LIM-RTA-9 — one cancellable sampler and a constant-size accumulator per
   measured allocation (RTA-R97).
 - Owned elsewhere: the 60-second confirmed control lease (LIM-CTL-2), at most
-  64 RuntimeAdapter refs (LIM-CTL-3), one slot per process (LIM-CTL-4) and one
+  64 RuntimeAdapter refs (LIM-CTL-3), 1..4 slots per process (LIM-CTL-4) and one
   Task at a time per Worker (LIM-CTL-6) in [Control Plane](control-plane.md);
   the 4 MiB agent-state body (LIM-WRK-17) in [Worker](worker.md).
 
@@ -1182,7 +1185,7 @@ The security model, mutual TLS and the trust boundary are specified in
    and `test_adk_type_hint_cache_retains_an_allocation_captured_by_a_tool_function`,
    in [runtime/tests/test_allocation.py](../../../runtime/tests/test_allocation.py).
 
-The invariants on one slot and one Worker per process, immutability of the
+The invariants on bounded slots and one Worker per allocation, immutability of the
 process environment, label changes, proxy bypass and identity separation are
 listed in [Control Plane](control-plane.md#invariants); those on the
 `finalizing`/`aborting` race and the durable deadlines in
@@ -1320,3 +1323,12 @@ Control Plane backoff (ceiling five seconds), until success or shutdown.
 Each attempt uses the private request timeout and response byte budget.
 Shutdown cancels and joins the fetch before closing its connection; no
 preparation or listener outlives cancelled bootstrap. No policy state persists.
+
+**RTA-R127.** The process owns one lazy native HTTP engine, one Podman
+lifecycle/owner and the existing immutable archive cache. Allocation owners
+retain private HTTP sessions, TLS trust, pools, cookies, credentials, workspaces,
+Workers, metrics and Podman resources. Ordinary release closes only its users;
+process shutdown joins every allocation before closing shared services and
+cache files. Cache eligibility, per-reader authenticated metadata and all
+process-wide quotas remain RTA-R119 through RTA-R124. No cache or container
+is shared as mutable allocation state.

@@ -1040,7 +1040,7 @@ def test_shared_golden_runtime_capability_cases_match_models_and_schemas() -> No
                 AgentRegistration,
                 {
                     "observedState": "allocated",
-                    "allocationId": identity,
+                    "allocations": [{"allocationId": identity, "observedState": "allocated"}],
                 },
             )
             check(
@@ -1053,7 +1053,7 @@ def test_shared_golden_runtime_capability_cases_match_models_and_schemas() -> No
                 f"heartbeat allocationId {identity!r}",
                 valid,
                 AgentHeartbeat,
-                {"allocationId": identity},
+                {"allocations": [{"allocationId": identity, "observedState": "allocated"}]},
             )
 
 

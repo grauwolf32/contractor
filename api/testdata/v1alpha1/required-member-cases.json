@@ -25,7 +25,9 @@
     },
     "agent-heartbeat.json": {
       "omit": [
-        "/allocationId",
+        "/allocations",
+        "/allocations/0/allocationId",
+        "/allocations/0/observedState",
         "/apiVersion",
         "/echoedAckSeq",
         "/heartbeatSeq",
@@ -33,7 +35,9 @@
         "/observedState"
       ],
       "null": [
-        "/allocationId",
+        "/allocations",
+        "/allocations/0/allocationId",
+        "/allocations/0/observedState",
         "/apiVersion",
         "/echoedAckSeq",
         "/heartbeatSeq",
@@ -44,6 +48,8 @@
     "agent-registration-engagement.json": {
       "omit": [
         "/a2aUrl",
+        "/allocationSlots",
+        "/allocations",
         "/apiVersion",
         "/controlUrl",
         "/instanceId",
@@ -59,6 +65,8 @@
       ],
       "null": [
         "/a2aUrl",
+        "/allocationSlots",
+        "/allocations",
         "/apiVersion",
         "/controlUrl",
         "/instanceId",
@@ -89,6 +97,8 @@
     "agent-registration.json": {
       "omit": [
         "/a2aUrl",
+        "/allocationSlots",
+        "/allocations",
         "/apiVersion",
         "/controlUrl",
         "/instanceId",
@@ -104,6 +114,8 @@
       ],
       "null": [
         "/a2aUrl",
+        "/allocationSlots",
+        "/allocations",
         "/apiVersion",
         "/controlUrl",
         "/instanceId",
@@ -5191,12 +5203,13 @@
       "omit": [
         "/ackSeq",
         "/action",
+        "/allocationActions",
         "/apiVersion"
       ],
       "null": [
         "/ackSeq",
         "/action",
-        "/allocationId",
+        "/allocationActions",
         "/apiVersion"
       ]
     },

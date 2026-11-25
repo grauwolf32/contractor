@@ -1,1 +1,8 @@
-{"apiVersion":"contractor/v1alpha1","echoedAckSeq":0,"heartbeatSeq":1,"instanceId":"019c-runtime-1","observedState":"allocated"}
+{
+  "apiVersion": "contractor/v1alpha1",
+  "echoedAckSeq": 0,
+  "heartbeatSeq": 1,
+  "instanceId": "019c-runtime-1",
+  "observedState": "allocated",
+  "allocations": []
+}

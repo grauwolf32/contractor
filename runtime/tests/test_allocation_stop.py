@@ -10,6 +10,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from fakes.allocation import allocation_context, allocation_owner, allocation_snapshot
 from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.engagement import preflight_spec
 from fakes.model import scripted_model
@@ -54,7 +55,9 @@ async def make_adk_service(root: Path, *, controlled_http: bool = False, target=
         sandbox_profiles=registry.sandbox_profiles,
         runtime_adapters=["http-target@1"] if controlled_http else [],
     )
-    state = RuntimeState(instance_id="stop-regression", capabilities=capabilities)
+    state = RuntimeState(
+        allocation_slots=1, instance_id="stop-regression", capabilities=capabilities
+    )
     await state.mark_registered()
     exits = []
     service = AllocationService(
@@ -71,7 +74,7 @@ async def make_adk_service(root: Path, *, controlled_http: bool = False, target=
         if controlled_http
         else allocation_spec()
     )
-    assert isinstance(service._context.worker, AdkWorkerRuntime)
+    assert isinstance(allocation_context(service).worker, AdkWorkerRuntime)
     return state, service, exits
 
 
@@ -104,7 +107,7 @@ def test_queued_real_adk_state_read_cannot_hold_up_lease_stop(tmp_path):
             try:
                 # A guard against a broken test, not a wall-clock performance assertion.
                 await asyncio.wait_for(service.expire_control_lease(10), timeout=2)
-                assert (await state.snapshot()).process_state is ProcessState.FENCED
+                assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
                 assert not reader.done()
                 assert exits == []
             finally:
@@ -123,9 +126,9 @@ def test_real_http_join_and_worker_abort_share_one_deadline(tmp_path, reconcile)
     async def scenario():
         state, service, exits = await make_adk_service(tmp_path, controlled_http=True)
         now = [datetime.now(UTC)]
-        service._now = lambda: now[0]
+        allocation_owner(service)._now = lambda: now[0]
         start = now[0]
-        transport = service._context.http_transport
+        transport = allocation_context(service).http_transport
         transport.configure(authority_deadline=lambda: asyncio.get_running_loop().time() + 60)
         started, cancelled, finish = asyncio.Event(), asyncio.Event(), asyncio.Event()
 
@@ -143,7 +146,7 @@ def test_real_http_join_and_worker_abort_share_one_deadline(tmp_path, reconcile)
         io_task = asyncio.create_task(in_flight_http())
         await started.wait()
         deadlines = []
-        worker = service._context.worker
+        worker = allocation_context(service).worker
         original_abort = worker.abort
 
         async def observe_abort(deadline):
@@ -157,14 +160,16 @@ def test_real_http_join_and_worker_abort_share_one_deadline(tmp_path, reconcile)
             else service.expire_control_lease(10)
         )
         await cancelled.wait()
-        assert (await state.snapshot()).process_state is ProcessState.DRAINING
+        assert (await state.snapshot("allocation-1")).process_state is (
+            ProcessState.DRAINING if reconcile else ProcessState.FENCED
+        )
         now[0] += timedelta(seconds=8)
         finish.set()
         await stop
         await io_task
         assert deadlines == [start + timedelta(seconds=10)]
         assert exits == []
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
         await release(service)
 
     asyncio.run(scenario())
@@ -174,22 +179,23 @@ def test_real_http_join_and_worker_abort_share_one_deadline(tmp_path, reconcile)
 def test_stop_cannot_wait_for_the_lifecycle_lock_beyond_its_grace(tmp_path, reconcile):
     async def scenario():
         state, service, exits = await make_adk_service(tmp_path)
-        await service._lock.acquire()
+        await allocation_owner(service)._lock.acquire()
         stop = asyncio.create_task(
             service.reconcile_drain("allocation-1", 10)
             if reconcile
             else service.expire_control_lease(10)
         )
-        await asyncio.sleep(0)
+        while not allocation_owner(service)._lock._waiters:
+            await asyncio.sleep(0)
         advance_clock(11)
         try:
             with pytest.raises(AllocationError) as error:
                 await asyncio.wait_for(stop, timeout=2)
             assert error.value.code == "worker_stop_unconfirmed"
             assert exits == [70]
-            assert (await state.snapshot()).process_state is ProcessState.FENCED
+            assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
         finally:
-            service._lock.release()
+            allocation_owner(service)._lock.release()
         # The injected exit returns; explicitly finish the test's owned resources.
         await service.expire_control_lease(30)
         await release(service)
@@ -202,7 +208,7 @@ def test_detached_snapshot_cannot_escape_release_or_same_id_replacement(
     tmp_path, monkeypatch, replace_allocation
 ):
     async def scenario():
-        _, service, exits = await make_adk_service(tmp_path)
+        state, service, exits = await make_adk_service(tmp_path)
         loop = asyncio.get_running_loop()
         started, unblock = asyncio.Event(), threading.Event()
         original = state_module._agent_state_snapshot
@@ -225,6 +231,7 @@ def test_detached_snapshot_cannot_escape_release_or_same_id_replacement(
         await release(service)
         assert exits == []
         if replace_allocation:
+            await state.confirm_release(None)
             await service.prepare(allocation_spec())
             assert await service.agent_state_snapshot("allocation-1") is not None
             await service.expire_control_lease(10)
@@ -240,13 +247,13 @@ def test_release_joins_admitted_http_state_reads_and_erases_the_real_state(
 ):
     async def scenario():
         state, service, exits = await make_adk_service(tmp_path)
-        retained = weakref.ref(service._context.worker_state)
+        retained = weakref.ref(allocation_context(service).worker_state)
         loop = asyncio.get_running_loop()
         started, unblock = asyncio.Event(), threading.Event()
         release_started, scratch_cleanup_started = asyncio.Event(), asyncio.Event()
         original_snapshot = state_module._agent_state_snapshot
-        original_release = service._cleanup.release
-        original_cleanup = service._context.sandbox.cleanup
+        original_release = allocation_owner(service)._cleanup.release
+        original_cleanup = allocation_context(service).sandbox.cleanup
 
         def gated(snapshot):
             loop.call_soon_threadsafe(started.set)
@@ -262,8 +269,8 @@ def test_release_joins_admitted_http_state_reads_and_erases_the_real_state(
             await original_cleanup(workspace)
 
         monkeypatch.setattr(state_module, "_agent_state_snapshot", gated)
-        monkeypatch.setattr(service._cleanup, "release", observed_release)
-        monkeypatch.setattr(service._context.sandbox, "cleanup", observed_cleanup)
+        monkeypatch.setattr(allocation_owner(service)._cleanup, "release", observed_release)
+        monkeypatch.setattr(allocation_context(service).sandbox, "cleanup", observed_cleanup)
         app = create_app(state, allocation_service=service, require_verified_peer=False)
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
@@ -275,7 +282,7 @@ def test_release_joins_admitted_http_state_reads_and_erases_the_real_state(
                 await asyncio.sleep(0)
             await service.expire_control_lease(10)
             if expire_release:
-                service._context.runtime_settings.request_timeout_seconds = 1
+                allocation_context(service).runtime_settings.request_timeout_seconds = 1
             releasing = asyncio.create_task(release(service))
             await release_started.wait()
             try:
@@ -289,8 +296,10 @@ def test_release_joins_admitted_http_state_reads_and_erases_the_real_state(
                     with pytest.raises(AllocationError) as error:
                         await asyncio.wait_for(releasing, timeout=2)
                     assert error.value.retryable
-                    assert not service._context.release_prepared
-                    assert (await state.snapshot()).process_state is ProcessState.FENCED
+                    assert not allocation_context(service).release_prepared
+                    assert (
+                        await state.snapshot("allocation-1")
+                    ).process_state is ProcessState.FENCED
             finally:
                 unblock.set()
                 if cancel_reader:
@@ -316,7 +325,7 @@ def test_release_queued_before_the_final_state_check_cannot_deadlock_or_retain_s
 ):
     async def scenario():
         _, service, exits = await make_adk_service(tmp_path, controlled_http=True)
-        context = service._context
+        context = allocation_context(service)
         retained = weakref.ref(context.worker_state)
         transport = context.http_transport
         transport.configure(authority_deadline=lambda: asyncio.get_running_loop().time() + 60)
@@ -392,7 +401,6 @@ def test_peer_reset_preserves_worker_report_and_next_allocation(tmp_path, stop):
     from fakes.bridge_reset import EarlyDenial
     from fakes.engagement_socket import SocketTarget, socket_spec
 
-    from contractor_runtime.adapters.bridge.mitmproxy import engine as engine_module
     from contractor_runtime.contracts import (
         AbortAllocationRequest,
         FinalizeAllocationRequest,
@@ -404,7 +412,7 @@ def test_peer_reset_preserves_worker_report_and_next_allocation(tmp_path, stop):
             state, service, exits = await make_adk_service(
                 tmp_path, controlled_http=True, target=target
             )
-            context = service._context
+            context = allocation_context(service)
             transport = context.http_transport
             transport.configure(authority_deadline=lambda: asyncio.get_running_loop().time() + 60)
             outcome, response = await transport.request(
@@ -436,7 +444,9 @@ def test_peer_reset_preserves_worker_report_and_next_allocation(tmp_path, stop):
             else:
                 if stop == "lease":
                     await service.expire_control_lease(30)
-                    assert (await state.snapshot()).process_state is ProcessState.FENCED
+                    assert (
+                        await state.snapshot("allocation-1")
+                    ).process_state is ProcessState.FENCED
                 request = AbortAllocationRequest(
                     apiVersion=API_VERSION,
                     allocationId="allocation-1",
@@ -458,24 +468,30 @@ def test_peer_reset_preserves_worker_report_and_next_allocation(tmp_path, stop):
             assert any(
                 error.code == "worker_budget_exhausted" for error in result.report.worker.errors
             )
-            assert engine.closed and engine_module._active is None and not directory.exists()
+            assert engine.closed and engine.runtime.master is not None and not directory.exists()
             assert transport._settings is None and transport._sessions == []
             assert all(not session.cookies for session in sessions)
             assert exits == []
             await release(service)
-            assert (await state.snapshot()).process_state is ProcessState.IDLE
-            assert await service.snapshot() is None
+            if (await state.snapshot()).process_state is ProcessState.FENCED:
+                await state.confirm_release(None)
+            assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
+            assert await allocation_snapshot(service) is None
         async with SocketTarget() as target:
             await service.prepare(socket_spec(target))
-            transport = service._context.http_transport
+            transport = allocation_context(service).http_transport
             transport.configure(authority_deadline=lambda: asyncio.get_running_loop().time() + 60)
             outcome, response = await transport.request(target.origin + "/allowed")
             assert outcome.kind == "completed" and response.body == b"ok"
-            assert service._context.worker_state.metrics.counters.get("outcomes.failed", 0) == 0
+            assert (
+                allocation_context(service).worker_state.metrics.counters.get("outcomes.failed", 0)
+                == 0
+            )
             assert b"cookie:" not in target.written.lower()
             await service.expire_control_lease(30)
             await release(service)
-            assert exits == [] and engine_module._active is None
+            assert exits == []
+            await service._factories.http_transport_factory.close()
 
     asyncio.run(scenario())
 
@@ -484,14 +500,12 @@ def test_peer_reset_preserves_worker_report_and_next_allocation(tmp_path, stop):
 def test_real_http_cleanup_defects_still_fence_and_request_exit(tmp_path, monkeypatch, failure):
     from fakes.engagement_socket import SocketTarget
 
-    from contractor_runtime.adapters.bridge.mitmproxy import engine as engine_module
-
     async def scenario():
         async with SocketTarget() as target:
             state, service, exits = await make_adk_service(
                 tmp_path, controlled_http=True, target=target
             )
-            transport = service._context.http_transport
+            transport = allocation_context(service).http_transport
             transport.configure(authority_deadline=lambda: asyncio.get_running_loop().time() + 60)
             await transport.request(target.origin + "/allowed")
             engine = transport._engine
@@ -522,14 +536,17 @@ def test_real_http_cleanup_defects_still_fence_and_request_exit(tmp_path, monkey
                 with pytest.raises((RuntimeError, OSError), match="injected"):
                     await service.expire_control_lease(30)
                 assert exits == [70]
-                assert (await state.snapshot()).process_state is ProcessState.FENCED
-                assert engine_module._active is engine and directory.exists() and not engine.closed
+                assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
+                assert (
+                    engine.runtime.master is not None and directory.exists() and not engine.closed
+                )
                 if failure == "writer":
                     assert pool.writers
             # force_exit is captured by the test. Join all remaining test-owned
             # resources using the ordinary cleanup retry after removing the fault.
             await service.expire_control_lease(30)
             await release(service)
-            assert engine_module._active is None and not directory.exists()
+            await service._factories.http_transport_factory.close()
+            assert not directory.exists()
 
     asyncio.run(scenario())

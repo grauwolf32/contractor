@@ -41,7 +41,9 @@ def test_cancelled_tls_setup_is_joined_before_call_returns(
     from mitmproxy.addons.tlsconfig import TlsConfig
 
     from contractor_runtime.adapters import http_transport
-    from contractor_runtime.adapters.bridge.mitmproxy.engine import MitmproxyEngine
+    from contractor_runtime.adapters.bridge.mitmproxy.engine import (
+        MitmproxySession as MitmproxyEngine,
+    )
 
     release = threading.Event()
     finished = threading.Event()
