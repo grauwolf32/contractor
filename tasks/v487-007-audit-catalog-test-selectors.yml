@@ -6,10 +6,11 @@ epic: execution-core
 kind: chore
 introduced_by: V480-001
 priority: P2
-status: completed
+status: in_progress
 depends_on: []
 languages:
 - go
+- python
 goal: Existing catalog acceptance tests resolve the shipped immutable identities and can exercise their
   domain assertions.
 context:
@@ -24,12 +25,18 @@ context:
   history: V480-001 reset supplied catalog identities and required updating consumers; Git history is
     squashed at 14dddad611a579c7a8611ecdb5727ec3647b58ad. No publication or catalog content changes are
     needed.
+  sibling_finding: 'Release UI-stack verification exposed the same stale exact identity in tests/ui-stack/evals_producer.py:368
+    and its standard-library fixture: audit-source-check@1 instead of the current source-checklist profile
+    pinned audit-source-check@3. Reopen the task to fix both strict expectations; do not relax result
+    or evidence validation.'
 scope:
   in:
   - Correct every absent sibling exact selector and the matching HTTP draft selector in the existing catalog
     tests.
   - Seed the current required Skill bundles through the existing catalog initializer before HTTP Audit
     admission.
+  - Follow the current audit-source-check@3 pin in the managed Eval producer and its standard-library
+    evidence fixture.
   out:
   - Catalog manifests and lock
   - domain expectations
@@ -45,11 +52,7 @@ tests:
   covers:
   - A1
   - A2
-implementation_commit: d7f3bec0d2e6b404d38eedfd75edd60ed72b661d
-verification:
-  result: passed
-  commands:
-  - command: go test ./tests/eval/audit_programs
-    result: passed against the owned UTF8 PostgreSQL database; complete package
-  environment: Owned PostgreSQL and Linux rootless test lane; no demo database or production contract
-    changes.
+- command: make test-release-ui-stack-a test-release-ui-stack-b
+  covers:
+  - A1
+  - A2
