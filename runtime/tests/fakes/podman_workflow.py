@@ -185,7 +185,6 @@ def sample_model(*, publish=True):
                     "name": "check_report",
                     "media_type": "application/json",
                     "source_path": "report.json",
-                    "expected_revision": None,
                 },
             )
         )
@@ -249,6 +248,8 @@ async def exercise_sample(service, state, peer, model, *, publish=True):
     finally:
         # The remote Artifact peer owns the existing authoritative write fence.
         peer.fenced = True
+        with pytest.raises(ArtifactAPIError, match="allocation_write_fenced"):
+            await saved_write("builder", "check_report", "report.json", "application/json")
         await service.finalize(
             FinalizeAllocationRequest(
                 apiVersion=API_VERSION,
@@ -257,8 +258,6 @@ async def exercise_sample(service, state, peer, model, *, publish=True):
                 deadline=datetime.now(UTC) + timedelta(seconds=30),
             )
         )
-        with pytest.raises(ArtifactAPIError, match="allocation_write_fenced"):
-            await saved_write("builder", "check_report", "report.json", "application/json")
         await service.release(
             ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
         )

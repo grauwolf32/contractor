@@ -5,7 +5,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: sandbox
 kind: chore
 priority: P2
-status: completed
+status: in_progress
 depends_on: []
 languages:
 - python
@@ -19,10 +19,14 @@ context:
   history: Git blame resolves this fixture and adapter to the squashed 14dddad611a579c7a8611ecdb5727ec3647b58ad
     baseline; the original introducing task cannot be established. V479-001 explicitly preserves file-backed
     source_path publication.
+  sibling_finding: The full Linux Podman gate also found an obsolete expected_revision model argument
+    in fakes/podman_workflow.py; extend this same prerequisite to every Podman publication fixture.
 scope:
   in:
   - Replace stale positional arguments with the generated workspace path and media type; test the write
     fence while that workspace remains live and remove the unused base64 import.
+  - 'Repair the sibling scripted Podman workflow call: Runtime owns expected_revision and the write fence
+    is checked before workspace teardown.'
   out:
   - Production Artifact behavior
   - sandbox behavior
@@ -41,11 +45,7 @@ tests:
 - command: cd runtime && uv run ruff check tests/test_podman_command_coordination.py
   covers:
   - A2
-implementation_commit: 17a6b52f6ce4b9fb99b66bad498fba009d698bf8
-verification:
-  result: passed
-  commands:
-  - command: Linux pytest tests/test_podman_command_coordination.py and Ruff
-    result: passed; all 13 module cases executed on Linux, no skips; Ruff check passed
-  environment: Owned PostgreSQL and Linux rootless test lane; no demo database or production contract
-    changes.
+- command: cd runtime && uv run pytest -W error tests/test_podman_workflow.py
+  covers:
+  - A1
+  - A2
