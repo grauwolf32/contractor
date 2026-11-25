@@ -30,6 +30,7 @@ async def serve(args: argparse.Namespace) -> None:
         host="127.0.0.1",
         port=args.port,
         work_root=args.work_root,
+        allocation_slots=1,
     )
     # Component probes bypass the production CLI bootstrap deliberately.
     from contractor_runtime.contracts import SharedConfig, decode_private
@@ -51,7 +52,11 @@ async def serve(args: argparse.Namespace) -> None:
         faults = NativeFaults(args.fault_mode, args.fault_control)
         factories = faults.factories(factories)
     capabilities = await discover_capabilities(factories)
-    state = RuntimeState(instance_id="runtime-cross-language", capabilities=capabilities)
+    state = RuntimeState(
+        instance_id="runtime-cross-language",
+        capabilities=capabilities,
+        allocation_slots=settings.allocation_slots,
+    )
     await state.mark_registered()
     service = AllocationService(
         state,

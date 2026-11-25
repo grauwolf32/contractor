@@ -48,18 +48,23 @@ context:
     possible.'
   execution_group: 2
   execution_batch: Group 2 executes V487-002, V487-003 and V487-004 as one coordinated implementation
-    pass after successful V487-001 evidence. These tasks share the same integration branch. Reconcile
-    interfaces first, implement existing resource owners and capacity consumers together, run focused
-    regressions during changes and one combined set of full gates against the integrated result. If build/wire
-    callers require atomic landing, commit the batch together under the AGENTS.md build-green exception.
-    No task is complete before its own acceptance and the combined gates pass.
+    pass after successful V487-001 evidence. Private/public wire and consumers land atomically under the
+    AGENTS.md build-green exception. Boundary package, fixture, process and Linux rootless checks accept
+    this implementation group. The complete release graph and memory/owned-resource delivery remain mandatory
+    exit acceptance in dependent V487-005.
   start_condition: V487-001 is completed and evidence demonstrates shared-engine isolation. A negative
     verdict leaves this group pending with context.decision_needed.
-  verification_execution: 'User request 2026-11-25 asks for the minimum number of passes. Final verification
-    uses the existing release-verify consolidation rather than repeating all family suites: actual Go/Runtime/shared-fixture,
-    race, integration, process and browser reports must demonstrate nonzero required cases. Family targets
-    skipped by RELEASE_CONSOLIDATED are not independent passing coverage. The Linux rootless Podman gate
-    stays separate.'
+  verification_execution: 'Verification ownership clarified 2026-11-26 within the user-authorized groups
+    2 and 3: keep full changed-package and real boundary checks here, and the complete release graph in
+    V487-005. This avoids making the memory/cleanup acceptance wait for unrelated long release shards
+    before it may start. Reuse already executed checks from the integrated build, record exact selected
+    cases and rerun failed stages after fixes. Never count RELEASE_CONSOLIDATED family skips, unavailable
+    PostgreSQL or Podman as passes. V487-005 cannot complete until every required release stage succeeds.'
+  component_capacity_fixture: 'The integration-only lifecycle_server is a single-slot fault harness: its
+    cleanup-failure case intentionally verifies that a retained fence occupies the last slot. Pin that
+    fixture to allocation_slots=1 explicitly and derive RuntimeState capacity from its Settings. Production
+    startup retains default 4; real multi-slot tests separately prove allocation-local fencing and neighbor
+    progress.'
 scope:
   in:
   - Per-Runtime --allocation-slots startup parsing and immutable registration capacity, bounded multi-allocation
@@ -218,19 +223,36 @@ acceptance_criteria:
   then: One-slot assumptions and replaced fields are removed, shared mechanisms retained and added code
     justified.
 tests:
-- command: make release-verify
+- command: make test-go
   covers:
   - A1
   - A2
   - A3
-  - A4
-  - A5
-  - A6
   - A7
-- command: make test-podman-release
+- command: make test-runtime
   covers:
   - A3
+  - A4
+  - A5
+  - A7
+- command: make ui-verify
+  covers:
+  - A6
 - command: make test-wire-cross-language
   covers:
   - A2
   - A6
+- command: make lint
+  covers:
+  - A7
+- command: make test-ansible test-hybrid
+  covers:
+  - A6
+- command: go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestRuntimeAllocationSlotsAcrossProductionProcesses$'
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-podman-release
+  covers:
+  - A3
