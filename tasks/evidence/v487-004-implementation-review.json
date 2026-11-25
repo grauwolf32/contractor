@@ -1,38 +1,32 @@
 {
-  "status": "implementation_review_passed_exit_acceptance_in_progress",
+  "status": "implementation_review_and_exit_acceptance_passed",
   "base": "e40825690",
   "production_commit": "a0558d13bfee9ec2cb2d95585bd94208b4f50f29",
-  "reviewed_head": "0659e7436b896b28d1e1a1c3e61db0847f859974",
+  "reviewed_head": "4c74ecaea216353496922bb52c81404b003825cf",
   "line_accounting": {
+    "docs and tracking": {
+      "files": 39,
+      "added": 4051,
+      "removed": 162,
+      "net": 3889
+    },
     "wire/API schemas": {
       "files": 3,
       "added": 313,
       "removed": 34,
       "net": 279
     },
-    "tests and fixtures": {
-      "files": 131,
-      "added": 2898,
-      "removed": 797,
-      "net": 2101
-    },
-    "other": {
-      "files": 9,
-      "added": 117,
-      "removed": 8,
-      "net": 109
+    "tests fixtures and release verification": {
+      "files": 142,
+      "added": 3705,
+      "removed": 803,
+      "net": 2902
     },
     "deployment production": {
       "files": 5,
       "added": 13,
       "removed": 4,
       "net": 9
-    },
-    "docs and tracking": {
-      "files": 30,
-      "added": 773,
-      "removed": 140,
-      "net": 633
     },
     "Server production": {
       "files": 13,
@@ -48,14 +42,14 @@
     },
     "Runtime production": {
       "files": 19,
-      "added": 832,
+      "added": 839,
       "removed": 399,
-      "net": 433
+      "net": 440
     },
     "UI production": {
-      "files": 6,
-      "added": 116,
-      "removed": 72,
+      "files": 7,
+      "added": 117,
+      "removed": 73,
       "net": 44
     }
   },
@@ -87,7 +81,8 @@
     "One sequenced heartbeat and one confirmed lease per Runtime.",
     "Existing reservation matching, durable placement pins, write fences, principal replacement and release acknowledgement.",
     "Existing process-wide ImmutableArchiveCache and quotas, authenticated metadata per consumer, independent extracted workspaces.",
-    "Existing receipts and leases; no database migration, new table, warm container pool or allocation subprocess."
+    "Existing receipts and leases; no database migration, new table, warm container pool or allocation subprocess.",
+    "The common HTTP owner reuses its initialization lock for joined native CA setup, avoiding concurrent process-umask changes; established requests keep allocation-local locks."
   ],
   "verified_boundaries": [
     {
@@ -121,9 +116,9 @@
       "result": "passed"
     }
   ],
-  "pending": [
-    "Complete release graph, same-build Linux memory comparison and final owned-resource cleanup remain the V487-005 exit acceptance."
-  ],
+  "pending": [],
   "delivery": "Isolated codex/runtime-multislot-proposal branch, unmerged. Primary checkout user changes preserved.",
-  "line_accounting_basis": "git diff --numstat e40825690 through the reviewed working tree; text lines, not semantic SLOC. Production is separated from tests/experiments, generated clients, schema, documentation and tracking."
+  "line_accounting_basis": "git diff --numstat e40825690 4c74ecaea216353496922bb52c81404b003825cf; text lines, not semantic SLOC. This immutable source snapshot includes release version metadata. Tests, experiments and release-only wiring, generated clients, wire schemas, documentation and tracking are classified separately. Subsequent changes are acceptance evidence and generated documentation only.",
+  "production_text_line_delta": 623,
+  "exit_acceptance": "tasks/evidence/v487-005-runtime-acceptance.json"
 }
