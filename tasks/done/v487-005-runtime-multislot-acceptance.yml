@@ -5,7 +5,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: execution-core
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V487-002
 - V487-003
@@ -32,12 +32,12 @@ context:
     in one shared mitmproxy engine, then multiple allocations in one Runtime with per-Runtime startup
     capacity, Runtime-owned HTTP and Podman resources, mandatory cleanup and a shared Artifact cache.
     User additionally requires minimizing code growth and reducing code where possible. Agent proposals
-    are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. Implementation
-    tasks remain pending. User follow-up 2026-11-25 requests grouping and execution in the minimum number
-    of passes. Execution groups are isolation assessment, coordinated resource/capacity implementation,
-    and integrated acceptance. User instruction 2026-11-25 explicitly authorizes completing execution
-    groups 2 and 3 end to end, simplifying and reducing code and reusing existing mechanisms wherever
-    possible.'
+    are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. The initial
+    planning package left implementation pending until the explicit assignment below. User follow-up 2026-11-25
+    requests grouping and execution in the minimum number of passes. Execution groups are isolation assessment,
+    coordinated resource/capacity implementation, and integrated acceptance. User instruction 2026-11-25
+    explicitly authorizes completing execution groups 2 and 3 end to end, simplifying and reducing code
+    and reusing existing mechanisms wherever possible.'
   test_command_contract: Introduce the memory experiment command with actual process startup/teardown
     and redacted reproducible evidence. It must fail unavailable prerequisites rather than substitute
     synthetic measurements. Deterministic scenarios are required in the release graph.
@@ -201,3 +201,56 @@ tests:
   covers:
   - A3
   - A4
+implementation_commit: e55041876c7d970d0c9fc94081303f1bdd1ddf90
+verification:
+  result: passed
+  evidence: tasks/evidence/v487-005-runtime-acceptance.json
+  complexity: tasks/evidence/v487-004-implementation-review.json
+  memory: tasks/evidence/v487-005-runtime-memory.json
+  commands:
+  - command: make release-verify-lint
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-unit
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-ui
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-families
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-browser-a
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-browser-b
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-race
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-race-discovered
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-integration
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-process-a
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-process-b
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-process-c
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make test-podman-release
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: cd runtime && uv run python ../scripts/experiments/runtime_multislot_memory.py --output ../tasks/evidence/v487-005-runtime-memory.json
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make lint
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  linux_runtime: 'Additional whole make test-runtime passed: 6777 tests, 56 declared skips, verify-runtime
+    and 587 selected compaction cases passed. Corrected real scanner preflight passed 58 tests.'
+  memory_result: 'Three alternating pairs of the same four-Worker scanner workload: median total process-tree
+    PSS 762.78 MiB for four capacity-1 Runtimes versus 262.42 MiB for one capacity-4 Runtime, paired median
+    savings 65.62%. Runtime-owned Podman backends and scanner descendants included; per-case processes/slots/containers
+    cleaned.'
+  complexity_result: Production +623 text lines at the pinned source snapshot; superseded ownership paths
+    removed. Existing Artifact cache, lifecycle, receipt and lease mechanisms reused; no database migration
+    or new table.
+  cleanup: 'Passed: all lane applications stopped, fixture databases and anchor database dropped, isolated
+    PostgreSQL cluster stopped and owned directories removed, dedicated Linux user/rootless storage/setup/tag
+    removed. All 13 shared rootful container IDs preserved; shared image content preserved.'
+  optional_heavy_io: Not enabled; disabled skips are not passing coverage. No ordinary PostgreSQL/Podman
+    case remains unavailable.
+  delivery: codex/runtime-multislot-proposal is unmerged. The primary checkout and its unrelated user
+    work are untouched. No deployment or live-model evaluation.
