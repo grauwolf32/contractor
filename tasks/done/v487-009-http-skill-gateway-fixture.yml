@@ -6,7 +6,7 @@ epic: http-tools
 kind: chore
 introduced_by: V485-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -56,3 +56,15 @@ tests:
   covers:
   - A1
   - A2
+implementation_commit: 5f99dc914f4a8705aaaa003a3d0dfd71c0462bfd
+verification:
+  result: passed
+  commands:
+  - command: go test ./tests/e2e
+    result: passed
+  - command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses)$'
+    result: both real-component scenarios passed, 147.566 seconds
+  - command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^TestAuditHypothesisContinuationAcrossProductionProcesses$'
+    result: both continuation subcases passed, 168.788 seconds
+  - command: make test-audit-research-ui (release-verify-browser-a)
+    result: continuation and interrupted real browser/process cases passed, 126.97 seconds
