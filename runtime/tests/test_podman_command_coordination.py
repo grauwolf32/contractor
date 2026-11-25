@@ -304,7 +304,6 @@ def test_deadline_waiting_for_guard_launches_nothing_and_cannot_revive(tmp_path)
 
 
 def test_selected_execution_changes_analysis_and_explicit_artifact_publication(tmp_path):
-    import base64
     from dataclasses import replace
 
     from test_code_analysis_shallow import _tools as analysis_tools
@@ -359,17 +358,19 @@ def test_selected_execution_changes_analysis_and_explicit_artifact_publication(t
                 assert (await context.tools["exec_command"]("generate"))["exitCode"] == 0
                 found = await analyses["search_def"]("generated")
                 assert [row["name"] for row in found["items"]] == ["generated"]
-                content = await context.project_workspace.read_text("src/main.py")
+                assert (
+                    await context.project_workspace.read_text("src/main.py")
+                    == "def generated():\n    return 42\n"
+                )
                 written = await context.tools["write_artifact"](
-                    "builder", "report", "text/plain", base64.b64encode(content.encode()).decode()
+                    "builder", "report", "src/main.py", "text/plain"
                 )
                 assert written["artifact"]["revision"]
                 # The existing client, not the sandbox, owns the write fence.
                 write_artifact = context.tools["write_artifact"]
                 client.write_error = ArtifactAPIError(409, "allocation_write_fenced", False)
-                await service.finalize(finalization(spec))
                 with pytest.raises(ArtifactAPIError, match="allocation_write_fenced"):
-                    await write_artifact("builder", "report", "text/plain", "eA==")
+                    await write_artifact("builder", "report", "src/main.py", "text/plain")
             finally:
                 for tool in analyses.values():
                     await tool.close()
