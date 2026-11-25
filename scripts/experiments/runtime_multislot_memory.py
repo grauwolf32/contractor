@@ -307,6 +307,8 @@ def main():
         "a full source revision is required for an exported source tree",
     )
     before = source_digest()
+    expected = os.environ.get("CONTRACTOR_RUNTIME_SOURCE_SHA256")
+    require(expected is None or expected == before, "exported measurement sources differ")
     samples = []
 
     class Origin(http.server.BaseHTTPRequestHandler):
