@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 // The opt-in driver samples these real registered process trees. Normal release
@@ -83,7 +84,8 @@ def record(kind,value):
  temporary.replace(path)
 def wait(name):
  while not (root.parent/name).exists(): time.sleep(0.02)
-with urllib.request.urlopen(sys.argv[sys.argv.index("-u")+1],timeout=10) as response:
+target=Path(sys.argv[sys.argv.index("-l")+1]).read_text().strip()
+with urllib.request.urlopen(target,timeout=10) as response:
  body=response.read(65537)
 if len(body)!=65536: raise RuntimeError("unexpected measurement input")
 for _ in range(64): hashlib.sha256(body).digest()
@@ -129,7 +131,22 @@ print(json.dumps({"template-id":"memory-fixture","info":{"severity":"info"}}))
 		h.decode(t, h.operations.request(http.MethodGet, "/v1/operations/snapshot", nil, http.StatusOK, nil), &value)
 		return value.RuntimeAgents
 	}
-	wait(func() bool { return count("ready-*.json") == 4 })
+	nextCheck := time.Time{}
+	wait(func() bool {
+		if time.Now().After(nextCheck) {
+			nextCheck = time.Now().Add(time.Second)
+			for _, id := range runs {
+				run, err := h.store.GetRun(h.ctx, id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if runstore.RunLifecycleTerminal.Includes(run.State) {
+					t.Fatalf("Worker reached terminal state %s before its measurement barrier", run.State)
+				}
+			}
+		}
+		return count("ready-*.json") == 4
+	})
 	agents := snapshot()
 	busy := 0
 	for _, agent := range agents {
