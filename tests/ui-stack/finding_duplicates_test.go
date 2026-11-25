@@ -89,7 +89,7 @@ func (s *uiStack) correlationSourceHandler(w http.ResponseWriter, r *http.Reques
 
 func correlationProducerStage() gatewayStage {
 	return gatewayStage{name: "retained-duplicate-source", tools: []string{
-		"open_source_archive", "list_source_files", "read_source", "search_source", "finding", "write_text_artifact",
+		"open_source_archive", "list_source_files", "read_source", "search_source", "finding", "fact", "write_text_artifact",
 	}, steps: []gatewayStep{
 		toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
 		toolGatewayStep("read_source", fixedArguments(map[string]any{"path": "key.py", "start_line": 1, "max_lines": 4})),
