@@ -1,0 +1,51 @@
+schema_version: '1.0'
+id: V487-010
+title: Reuse the shared-config peer in the Podman deployment fixture
+milestone: runtime-allocation-slots-2026-11
+epic: sandbox
+kind: chore
+priority: P2
+status: completed
+depends_on: []
+languages:
+- python
+goal: The existing real Linux deployment fixture reaches Runtime startup and verifies its owned resource
+  cleanup.
+context:
+  authority: User request 2026-11-25 authorizes groups 2 and 3. The real Linux Podman gate exposed a stale
+    startup peer before the sample allocation could execute.
+  finding: runtime/tests/test_podman_deployment_integration.py:71 defines ControlPeer without get_json,
+    while ordinary Runtime startup always retrieves /private/v1/config.
+  history: Fixture and bootstrap blame resolve to squashed 14dddad611a579c7a8611ecdb5727ec3647b58ad; an
+    original introducing task cannot be established reliably.
+  specification: docs/spec/execution/runtime-agent.md
+scope:
+  in:
+  - Inherit the existing test_cli.ConfigTransport rather than duplicate a shared-config endpoint.
+  - Follow the bounded allocation entry collection in the cleanup assertion.
+  out:
+  - Runtime startup semantics
+  - capability policy
+  - model and Artifact contracts.
+acceptance_criteria:
+- id: A1
+  text: The real rootless deployment test retrieves the ordinary shared config, registers, invokes its
+    ADK sample, publishes the generated report and confirms container/workspace cleanup.
+- id: A2
+  text: All workflow/deployment module cases and Ruff pass with the explicit real gate enabled.
+tests:
+- command: make test-podman-workflow
+  covers:
+  - A1
+  - A2
+- command: cd runtime && uv run ruff check tests/test_podman_deployment_integration.py
+  covers:
+  - A2
+implementation_commit: 5782853a637d30bccc67f5c158157571b77e0817
+verification:
+  result: passed
+  commands:
+  - command: Linux make test-podman-workflow
+    result: 14 passed, no skips; actual rootless startup, ADK sample, publication and teardown
+  - command: cd runtime && uv run ruff check tests/test_podman_deployment_integration.py
+    result: passed
