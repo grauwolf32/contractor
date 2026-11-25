@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditservice"
@@ -37,7 +38,7 @@ func TestWSTGHTTPProgramsStartWithTrustedEngagement(t *testing.T) {
 	}
 	for _, name := range []string{"owasp-wstg-4-2-active-http", "owasp-wstg-4-2-fast-active-http"} {
 		t.Run(name, func(t *testing.T) {
-			profile, err := catalog.AuditProfile(name + "@4")
+			profile, err := catalog.AuditProfile(name + "@1")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -58,6 +59,13 @@ func TestWSTGHTTPProgramsStartWithTrustedEngagement(t *testing.T) {
 				t.Fatal(err)
 			}
 			if _, err := standards.Initialize(ctx, "owner", bundles.Standards); err != nil {
+				t.Fatal(err)
+			}
+			skillCatalog, err := agentskills.NewCatalog(art)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := skillCatalog.Initialize(ctx, "owner", bundles.Skills); err != nil {
 				t.Fatal(err)
 			}
 			gateway, err := catalog.LLMGateway("local-litellm@1")
@@ -100,7 +108,7 @@ func TestWSTGHTTPProgramsStartWithTrustedEngagement(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				draft, _, err := service.CreateDraft(ctx, auditservice.CreateDraftParams{AuditID: id, OwnerID: "owner", ProjectID: "http-project", Profile: auditservice.ProfileSelector{Name: name, Version: "4"}, Inputs: map[string]contracts.ArtifactRef{"materials": materials.Ref, "engagement": engagement.Ref}, RuntimeLabels: []string{}, Scope: auditservice.Scope{Objective: "Check selected WSTG assertions"}, IdempotencyKey: id, RequestDigest: contentdigest.Bytes([]byte(id))})
+				draft, _, err := service.CreateDraft(ctx, auditservice.CreateDraftParams{AuditID: id, OwnerID: "owner", ProjectID: "http-project", Profile: auditservice.ProfileSelector{Name: name, Version: "1"}, Inputs: map[string]contracts.ArtifactRef{"materials": materials.Ref, "engagement": engagement.Ref}, RuntimeLabels: []string{}, Scope: auditservice.Scope{Objective: "Check selected WSTG assertions"}, IdempotencyKey: id, RequestDigest: contentdigest.Bytes([]byte(id))})
 				if mediaType == "application/json" {
 					if !errors.Is(err, auditservice.ErrInvalid) {
 						t.Fatalf("generic JSON engagement admission: %v", err)
