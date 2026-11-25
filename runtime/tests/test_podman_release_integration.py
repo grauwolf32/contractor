@@ -164,6 +164,15 @@ def test_real_input_required_reuse_and_concurrent_release(tmp_path, monkeypatch,
             assert not root.exists() and not context.workspace.path.exists()
             assert not lifecycle._entries and not exits
             await service.confirm_release(spec.allocation_id)
+            if termination == "lease":
+                from contractor_runtime.allocation import AllocationError
+
+                assert (await state.snapshot()).process_state is ProcessState.FENCED
+                with pytest.raises(AllocationError, match="capacity"):
+                    await service.prepare(spec)
+                # The control client clears the empty process fence only after
+                # obtaining a new registration/confirmed lease generation.
+                await service.confirm_release(None)
             assert (await state.snapshot()).process_state is ProcessState.IDLE
         finally:
             await lifecycle.close(deadline=time.monotonic() + 30)
