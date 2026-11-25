@@ -1,0 +1,2884 @@
+{
+  "schema": "runtime-multislot-memory@1",
+  "status": "passed",
+  "revision": "48cd0dce43acf2aa26b4d1c79f52dfc5e1e03924",
+  "source_sha256": "7bcfadfdfbe83e4ae17735534158e0199bd0f9630a923b5cbb9ea6ed3ec22b3b",
+  "test_binary_sha256": "773cd7891d193161100250d1e566a1015083f6025707170707010a9730faf7c6",
+  "platform": "Linux-7.2.5-200.fc44.aarch64-aarch64-with-glibc2.43",
+  "python": "3.13.12",
+  "logical_cpus": 9,
+  "podman_image": "localhost/contractor-v487-sandbox@sha256:903548551d97d58a5b7a83357f5c064f1144e6219d8add88a470fd0f8bf09927",
+  "input_sha256": "1f8745f0d2d1387ec1af2211a3cf417b2e9e885e853472649c1d979d0e9370e3",
+  "repetitions": 3,
+  "method": {
+    "topology": "Real Server, PostgreSQL, mTLS, Scheduler and ordinary tool Workers; same compiled test binary and identical capabilities, input bytes and work units.",
+    "phases": "Four scanner children fetch 64 KiB, warm up with 64 hashes, hold for 15 seconds, execute fixed SHA256 work, then hold for 2 seconds before ordinary release.",
+    "memory": "250 ms samples of Runtime trees including Podman backends and scanner children; PSS, USS (private clean/dirty pages) and RSS are summed once per PID. RSS includes shared pages repeatedly.",
+    "excluded": "Identical Server/driver/origin and existing engine infrastructure. No live model, workload container or retained HTTP body load; HTTP Master remains lazy and the archive cache is enabled but empty.",
+    "uncertainty": "Three alternating-order repetitions by default; min/median/max show variability. Shared VM, CPU frequency, file-page sharing and sampling affect values. No fixed savings or performance threshold."
+  },
+  "warm_pss_savings_percent": {
+    "min": 65.59665797788713,
+    "median": 65.61909226442064,
+    "max": 65.63180772181028
+  },
+  "samples": [
+    {
+      "layout": "4x1",
+      "capabilities": {
+        "softwareVersion": "0.1.0",
+        "supportedRuntimes": [
+          "adk@1",
+          "tool@1"
+        ],
+        "supportedToolsets": [
+          {
+            "ref": "audit-proposals@1",
+            "tools": [
+              "submit_hypothesis_proposals"
+            ]
+          },
+          {
+            "ref": "audit-results@2",
+            "tools": [
+              "evidence",
+              "read_audit_task",
+              "submit_result",
+              "submit_results"
+            ]
+          },
+          {
+            "ref": "caido@1",
+            "tools": [
+              "caido_automate_results",
+              "caido_automate_run",
+              "caido_history",
+              "caido_replay",
+              "caido_request_detail",
+              "caido_scope",
+              "caido_sitemap",
+              "caido_workflow_findings",
+              "caido_workflow_list",
+              "caido_workflow_run"
+            ]
+          },
+          {
+            "ref": "code-analysis@1",
+            "tools": [
+              "attack_surface",
+              "complexity_hotspots",
+              "entrypoint_paths_to",
+              "find_callees",
+              "find_callers",
+              "find_symbol",
+              "functions_that_raise",
+              "graph_summary",
+              "list_symbols",
+              "paths_between",
+              "search_def"
+            ]
+          },
+          {
+            "ref": "code-execution@1",
+            "tools": [
+              "exec_command"
+            ]
+          },
+          {
+            "ref": "edit-files@1",
+            "tools": [
+              "append_file",
+              "cp",
+              "edit",
+              "insert_line",
+              "mkdir",
+              "mv",
+              "replace_range",
+              "rm",
+              "write_file"
+            ]
+          },
+          {
+            "ref": "filesystem@1",
+            "tools": [
+              "glob",
+              "grep",
+              "ls",
+              "read_file"
+            ]
+          },
+          {
+            "ref": "http-tools@1",
+            "tools": [
+              "http_credential_read",
+              "http_credentials",
+              "http_history",
+              "http_read_body",
+              "http_request",
+              "http_session_clear",
+              "http_session_get",
+              "http_session_set"
+            ]
+          },
+          {
+            "ref": "interactsh@1",
+            "tools": [
+              "interactsh_poll",
+              "interactsh_register"
+            ]
+          },
+          {
+            "ref": "likec4@1",
+            "tools": [
+              "append_likec4",
+              "load_likec4",
+              "read_likec4",
+              "replace_likec4",
+              "write_likec4"
+            ]
+          },
+          {
+            "ref": "memory-tools@1",
+            "tools": [
+              "append_memory",
+              "list_memories",
+              "list_memory_tags",
+              "read_memory",
+              "search_memory",
+              "write_memory"
+            ]
+          },
+          {
+            "ref": "openapi@1",
+            "tools": [
+              "get_openapi_component",
+              "get_openapi_info",
+              "get_openapi_path",
+              "initialize_openapi",
+              "list_openapi_components",
+              "list_openapi_paths",
+              "list_openapi_servers",
+              "list_openapi_tags",
+              "load_openapi",
+              "read_openapi_document",
+              "remove_openapi_component",
+              "remove_openapi_path",
+              "set_openapi_info",
+              "set_openapi_servers",
+              "set_openapi_tags",
+              "upsert_openapi_component",
+              "upsert_openapi_path"
+            ]
+          },
+          {
+            "ref": "run-artifacts@1",
+            "tools": [
+              "list_artifacts",
+              "read_artifact",
+              "write_artifact"
+            ]
+          },
+          {
+            "ref": "scan@1",
+            "tools": [
+              "scan_nuclei"
+            ]
+          },
+          {
+            "ref": "security-findings-code@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings-http@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings-trace@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings@1",
+            "tools": [
+              "fact",
+              "finding",
+              "list_findings",
+              "list_project_findings",
+              "read_finding_selection",
+              "read_project_finding",
+              "select_project_findings"
+            ]
+          },
+          {
+            "ref": "sitemap@1",
+            "tools": [
+              "configure_sitemap_grouping",
+              "import_sitemap_source",
+              "list_sitemap_entries",
+              "read_sitemap_entry",
+              "remove_sitemap_entry",
+              "restore_sitemap_entry",
+              "snapshot_sitemap_context",
+              "upsert_sitemap_entry"
+            ]
+          },
+          {
+            "ref": "source-analysis@1",
+            "tools": [
+              "list_source_files",
+              "open_source_archive",
+              "read_source",
+              "search_source"
+            ]
+          },
+          {
+            "ref": "taint-annotations@1",
+            "tools": [
+              "annotate_sink",
+              "annotate_trace",
+              "annotate_validate"
+            ]
+          },
+          {
+            "ref": "text-artifacts@1",
+            "tools": [
+              "write_text_artifact"
+            ]
+          },
+          {
+            "ref": "workspace-changes@1",
+            "tools": [
+              "changed_paths",
+              "diff",
+              "rollback_changes"
+            ]
+          }
+        ],
+        "supportedSandboxProfiles": [
+          "local-workdir@1",
+          "podman@1"
+        ],
+        "supportedRuntimeAdapters": [
+          "caido-graphql@1",
+          "http-proxy@1",
+          "http-target@1",
+          "interactsh-http@1",
+          "otlp-http@1"
+        ],
+        "workspaceCapabilities": {
+          "storage": "local",
+          "modes": [
+            "direct",
+            "overlay"
+          ],
+          "limits": {
+            "maxFiles": 50000,
+            "maxExpandedBytes": 2147483648,
+            "maxManagedTextBytes": 268435456,
+            "maxFileBytes": 16777216
+          }
+        }
+      },
+      "server_binary_sha256": "4a24a28cc74380bf31692817fc3f60a176797ca45db36cf48a02b1a7e130b2ce",
+      "warm": {
+        "samples": 54,
+        "rss_bytes": {
+          "min": 1042399232,
+          "median": 1042399232.0,
+          "max": 1042399232
+        },
+        "pss_bytes": {
+          "min": 799491072,
+          "median": 799494144.0,
+          "max": 799494144
+        },
+        "private_bytes": {
+          "min": 760156160,
+          "median": 761090048.0,
+          "max": 761090048
+        },
+        "runtime_pss_bytes": {
+          "min": 598060032,
+          "median": 598061056.0,
+          "max": 598061056
+        },
+        "helper_pss_bytes": {
+          "min": 201431040,
+          "median": 201433088.0,
+          "max": 201433088
+        },
+        "podman_backend_pss_bytes": {
+          "min": 151119872,
+          "median": 151121920.0,
+          "max": 151121920
+        },
+        "scanner_pss_bytes": {
+          "min": 50311168,
+          "median": 50311168.0,
+          "max": 50311168
+        },
+        "podman_backends": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "processes": {
+          "min": 12,
+          "median": 12.0,
+          "max": 12
+        },
+        "helpers": {
+          "min": 8,
+          "median": 8.0,
+          "max": 8
+        }
+      },
+      "load": {
+        "samples": 82,
+        "rss_bytes": {
+          "min": 1042399232,
+          "median": 1042403328.0,
+          "max": 1042403328
+        },
+        "pss_bytes": {
+          "min": 799489024,
+          "median": 799498240.0,
+          "max": 799498240
+        },
+        "private_bytes": {
+          "min": 761090048,
+          "median": 761094144.0,
+          "max": 761094144
+        },
+        "runtime_pss_bytes": {
+          "min": 598061056,
+          "median": 598065152.0,
+          "max": 598065152
+        },
+        "helper_pss_bytes": {
+          "min": 201427968,
+          "median": 201433088.0,
+          "max": 201433088
+        },
+        "podman_backend_pss_bytes": {
+          "min": 151117824,
+          "median": 151121920.0,
+          "max": 151121920
+        },
+        "scanner_pss_bytes": {
+          "min": 50310144,
+          "median": 50311168.0,
+          "max": 50311168
+        },
+        "podman_backends": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "processes": {
+          "min": 12,
+          "median": 12.0,
+          "max": 12
+        },
+        "helpers": {
+          "min": 8,
+          "median": 8.0,
+          "max": 8
+        }
+      },
+      "post": {
+        "samples": 8,
+        "rss_bytes": {
+          "min": 1042403328,
+          "median": 1042403328.0,
+          "max": 1042403328
+        },
+        "pss_bytes": {
+          "min": 799498240,
+          "median": 799498240.0,
+          "max": 799498240
+        },
+        "private_bytes": {
+          "min": 761094144,
+          "median": 761094144.0,
+          "max": 761094144
+        },
+        "runtime_pss_bytes": {
+          "min": 598065152,
+          "median": 598065152.0,
+          "max": 598065152
+        },
+        "helper_pss_bytes": {
+          "min": 201433088,
+          "median": 201433088.0,
+          "max": 201433088
+        },
+        "podman_backend_pss_bytes": {
+          "min": 151121920,
+          "median": 151121920.0,
+          "max": 151121920
+        },
+        "scanner_pss_bytes": {
+          "min": 50311168,
+          "median": 50311168.0,
+          "max": 50311168
+        },
+        "podman_backends": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "processes": {
+          "min": 12,
+          "median": 12.0,
+          "max": 12
+        },
+        "helpers": {
+          "min": 8,
+          "median": 8.0,
+          "max": 8
+        }
+      },
+      "cpu_hash_units_per_worker": 1048576,
+      "bytes_per_unit": 65536,
+      "load_average_before": [
+        0.3134765625,
+        0.20947265625,
+        0.1884765625
+      ],
+      "load_average_after": [
+        0.8974609375,
+        0.4375,
+        0.2685546875
+      ],
+      "load_seconds": 21.767010008999932,
+      "worker_latency_seconds": {
+        "min": 21.754053937998833,
+        "median": 21.754522983500465,
+        "max": 21.765229951999572
+      },
+      "cpu_hash_units_per_second": 192690.86559273853,
+      "heartbeats": [
+        {
+          "before": "2026-11-26T01:13:28.748590646+03:00",
+          "after": "2026-11-26T01:13:48.750951408+03:00"
+        },
+        {
+          "before": "2026-11-26T01:13:23.097402678+03:00",
+          "after": "2026-11-26T01:13:53.106051283+03:00"
+        },
+        {
+          "before": "2026-11-26T01:13:24.462267285+03:00",
+          "after": "2026-11-26T01:13:54.471746064+03:00"
+        },
+        {
+          "before": "2026-11-26T01:13:27.366657807+03:00",
+          "after": "2026-11-26T01:13:47.370656626+03:00"
+        }
+      ],
+      "cleanup": {
+        "completed_runs": 4,
+        "free_slots_before_stop": 4,
+        "runtimes_stopped": 4,
+        "all_sampled_processes_gone": true,
+        "owned_containers_after": 0
+      },
+      "repetition": 1
+    },
+    {
+      "layout": "1x4",
+      "capabilities": {
+        "softwareVersion": "0.1.0",
+        "supportedRuntimes": [
+          "adk@1",
+          "tool@1"
+        ],
+        "supportedToolsets": [
+          {
+            "ref": "audit-proposals@1",
+            "tools": [
+              "submit_hypothesis_proposals"
+            ]
+          },
+          {
+            "ref": "audit-results@2",
+            "tools": [
+              "evidence",
+              "read_audit_task",
+              "submit_result",
+              "submit_results"
+            ]
+          },
+          {
+            "ref": "caido@1",
+            "tools": [
+              "caido_automate_results",
+              "caido_automate_run",
+              "caido_history",
+              "caido_replay",
+              "caido_request_detail",
+              "caido_scope",
+              "caido_sitemap",
+              "caido_workflow_findings",
+              "caido_workflow_list",
+              "caido_workflow_run"
+            ]
+          },
+          {
+            "ref": "code-analysis@1",
+            "tools": [
+              "attack_surface",
+              "complexity_hotspots",
+              "entrypoint_paths_to",
+              "find_callees",
+              "find_callers",
+              "find_symbol",
+              "functions_that_raise",
+              "graph_summary",
+              "list_symbols",
+              "paths_between",
+              "search_def"
+            ]
+          },
+          {
+            "ref": "code-execution@1",
+            "tools": [
+              "exec_command"
+            ]
+          },
+          {
+            "ref": "edit-files@1",
+            "tools": [
+              "append_file",
+              "cp",
+              "edit",
+              "insert_line",
+              "mkdir",
+              "mv",
+              "replace_range",
+              "rm",
+              "write_file"
+            ]
+          },
+          {
+            "ref": "filesystem@1",
+            "tools": [
+              "glob",
+              "grep",
+              "ls",
+              "read_file"
+            ]
+          },
+          {
+            "ref": "http-tools@1",
+            "tools": [
+              "http_credential_read",
+              "http_credentials",
+              "http_history",
+              "http_read_body",
+              "http_request",
+              "http_session_clear",
+              "http_session_get",
+              "http_session_set"
+            ]
+          },
+          {
+            "ref": "interactsh@1",
+            "tools": [
+              "interactsh_poll",
+              "interactsh_register"
+            ]
+          },
+          {
+            "ref": "likec4@1",
+            "tools": [
+              "append_likec4",
+              "load_likec4",
+              "read_likec4",
+              "replace_likec4",
+              "write_likec4"
+            ]
+          },
+          {
+            "ref": "memory-tools@1",
+            "tools": [
+              "append_memory",
+              "list_memories",
+              "list_memory_tags",
+              "read_memory",
+              "search_memory",
+              "write_memory"
+            ]
+          },
+          {
+            "ref": "openapi@1",
+            "tools": [
+              "get_openapi_component",
+              "get_openapi_info",
+              "get_openapi_path",
+              "initialize_openapi",
+              "list_openapi_components",
+              "list_openapi_paths",
+              "list_openapi_servers",
+              "list_openapi_tags",
+              "load_openapi",
+              "read_openapi_document",
+              "remove_openapi_component",
+              "remove_openapi_path",
+              "set_openapi_info",
+              "set_openapi_servers",
+              "set_openapi_tags",
+              "upsert_openapi_component",
+              "upsert_openapi_path"
+            ]
+          },
+          {
+            "ref": "run-artifacts@1",
+            "tools": [
+              "list_artifacts",
+              "read_artifact",
+              "write_artifact"
+            ]
+          },
+          {
+            "ref": "scan@1",
+            "tools": [
+              "scan_nuclei"
+            ]
+          },
+          {
+            "ref": "security-findings-code@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings-http@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings-trace@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings@1",
+            "tools": [
+              "fact",
+              "finding",
+              "list_findings",
+              "list_project_findings",
+              "read_finding_selection",
+              "read_project_finding",
+              "select_project_findings"
+            ]
+          },
+          {
+            "ref": "sitemap@1",
+            "tools": [
+              "configure_sitemap_grouping",
+              "import_sitemap_source",
+              "list_sitemap_entries",
+              "read_sitemap_entry",
+              "remove_sitemap_entry",
+              "restore_sitemap_entry",
+              "snapshot_sitemap_context",
+              "upsert_sitemap_entry"
+            ]
+          },
+          {
+            "ref": "source-analysis@1",
+            "tools": [
+              "list_source_files",
+              "open_source_archive",
+              "read_source",
+              "search_source"
+            ]
+          },
+          {
+            "ref": "taint-annotations@1",
+            "tools": [
+              "annotate_sink",
+              "annotate_trace",
+              "annotate_validate"
+            ]
+          },
+          {
+            "ref": "text-artifacts@1",
+            "tools": [
+              "write_text_artifact"
+            ]
+          },
+          {
+            "ref": "workspace-changes@1",
+            "tools": [
+              "changed_paths",
+              "diff",
+              "rollback_changes"
+            ]
+          }
+        ],
+        "supportedSandboxProfiles": [
+          "local-workdir@1",
+          "podman@1"
+        ],
+        "supportedRuntimeAdapters": [
+          "caido-graphql@1",
+          "http-proxy@1",
+          "http-target@1",
+          "interactsh-http@1",
+          "otlp-http@1"
+        ],
+        "workspaceCapabilities": {
+          "storage": "local",
+          "modes": [
+            "direct",
+            "overlay"
+          ],
+          "limits": {
+            "maxFiles": 50000,
+            "maxExpandedBytes": 2147483648,
+            "maxManagedTextBytes": 268435456,
+            "maxFileBytes": 16777216
+          }
+        }
+      },
+      "server_binary_sha256": "4a24a28cc74380bf31692817fc3f60a176797ca45db36cf48a02b1a7e130b2ce",
+      "warm": {
+        "samples": 57,
+        "rss_bytes": {
+          "min": 348467200,
+          "median": 348467200,
+          "max": 348471296
+        },
+        "pss_bytes": {
+          "min": 274870272,
+          "median": 274873344,
+          "max": 274877440
+        },
+        "private_bytes": {
+          "min": 262332416,
+          "median": 262332416,
+          "max": 262336512
+        },
+        "runtime_pss_bytes": {
+          "min": 180446208,
+          "median": 180447232,
+          "max": 180451328
+        },
+        "helper_pss_bytes": {
+          "min": 94424064,
+          "median": 94426112,
+          "max": 94426112
+        },
+        "podman_backend_pss_bytes": {
+          "min": 38274048,
+          "median": 38274048,
+          "max": 38274048
+        },
+        "scanner_pss_bytes": {
+          "min": 56150016,
+          "median": 56152064,
+          "max": 56152064
+        },
+        "podman_backends": {
+          "min": 1,
+          "median": 1,
+          "max": 1
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4,
+          "max": 4
+        },
+        "processes": {
+          "min": 6,
+          "median": 6,
+          "max": 6
+        },
+        "helpers": {
+          "min": 5,
+          "median": 5,
+          "max": 5
+        }
+      },
+      "load": {
+        "samples": 86,
+        "rss_bytes": {
+          "min": 348471296,
+          "median": 348471296.0,
+          "max": 348471296
+        },
+        "pss_bytes": {
+          "min": 274863104,
+          "median": 274877440.0,
+          "max": 274877440
+        },
+        "private_bytes": {
+          "min": 262336512,
+          "median": 262336512.0,
+          "max": 262336512
+        },
+        "runtime_pss_bytes": {
+          "min": 180448256,
+          "median": 180451328.0,
+          "max": 180451328
+        },
+        "helper_pss_bytes": {
+          "min": 94414848,
+          "median": 94426112.0,
+          "max": 94426112
+        },
+        "podman_backend_pss_bytes": {
+          "min": 38272000,
+          "median": 38274048.0,
+          "max": 38274048
+        },
+        "scanner_pss_bytes": {
+          "min": 56142848,
+          "median": 56152064.0,
+          "max": 56152064
+        },
+        "podman_backends": {
+          "min": 1,
+          "median": 1.0,
+          "max": 1
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "processes": {
+          "min": 6,
+          "median": 6.0,
+          "max": 6
+        },
+        "helpers": {
+          "min": 5,
+          "median": 5.0,
+          "max": 5
+        }
+      },
+      "post": {
+        "samples": 8,
+        "rss_bytes": {
+          "min": 348471296,
+          "median": 348471296.0,
+          "max": 348471296
+        },
+        "pss_bytes": {
+          "min": 274877440,
+          "median": 274877440.0,
+          "max": 274877440
+        },
+        "private_bytes": {
+          "min": 262336512,
+          "median": 262336512.0,
+          "max": 262336512
+        },
+        "runtime_pss_bytes": {
+          "min": 180451328,
+          "median": 180451328.0,
+          "max": 180451328
+        },
+        "helper_pss_bytes": {
+          "min": 94426112,
+          "median": 94426112.0,
+          "max": 94426112
+        },
+        "podman_backend_pss_bytes": {
+          "min": 38274048,
+          "median": 38274048.0,
+          "max": 38274048
+        },
+        "scanner_pss_bytes": {
+          "min": 56152064,
+          "median": 56152064.0,
+          "max": 56152064
+        },
+        "podman_backends": {
+          "min": 1,
+          "median": 1.0,
+          "max": 1
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "processes": {
+          "min": 6,
+          "median": 6.0,
+          "max": 6
+        },
+        "helpers": {
+          "min": 5,
+          "median": 5.0,
+          "max": 5
+        }
+      },
+      "cpu_hash_units_per_worker": 1048576,
+      "bytes_per_unit": 65536,
+      "load_average_before": [
+        0.8974609375,
+        0.4375,
+        0.2685546875
+      ],
+      "load_average_after": [
+        1.1669921875,
+        0.63720703125,
+        0.35302734375
+      ],
+      "load_seconds": 22.035277381000924,
+      "worker_latency_seconds": {
+        "min": 22.025971132999985,
+        "median": 22.032683691500097,
+        "max": 22.033599825001147
+      },
+      "cpu_hash_units_per_second": 190344.9603777794,
+      "heartbeats": [
+        {
+          "before": "2026-11-26T01:14:54.441497526+03:00",
+          "after": "2026-11-26T01:15:14.449838091+03:00"
+        }
+      ],
+      "cleanup": {
+        "completed_runs": 4,
+        "free_slots_before_stop": 4,
+        "runtimes_stopped": 1,
+        "all_sampled_processes_gone": true,
+        "owned_containers_after": 0
+      },
+      "repetition": 1
+    },
+    {
+      "layout": "1x4",
+      "capabilities": {
+        "softwareVersion": "0.1.0",
+        "supportedRuntimes": [
+          "adk@1",
+          "tool@1"
+        ],
+        "supportedToolsets": [
+          {
+            "ref": "audit-proposals@1",
+            "tools": [
+              "submit_hypothesis_proposals"
+            ]
+          },
+          {
+            "ref": "audit-results@2",
+            "tools": [
+              "evidence",
+              "read_audit_task",
+              "submit_result",
+              "submit_results"
+            ]
+          },
+          {
+            "ref": "caido@1",
+            "tools": [
+              "caido_automate_results",
+              "caido_automate_run",
+              "caido_history",
+              "caido_replay",
+              "caido_request_detail",
+              "caido_scope",
+              "caido_sitemap",
+              "caido_workflow_findings",
+              "caido_workflow_list",
+              "caido_workflow_run"
+            ]
+          },
+          {
+            "ref": "code-analysis@1",
+            "tools": [
+              "attack_surface",
+              "complexity_hotspots",
+              "entrypoint_paths_to",
+              "find_callees",
+              "find_callers",
+              "find_symbol",
+              "functions_that_raise",
+              "graph_summary",
+              "list_symbols",
+              "paths_between",
+              "search_def"
+            ]
+          },
+          {
+            "ref": "code-execution@1",
+            "tools": [
+              "exec_command"
+            ]
+          },
+          {
+            "ref": "edit-files@1",
+            "tools": [
+              "append_file",
+              "cp",
+              "edit",
+              "insert_line",
+              "mkdir",
+              "mv",
+              "replace_range",
+              "rm",
+              "write_file"
+            ]
+          },
+          {
+            "ref": "filesystem@1",
+            "tools": [
+              "glob",
+              "grep",
+              "ls",
+              "read_file"
+            ]
+          },
+          {
+            "ref": "http-tools@1",
+            "tools": [
+              "http_credential_read",
+              "http_credentials",
+              "http_history",
+              "http_read_body",
+              "http_request",
+              "http_session_clear",
+              "http_session_get",
+              "http_session_set"
+            ]
+          },
+          {
+            "ref": "interactsh@1",
+            "tools": [
+              "interactsh_poll",
+              "interactsh_register"
+            ]
+          },
+          {
+            "ref": "likec4@1",
+            "tools": [
+              "append_likec4",
+              "load_likec4",
+              "read_likec4",
+              "replace_likec4",
+              "write_likec4"
+            ]
+          },
+          {
+            "ref": "memory-tools@1",
+            "tools": [
+              "append_memory",
+              "list_memories",
+              "list_memory_tags",
+              "read_memory",
+              "search_memory",
+              "write_memory"
+            ]
+          },
+          {
+            "ref": "openapi@1",
+            "tools": [
+              "get_openapi_component",
+              "get_openapi_info",
+              "get_openapi_path",
+              "initialize_openapi",
+              "list_openapi_components",
+              "list_openapi_paths",
+              "list_openapi_servers",
+              "list_openapi_tags",
+              "load_openapi",
+              "read_openapi_document",
+              "remove_openapi_component",
+              "remove_openapi_path",
+              "set_openapi_info",
+              "set_openapi_servers",
+              "set_openapi_tags",
+              "upsert_openapi_component",
+              "upsert_openapi_path"
+            ]
+          },
+          {
+            "ref": "run-artifacts@1",
+            "tools": [
+              "list_artifacts",
+              "read_artifact",
+              "write_artifact"
+            ]
+          },
+          {
+            "ref": "scan@1",
+            "tools": [
+              "scan_nuclei"
+            ]
+          },
+          {
+            "ref": "security-findings-code@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings-http@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings-trace@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings@1",
+            "tools": [
+              "fact",
+              "finding",
+              "list_findings",
+              "list_project_findings",
+              "read_finding_selection",
+              "read_project_finding",
+              "select_project_findings"
+            ]
+          },
+          {
+            "ref": "sitemap@1",
+            "tools": [
+              "configure_sitemap_grouping",
+              "import_sitemap_source",
+              "list_sitemap_entries",
+              "read_sitemap_entry",
+              "remove_sitemap_entry",
+              "restore_sitemap_entry",
+              "snapshot_sitemap_context",
+              "upsert_sitemap_entry"
+            ]
+          },
+          {
+            "ref": "source-analysis@1",
+            "tools": [
+              "list_source_files",
+              "open_source_archive",
+              "read_source",
+              "search_source"
+            ]
+          },
+          {
+            "ref": "taint-annotations@1",
+            "tools": [
+              "annotate_sink",
+              "annotate_trace",
+              "annotate_validate"
+            ]
+          },
+          {
+            "ref": "text-artifacts@1",
+            "tools": [
+              "write_text_artifact"
+            ]
+          },
+          {
+            "ref": "workspace-changes@1",
+            "tools": [
+              "changed_paths",
+              "diff",
+              "rollback_changes"
+            ]
+          }
+        ],
+        "supportedSandboxProfiles": [
+          "local-workdir@1",
+          "podman@1"
+        ],
+        "supportedRuntimeAdapters": [
+          "caido-graphql@1",
+          "http-proxy@1",
+          "http-target@1",
+          "interactsh-http@1",
+          "otlp-http@1"
+        ],
+        "workspaceCapabilities": {
+          "storage": "local",
+          "modes": [
+            "direct",
+            "overlay"
+          ],
+          "limits": {
+            "maxFiles": 50000,
+            "maxExpandedBytes": 2147483648,
+            "maxManagedTextBytes": 268435456,
+            "maxFileBytes": 16777216
+          }
+        }
+      },
+      "server_binary_sha256": "4a24a28cc74380bf31692817fc3f60a176797ca45db36cf48a02b1a7e130b2ce",
+      "warm": {
+        "samples": 57,
+        "rss_bytes": {
+          "min": 348692480,
+          "median": 348692480,
+          "max": 348696576
+        },
+        "pss_bytes": {
+          "min": 275166208,
+          "median": 275168256,
+          "max": 275172352
+        },
+        "private_bytes": {
+          "min": 262672384,
+          "median": 262672384,
+          "max": 262676480
+        },
+        "runtime_pss_bytes": {
+          "min": 181588992,
+          "median": 181590016,
+          "max": 181594112
+        },
+        "helper_pss_bytes": {
+          "min": 93577216,
+          "median": 93578240,
+          "max": 93578240
+        },
+        "podman_backend_pss_bytes": {
+          "min": 40109056,
+          "median": 40109056,
+          "max": 40109056
+        },
+        "scanner_pss_bytes": {
+          "min": 53468160,
+          "median": 53469184,
+          "max": 53469184
+        },
+        "podman_backends": {
+          "min": 1,
+          "median": 1,
+          "max": 1
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4,
+          "max": 4
+        },
+        "processes": {
+          "min": 6,
+          "median": 6,
+          "max": 6
+        },
+        "helpers": {
+          "min": 5,
+          "median": 5,
+          "max": 5
+        }
+      },
+      "load": {
+        "samples": 89,
+        "rss_bytes": {
+          "min": 348696576,
+          "median": 348696576,
+          "max": 348696576
+        },
+        "pss_bytes": {
+          "min": 275172352,
+          "median": 275172352,
+          "max": 275172352
+        },
+        "private_bytes": {
+          "min": 262676480,
+          "median": 262676480,
+          "max": 262676480
+        },
+        "runtime_pss_bytes": {
+          "min": 181594112,
+          "median": 181594112,
+          "max": 181594112
+        },
+        "helper_pss_bytes": {
+          "min": 93578240,
+          "median": 93578240,
+          "max": 93578240
+        },
+        "podman_backend_pss_bytes": {
+          "min": 40109056,
+          "median": 40109056,
+          "max": 40109056
+        },
+        "scanner_pss_bytes": {
+          "min": 53469184,
+          "median": 53469184,
+          "max": 53469184
+        },
+        "podman_backends": {
+          "min": 1,
+          "median": 1,
+          "max": 1
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4,
+          "max": 4
+        },
+        "processes": {
+          "min": 6,
+          "median": 6,
+          "max": 6
+        },
+        "helpers": {
+          "min": 5,
+          "median": 5,
+          "max": 5
+        }
+      },
+      "post": {
+        "samples": 8,
+        "rss_bytes": {
+          "min": 348696576,
+          "median": 348696576.0,
+          "max": 348696576
+        },
+        "pss_bytes": {
+          "min": 275172352,
+          "median": 275172352.0,
+          "max": 275172352
+        },
+        "private_bytes": {
+          "min": 262676480,
+          "median": 262676480.0,
+          "max": 262676480
+        },
+        "runtime_pss_bytes": {
+          "min": 181594112,
+          "median": 181594112.0,
+          "max": 181594112
+        },
+        "helper_pss_bytes": {
+          "min": 93578240,
+          "median": 93578240.0,
+          "max": 93578240
+        },
+        "podman_backend_pss_bytes": {
+          "min": 40109056,
+          "median": 40109056.0,
+          "max": 40109056
+        },
+        "scanner_pss_bytes": {
+          "min": 53469184,
+          "median": 53469184.0,
+          "max": 53469184
+        },
+        "podman_backends": {
+          "min": 1,
+          "median": 1.0,
+          "max": 1
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "processes": {
+          "min": 6,
+          "median": 6.0,
+          "max": 6
+        },
+        "helpers": {
+          "min": 5,
+          "median": 5.0,
+          "max": 5
+        }
+      },
+      "cpu_hash_units_per_worker": 1048576,
+      "bytes_per_unit": 65536,
+      "load_average_before": [
+        1.1669921875,
+        0.63720703125,
+        0.35302734375
+      ],
+      "load_average_after": [
+        1.46240234375,
+        0.83837890625,
+        0.4482421875
+      ],
+      "load_seconds": 22.53754816000037,
+      "worker_latency_seconds": {
+        "min": 22.53098706200035,
+        "median": 22.533974796499933,
+        "max": 22.537526952000917
+      },
+      "cpu_hash_units_per_second": 186102.94119943574,
+      "heartbeats": [
+        {
+          "before": "2026-11-26T01:16:20.421245024+03:00",
+          "after": "2026-11-26T01:16:40.429519712+03:00"
+        }
+      ],
+      "cleanup": {
+        "completed_runs": 4,
+        "free_slots_before_stop": 4,
+        "runtimes_stopped": 1,
+        "all_sampled_processes_gone": true,
+        "owned_containers_after": 0
+      },
+      "repetition": 2
+    },
+    {
+      "layout": "4x1",
+      "capabilities": {
+        "softwareVersion": "0.1.0",
+        "supportedRuntimes": [
+          "adk@1",
+          "tool@1"
+        ],
+        "supportedToolsets": [
+          {
+            "ref": "audit-proposals@1",
+            "tools": [
+              "submit_hypothesis_proposals"
+            ]
+          },
+          {
+            "ref": "audit-results@2",
+            "tools": [
+              "evidence",
+              "read_audit_task",
+              "submit_result",
+              "submit_results"
+            ]
+          },
+          {
+            "ref": "caido@1",
+            "tools": [
+              "caido_automate_results",
+              "caido_automate_run",
+              "caido_history",
+              "caido_replay",
+              "caido_request_detail",
+              "caido_scope",
+              "caido_sitemap",
+              "caido_workflow_findings",
+              "caido_workflow_list",
+              "caido_workflow_run"
+            ]
+          },
+          {
+            "ref": "code-analysis@1",
+            "tools": [
+              "attack_surface",
+              "complexity_hotspots",
+              "entrypoint_paths_to",
+              "find_callees",
+              "find_callers",
+              "find_symbol",
+              "functions_that_raise",
+              "graph_summary",
+              "list_symbols",
+              "paths_between",
+              "search_def"
+            ]
+          },
+          {
+            "ref": "code-execution@1",
+            "tools": [
+              "exec_command"
+            ]
+          },
+          {
+            "ref": "edit-files@1",
+            "tools": [
+              "append_file",
+              "cp",
+              "edit",
+              "insert_line",
+              "mkdir",
+              "mv",
+              "replace_range",
+              "rm",
+              "write_file"
+            ]
+          },
+          {
+            "ref": "filesystem@1",
+            "tools": [
+              "glob",
+              "grep",
+              "ls",
+              "read_file"
+            ]
+          },
+          {
+            "ref": "http-tools@1",
+            "tools": [
+              "http_credential_read",
+              "http_credentials",
+              "http_history",
+              "http_read_body",
+              "http_request",
+              "http_session_clear",
+              "http_session_get",
+              "http_session_set"
+            ]
+          },
+          {
+            "ref": "interactsh@1",
+            "tools": [
+              "interactsh_poll",
+              "interactsh_register"
+            ]
+          },
+          {
+            "ref": "likec4@1",
+            "tools": [
+              "append_likec4",
+              "load_likec4",
+              "read_likec4",
+              "replace_likec4",
+              "write_likec4"
+            ]
+          },
+          {
+            "ref": "memory-tools@1",
+            "tools": [
+              "append_memory",
+              "list_memories",
+              "list_memory_tags",
+              "read_memory",
+              "search_memory",
+              "write_memory"
+            ]
+          },
+          {
+            "ref": "openapi@1",
+            "tools": [
+              "get_openapi_component",
+              "get_openapi_info",
+              "get_openapi_path",
+              "initialize_openapi",
+              "list_openapi_components",
+              "list_openapi_paths",
+              "list_openapi_servers",
+              "list_openapi_tags",
+              "load_openapi",
+              "read_openapi_document",
+              "remove_openapi_component",
+              "remove_openapi_path",
+              "set_openapi_info",
+              "set_openapi_servers",
+              "set_openapi_tags",
+              "upsert_openapi_component",
+              "upsert_openapi_path"
+            ]
+          },
+          {
+            "ref": "run-artifacts@1",
+            "tools": [
+              "list_artifacts",
+              "read_artifact",
+              "write_artifact"
+            ]
+          },
+          {
+            "ref": "scan@1",
+            "tools": [
+              "scan_nuclei"
+            ]
+          },
+          {
+            "ref": "security-findings-code@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings-http@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings-trace@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings@1",
+            "tools": [
+              "fact",
+              "finding",
+              "list_findings",
+              "list_project_findings",
+              "read_finding_selection",
+              "read_project_finding",
+              "select_project_findings"
+            ]
+          },
+          {
+            "ref": "sitemap@1",
+            "tools": [
+              "configure_sitemap_grouping",
+              "import_sitemap_source",
+              "list_sitemap_entries",
+              "read_sitemap_entry",
+              "remove_sitemap_entry",
+              "restore_sitemap_entry",
+              "snapshot_sitemap_context",
+              "upsert_sitemap_entry"
+            ]
+          },
+          {
+            "ref": "source-analysis@1",
+            "tools": [
+              "list_source_files",
+              "open_source_archive",
+              "read_source",
+              "search_source"
+            ]
+          },
+          {
+            "ref": "taint-annotations@1",
+            "tools": [
+              "annotate_sink",
+              "annotate_trace",
+              "annotate_validate"
+            ]
+          },
+          {
+            "ref": "text-artifacts@1",
+            "tools": [
+              "write_text_artifact"
+            ]
+          },
+          {
+            "ref": "workspace-changes@1",
+            "tools": [
+              "changed_paths",
+              "diff",
+              "rollback_changes"
+            ]
+          }
+        ],
+        "supportedSandboxProfiles": [
+          "local-workdir@1",
+          "podman@1"
+        ],
+        "supportedRuntimeAdapters": [
+          "caido-graphql@1",
+          "http-proxy@1",
+          "http-target@1",
+          "interactsh-http@1",
+          "otlp-http@1"
+        ],
+        "workspaceCapabilities": {
+          "storage": "local",
+          "modes": [
+            "direct",
+            "overlay"
+          ],
+          "limits": {
+            "maxFiles": 50000,
+            "maxExpandedBytes": 2147483648,
+            "maxManagedTextBytes": 268435456,
+            "maxFileBytes": 16777216
+          }
+        }
+      },
+      "server_binary_sha256": "4a24a28cc74380bf31692817fc3f60a176797ca45db36cf48a02b1a7e130b2ce",
+      "warm": {
+        "samples": 55,
+        "rss_bytes": {
+          "min": 1042767872,
+          "median": 1042767872,
+          "max": 1042767872
+        },
+        "pss_bytes": {
+          "min": 799820800,
+          "median": 799830016,
+          "max": 799830016
+        },
+        "private_bytes": {
+          "min": 761421824,
+          "median": 761421824,
+          "max": 761421824
+        },
+        "runtime_pss_bytes": {
+          "min": 597069824,
+          "median": 597073920,
+          "max": 597073920
+        },
+        "helper_pss_bytes": {
+          "min": 202750976,
+          "median": 202756096,
+          "max": 202756096
+        },
+        "podman_backend_pss_bytes": {
+          "min": 151175168,
+          "median": 151179264,
+          "max": 151179264
+        },
+        "scanner_pss_bytes": {
+          "min": 51575808,
+          "median": 51576832,
+          "max": 51576832
+        },
+        "podman_backends": {
+          "min": 4,
+          "median": 4,
+          "max": 4
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4,
+          "max": 4
+        },
+        "processes": {
+          "min": 12,
+          "median": 12,
+          "max": 12
+        },
+        "helpers": {
+          "min": 8,
+          "median": 8,
+          "max": 8
+        }
+      },
+      "load": {
+        "samples": 84,
+        "rss_bytes": {
+          "min": 1042771968,
+          "median": 1042771968.0,
+          "max": 1042771968
+        },
+        "pss_bytes": {
+          "min": 799830016,
+          "median": 799834112.0,
+          "max": 799834112
+        },
+        "private_bytes": {
+          "min": 761425920,
+          "median": 761425920.0,
+          "max": 761425920
+        },
+        "runtime_pss_bytes": {
+          "min": 597073920,
+          "median": 597078016.0,
+          "max": 597078016
+        },
+        "helper_pss_bytes": {
+          "min": 202756096,
+          "median": 202756096.0,
+          "max": 202756096
+        },
+        "podman_backend_pss_bytes": {
+          "min": 151179264,
+          "median": 151179264.0,
+          "max": 151179264
+        },
+        "scanner_pss_bytes": {
+          "min": 51576832,
+          "median": 51576832.0,
+          "max": 51576832
+        },
+        "podman_backends": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "processes": {
+          "min": 12,
+          "median": 12.0,
+          "max": 12
+        },
+        "helpers": {
+          "min": 8,
+          "median": 8.0,
+          "max": 8
+        }
+      },
+      "post": {
+        "samples": 8,
+        "rss_bytes": {
+          "min": 1042776064,
+          "median": 1042776064.0,
+          "max": 1042776064
+        },
+        "pss_bytes": {
+          "min": 799838208,
+          "median": 799838208.0,
+          "max": 799838208
+        },
+        "private_bytes": {
+          "min": 761430016,
+          "median": 761430016.0,
+          "max": 761430016
+        },
+        "runtime_pss_bytes": {
+          "min": 597082112,
+          "median": 597082112.0,
+          "max": 597082112
+        },
+        "helper_pss_bytes": {
+          "min": 202756096,
+          "median": 202756096.0,
+          "max": 202756096
+        },
+        "podman_backend_pss_bytes": {
+          "min": 151179264,
+          "median": 151179264.0,
+          "max": 151179264
+        },
+        "scanner_pss_bytes": {
+          "min": 51576832,
+          "median": 51576832.0,
+          "max": 51576832
+        },
+        "podman_backends": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "processes": {
+          "min": 12,
+          "median": 12.0,
+          "max": 12
+        },
+        "helpers": {
+          "min": 8,
+          "median": 8.0,
+          "max": 8
+        }
+      },
+      "cpu_hash_units_per_worker": 1048576,
+      "bytes_per_unit": 65536,
+      "load_average_before": [
+        1.46240234375,
+        0.83837890625,
+        0.4482421875
+      ],
+      "load_average_after": [
+        1.17236328125,
+        0.935546875,
+        0.52294921875
+      ],
+      "load_seconds": 21.72391917599998,
+      "worker_latency_seconds": {
+        "min": 21.705647476001104,
+        "median": 21.709168673000022,
+        "max": 21.723773091000112
+      },
+      "cpu_hash_units_per_second": 193073.08069134032,
+      "heartbeats": [
+        {
+          "before": "2026-11-26T01:17:59.043105803+03:00",
+          "after": "2026-11-26T01:18:19.050229648+03:00"
+        },
+        {
+          "before": "2026-11-26T01:17:54.814426068+03:00",
+          "after": "2026-11-26T01:18:24.825075815+03:00"
+        },
+        {
+          "before": "2026-11-26T01:17:56.274706295+03:00",
+          "after": "2026-11-26T01:18:16.278277818+03:00"
+        },
+        {
+          "before": "2026-11-26T01:18:00.58403398+03:00",
+          "after": "2026-11-26T01:18:20.588519303+03:00"
+        }
+      ],
+      "cleanup": {
+        "completed_runs": 4,
+        "free_slots_before_stop": 4,
+        "runtimes_stopped": 4,
+        "all_sampled_processes_gone": true,
+        "owned_containers_after": 0
+      },
+      "repetition": 2
+    },
+    {
+      "layout": "4x1",
+      "capabilities": {
+        "softwareVersion": "0.1.0",
+        "supportedRuntimes": [
+          "adk@1",
+          "tool@1"
+        ],
+        "supportedToolsets": [
+          {
+            "ref": "audit-proposals@1",
+            "tools": [
+              "submit_hypothesis_proposals"
+            ]
+          },
+          {
+            "ref": "audit-results@2",
+            "tools": [
+              "evidence",
+              "read_audit_task",
+              "submit_result",
+              "submit_results"
+            ]
+          },
+          {
+            "ref": "caido@1",
+            "tools": [
+              "caido_automate_results",
+              "caido_automate_run",
+              "caido_history",
+              "caido_replay",
+              "caido_request_detail",
+              "caido_scope",
+              "caido_sitemap",
+              "caido_workflow_findings",
+              "caido_workflow_list",
+              "caido_workflow_run"
+            ]
+          },
+          {
+            "ref": "code-analysis@1",
+            "tools": [
+              "attack_surface",
+              "complexity_hotspots",
+              "entrypoint_paths_to",
+              "find_callees",
+              "find_callers",
+              "find_symbol",
+              "functions_that_raise",
+              "graph_summary",
+              "list_symbols",
+              "paths_between",
+              "search_def"
+            ]
+          },
+          {
+            "ref": "code-execution@1",
+            "tools": [
+              "exec_command"
+            ]
+          },
+          {
+            "ref": "edit-files@1",
+            "tools": [
+              "append_file",
+              "cp",
+              "edit",
+              "insert_line",
+              "mkdir",
+              "mv",
+              "replace_range",
+              "rm",
+              "write_file"
+            ]
+          },
+          {
+            "ref": "filesystem@1",
+            "tools": [
+              "glob",
+              "grep",
+              "ls",
+              "read_file"
+            ]
+          },
+          {
+            "ref": "http-tools@1",
+            "tools": [
+              "http_credential_read",
+              "http_credentials",
+              "http_history",
+              "http_read_body",
+              "http_request",
+              "http_session_clear",
+              "http_session_get",
+              "http_session_set"
+            ]
+          },
+          {
+            "ref": "interactsh@1",
+            "tools": [
+              "interactsh_poll",
+              "interactsh_register"
+            ]
+          },
+          {
+            "ref": "likec4@1",
+            "tools": [
+              "append_likec4",
+              "load_likec4",
+              "read_likec4",
+              "replace_likec4",
+              "write_likec4"
+            ]
+          },
+          {
+            "ref": "memory-tools@1",
+            "tools": [
+              "append_memory",
+              "list_memories",
+              "list_memory_tags",
+              "read_memory",
+              "search_memory",
+              "write_memory"
+            ]
+          },
+          {
+            "ref": "openapi@1",
+            "tools": [
+              "get_openapi_component",
+              "get_openapi_info",
+              "get_openapi_path",
+              "initialize_openapi",
+              "list_openapi_components",
+              "list_openapi_paths",
+              "list_openapi_servers",
+              "list_openapi_tags",
+              "load_openapi",
+              "read_openapi_document",
+              "remove_openapi_component",
+              "remove_openapi_path",
+              "set_openapi_info",
+              "set_openapi_servers",
+              "set_openapi_tags",
+              "upsert_openapi_component",
+              "upsert_openapi_path"
+            ]
+          },
+          {
+            "ref": "run-artifacts@1",
+            "tools": [
+              "list_artifacts",
+              "read_artifact",
+              "write_artifact"
+            ]
+          },
+          {
+            "ref": "scan@1",
+            "tools": [
+              "scan_nuclei"
+            ]
+          },
+          {
+            "ref": "security-findings-code@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings-http@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings-trace@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings@1",
+            "tools": [
+              "fact",
+              "finding",
+              "list_findings",
+              "list_project_findings",
+              "read_finding_selection",
+              "read_project_finding",
+              "select_project_findings"
+            ]
+          },
+          {
+            "ref": "sitemap@1",
+            "tools": [
+              "configure_sitemap_grouping",
+              "import_sitemap_source",
+              "list_sitemap_entries",
+              "read_sitemap_entry",
+              "remove_sitemap_entry",
+              "restore_sitemap_entry",
+              "snapshot_sitemap_context",
+              "upsert_sitemap_entry"
+            ]
+          },
+          {
+            "ref": "source-analysis@1",
+            "tools": [
+              "list_source_files",
+              "open_source_archive",
+              "read_source",
+              "search_source"
+            ]
+          },
+          {
+            "ref": "taint-annotations@1",
+            "tools": [
+              "annotate_sink",
+              "annotate_trace",
+              "annotate_validate"
+            ]
+          },
+          {
+            "ref": "text-artifacts@1",
+            "tools": [
+              "write_text_artifact"
+            ]
+          },
+          {
+            "ref": "workspace-changes@1",
+            "tools": [
+              "changed_paths",
+              "diff",
+              "rollback_changes"
+            ]
+          }
+        ],
+        "supportedSandboxProfiles": [
+          "local-workdir@1",
+          "podman@1"
+        ],
+        "supportedRuntimeAdapters": [
+          "caido-graphql@1",
+          "http-proxy@1",
+          "http-target@1",
+          "interactsh-http@1",
+          "otlp-http@1"
+        ],
+        "workspaceCapabilities": {
+          "storage": "local",
+          "modes": [
+            "direct",
+            "overlay"
+          ],
+          "limits": {
+            "maxFiles": 50000,
+            "maxExpandedBytes": 2147483648,
+            "maxManagedTextBytes": 268435456,
+            "maxFileBytes": 16777216
+          }
+        }
+      },
+      "server_binary_sha256": "4a24a28cc74380bf31692817fc3f60a176797ca45db36cf48a02b1a7e130b2ce",
+      "warm": {
+        "samples": 55,
+        "rss_bytes": {
+          "min": 1043873792,
+          "median": 1043877888,
+          "max": 1043877888
+        },
+        "pss_bytes": {
+          "min": 800968704,
+          "median": 800972800,
+          "max": 800972800
+        },
+        "private_bytes": {
+          "min": 762560512,
+          "median": 762564608,
+          "max": 762564608
+        },
+        "runtime_pss_bytes": {
+          "min": 596768768,
+          "median": 596772864,
+          "max": 596772864
+        },
+        "helper_pss_bytes": {
+          "min": 204197888,
+          "median": 204199936,
+          "max": 204199936
+        },
+        "podman_backend_pss_bytes": {
+          "min": 150904832,
+          "median": 150904832,
+          "max": 150904832
+        },
+        "scanner_pss_bytes": {
+          "min": 53293056,
+          "median": 53295104,
+          "max": 53295104
+        },
+        "podman_backends": {
+          "min": 4,
+          "median": 4,
+          "max": 4
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4,
+          "max": 4
+        },
+        "processes": {
+          "min": 12,
+          "median": 12,
+          "max": 12
+        },
+        "helpers": {
+          "min": 8,
+          "median": 8,
+          "max": 8
+        }
+      },
+      "load": {
+        "samples": 84,
+        "rss_bytes": {
+          "min": 1043881984,
+          "median": 1043886080.0,
+          "max": 1043886080
+        },
+        "pss_bytes": {
+          "min": 800969728,
+          "median": 800980992.0,
+          "max": 800980992
+        },
+        "private_bytes": {
+          "min": 762568704,
+          "median": 762572800.0,
+          "max": 762572800
+        },
+        "runtime_pss_bytes": {
+          "min": 596775936,
+          "median": 596781056.0,
+          "max": 596781056
+        },
+        "helper_pss_bytes": {
+          "min": 204192768,
+          "median": 204199936.0,
+          "max": 204199936
+        },
+        "podman_backend_pss_bytes": {
+          "min": 150902784,
+          "median": 150904832.0,
+          "max": 150904832
+        },
+        "scanner_pss_bytes": {
+          "min": 53289984,
+          "median": 53295104.0,
+          "max": 53295104
+        },
+        "podman_backends": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "processes": {
+          "min": 12,
+          "median": 12.0,
+          "max": 12
+        },
+        "helpers": {
+          "min": 8,
+          "median": 8.0,
+          "max": 8
+        }
+      },
+      "post": {
+        "samples": 8,
+        "rss_bytes": {
+          "min": 1043886080,
+          "median": 1043886080.0,
+          "max": 1043886080
+        },
+        "pss_bytes": {
+          "min": 800980992,
+          "median": 800980992.0,
+          "max": 800980992
+        },
+        "private_bytes": {
+          "min": 762572800,
+          "median": 762572800.0,
+          "max": 762572800
+        },
+        "runtime_pss_bytes": {
+          "min": 596781056,
+          "median": 596781056.0,
+          "max": 596781056
+        },
+        "helper_pss_bytes": {
+          "min": 204199936,
+          "median": 204199936.0,
+          "max": 204199936
+        },
+        "podman_backend_pss_bytes": {
+          "min": 150904832,
+          "median": 150904832.0,
+          "max": 150904832
+        },
+        "scanner_pss_bytes": {
+          "min": 53295104,
+          "median": 53295104.0,
+          "max": 53295104
+        },
+        "podman_backends": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "processes": {
+          "min": 12,
+          "median": 12.0,
+          "max": 12
+        },
+        "helpers": {
+          "min": 8,
+          "median": 8.0,
+          "max": 8
+        }
+      },
+      "cpu_hash_units_per_worker": 1048576,
+      "bytes_per_unit": 65536,
+      "load_average_before": [
+        1.17236328125,
+        0.935546875,
+        0.52294921875
+      ],
+      "load_average_after": [
+        1.1396484375,
+        0.9990234375,
+        0.5888671875
+      ],
+      "load_seconds": 22.12221326100007,
+      "worker_latency_seconds": {
+        "min": 22.099499981000918,
+        "median": 22.10184566750104,
+        "max": 22.12221326100007
+      },
+      "cpu_hash_units_per_second": 189596.9426980558,
+      "heartbeats": [
+        {
+          "before": "2026-11-26T01:19:40.427168702+03:00",
+          "after": "2026-11-26T01:20:00.432296697+03:00"
+        },
+        {
+          "before": "2026-11-26T01:19:38.992983243+03:00",
+          "after": "2026-11-26T01:19:58.998421324+03:00"
+        },
+        {
+          "before": "2026-11-26T01:19:36.188676715+03:00",
+          "after": "2026-11-26T01:20:06.197081484+03:00"
+        },
+        {
+          "before": "2026-11-26T01:19:34.662895294+03:00",
+          "after": "2026-11-26T01:20:04.674820385+03:00"
+        }
+      ],
+      "cleanup": {
+        "completed_runs": 4,
+        "free_slots_before_stop": 4,
+        "runtimes_stopped": 4,
+        "all_sampled_processes_gone": true,
+        "owned_containers_after": 0
+      },
+      "repetition": 3
+    },
+    {
+      "layout": "1x4",
+      "capabilities": {
+        "softwareVersion": "0.1.0",
+        "supportedRuntimes": [
+          "adk@1",
+          "tool@1"
+        ],
+        "supportedToolsets": [
+          {
+            "ref": "audit-proposals@1",
+            "tools": [
+              "submit_hypothesis_proposals"
+            ]
+          },
+          {
+            "ref": "audit-results@2",
+            "tools": [
+              "evidence",
+              "read_audit_task",
+              "submit_result",
+              "submit_results"
+            ]
+          },
+          {
+            "ref": "caido@1",
+            "tools": [
+              "caido_automate_results",
+              "caido_automate_run",
+              "caido_history",
+              "caido_replay",
+              "caido_request_detail",
+              "caido_scope",
+              "caido_sitemap",
+              "caido_workflow_findings",
+              "caido_workflow_list",
+              "caido_workflow_run"
+            ]
+          },
+          {
+            "ref": "code-analysis@1",
+            "tools": [
+              "attack_surface",
+              "complexity_hotspots",
+              "entrypoint_paths_to",
+              "find_callees",
+              "find_callers",
+              "find_symbol",
+              "functions_that_raise",
+              "graph_summary",
+              "list_symbols",
+              "paths_between",
+              "search_def"
+            ]
+          },
+          {
+            "ref": "code-execution@1",
+            "tools": [
+              "exec_command"
+            ]
+          },
+          {
+            "ref": "edit-files@1",
+            "tools": [
+              "append_file",
+              "cp",
+              "edit",
+              "insert_line",
+              "mkdir",
+              "mv",
+              "replace_range",
+              "rm",
+              "write_file"
+            ]
+          },
+          {
+            "ref": "filesystem@1",
+            "tools": [
+              "glob",
+              "grep",
+              "ls",
+              "read_file"
+            ]
+          },
+          {
+            "ref": "http-tools@1",
+            "tools": [
+              "http_credential_read",
+              "http_credentials",
+              "http_history",
+              "http_read_body",
+              "http_request",
+              "http_session_clear",
+              "http_session_get",
+              "http_session_set"
+            ]
+          },
+          {
+            "ref": "interactsh@1",
+            "tools": [
+              "interactsh_poll",
+              "interactsh_register"
+            ]
+          },
+          {
+            "ref": "likec4@1",
+            "tools": [
+              "append_likec4",
+              "load_likec4",
+              "read_likec4",
+              "replace_likec4",
+              "write_likec4"
+            ]
+          },
+          {
+            "ref": "memory-tools@1",
+            "tools": [
+              "append_memory",
+              "list_memories",
+              "list_memory_tags",
+              "read_memory",
+              "search_memory",
+              "write_memory"
+            ]
+          },
+          {
+            "ref": "openapi@1",
+            "tools": [
+              "get_openapi_component",
+              "get_openapi_info",
+              "get_openapi_path",
+              "initialize_openapi",
+              "list_openapi_components",
+              "list_openapi_paths",
+              "list_openapi_servers",
+              "list_openapi_tags",
+              "load_openapi",
+              "read_openapi_document",
+              "remove_openapi_component",
+              "remove_openapi_path",
+              "set_openapi_info",
+              "set_openapi_servers",
+              "set_openapi_tags",
+              "upsert_openapi_component",
+              "upsert_openapi_path"
+            ]
+          },
+          {
+            "ref": "run-artifacts@1",
+            "tools": [
+              "list_artifacts",
+              "read_artifact",
+              "write_artifact"
+            ]
+          },
+          {
+            "ref": "scan@1",
+            "tools": [
+              "scan_nuclei"
+            ]
+          },
+          {
+            "ref": "security-findings-code@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings-http@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings-trace@1",
+            "tools": [
+              "finding"
+            ]
+          },
+          {
+            "ref": "security-findings@1",
+            "tools": [
+              "fact",
+              "finding",
+              "list_findings",
+              "list_project_findings",
+              "read_finding_selection",
+              "read_project_finding",
+              "select_project_findings"
+            ]
+          },
+          {
+            "ref": "sitemap@1",
+            "tools": [
+              "configure_sitemap_grouping",
+              "import_sitemap_source",
+              "list_sitemap_entries",
+              "read_sitemap_entry",
+              "remove_sitemap_entry",
+              "restore_sitemap_entry",
+              "snapshot_sitemap_context",
+              "upsert_sitemap_entry"
+            ]
+          },
+          {
+            "ref": "source-analysis@1",
+            "tools": [
+              "list_source_files",
+              "open_source_archive",
+              "read_source",
+              "search_source"
+            ]
+          },
+          {
+            "ref": "taint-annotations@1",
+            "tools": [
+              "annotate_sink",
+              "annotate_trace",
+              "annotate_validate"
+            ]
+          },
+          {
+            "ref": "text-artifacts@1",
+            "tools": [
+              "write_text_artifact"
+            ]
+          },
+          {
+            "ref": "workspace-changes@1",
+            "tools": [
+              "changed_paths",
+              "diff",
+              "rollback_changes"
+            ]
+          }
+        ],
+        "supportedSandboxProfiles": [
+          "local-workdir@1",
+          "podman@1"
+        ],
+        "supportedRuntimeAdapters": [
+          "caido-graphql@1",
+          "http-proxy@1",
+          "http-target@1",
+          "interactsh-http@1",
+          "otlp-http@1"
+        ],
+        "workspaceCapabilities": {
+          "storage": "local",
+          "modes": [
+            "direct",
+            "overlay"
+          ],
+          "limits": {
+            "maxFiles": 50000,
+            "maxExpandedBytes": 2147483648,
+            "maxManagedTextBytes": 268435456,
+            "maxFileBytes": 16777216
+          }
+        }
+      },
+      "server_binary_sha256": "4a24a28cc74380bf31692817fc3f60a176797ca45db36cf48a02b1a7e130b2ce",
+      "warm": {
+        "samples": 58,
+        "rss_bytes": {
+          "min": 348790784,
+          "median": 348794880.0,
+          "max": 348798976
+        },
+        "pss_bytes": {
+          "min": 275275776,
+          "median": 275279872.0,
+          "max": 275283968
+        },
+        "private_bytes": {
+          "min": 262778880,
+          "median": 262782976.0,
+          "max": 262787072
+        },
+        "runtime_pss_bytes": {
+          "min": 178919424,
+          "median": 178923520.0,
+          "max": 178927616
+        },
+        "helper_pss_bytes": {
+          "min": 96356352,
+          "median": 96356352.0,
+          "max": 96356352
+        },
+        "podman_backend_pss_bytes": {
+          "min": 40085504,
+          "median": 40085504.0,
+          "max": 40085504
+        },
+        "scanner_pss_bytes": {
+          "min": 56270848,
+          "median": 56270848.0,
+          "max": 56270848
+        },
+        "podman_backends": {
+          "min": 1,
+          "median": 1.0,
+          "max": 1
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "processes": {
+          "min": 6,
+          "median": 6.0,
+          "max": 6
+        },
+        "helpers": {
+          "min": 5,
+          "median": 5.0,
+          "max": 5
+        }
+      },
+      "load": {
+        "samples": 86,
+        "rss_bytes": {
+          "min": 348798976,
+          "median": 348798976.0,
+          "max": 348798976
+        },
+        "pss_bytes": {
+          "min": 275276800,
+          "median": 275283968.0,
+          "max": 275283968
+        },
+        "private_bytes": {
+          "min": 262787072,
+          "median": 262787072.0,
+          "max": 262787072
+        },
+        "runtime_pss_bytes": {
+          "min": 178925568,
+          "median": 178927616.0,
+          "max": 178927616
+        },
+        "helper_pss_bytes": {
+          "min": 96351232,
+          "median": 96356352.0,
+          "max": 96356352
+        },
+        "podman_backend_pss_bytes": {
+          "min": 40084480,
+          "median": 40085504.0,
+          "max": 40085504
+        },
+        "scanner_pss_bytes": {
+          "min": 56266752,
+          "median": 56270848.0,
+          "max": 56270848
+        },
+        "podman_backends": {
+          "min": 1,
+          "median": 1.0,
+          "max": 1
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "processes": {
+          "min": 6,
+          "median": 6.0,
+          "max": 6
+        },
+        "helpers": {
+          "min": 5,
+          "median": 5.0,
+          "max": 5
+        }
+      },
+      "post": {
+        "samples": 8,
+        "rss_bytes": {
+          "min": 348798976,
+          "median": 348798976.0,
+          "max": 348798976
+        },
+        "pss_bytes": {
+          "min": 275283968,
+          "median": 275283968.0,
+          "max": 275283968
+        },
+        "private_bytes": {
+          "min": 262787072,
+          "median": 262787072.0,
+          "max": 262787072
+        },
+        "runtime_pss_bytes": {
+          "min": 178927616,
+          "median": 178927616.0,
+          "max": 178927616
+        },
+        "helper_pss_bytes": {
+          "min": 96356352,
+          "median": 96356352.0,
+          "max": 96356352
+        },
+        "podman_backend_pss_bytes": {
+          "min": 40085504,
+          "median": 40085504.0,
+          "max": 40085504
+        },
+        "scanner_pss_bytes": {
+          "min": 56270848,
+          "median": 56270848.0,
+          "max": 56270848
+        },
+        "podman_backends": {
+          "min": 1,
+          "median": 1.0,
+          "max": 1
+        },
+        "scanner_children": {
+          "min": 4,
+          "median": 4.0,
+          "max": 4
+        },
+        "processes": {
+          "min": 6,
+          "median": 6.0,
+          "max": 6
+        },
+        "helpers": {
+          "min": 5,
+          "median": 5.0,
+          "max": 5
+        }
+      },
+      "cpu_hash_units_per_worker": 1048576,
+      "bytes_per_unit": 65536,
+      "load_average_before": [
+        1.1396484375,
+        0.9990234375,
+        0.5888671875
+      ],
+      "load_average_after": [
+        1.44189453125,
+        1.08544921875,
+        0.6484375
+      ],
+      "load_seconds": 21.712109604000943,
+      "worker_latency_seconds": {
+        "min": 21.688199562999216,
+        "median": 21.69614756899955,
+        "max": 21.709632790001706
+      },
+      "cpu_hash_units_per_second": 193178.09630194135,
+      "heartbeats": [
+        {
+          "before": "2026-11-26T01:21:06.763824891+03:00",
+          "after": "2026-11-26T01:21:26.772265007+03:00"
+        }
+      ],
+      "cleanup": {
+        "completed_runs": 4,
+        "free_slots_before_stop": 4,
+        "runtimes_stopped": 1,
+        "all_sampled_processes_gone": true,
+        "owned_containers_after": 0
+      },
+      "repetition": 3
+    }
+  ],
+  "cleanup_confirmed": true
+}
