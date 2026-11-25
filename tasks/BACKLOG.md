@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 15 in progress, 43 pending, 13 deferred. 1705 finished: 1687 completed, 18 archived.
+70 open tasks: 14 in progress, 43 pending, 13 deferred. 1706 finished: 1688 completed, 18 archived.
 
 ## In progress
 
@@ -23,7 +23,6 @@ the epics are in [epics.yml](epics.yml).
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V487-002](v487-002-runtime-http-sessions.yml) | http-tools | feature | P2 | Share the Runtime HTTP engine through isolated allocation sessions |
 | [V487-004](v487-004-runtime-allocation-slots.yml) | execution-core | feature | P2 | Run bounded concurrent allocations in one configurable Runtime process |
-| [V487-007](v487-007-audit-catalog-test-selectors.yml) | execution-core | chore | P2 | Follow the shipped AuditProfile identities in catalog acceptance tests |
 | [V487-012](v487-012-managed-eval-yaml-fixture.yml) | evals | chore | P2 | Edit the managed Eval Skill selection through the existing YAML parser |
 | [V487-013](v487-013-browser-fact-tool-fixture.yml) | workflows | chore | P2 | Follow the discovery fact tool in the browser Gateway fixture |
 
@@ -162,7 +161,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 6 | 52 | 73 | 44 | 109 |
+| Run execution core (`execution-core`) | 5 | 52 | 73 | 44 | 109 |
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 100 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |

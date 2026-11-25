@@ -6,7 +6,7 @@ epic: execution-core
 kind: chore
 introduced_by: V480-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -60,3 +60,17 @@ tests:
   covers:
   - A1
   - A2
+implementation_commit: 77c195d3cba24592835d1c2ce50d06964ba64022
+verification:
+  result: passed
+  commands:
+  - command: make test-release-ui-stack-a
+    result: all 12 root cases passed; actual Operations journey verifies 117 browser cases, scanner widget
+      1, native Eval 1, plus exact staged configuration/tool contracts. No skipped, unexpected or flaky
+      selected browser cases.
+  - command: make test-release-ui-stack-b
+    result: external managed Workflow/Audit journey passed, 89.704 seconds, with one executed browser
+      case and owner-boundary assertions.
+  - command: go test ./tests/eval/audit_programs
+    result: passed against disposable PostgreSQL; selectors remain exact and ordinary required Skill initialization
+      is preserved.
