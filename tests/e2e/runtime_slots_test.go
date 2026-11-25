@@ -16,6 +16,10 @@ import (
 )
 
 func TestRuntimeAllocationSlotsAcrossProductionProcesses(t *testing.T) {
+	if directory := os.Getenv("CONTRACTOR_RUNTIME_MULTISLOT_MEASUREMENT"); directory != "" {
+		measureRuntimeAllocationSlots(t, directory)
+		return
+	}
 	if os.Getenv("CONTRACTOR_TEST_DATABASE_URL") == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is unset")
 	}

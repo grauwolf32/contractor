@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-66 open tasks: 10 in progress, 43 pending, 13 deferred. 1710 finished: 1692 completed, 18 archived.
+66 open tasks: 11 in progress, 42 pending, 13 deferred. 1710 finished: 1692 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V487-005](v487-005-runtime-multislot-acceptance.yml) | execution-core | chore | P2 | Verify isolation cleanup and memory benefit of the multi-slot Runtime |
 
 ## Pending
 
@@ -30,7 +31,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
 | [V469-002](v469-002-opencode-audit-runtime.yml) | feature | P1 | V469-001 | Run OpenCode in one retained Audit environment through existing A2A |
-| [V487-005](v487-005-runtime-multislot-acceptance.yml) | chore | P2 | — | Verify isolation cleanup and memory benefit of the multi-slot Runtime |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 

@@ -5,7 +5,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: execution-core
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V487-002
 - V487-003
@@ -56,7 +56,9 @@ context:
     the identical fixture Server/driver. Report CPU-work throughput/latency and authoritative heartbeat
     progress, bounds and uncertainty. This measures registered process overhead under the stated scanner
     workload; separate real HTTP/Podman/cache acceptance covers their isolation, without treating these
-    numbers as their peak-load memory budget.
+    numbers as their peak-load memory budget. Use the same pinned rootless Podman capability in both layouts
+    so the process-tree measurements include each Runtime-owned backend, alongside scanner children; the
+    external scanner workload creates no workload containers.
 scope:
   in:
   - Integrated acceptance matrix and persistent redacted evidence covering V487-001 through V487-004 through
@@ -139,7 +141,51 @@ acceptance_criteria:
   then: Owned database and Podman resources are removed, mandatory checks are complete, skips and branch/merge
     status are explicit.
 tests:
-- command: make release-verify
+- command: make release-verify-lint
+  covers:
+  - A1
+  - A3
+- command: make release-verify-unit
+  covers:
+  - A1
+  - A3
+- command: make release-verify-ui
+  covers:
+  - A1
+  - A3
+- command: make release-verify-families
+  covers:
+  - A1
+  - A3
+- command: make release-verify-browser-a
+  covers:
+  - A1
+  - A3
+- command: make release-verify-browser-b
+  covers:
+  - A1
+  - A3
+- command: make release-verify-race
+  covers:
+  - A1
+  - A3
+- command: make release-verify-race-discovered
+  covers:
+  - A1
+  - A3
+- command: make release-verify-integration
+  covers:
+  - A1
+  - A3
+- command: make release-verify-process-a
+  covers:
+  - A1
+  - A3
+- command: make release-verify-process-b
+  covers:
+  - A1
+  - A3
+- command: make release-verify-process-c
   covers:
   - A1
   - A3

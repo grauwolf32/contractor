@@ -148,6 +148,7 @@ type placementProcessHarness struct {
 	controlClient                                                                *http.Client
 	server                                                                       *childProcess
 	runtimes                                                                     map[string]*childProcess
+	runtimePath                                                                  string
 	identities                                                                   map[string]localpki.Paths
 	operations                                                                   *runtimeOperations
 	store                                                                        *runstore.PostgresStore
@@ -235,7 +236,7 @@ func (h *placementProcessHarness) startRuntime(name, placement string, capable b
 	return h.startRuntimeSlots(name, placement, capable, 1)
 }
 
-func (h *placementProcessHarness) startRuntimeSlots(name, placement string, capable bool, slots int) *childProcess {
+func (h *placementProcessHarness) startRuntimeSlots(name, placement string, capable bool, slots int, extraArgs ...string) *childProcess {
 	t := h.operations.t
 	t.Helper()
 	identity, exists := h.identities[name]
@@ -260,6 +261,10 @@ func (h *placementProcessHarness) startRuntimeSlots(name, placement string, capa
 	if capable {
 		path = h.scannerBin
 	}
+	if h.runtimePath != "" {
+		path += string(os.PathListSeparator) + h.runtimePath
+	}
+	args = append(args, extraArgs...)
 	process := startProcess(t, name, filepath.Join(h.root, "runtime"), map[string]string{"PATH": path, "PYTHONUNBUFFERED": "1", "NUCLEI_TEMPLATES_DIR": h.templates, "CONTRACTOR_PLACEMENT_LABELS": ""}, h.python, args...)
 	h.runtimes[name] = process
 	waitForHTTP(t, h.ctx, process, h.controlClient, baseURL+"/healthz", http.StatusOK)
