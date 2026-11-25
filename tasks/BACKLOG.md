@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 14 in progress, 43 pending, 13 deferred. 1706 finished: 1688 completed, 18 archived.
+69 open tasks: 13 in progress, 43 pending, 13 deferred. 1707 finished: 1689 completed, 18 archived.
 
 ## In progress
 
@@ -23,7 +23,6 @@ the epics are in [epics.yml](epics.yml).
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V487-002](v487-002-runtime-http-sessions.yml) | http-tools | feature | P2 | Share the Runtime HTTP engine through isolated allocation sessions |
 | [V487-004](v487-004-runtime-allocation-slots.yml) | execution-core | feature | P2 | Run bounded concurrent allocations in one configurable Runtime process |
-| [V487-012](v487-012-managed-eval-yaml-fixture.yml) | evals | chore | P2 | Edit the managed Eval Skill selection through the existing YAML parser |
 | [V487-013](v487-013-browser-fact-tool-fixture.yml) | workflows | chore | P2 | Follow the discovery fact tool in the browser Gateway fixture |
 
 ## Pending
@@ -174,7 +173,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 7 | 22 | 18 | 17 | 28 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 78 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
-| Evaluations (`evals`) | 5 | 23 | 47 | 23 | 55 |
+| Evaluations (`evals`) | 4 | 23 | 47 | 23 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 6 |
 | Web UI (`ui`) | 1 | 56 | 83 | 34 | 80 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |

@@ -1,0 +1,60 @@
+schema_version: '1.0'
+id: V487-012
+title: Edit the managed Eval Skill selection through the existing YAML parser
+milestone: runtime-allocation-slots-2026-11
+epic: evals
+kind: chore
+introduced_by: V485-001
+priority: P2
+status: completed
+depends_on: []
+languages:
+- go
+goal: Native and external managed Eval browser fixtures stage valid current configuration while retaining
+  their intentional empty Skill selection.
+context:
+  authority: User request 2026-11-25 authorizes complete groups 2 and 3. The full release gate exposed
+    this independent staging prerequisite on 2026-11-26.
+  finding: tests/ui-stack/evals_gateway_test.go:161 replaces only the first trace Skill with skills:[];
+    after V485-001 added vuln-scan, its trailing YAML sequence remains and strict configuration loading
+    fails before browser scenarios start.
+  siblings: Both native and external managed Eval modes share stageManagedEvalConfiguration and its existing
+    configuration-closure regression.
+  specification: docs/spec/evals/managed-evals.md
+scope:
+  in:
+  - Replace the partial text substitution with a map edit using the already-imported YAML parser.
+  out:
+  - Production configuration syntax
+  - shipped templates
+  - Skill selections in real Runs
+  - model policies and budgets
+  - live Evals.
+acceptance_criteria:
+- id: A1
+  text: Both managed configuration-closure variants pass with the exact intended Worker policies and two-assertion
+    batch unchanged.
+- id: A2
+  text: Native and external managed browser scenarios reach and pass their real API/Runtime assertions
+    without weakening strict YAML loading or tool expectations.
+tests:
+- command: go test -tags=e2e ./tests/ui-stack -run '^TestUIStackConfigurationClosure$'
+  covers:
+  - A1
+- command: make test-release-ui-stack-a test-release-ui-stack-b
+  covers:
+  - A1
+  - A2
+implementation_commit: c45a6f19ebf870fa5812d993e27f721f88d5e562
+verification:
+  result: passed
+  commands:
+  - command: make test-release-ui-stack-a
+    result: all 12 root cases passed; actual Operations journey verifies 117 browser cases, scanner widget
+      1, native Eval 1, plus exact staged configuration/tool contracts. No skipped, unexpected or flaky
+      selected browser cases.
+  - command: make test-release-ui-stack-b
+    result: external managed Workflow/Audit journey passed, 89.704 seconds, with one executed browser
+      case and owner-boundary assertions.
+  - command: go test -tags=e2e ./tests/ui-stack -run ^TestUIStackConfigurationClosure$
+    result: both managed modes passed with unchanged model policies/budgets and two-assertion batch.
