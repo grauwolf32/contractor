@@ -35,11 +35,28 @@ context:
     are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. Implementation
     tasks remain pending. User follow-up 2026-11-25 requests grouping and execution in the minimum number
     of passes. Execution groups are isolation assessment, coordinated resource/capacity implementation,
-    and integrated acceptance.'
+    and integrated acceptance. User instruction 2026-11-25 explicitly authorizes completing execution
+    groups 2 and 3 end to end, simplifying and reducing code and reusing existing mechanisms wherever
+    possible.'
   test_command_contract: Introduce the memory experiment command with actual process startup/teardown
     and redacted reproducible evidence. It must fail unavailable prerequisites rather than substitute
     synthetic measurements. Deterministic scenarios are required in the release graph.
   execution_group: 3
+  verification_execution: Complete the existing 12 release stages, reusing the already executed integrated-build
+    reports and retrying failed targets after their prerequisites are repaired. Record original failures
+    and subsequent passing evidence without claiming a failed top-level invocation succeeded. Keep the
+    full release exit requirement, real Linux rootless Podman, real PostgreSQL, memory comparison, complexity
+    review and final owned-resource cleanup. Family targets skipped by RELEASE_CONSOLIDATED and disabled
+    optional heavy-I/O cases are not passing coverage.
+  measurement_design: Use the existing real Server/Runtime/PostgreSQL placement process harness and its
+    registered four-slot test root through an explicit opt-in measurement branch. Compile one test binary,
+    alternate 4x1 and 1x4 across three repetitions, and run four identical model-free external scanner
+    Workers behind warmup/load/release barriers. Enable the same local-workspace capability and process-owned
+    archive cache in both layouts. Sample Runtime and descendant RSS/PSS/private memory on Linux; exclude
+    the identical fixture Server/driver. Report CPU-work throughput/latency and authoritative heartbeat
+    progress, bounds and uncertainty. This measures registered process overhead under the stated scanner
+    workload; separate real HTTP/Podman/cache acceptance covers their isolation, without treating these
+    numbers as their peak-load memory budget.
 scope:
   in:
   - Integrated acceptance matrix and persistent redacted evidence covering V487-001 through V487-004 through
