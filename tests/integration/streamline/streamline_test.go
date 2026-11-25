@@ -231,7 +231,7 @@ func (g *scriptedGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		arguments = `{"subtask_id":"1"}`
 	case 4:
 		name = "finish"
-		arguments = `{"outcome":"succeeded","summary":"final report accepted","artifacts":{"report":{"namespace":"review","name":"report","revision":"report-r1"}}}`
+		arguments = `{"outcome":"succeeded","summary":"final report accepted","artifacts":{"report":{"namespace":"review","name":"report"}}}`
 	default:
 		g.t.Errorf("unexpected Gateway call %d", step+1)
 		http.Error(w, "unexpected call", http.StatusInternalServerError)
