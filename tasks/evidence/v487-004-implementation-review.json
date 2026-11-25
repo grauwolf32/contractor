@@ -1,0 +1,129 @@
+{
+  "status": "implementation_review_passed_exit_acceptance_in_progress",
+  "base": "e40825690",
+  "production_commit": "a0558d13bfee9ec2cb2d95585bd94208b4f50f29",
+  "reviewed_head": "0659e7436b896b28d1e1a1c3e61db0847f859974",
+  "line_accounting": {
+    "wire/API schemas": {
+      "files": 3,
+      "added": 313,
+      "removed": 34,
+      "net": 279
+    },
+    "tests and fixtures": {
+      "files": 131,
+      "added": 2898,
+      "removed": 797,
+      "net": 2101
+    },
+    "other": {
+      "files": 9,
+      "added": 117,
+      "removed": 8,
+      "net": 109
+    },
+    "deployment production": {
+      "files": 5,
+      "added": 13,
+      "removed": 4,
+      "net": 9
+    },
+    "docs and tracking": {
+      "files": 30,
+      "added": 773,
+      "removed": 140,
+      "net": 633
+    },
+    "Server production": {
+      "files": 13,
+      "added": 411,
+      "removed": 281,
+      "net": 130
+    },
+    "generated clients": {
+      "files": 3,
+      "added": 127,
+      "removed": 39,
+      "net": 88
+    },
+    "Runtime production": {
+      "files": 19,
+      "added": 832,
+      "removed": 399,
+      "net": 433
+    },
+    "UI production": {
+      "files": 6,
+      "added": 116,
+      "removed": 72,
+      "net": 44
+    }
+  },
+  "removed_mechanisms": [
+    "Per-allocation mitmproxy Master and process-global capture/restore; process integration is now owned once by the Runtime.",
+    "Singleton allocation membership in Runtime/Registry and singleton Podman entry; replaced in place with bounded membership, without another scheduler or entity.",
+    "Global serialization of allocation Podman operations; existing OwnedOperations now guards the addressed allocation and four framed lanes reuse one owner/health channel.",
+    "Production AllocationSnapshot inspection export; retained only in test helpers.",
+    "Experimental copies of HTTP task-local option/TLS/session integration; the isolation experiment now uses the production owner."
+  ],
+  "added_boundaries": [
+    {
+      "boundary": "Runtime native HTTP engine and allocation session",
+      "caller": "HTTPTransportFactory / HTTPTransport",
+      "reason": "One process-wide integration with separate trust, pools, flow/cookie/credential authority and joined allocation cleanup."
+    },
+    {
+      "boundary": "AllocationService routes to the reused Allocation lifecycle",
+      "caller": "Private control, A2A, state handlers and lease watchdog",
+      "reason": "Only short bounded admission bookkeeping is shared; existing lifecycle locks and cleanup remain allocation-local."
+    },
+    {
+      "boundary": "Four allocation IPC lanes to one Podman owner",
+      "caller": "PodmanAllocation and LifecycleBackend",
+      "reason": "Concurrent commands do not serialize neighbors. Reusing framed streams avoids request-correlation maps, a new RPC protocol or durable receipts."
+    }
+  ],
+  "unchanged_mechanisms": [
+    "One sequenced heartbeat and one confirmed lease per Runtime.",
+    "Existing reservation matching, durable placement pins, write fences, principal replacement and release acknowledgement.",
+    "Existing process-wide ImmutableArchiveCache and quotas, authenticated metadata per consumer, independent extracted workspaces.",
+    "Existing receipts and leases; no database migration, new table, warm container pool or allocation subprocess."
+  ],
+  "verified_boundaries": [
+    {
+      "case": "four active, fifth waits, release/replacement and smaller-capacity restart",
+      "boundary": "real Server/PostgreSQL/Runtime processes",
+      "result": "passed"
+    },
+    {
+      "case": "four-Worker Stage persisted atomically in one Runtime; oversized Stage leaves no partial reservation",
+      "boundary": "real PostgreSQL and production placement allocator",
+      "result": "passed"
+    },
+    {
+      "case": "shared native HTTP isolation matrix and common fault/failed cleanup",
+      "boundary": "real TCP/TLS/HTTP2/scanner sockets and production engine",
+      "result": "9 matrix scenarios plus common-fault regression passed"
+    },
+    {
+      "case": "four Podman commands overlap, targeted removal preserves peers, stale handle fails and fifth reuses owner",
+      "boundary": "real Linux rootless Podman",
+      "result": "13 command module tests passed"
+    },
+    {
+      "case": "one Podman Worker and three model-free tool Workers share one Runtime",
+      "boundary": "real Server/PostgreSQL/Runtime/rootless Podman",
+      "result": "passed; releasing ordinary Workers preserved the container"
+    },
+    {
+      "case": "four cache consumers and neighboring ADK tools during release/cache clear",
+      "boundary": "ordinary workspace/cache clients and actual ADK tool invocation",
+      "result": "passed"
+    }
+  ],
+  "pending": [
+    "Complete release graph, same-build Linux memory comparison and final owned-resource cleanup remain the V487-005 exit acceptance."
+  ],
+  "delivery": "Isolated codex/runtime-multislot-proposal branch, unmerged. Primary checkout user changes preserved.",
+  "line_accounting_basis": "git diff --numstat e40825690 through the reviewed working tree; text lines, not semantic SLOC. Production is separated from tests/experiments, generated clients, schema, documentation and tracking."
+}
