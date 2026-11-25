@@ -5,7 +5,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: execution-core
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V487-001
 languages:
@@ -256,3 +256,34 @@ tests:
 - command: make test-podman-release
   covers:
   - A3
+implementation_commit: 146ecb3bc5673358518e7c8f06b0dbb8cdd833fc
+verification:
+  result: passed
+  commands:
+  - command: make test-go and final consolidated Go unit pass
+    result: passed with PostgreSQL; final JSON records 11552 passed tests/packages, 46 declared skips;
+      no database-unavailable skips.
+  - command: make test-runtime
+    result: 6698 passed, 135 declared platform/opt-in skips; 587 compaction cases passed.
+  - command: make ui-verify and required browser checks
+    result: 2586 UI tests passed, one authored expected failure; build/typecheck/generated/lint passed.
+      259 mocked browser cases and all 117 selected Operations cases plus native/external Eval journeys
+      passed.
+  - command: make test-wire-cross-language
+    result: 'passed: 427 contract model tests plus 416 fixtures, 470 Go and 296 selected Python shared
+      tests; full Runtime reader audit includes 297 Python cases. One optional disk-heavy skip is not
+      passing coverage.'
+  - command: make lint; make test-ansible test-hybrid
+    result: passed, including final targeted restart guard cases; final milestone lint remains in V487-005.
+  - command: four-slot production process scenario
+    result: 'passed: four concurrent allocations, fifth waits, targeted cancellation and replacement preserve
+      peers, restart under same principal accepts fresh capacity 1, 130.464 seconds.'
+  - command: Linux rootless make test-podman-release
+    result: passed including four simultaneous commands, owner reuse, stale handle rejection, mixed one-Podman/three-tool
+      Runtime and cleanup.
+  - command: go test -race -tags=integration -count=1 -timeout=12m ./internal/controlplane
+    result: entire package passed in 40.150 seconds after explicitly pinning the one-slot lifecycle fault
+      harness.
+  exit_boundary: The complete release graph, same-build Linux memory comparison and owned-resource delivery
+    remain mandatory in V487-005; this completes group 2 implementation, not milestone release acceptance.
+  complexity: tasks/evidence/v487-004-implementation-review.json
