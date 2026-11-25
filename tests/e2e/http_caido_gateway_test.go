@@ -32,7 +32,7 @@ func newHTTPCaidoGateway(token, targetURL string) *domainGateway {
 
 func httpCaidoHTTPGatewayStage(name, targetURL string) domainGatewayStage {
 	tools := append(gatewayToolsetTools("http-tools@1"), gatewayToolsetTools("text-artifacts@1")...)
-	tools = append(tools, "read_artifact", "fact")
+	tools = append(tools, "read_artifact", "fact", "list_skills", "load_skill", "load_skill_resource")
 	tools = withMemoryTools(tools)
 	sort.Strings(tools)
 	return domainGatewayStage{

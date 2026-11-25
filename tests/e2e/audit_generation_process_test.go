@@ -163,7 +163,7 @@ func generationProposalStage(prior, empty, exploratory bool) domainGatewayStage 
 	if exploratory {
 		contextSlot, resultSlot, resultName = "research", "draft_report", "drafts"
 	}
-	stage := domainGatewayStage{name: fmt.Sprintf("generation/empty=%t", empty), tools: []string{"read_artifact", "list_project_findings", "read_project_finding", "select_project_findings", "read_finding_selection", "submit_hypothesis_proposals"}}
+	stage := domainGatewayStage{name: fmt.Sprintf("generation/empty=%t", empty), tools: []string{"read_artifact", "list_project_findings", "read_project_finding", "select_project_findings", "read_finding_selection", "submit_hypothesis_proposals", "list_skills", "load_skill", "load_skill_resource"}}
 	stage.steps = append(stage.steps, toolGatewayStep("read_artifact", stageReadArguments("context", nil)))
 	stage.steps = append(stage.steps, toolGatewayStep("read_artifact", stageReadArguments(contextSlot, nil)))
 	if prior {
