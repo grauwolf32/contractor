@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 15 in progress, 43 pending, 13 deferred. 1700 finished: 1682 completed, 18 archived.
+70 open tasks: 14 in progress, 43 pending, 13 deferred. 1701 finished: 1683 completed, 18 archived.
 
 ## In progress
 
@@ -25,7 +25,6 @@ the epics are in [epics.yml](epics.yml).
 | [V487-003](v487-003-runtime-podman-resources.yml) | sandbox | feature | P2 | Manage allocation containers through one Runtime Podman owner |
 | [V487-004](v487-004-runtime-allocation-slots.yml) | execution-core | feature | P2 | Run bounded concurrent allocations in one configurable Runtime process |
 | [V487-006](v487-006-podman-artifact-fixture.yml) | sandbox | chore | P2 | Exercise file-backed publication in the Linux Podman lifecycle test |
-| [V487-008](v487-008-planner-gateway-finish-fixture.yml) | execution-core | chore | P2 | Use Runtime-owned finish revisions in the scripted Gateway fixture |
 
 ## Pending
 
@@ -162,7 +161,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 6 | 52 | 73 | 44 | 109 |
+| Run execution core (`execution-core`) | 5 | 52 | 73 | 44 | 109 |
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 100 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
