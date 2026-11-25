@@ -116,7 +116,11 @@ def measure_case(binary, directory, slots, target):
 
         def check():
             if process.poll() is not None:
-                detail = (directory / "harness.log").read_text()[-8000:]
+                lines = (directory / "harness.log").read_text().splitlines()
+                failures = [
+                    line for line in lines if ".go:" in line and "Runtime probe:" not in line
+                ]
+                detail = "\n".join([*lines[:3], *failures, *lines[-3:]])[-8000:]
                 raise RuntimeError(f"measurement process exited before its barrier:\n{detail}")
             require(time.monotonic() < deadline, "measurement phase deadline expired")
 

@@ -43,6 +43,7 @@ type observedRuntimeAgent struct {
 	State                      string                      `json:"state"`
 	AllocationSlots            int                         `json:"allocationSlots"`
 	AvailableSlots             int                         `json:"availableSlots"`
+	FencedSlots                int                         `json:"fencedSlots"`
 	AuthoritativeAllocationIDs []string                    `json:"authoritativeAllocationIds"`
 	ObservedAllocations        []struct {
 		AllocationID  string `json:"allocationId"`

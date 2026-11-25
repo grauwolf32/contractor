@@ -298,8 +298,11 @@ func TestTaintAnnotationsAcrossRealRuntimeProcess(t *testing.T) {
 		t, ctx, server, runtimes, publicClient, publicBaseURL,
 		func(items []observedRuntimeAgent) bool {
 			return len(items) == 1 && items[0].InstanceID == runtimeAgent.InstanceID &&
-				items[0].State == "fenced" && items[0].ObservedState == "idle" &&
-				len(items[0].ObservedAllocations) == 0 &&
+				items[0].State == "draining" && items[0].ObservedState == "allocated" &&
+				items[0].AvailableSlots == 0 && items[0].FencedSlots == 1 &&
+				len(items[0].ObservedAllocations) == 1 &&
+				items[0].ObservedAllocations[0].AllocationID == initialAllocation.AllocationID &&
+				items[0].ObservedAllocations[0].ObservedState == "fenced" &&
 				len(items[0].AuthoritativeAllocationIDs) != 0 &&
 				items[0].AuthoritativeAllocationIDs[0] == initialAllocation.AllocationID
 		},

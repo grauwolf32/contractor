@@ -1368,8 +1368,9 @@ Plane does not offer the slot until a confirmed heartbeat reports the matching
 idle state (LIFE-CTL-2).
 
 **CTL-R125.** A lost private release response leaves both sides
-retry-safe, while a cleanup failure keeps that Runtime Agent fenced without
-rewriting the terminal Stage outcome; a failed release retains the allocation
+retry-safe, while a cleanup failure keeps that allocation slot fenced without
+rewriting the terminal Stage outcome. Healthy neighboring slots remain eligible
+unless the process itself is fenced; a failed release retains the allocation
 grant (FAIL-CTL-7).
 
 **CTL-R126.** The outbound Runtime release calls of one batch are
