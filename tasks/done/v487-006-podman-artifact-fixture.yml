@@ -1,0 +1,51 @@
+schema_version: '1.0'
+id: V487-006
+title: Exercise file-backed publication in the Linux Podman lifecycle test
+milestone: runtime-allocation-slots-2026-11
+epic: sandbox
+kind: chore
+priority: P2
+status: completed
+depends_on: []
+languages:
+- python
+goal: The Linux Podman acceptance fixture exercises the current workspace source-path publication contract.
+context:
+  authority: User request 2026-11-25 authorizes completing multi-slot execution groups 2 and 3. This existing
+    gate defect is a prerequisite found during Linux verification.
+  finding: runtime/tests/test_podman_command_coordination.py:370 still supplies base64 payload text as
+    write_artifact's source_path, so the real workspace reader rejects workspace_not_found.
+  specification: docs/spec/tools/toolsets.md
+  history: Git blame resolves this fixture and adapter to the squashed 14dddad611a579c7a8611ecdb5727ec3647b58ad
+    baseline; the original introducing task cannot be established. V479-001 explicitly preserves file-backed
+    source_path publication.
+scope:
+  in:
+  - Replace stale positional arguments with the generated workspace path and media type; test the write
+    fence while that workspace remains live and remove the unused base64 import.
+  out:
+  - Production Artifact behavior
+  - sandbox behavior
+  - configuration identities.
+acceptance_criteria:
+- id: A1
+  text: The selected execution changes analysis and publishes the generated file through the real source-path
+    reader; the write fence remains enforced.
+- id: A2
+  text: The complete Linux command-coordination module and Ruff pass.
+tests:
+- command: cd runtime && uv run pytest -W error tests/test_podman_command_coordination.py
+  covers:
+  - A1
+  - A2
+- command: cd runtime && uv run ruff check tests/test_podman_command_coordination.py
+  covers:
+  - A2
+implementation_commit: 17a6b52f6ce4b9fb99b66bad498fba009d698bf8
+verification:
+  result: passed
+  commands:
+  - command: Linux pytest tests/test_podman_command_coordination.py and Ruff
+    result: passed; all 13 module cases executed on Linux, no skips; Ruff check passed
+  environment: Owned PostgreSQL and Linux rootless test lane; no demo database or production contract
+    changes.

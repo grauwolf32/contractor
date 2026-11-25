@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 14 in progress, 43 pending, 13 deferred. 1701 finished: 1683 completed, 18 archived.
+69 open tasks: 13 in progress, 43 pending, 13 deferred. 1702 finished: 1684 completed, 18 archived.
 
 ## In progress
 
@@ -24,7 +24,6 @@ the epics are in [epics.yml](epics.yml).
 | [V487-002](v487-002-runtime-http-sessions.yml) | http-tools | feature | P2 | Share the Runtime HTTP engine through isolated allocation sessions |
 | [V487-003](v487-003-runtime-podman-resources.yml) | sandbox | feature | P2 | Manage allocation containers through one Runtime Podman owner |
 | [V487-004](v487-004-runtime-allocation-slots.yml) | execution-core | feature | P2 | Run bounded concurrent allocations in one configurable Runtime process |
-| [V487-006](v487-006-podman-artifact-fixture.yml) | sandbox | chore | P2 | Exercise file-backed publication in the Linux Podman lifecycle test |
 
 ## Pending
 
@@ -175,7 +174,7 @@ tasks in `introduced_by`.
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 78 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 21 | 55 |
-| Podman sandbox (`sandbox`) | 4 | 11 | 2 | 3 | 6 |
+| Podman sandbox (`sandbox`) | 3 | 11 | 2 | 3 | 6 |
 | Web UI (`ui`) | 1 | 56 | 83 | 34 | 80 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
