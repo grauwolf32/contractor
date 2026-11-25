@@ -5,7 +5,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: evals
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - python
@@ -53,3 +53,13 @@ tests:
   covers:
   - A1
   - A2
+implementation_commit: 7a8a998284e815742fd08ed21bc088f1696693ee
+verification:
+  result: passed
+  commands:
+  - command: make test-context-compaction-eval-fixtures
+    result: 43 tests, 7 variants, 3 classes, 105 scored samples and both Go packages passed; no Gateway
+      calls.
+  pins: 'Updated only six stale digest values in the existing offline fixture manifest: scorer closure
+    and five already-present catalog templates. Scorer/validator algorithms, authored catalog bytes, visible
+    inputs, truth, thresholds, live registrations and saved measurement evidence were unchanged.'
