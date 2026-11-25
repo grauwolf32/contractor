@@ -11,6 +11,7 @@ depends_on: []
 languages:
 - go
 - python
+- typescript
 goal: Existing catalog acceptance tests resolve the shipped immutable identities and can exercise their
   domain assertions.
 context:
@@ -28,7 +29,9 @@ context:
   sibling_finding: 'Release UI-stack verification exposed the same stale exact identity in tests/ui-stack/evals_producer.py:368
     and its standard-library fixture: audit-source-check@1 instead of the current source-checklist profile
     pinned audit-source-check@3. Reopen the task to fix both strict expectations; do not relax result
-    or evidence validation.'
+    or evidence validation. The real Operations browser journey also pins absent owasp-top10-2025-source-risk@1
+    in ui/e2e/support/finding-duplicates.ts:101; the current shipped profile is @3. Follow that exact
+    pin as well.'
 scope:
   in:
   - Correct every absent sibling exact selector and the matching HTTP draft selector in the existing catalog
@@ -37,6 +40,7 @@ scope:
     admission.
   - Follow the current audit-source-check@3 pin in the managed Eval producer and its standard-library
     evidence fixture.
+  - Correct the exact top10 source-risk profile in the browser finding-correlation fixture.
   out:
   - Catalog manifests and lock
   - domain expectations
