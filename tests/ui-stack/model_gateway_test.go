@@ -364,7 +364,7 @@ func withMemoryTools(tools []string) []string {
 
 func openAPIGatewayStages() []gatewayStage {
 	analystTools := []string{
-		"attack_surface", "complexity_hotspots", "entrypoint_paths_to", "find_callees",
+		"attack_surface", "complexity_hotspots", "entrypoint_paths_to", "fact", "find_callees",
 		"find_callers", "find_symbol", "functions_that_raise", "glob", "graph_summary",
 		"grep", "list_symbols", "ls", "paths_between", "read_file", "read_artifact",
 		"search_def", "write_text_artifact",

@@ -1,0 +1,28 @@
+schema_version: '1.0'
+id: V487-013
+title: Follow the discovery fact tool in the browser Gateway fixture
+milestone: runtime-allocation-slots-2026-11
+epic: workflows
+kind: chore
+introduced_by: V481-001
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: The real Operations browser journey accepts the configured discovery tool set and continues to verify API generation and ownership.
+context:
+  authority: User request 2026-11-25 authorizes completing groups 2 and 3. The complete release graph exposed this independent fixture prerequisite on 2026-11-26.
+  finding: tests/ui-stack/model_gateway_test.go:366 omits fact from the exact expected workspace_source_graph_analyst tool set after V481-001 selected it; the Gateway rejects dependency_discovery before the browser can observe generated OpenAPI output.
+  siblings: Both dependency_discovery and project_discovery use the same analystTools. Builders and validators do not select fact. The retained duplicate-source scenario uses its own test-only template and does not inherit shipped research tools.
+  specification: docs/spec/tools/toolsets.md#TLS-R43
+scope:
+  in: [Add fact to the shared discovery expectation.]
+  out: [Production tools, catalog configuration, model policy, Gateway permissiveness and browser assertions.]
+acceptance_criteria:
+- id: A1
+  text: The Operations browser journey completes both discovery stages, OpenAPI generation and validation, and its remaining ownership and secret-boundary assertions.
+- id: A2
+  text: Exact tool-set validation remains in force and the entire UI stack A shard passes.
+tests:
+- command: make test-release-ui-stack-a
+  covers: [A1, A2]
