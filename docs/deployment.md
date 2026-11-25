@@ -57,8 +57,9 @@ no bearer token or model credentials. See [UI deployment](../deploy/ui/README.md
 For remote Runtime hosts, change private listen/advertised addresses and issue
 certificates whose SANs match those hosts. Use a unique Runtime certificate,
 listener port and work root for each process. Keep private mTLS listeners off
-the public reverse-proxy routes. A Runtime has one allocation slot; adding a
-process adds capacity only for the capabilities it advertises.
+the public reverse-proxy routes. Each Runtime advertises its startup capacity
+(`--allocation-slots`, 1–4, default 4). Different processes may have different
+capacities; each slot is eligible only for the capabilities its Runtime advertises.
 
 ## Identity, configuration and storage
 
