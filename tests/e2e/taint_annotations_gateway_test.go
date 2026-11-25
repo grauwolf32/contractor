@@ -22,7 +22,7 @@ const (
 var taintAnnotationModelTools = []string{
 	"annotate_sink", "annotate_trace", "annotate_validate",
 	"attack_surface", "changed_paths", "complexity_hotspots", "diff",
-	"entrypoint_paths_to", "find_callees", "find_callers", "find_symbol",
+	"entrypoint_paths_to", "fact", "find_callees", "find_callers", "find_symbol",
 	"finding", "functions_that_raise", "glob", "graph_summary", "grep", "list_skills",
 	"list_symbols", "load_skill", "load_skill_resource", "ls", "paths_between",
 	"read_file", "read_artifact", "rollback_changes", "search_def",
