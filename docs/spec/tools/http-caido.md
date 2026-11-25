@@ -1378,6 +1378,8 @@ Master. Each allocation owns a session with separate options, TLS configuration
 and trust files, connection pools, flows, ingress capabilities and cleanup. A
 stable `ctx.options` proxy resolves task-local options; target and ingress
 callbacks install that context, which propagates to joined worker threads.
+The common owner serializes native certificate initialization, which temporarily
+changes the process umask, and joins it before another session initializes TLS.
 Access without an owning context fails closed. The implementation-neutral module is `adapters.bridge`; its existing
 IPC handle and classified failures belong there. The concrete `MitmproxyEngine`
 and native protocol/lifecycle internals belong to `adapters.bridge.mitmproxy`,

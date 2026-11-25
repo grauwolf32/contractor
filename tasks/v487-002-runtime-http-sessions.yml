@@ -43,16 +43,22 @@ context:
   execution_group: 2
   design: tasks/evidence/v487-001-mitmproxy-isolation.md
   execution_batch: Group 2 executes V487-002, V487-003 and V487-004 as one coordinated implementation
-    pass after successful V487-001 evidence. These tasks share the same integration branch. Reconcile
-    interfaces first, implement existing resource owners and capacity consumers together, run focused
-    regressions during changes and one combined set of full gates against the integrated result. If build/wire
-    callers require atomic landing, commit the batch together under the AGENTS.md build-green exception.
-    No task is complete before its own acceptance and the combined gates pass.
-  verification_execution: 'User request 2026-11-25 asks for the minimum number of passes. Final verification
-    uses the existing release-verify consolidation rather than repeating all family suites: actual Go/Runtime/shared-fixture,
-    race, integration, process and browser reports must demonstrate nonzero required cases. Family targets
-    skipped by RELEASE_CONSOLIDATED are not independent passing coverage. The Linux rootless Podman gate
-    stays separate.'
+    pass after successful V487-001 evidence. Private/public wire and consumers land atomically under the
+    AGENTS.md build-green exception. Boundary package, fixture, process and Linux rootless checks accept
+    this implementation group. The complete release graph and memory/owned-resource delivery remain mandatory
+    exit acceptance in dependent V487-005.
+  verification_execution: 'Verification ownership clarified 2026-11-26 within the user-authorized groups
+    2 and 3: keep full changed-package and real boundary checks here, and the complete release graph in
+    V487-005. This avoids making the memory/cleanup acceptance wait for unrelated long release shards
+    before it may start. Reuse already executed checks from the integrated build, record exact selected
+    cases and rerun failed stages after fixes. Never count RELEASE_CONSOLIDATED family skips, unavailable
+    PostgreSQL or Podman as passes. V487-005 cannot complete until every required release stage succeeds.'
+  native_process_state_finding: The repeated full Runtime gate exposed a leaked restrictive umask in the
+    following Podman lock-mode canary. Concurrent native CertStore.create_store calls use a process-wide
+    os.umask context from worker threads. Reuse the common engine initialization lock around joined TLS
+    setup; keep requests allocation-local. A deterministic overlap regression and the real nine-case matrix
+    verify serialization and restored process umask. This is inside the existing common native process-state
+    ownership boundary, not another resource mechanism.
 scope:
   in:
   - Move engine lifetime to existing Runtime composition and give ordinary HTTPTransport callers allocation-owned
@@ -138,9 +144,17 @@ acceptance_criteria:
   then: Old allocation engine ownership and duplicated cleanup are removed, every new API has a caller,
     and line growth is explained.
 tests:
-- command: make release-verify
+- command: make test-runtime
   covers:
   - A1
   - A2
   - A3
   - A4
+- command: make lint
+  covers:
+  - A4
+- command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestEngagementHTTPBoundsAcrossProcesses)$'
+  covers:
+  - A1
+  - A2
+  - A3

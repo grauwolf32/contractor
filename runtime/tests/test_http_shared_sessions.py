@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import os
 from pathlib import Path
 
 
@@ -16,7 +17,13 @@ def matrix_module():
 
 
 def test_shared_native_engine_keeps_allocation_sessions_isolated():
-    report = asyncio.run(matrix_module().assess())
+    original = os.umask(0)
+    os.umask(original)
+    try:
+        report = asyncio.run(matrix_module().assess())
+    finally:
+        restored = os.umask(original)
+    assert restored == original
     assert report["verdict"] == "supported"
     assert len(report["matrix"]) == 9
     assert all(case["native_master_creations"] == 1 for case in report["matrix"].values())
@@ -116,5 +123,53 @@ def test_factory_startup_probe_guards_version_and_shares_one_lazy_engine(monkeyp
                 await factory.close()
         assert factory._engine.master is None and not factory._engine.sessions
         assert runtime._active is None
+
+    asyncio.run(scenario())
+
+
+def test_shared_tls_configuration_joins_before_next_session(monkeypatch):
+    from types import SimpleNamespace
+
+    from contractor_runtime.adapters.bridge.mitmproxy import runtime
+
+    async def scenario():
+        engine = runtime.MitmproxyEngine()
+        entered, release, attempted = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        active = maximum = calls = 0
+
+        async def configure_in_thread(configure, keys, *, name):
+            nonlocal active, maximum
+            assert name == "http-session-tls" and keys == {"owner"}
+            active += 1
+            maximum = max(maximum, active)
+            entered.set()
+            await release.wait()
+            configure(keys)
+            active -= 1
+
+        monkeypatch.setattr(runtime, "to_thread_until_done", configure_in_thread)
+
+        async def session(owner):
+            nonlocal calls
+            calls += 1
+            if calls == 4:
+                attempted.set()
+
+            def configure(keys):
+                assert runtime._options.get() == {"owner": owner}
+
+            await engine.configure_tls(SimpleNamespace(configure=configure), {"owner": owner})
+
+        tasks = [asyncio.create_task(session(owner)) for owner in range(4)]
+        try:
+            await entered.wait()
+            await attempted.wait()
+            release.set()
+            await asyncio.gather(*tasks)
+            assert maximum == 1
+        finally:
+            release.set()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            await engine.close()
 
     asyncio.run(scenario())

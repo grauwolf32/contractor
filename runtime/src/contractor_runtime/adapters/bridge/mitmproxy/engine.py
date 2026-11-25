@@ -402,10 +402,7 @@ class MitmproxySession:
             self.options.update(confdir=self.directory.name, ssl_verify_upstream_trusted_ca=trusted)
             self.tls = tlsconfig.TlsConfig()
             self.next_layer = self.runtime.next_layer
-            with native_options(self.options):
-                await to_thread_until_done(
-                    self.tls.configure, set(self.options.keys()), name="http-session-tls"
-                )
+            await self.runtime.configure_tls(self.tls, self.options)
 
     def create_ingress(self, bridge, reader, writer):
         """Construct this implementation's local scanner protocol handler."""

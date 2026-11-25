@@ -147,6 +147,16 @@ class MitmproxyEngine:
                 self._failed = True
                 raise
 
+    async def configure_tls(self, config, session_options):
+        # Native CA creation changes the process umask, so session setup must join
+        # before another session can enter it. Requests keep their private locks.
+        async with self._lock:
+            self.require_available()
+            with native_options(session_options):
+                await to_thread_until_done(
+                    config.configure, set(session_options.keys()), name="http-session-tls"
+                )
+
     @staticmethod
     def erase_tls_contexts():
         _ProcessState.erase_tls_contexts()
