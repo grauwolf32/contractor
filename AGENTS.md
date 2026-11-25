@@ -22,7 +22,7 @@ coverage, evidence, findings and human review.
 | Component | Language | Owns |
 | --- | --- | --- |
 | Server (`cmd/`, `internal/`) | Go 1.26, `net/http`, pgx v5 | Public API, Scheduler, Control Plane, Planners, Audit/Eval controllers, persistence |
-| Runtime Agent (`runtime/`) | Python 3.13, uv, Google ADK, A2A | One allocation slot, one Worker, toolsets, workspaces, sandbox |
+| Runtime Agent (`runtime/`) | Python 3.13, uv, Google ADK, A2A | 1–4 allocation slots per process, one Worker per allocation, shared service owners, private workspaces/sandboxes |
 | UI (`ui/`) | React, Node 24, pnpm | Browser client of the public API; Node serves static files only |
 | PostgreSQL | — | Durable metadata and inline artifact payloads |
 | LLM Gateway | external | OpenAI-compatible endpoint (LiteLLM, LM Studio) |
