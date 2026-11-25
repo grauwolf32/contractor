@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 12 in progress, 42 pending, 13 deferred. 1709 finished: 1691 completed, 18 archived.
+66 open tasks: 11 in progress, 42 pending, 13 deferred. 1710 finished: 1692 completed, 18 archived.
 
 ## In progress
 
@@ -22,7 +22,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V487-005](v487-005-runtime-multislot-acceptance.yml) | execution-core | chore | P2 | Verify isolation cleanup and memory benefit of the multi-slot Runtime |
-| [V487-013](v487-013-browser-fact-tool-fixture.yml) | workflows | chore | P2 | Follow configured research fact tools in Gateway fixtures |
 
 ## Pending
 
@@ -168,7 +167,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 5 | 27 | 38 | 18 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 22 | 16 | 13 | 30 |
-| Workflow catalog and document workflows (`workflows`) | 7 | 22 | 18 | 17 | 28 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 78 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 23 | 55 |

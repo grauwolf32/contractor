@@ -6,7 +6,7 @@ epic: workflows
 kind: chore
 introduced_by: V481-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -26,16 +26,6 @@ context:
   additional_sibling_finding: The remaining process shard exposed tests/e2e/taint_annotations_gateway_test.go:24
     omitting fact from the shared mutate/clean-reuse template expectation after V481-001. Reopen for this
     research sibling; retain exact tool-set validation and every private workspace/reuse assertion.
-  previous_acceptance:
-    result: passed
-    commands:
-    - command: make test-release-ui-stack-a
-      result: all 12 root cases passed; actual Operations journey verifies 117 browser cases, scanner
-        widget 1, native Eval 1, plus exact staged configuration/tool contracts. No skipped, unexpected
-        or flaky selected browser cases.
-    - command: make test-release-ui-stack-b
-      result: external managed Workflow/Audit journey passed, 89.704 seconds, with one executed browser
-        case and owner-boundary assertions.
 scope:
   in:
   - Add fact to both research expectations.
@@ -62,3 +52,19 @@ tests:
   covers:
   - A1
   - A2
+implementation_commit: ebcc7611f8321a1cfbe77080e722adad45b90a28
+verification:
+  result: passed
+  commands:
+  - command: make test-release-ui-stack-a
+    result: all 12 root cases passed; actual Operations journey verifies 117 browser cases, scanner widget
+      1, native Eval 1, plus exact staged configuration/tool contracts. No skipped, unexpected or flaky
+      selected browser cases.
+  - command: make test-release-ui-stack-b
+    result: external managed Workflow/Audit journey passed, 89.704 seconds, with one executed browser
+      case and owner-boundary assertions.
+  - command: go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestTaintAnnotationsAcrossRealRuntimeProcess$'
+    result: passed, 64.582 seconds; two Workers, strict tools, source edits, lost release reply, retained
+      slot fence, clean reuse and OTLP/private-boundary assertions
+  - command: go test ./tests/e2e
+    result: passed
