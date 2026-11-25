@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 13 in progress, 43 pending, 13 deferred. 1702 finished: 1684 completed, 18 archived.
+70 open tasks: 14 in progress, 43 pending, 13 deferred. 1702 finished: 1684 completed, 18 archived.
 
 ## In progress
 
@@ -24,6 +24,7 @@ the epics are in [epics.yml](epics.yml).
 | [V487-002](v487-002-runtime-http-sessions.yml) | http-tools | feature | P2 | Share the Runtime HTTP engine through isolated allocation sessions |
 | [V487-003](v487-003-runtime-podman-resources.yml) | sandbox | feature | P2 | Manage allocation containers through one Runtime Podman owner |
 | [V487-004](v487-004-runtime-allocation-slots.yml) | execution-core | feature | P2 | Run bounded concurrent allocations in one configurable Runtime process |
+| [V487-009](v487-009-http-skill-gateway-fixture.yml) | http-tools | chore | P2 | Follow configured native Skills in process Gateway fixtures |
 
 ## Pending
 
@@ -164,10 +165,10 @@ tasks in `introduced_by`.
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 100 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
-| Agent Skills (`agent-skills`) | 0 | 14 | 4 | 2 | 4 |
+| Agent Skills (`agent-skills`) | 0 | 14 | 4 | 2 | 5 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 6 | 27 | 38 | 17 | 39 |
+| HTTP and Caido tools (`http-tools`) | 7 | 27 | 38 | 18 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 22 | 16 | 13 | 30 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 16 | 27 |

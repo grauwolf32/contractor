@@ -5,7 +5,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: sandbox
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - python
@@ -49,3 +49,14 @@ tests:
   covers:
   - A1
   - A2
+implementation_commit: b62d6a4367cda950dc170f6e761f72043bebdf63
+verification:
+  result: passed
+  commands:
+  - command: Linux cd runtime && uv run pytest -W error tests/test_podman*.py tests/test_code_execution_toolset.py
+    result: 325 passed, 35 declared opt-in skips. Both publication fixtures and their write fences passed.
+  - command: cd runtime && uv run ruff check tests/test_podman_command_coordination.py tests/fakes/podman_workflow.py
+    result: passed
+  history: The first narrow command-coordination repair passed, but the full Linux gate found the sibling
+    expected_revision argument. The task was reopened to repair the class and its complete fixture set,
+    then verified again.
