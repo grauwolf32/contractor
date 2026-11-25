@@ -1,0 +1,129 @@
+schema_version: '1.0'
+id: V487-003
+title: Manage allocation containers through one Runtime Podman owner
+milestone: runtime-allocation-slots-2026-11
+epic: sandbox
+kind: feature
+priority: P2
+status: pending
+depends_on:
+- V487-002
+languages:
+- python
+- go
+- markdown
+goal: A Runtime-owned Podman lifecycle supports multiple allocation resources, so command execution and
+  cleanup of one container do not stop neighboring allocations.
+demonstration: One existing Runtime lifecycle and owner prepare four real rootless containers, execute
+  barrier-controlled commands, then remove one while three continue.
+context:
+  proposal: docs/proposals/0057-runtime-allocation-slots.md
+  specification:
+  - docs/spec/tools/code-execution.md#EXE-R1
+  - docs/spec/tools/code-execution.md#EXE-R62
+  - docs/spec/tools/code-execution.md#EXE-R96
+  - docs/spec/tools/code-execution.md#EXE-R107
+  - docs/spec/execution/runtime-agent.md#RTA-R110
+  authority: 'User decisions 2026-11-25 authorize this planning package: first verify session isolation
+    in one shared mitmproxy engine, then multiple allocations in one Runtime with per-Runtime startup
+    capacity, Runtime-owned HTTP and Podman resources, mandatory cleanup and a shared Artifact cache.
+    User additionally requires minimizing code growth and reducing code where possible. Agent proposals
+    are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. Implementation
+    tasks remain pending.'
+  related_plan_review: Before implementation inspect current V469-002 code if landed. Its retained Audit
+    environment has its own lifecycle and must not be removed as a neighboring ordinary allocation resource.
+    This task does not implement retained environments.
+scope:
+  in:
+  - Extend existing PodmanLifecycle and LifecycleBackend from one entry to bounded allocation-keyed resources,
+    using the existing production factory caller.
+  - Addressed IPC, guardians, health renewal, cancellation, cleanup, discovery and crash recovery for
+    multiple owned containers.
+  - Update EXE, lifecycle/failure contracts and common lifecycle integration tests.
+  out:
+  - Container reuse between allocations, warm pools, new sandbox profiles or traffic interception.
+  - Process capacity publication is V487-004.
+requirements:
+- id: R1
+  text: Extend the existing owners and remove superseded single-allocation paths and duplicate cleanup.
+    Every new abstraction has a production caller. Record deleted fields/functions/branches and production
+    line delta separately from tests/generated/docs, with reasons for remaining growth. Reuse current
+    IDs, receipts, leases and Artifact mechanisms.
+- id: R2
+  text: One Runtime lifecycle/owner supports up to four live allocation resources. Create containers only
+    for an allocation selecting the sandbox. Each has its own workspace, guardian, authority and existing
+    resource limits.
+- id: R3
+  text: Replace single-entry paths throughout owner/backend/health/stop/remove/recovery. Concurrent execute
+    and slow prepare/cleanup cannot serialize unrelated allocations behind one long RPC. Keep control/lease
+    renewal responsive with bounded IPC dispatch.
+- id: R4
+  text: Route every command, reply and reject by allocation and existing request identity. Retry reuses
+    the same creation/cleanup operation and never creates a second container for an ambiguous result.
+- id: R5
+  text: Revocation joins commands, confirms cgroup/container stop and removal, then removes mounted files.
+    Cleanup/discovery filters exact owned identities and cannot delete a live neighbor. Shutdown/lease
+    loss revokes all entries within one process deadline.
+- id: R6
+  text: Retain uncertain container identities and cleanup handles. Confirmed local cleanup failure occupies
+    its resource until retry. Unconfirmed producer stop follows existing process-fatal policy. Startup
+    recovery precedes admission.
+- id: R7
+  text: Use testdata fixtures and deterministic barriers/injected clocks. Regression cases observe the
+    real boundary and detect cross-owner misrouting. Count executed cases, fail empty selection, and report
+    skips explicitly. Ordinary database regressions require real PostgreSQL. Heavy-I/O stays opt-in.
+failure_outcomes:
+- operation: Podman create/execute/stop/remove through owner IPC
+  permanent: Existing invalid/incompatible/unavailable sandbox classifications, with no automatic retry
+    of an invalid request.
+  retryable: Existing bounded lifecycle recovery/cleanup retry using retained exact identity.
+  ambiguous: Inspect/discover using existing ownership and allocation identity before repeating a create
+    or removal.
+  cancelled: Join CLI, supervisor and guardian-owned work before releasing mounts. Neighboring allocations
+    retain their authority.
+  timeout: Preserve prepare, command and cleanup budgets. Process shutdown uses one enclosing deadline
+    and fences all resources on unconfirmed stop.
+cardinality:
+- collection: Runtime Podman entries and IPC operations
+  expected: 0..4 containers
+  maximum: 4 live entries, one active command per allocation, bounded lifecycle operations
+  bound: Reuse command output and prepare/cleanup limits. Apply limits per entry and document aggregate
+    maximum at four. Health loop work is bounded by live entries.
+lifecycle:
+- entity: Podman allocation resource
+  delete: Runtime owns idempotent stop/remove after revocation and before workspace deletion.
+  cascade: Container, guardian, command processes, mounted allocation files after confirmed stop.
+  retention: Uncertain identity retained until reconciliation. Owned leftovers are recovered at next startup,
+    other Runtime resources remain outside ownership.
+acceptance_criteria:
+- id: A1
+  given: One Runtime owner and four real rootless containers
+  when: Independent commands run with barriers
+  then: Commands overlap, replies remain correctly attributed and health renewal continues.
+- id: A2
+  given: One container is cancelled and removed
+  when: Neighbors remain active and the resource is reused
+  then: Only the selected container/workspace disappears and stale commands cannot address its replacement.
+- id: A3
+  given: Lost create/remove response, lease loss or owner death
+  when: Existing reconciliation and recovery run
+  then: No duplicate container, leaked owned scope or deletion of a neighboring live container occurs.
+- id: A4
+  given: Updated owner
+  when: Production paths and EXE contracts are reviewed
+  then: Existing factory uses the shared owner, single-entry logic is removed and complexity evidence
+    is recorded.
+tests:
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-podman-release
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A4

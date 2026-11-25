@@ -1,0 +1,243 @@
+schema_version: '1.0'
+id: V487-004
+title: Run bounded concurrent allocations in one configurable Runtime process
+milestone: runtime-allocation-slots-2026-11
+epic: execution-core
+kind: feature
+priority: P2
+status: pending
+depends_on:
+- V487-003
+languages:
+- go
+- python
+- typescript
+- yaml
+- markdown
+goal: An operator launches a Runtime with per-process allocation capacity and runs four independent allocations
+  sharing HTTP/Podman services and one Artifact archive cache, with truthful Operations state and safe
+  release.
+demonstration: Real Server, Runtime and PostgreSQL admit four barrier-controlled allocations to one instance.
+  A fifth stays queued. Releasing one admits the fifth while three continue. Repeat with mixed capacities
+  and ordinary HTTP, Podman and archive consumers.
+context:
+  proposal: docs/proposals/0057-runtime-allocation-slots.md
+  specification:
+  - docs/spec/execution/control-plane.md#CTL-R86
+  - docs/spec/execution/control-plane.md#CTL-R112
+  - docs/spec/execution/control-plane.md#CTL-R142
+  - docs/spec/execution/control-plane.md#CTL-R143
+  - docs/spec/execution/scheduler.md#SCH-R139
+  - docs/spec/execution/runtime-agent.md#RTA-R1
+  - docs/spec/execution/runtime-agent.md#RTA-R90
+  - docs/spec/execution/runtime-agent.md#RTA-R116
+  - docs/spec/execution/runtime-agent.md#RTA-R119
+  - docs/spec/execution/runtime-agent.md#RTA-R124
+  - docs/spec/platform/persistence.md
+  - docs/spec/api/public-api.md
+  - docs/design/ui/README.md
+  authority: 'User decisions 2026-11-25 authorize this planning package: first verify session isolation
+    in one shared mitmproxy engine, then multiple allocations in one Runtime with per-Runtime startup
+    capacity, Runtime-owned HTTP and Podman resources, mandatory cleanup and a shared Artifact cache.
+    User additionally requires minimizing code growth and reducing code where possible. Agent proposals
+    are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. Implementation
+    tasks remain pending.'
+scope:
+  in:
+  - Per-Runtime --allocation-slots startup parsing and immutable registration capacity, bounded multi-allocation
+    heartbeat/reconciliation, placement, Runtime state and lifecycle.
+  - End-to-end use of shared HTTP/Podman owners and the existing process-owned archive cache, including
+    concurrent grant lifetimes and independent workspace extraction.
+  - Operations API/UI/CLI projections, OpenAPI and generated clients, shared wire fixtures, architecture,
+    limits/failures/lifecycle and deployment argv/docs.
+  - Real-process regressions for concurrency, release, restart, stale replies and failure fan-out.
+  out:
+  - Live capacity resizing, autoscaling, new Scheduler lane semantics or concurrent Tasks within a Worker.
+  - Expanding cache eligibility to arbitrary Artifact payloads or sharing private sessions/credentials.
+requirements:
+- id: R1
+  text: Extend the existing owners and remove superseded single-allocation paths and duplicate cleanup.
+    Every new abstraction has a production caller. Record deleted fields/functions/branches and production
+    line delta separately from tests/generated/docs, with reasons for remaining growth. Reuse current
+    IDs, receipts, leases and Artifact mechanisms.
+- id: R2
+  text: Proposed baseline is --allocation-slots in 1..4, default 4. Different Runtime capacities are supported.
+    One incarnation freezes its capacity. A restart has a new instance_id and may advertise less capacity
+    under the same principal, with ordinary replacement reconciliation. Invalid values fail before registration.
+- id: R3
+  text: One heartbeat sequence and confirmed lease per Runtime. Strict bounded allocation observations
+    and addressed reconciliation replace singular allocation fields. Distinguish process admission/fencing
+    from per-allocation lifecycle, reject duplicate/foreign observations, preserve acknowledgement/replay
+    semantics and join reconciliation work at shutdown.
+- id: R4
+  text: Placement assigns several compatible Workers to one Runtime up to free capacity, with all-or-nothing
+    Stage reservation and existing durable pinning. Review model-stage holds, fairness, optimistic candidate
+    rechecks, principal deletion, restart supersession and loss propagation. Preserve stable permanent
+    storage rejection and bounded capacity backoff.
+- id: R5
+  text: Runtime independently enforces the capacity including preparing, draining and fenced cleanup.
+    Reuse per-allocation lifecycle logic behind short admission bookkeeping. Long prepare/release cannot
+    block another allocation A2A dispatch or state read. Released-ID/replay bookkeeping remains bounded
+    and stale actions cannot affect a new occupant.
+- id: R6
+  text: Release uses existing two-phase private cleanup/heartbeat confirmation. Partial prepare rolls
+    back only its resources. Ordinary cancellation isolates the allocation, process lease loss stops all.
+    Unconfirmed producer stop preserves process exit policy and Server accounts for every affected allocation.
+- id: R7
+  text: Share the single existing ImmutableArchiveCache and ordinary Artifact clients across all slots.
+    Preserve RTA-R119 through RTA-R124 eligibility, trust-domain keys, exact refs and authenticated metadata
+    for every consumer, including hits and waiters. Extraction, mutable views, credentials and observations
+    remain allocation-local.
+- id: R8
+  text: 'Cache quotas stay process-wide: LIM-RTA-10 through LIM-RTA-15. A cancelled fill leader joins
+    its work before the owning allocation releases its grant, waiters may fetch under their own grants.
+    One release joins its readers/fills without closing the cache or deleting a neighbor-used entry. Shutdown
+    joins all users before removing owned files.'
+- id: R9
+  text: Verify ADK cache clearing during neighboring Worker calls, invocation-local state, OTLP attribution,
+    factory shared state, work-root recovery and private connection pools. Remove process-global allocation
+    references where required, retain joined cleanup and weakref regressions.
+- id: R10
+  text: Operations reports configured capacity and all allocation states with authoritative busy/free/fenced
+    counts. Replace singular fields in Server, OpenAPI, both generated clients and UI together. Preserve
+    runtime_process metric scope and avoid summing overlapping CPU/RSS intervals as independent allocation
+    use.
+- id: R11
+  text: Expose the startup option in existing Ansible/hybrid/CLI launch paths. Existing deployment slots
+    still counts processes and must be distinguished from per-process allocation slots. Bump UI package
+    version and verify 390 px plus light/dark/black themes.
+- id: R12
+  text: Update one-slot claims in CTL/RTA/SCH/SYS, glossary, limits, architecture and runtime/deployment
+    docs alongside implementation. Shared fixtures validate capacities, observations and rejection on
+    Go and Python, with public projections generated from OpenAPI.
+- id: R13
+  text: Use testdata fixtures and deterministic barriers/injected clocks. Regression cases observe the
+    real boundary and detect cross-owner misrouting. Count executed cases, fail empty selection, and report
+    skips explicitly. Ordinary database regressions require real PostgreSQL. Heavy-I/O stays opt-in.
+failure_outcomes:
+- operation: Registration, heartbeat and reservation
+  permanent: Strict startup/registration validation or deterministic store rejection keeps stable classified
+    errors and no unchanged retry.
+  retryable: Existing control retry and Scheduler capacity backoff, with their attempt/deadline limits.
+  ambiguous: Reuse heartbeat sequence response history, durable placement pins and existing receipts.
+    Never append duplicate reservations.
+  cancelled: Release any provisional batch via existing ownership and join in-flight preparation before
+    cleanup.
+  timeout: Keep lease, prepare, request and cleanup deadlines separate. A common lease expiration fences
+    every allocation.
+- operation: Allocation lifecycle and shared-cache reads
+  permanent: Metadata denial/revocation/purge cannot use cached bytes. Invalid prepare fails with the
+    existing classification.
+  retryable: Existing idempotent cleanup with exact retained handles. Cache I/O/pressure uses authorized
+    ordinary fetch under existing deadline.
+  ambiguous: Lost prepare/finalize/release response reconciles through the same operation ID and release
+    handshake.
+  cancelled: Join allocation-specific workers, adapters, containers, cache fills/readers and threads before
+    dropping grants/files.
+  timeout: Occupy capacity until cleanup confirms, with existing bounded process-fatal escalation when
+    producer stop is unconfirmed.
+cardinality:
+- collection: Live allocations per Runtime
+  expected: 1..4
+  maximum: Declared capacity, proposed hard ceiling 4
+  bound: All live lifecycle states consume capacity. Registration/heartbeat/reconciliation arrays and
+    bytes are explicitly bounded and share Go/Python fixtures.
+- collection: Runtime fleet and placement candidates
+  expected: Mixed capacities 1, 2 and 4
+  maximum: Existing Registry/principal bounds multiplied by at most four slots
+  bound: Retain Registry and public-page limits, bound candidate work and aggregate bytes, test fleet-size
+    placement without per-allocation database N+1.
+- collection: Shared archive cache
+  expected: Up to four concurrent allocation users
+  maximum: 1 GiB logical bytes, 1024 entries, 4 MiB metadata, 4 fills, 64 waiters per process
+  bound: Existing non-sliding TTL and bounded maintenance, overflow bypasses population after metadata
+    authorization.
+lifecycle:
+- entity: Runtime incarnation and allocation resources
+  delete: Existing principal deletion/restart rules account for every live allocation. Process shutdown
+    revokes all before closing common services.
+  cascade: Per-allocation resources only on release, all remaining resources on process stop.
+  retention: Existing durable Run/Stage reports and receipts, bounded transient replay state. No new persistent
+    pool.
+- entity: Shared immutable cache entry
+  delete: Existing eviction/TTL/shutdown ownership, preserving active readers.
+  cascade: Cache-owned encoded bytes and metadata only. Each extracted workspace has allocation cleanup.
+  retention: Existing process lifetime and TTL. Revoked metadata denies use immediately. Next owned startup
+    cleans residual cache files.
+acceptance_criteria:
+- id: A1
+  given: Real Server/Runtime/PostgreSQL and capacity 4
+  when: Four allocations are held while a fifth requests placement
+  then: Exactly four share one instance, fifth defers, and releasing one starts fifth while three continue.
+- id: A2
+  given: Runtime capacities 1, 2 and 4 and multi-Worker Stages
+  when: Placement races, reconnect and restart at smaller capacity execute
+  then: No oversubscription or partial Stage reservation, fresh incarnation capacity accepted, same-incarnation
+    drift rejected, and late messages cannot affect a new occupant.
+- id: A3
+  given: Concurrent ordinary HTTP/Podman allocations
+  when: Prepare failure, cancel, timeout, lost release reply and process loss execute
+  then: Targeted cleanup preserves peers, unconfirmed cleanup occupies capacity, common failure fences
+    every allocation, and resources are reconciled.
+- id: A4
+  given: Four ordinary Artifact consumers share eligible source/Skill bytes
+  when: Hits, coalescing, leader cancellation, revocation, eviction and shutdown are interleaved
+  then: Metadata authorizes each reader, downloads coalesce where valid, extracted state stays private,
+    quotas stay process-wide and no fill outlives the allocation supplying its grant.
+- id: A5
+  given: Neighboring ADK Workers and repeated slot reuse
+  when: One Worker releases while others call tools
+  then: Released objects and secrets are unreachable, live declarations/state remain correct, and bookkeeping
+    does not grow with completed allocation count.
+- id: A6
+  given: Operations API/UI and deployment wrappers
+  when: Capacity and allocation state change
+  then: All consumers show correct occupancy and process metric scope, startup option reaches Runtime,
+    and wire/public fixtures reject invalid representations.
+- id: A7
+  given: Changed production/specification surfaces
+  when: Full package checks and complexity review execute
+  then: One-slot assumptions and replaced fields are removed, shared mechanisms retained and added code
+    justified.
+tests:
+- command: make test-go
+  covers:
+  - A1
+  - A2
+  - A3
+  - A6
+  - A7
+- command: make test-runtime
+  covers:
+  - A3
+  - A4
+  - A5
+- command: make test-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-podman-release
+  covers:
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A2
+  - A6
+- command: make verify-public-api-postgres
+  covers:
+  - A6
+- command: make ui-verify
+  covers:
+  - A6
+- command: make test-ansible test-hybrid
+  covers:
+  - A6
+- command: make verify-architecture
+  covers:
+  - A7
+- command: make lint
+  covers:
+  - A6
+  - A7

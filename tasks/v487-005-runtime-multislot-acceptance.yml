@@ -1,0 +1,135 @@
+schema_version: '1.0'
+id: V487-005
+title: Verify isolation cleanup and memory benefit of the multi-slot Runtime
+milestone: runtime-allocation-slots-2026-11
+epic: execution-core
+kind: chore
+priority: P2
+status: pending
+depends_on:
+- V487-004
+languages:
+- python
+- go
+- markdown
+goal: Accept the integrated outcome with reproducible real-component evidence, resource isolation/cleanup,
+  a memory comparison and an explicit review of production complexity.
+demonstration: Run four mixed allocations in one Runtime through real Server/PostgreSQL, exercise replacement
+  and failure cleanup, then compare four capacity-1 processes to one capacity-4 process on the same build
+  and workload.
+context:
+  proposal: docs/proposals/0057-runtime-allocation-slots.md
+  specification:
+  - docs/spec/execution/control-plane.md
+  - docs/spec/execution/runtime-agent.md
+  - docs/spec/tools/http-caido.md
+  - docs/spec/tools/code-execution.md
+  - docs/spec/platform/observability.md
+  - docs/testing/README.md
+  authority: 'User decisions 2026-11-25 authorize this planning package: first verify session isolation
+    in one shared mitmproxy engine, then multiple allocations in one Runtime with per-Runtime startup
+    capacity, Runtime-owned HTTP and Podman resources, mandatory cleanup and a shared Artifact cache.
+    User additionally requires minimizing code growth and reducing code where possible. Agent proposals
+    are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. Implementation
+    tasks remain pending.'
+  test_command_contract: Introduce the memory experiment command with actual process startup/teardown
+    and redacted reproducible evidence. It must fail unavailable prerequisites rather than substitute
+    synthetic measurements. Deterministic scenarios are required in the release graph.
+scope:
+  in:
+  - Integrated acceptance matrix and persistent redacted evidence covering V487-001 through V487-004 through
+    normal entry points.
+  - Register required deterministic scenarios in the existing release verification graph/report checks
+    and fail empty selections.
+  - Same-build Linux memory measurements including child processes and a review of removed/added production
+    code.
+  out:
+  - Live-model quality evaluation and demo deployment.
+  - Any new feature needed by a failed acceptance case must be recorded in a separate prerequisite task
+    before fixing it.
+requirements:
+- id: R1
+  text: Use testdata fixtures and deterministic barriers/injected clocks. Regression cases observe the
+    real boundary and detect cross-owner misrouting. Count executed cases, fail empty selection, and report
+    skips explicitly. Ordinary database regressions require real PostgreSQL. Heavy-I/O stays opt-in.
+- id: R2
+  text: Run the original shared-engine isolation matrix after production integration, using same-origin
+    conflicting credentials/cookies/trust, invalid/old scanner tokens, concurrent HTTP/2 and cleanup during
+    TLS callbacks.
+- id: R3
+  text: Exercise mixed capacities, four-active/fifth-waits, multi-Worker Stage placement, cache leader/waiter
+    cancellation, prepare rollback, lost lifecycle replies, principal replacement, lease expiry, process
+    shutdown and owner failure. Observe resources and authoritative Server outcomes.
+- id: R4
+  text: Use real Linux rootless Podman and one disposable PostgreSQL database for the lane. Stop processes
+    before dropping the owned database and remove only owned test containers/volumes/networks.
+- id: R5
+  text: Compare four capacity-1 Runtime processes with one capacity-4 Runtime on the same revision, capabilities,
+    exact inputs and warmup/load phases. Report aggregate PSS/private memory/RSS including helper processes,
+    throughput/latency and heartbeat progress, with methodology and uncertainty. No fixed savings threshold
+    is assumed.
+- id: R6
+  text: Review production diff separately from test/generated/docs changes, enumerate removed old mechanisms
+    and justify added abstractions by real callers. Simplification must preserve demonstrated ownership
+    and failure contracts. Passing infrastructure checks alone does not close the user outcome.
+- id: R7
+  text: Record what is merged, unmerged and unverified. An unavailable ordinary PostgreSQL/Podman case
+    leaves acceptance incomplete. Optional heavy-I/O skips are recorded separately.
+failure_outcomes:
+- operation: Acceptance run and resource measurement
+  permanent: Failed invariant records a reproducible blocker and the task stays in_progress until remedied
+    and rerun.
+  retryable: Retry an infrastructure setup failure after diagnosing it, with bounded setup and separate
+    reporting.
+  ambiguous: Inspect existing fixture ownership and persisted outcomes before recreating resources.
+  cancelled: Harness joins all owned processes and inventories its resources.
+  timeout: Existing test/operation bounds identify the failing phase, cleanup remains owned and recorded.
+cardinality:
+- collection: Acceptance topology
+  expected: One capacity-4 Runtime or four capacity-1 Runtime processes
+  maximum: Mixed 1/2/4 fleet for placement cases, explicit bounded workload per case
+  bound: Record case counts and limits, use barriers for correctness and observations for performance,
+    keep cache stress within existing quotas.
+lifecycle:
+- entity: Acceptance resources and evidence
+  delete: Lane owner stops pools/processes before dropping its disposable database and deleting its containers.
+  cascade: Only owned test resources.
+  retention: Redacted reports, exact commands, revisions and aggregate measurements in tasks/evidence.
+acceptance_criteria:
+- id: A1
+  given: Integrated implementation
+  when: Required real-component and shared isolation scenarios run
+  then: Each scenario executes nonzero cases and proves correct allocation ownership, cleanup and Server
+    state, including failure paths.
+- id: A2
+  given: Identical warmed workloads on Linux
+  when: Memory and progress are measured for both process layouts
+  then: Evidence shows aggregate memory, child costs, throughput and latency without inferring per-allocation
+    memory from overlapping process samples.
+- id: A3
+  given: All implementation diffs
+  when: Complexity and contract review executes
+  then: Removed mechanisms and justified growth are documented, required old paths are gone and specifications/API/fixtures
+    agree.
+- id: A4
+  given: Completed acceptance lane
+  when: Resources are inventoried and delivery recorded
+  then: Owned database and Podman resources are removed, mandatory checks are complete, skips and branch/merge
+    status are explicit.
+tests:
+- command: make release-verify
+  covers:
+  - A1
+  - A3
+- command: make test-podman-release
+  covers:
+  - A1
+  - A4
+- command: cd runtime && uv run python ../scripts/experiments/runtime_multislot_memory.py --output ../tasks/evidence/v487-005-runtime-memory.json
+  covers:
+  - A2
+  - A4
+- command: make lint
+  covers:
+  - A3
+  - A4

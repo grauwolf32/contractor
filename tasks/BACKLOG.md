@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 10 in progress, 42 pending, 13 deferred. 1698 finished: 1680 completed, 18 archived.
+70 open tasks: 10 in progress, 47 pending, 13 deferred. 1698 finished: 1680 completed, 18 archived.
 
 ## In progress
 
@@ -30,6 +30,8 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
 | [V469-002](v469-002-opencode-audit-runtime.yml) | feature | P1 | V469-001 | Run OpenCode in one retained Audit environment through existing A2A |
+| [V487-004](v487-004-runtime-allocation-slots.yml) | feature | P2 | V487-003 | Run bounded concurrent allocations in one configurable Runtime process |
+| [V487-005](v487-005-runtime-multislot-acceptance.yml) | chore | P2 | V487-004 | Verify isolation cleanup and memory benefit of the multi-slot Runtime |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -48,6 +50,8 @@ the epics are in [epics.yml](epics.yml).
 | [V410-037](v410-037-allocation-openvpn-bridge-egress.yml) | feature | P2 | — | Route bridge egress through an allocation-owned OpenVPN tunnel |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
+| [V487-001](v487-001-shared-mitmproxy-isolation.yml) | chore | P2 | — | Prove allocation session isolation in one shared mitmproxy engine |
+| [V487-002](v487-002-runtime-http-sessions.yml) | feature | P2 | V487-001 | Share the Runtime HTTP engine through isolated allocation sessions |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -93,6 +97,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V411-013](v411-013-pentest-sandbox-integration.yml) | feature | P1 | V411-015 | Compose the existing networked sandbox into HTTP investigations |
 | [V469-003](v469-003-opencode-audit-recovery.yml) | chore | P1 | V469-002 | Verify retained environment recovery and deletion across owner failures |
+| [V487-003](v487-003-runtime-podman-resources.yml) | feature | P2 | V487-002 | Manage allocation containers through one Runtime Podman owner |
 
 ### Web UI (`ui`)
 
@@ -156,21 +161,21 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 51 | 73 | 41 | 109 |
+| Run execution core (`execution-core`) | 5 | 52 | 73 | 42 | 109 |
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 99 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 14 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 26 | 38 | 16 | 39 |
+| HTTP and Caido tools (`http-tools`) | 7 | 27 | 38 | 17 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 22 | 16 | 13 | 30 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 16 | 27 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 78 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 21 | 55 |
-| Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
+| Podman sandbox (`sandbox`) | 3 | 11 | 2 | 2 | 6 |
 | Web UI (`ui`) | 1 | 56 | 83 | 34 | 80 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |

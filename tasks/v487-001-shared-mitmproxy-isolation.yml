@@ -1,0 +1,125 @@
+schema_version: '1.0'
+id: V487-001
+title: Prove allocation session isolation in one shared mitmproxy engine
+milestone: runtime-allocation-slots-2026-11
+epic: http-tools
+kind: chore
+priority: P2
+status: pending
+depends_on: []
+languages:
+- python
+- markdown
+goal: Determine whether one Runtime can safely share the pinned native HTTP engine across concurrent allocation
+  sessions before changing production ownership.
+demonstration: One Python process and one native engine serve two conflicting sessions and then four,
+  using real local HTTP/1.1, HTTP/2 and TLS endpoints plus scanner proxy ingress. Close one session while
+  its peers continue and record target-observed identities and released resources.
+context:
+  proposal: docs/proposals/0057-runtime-allocation-slots.md
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R138
+  - docs/spec/tools/http-caido.md#HTP-R146
+  - docs/spec/tools/http-caido.md#HTP-R148
+  - docs/spec/execution/runtime-agent.md#RTA-R90
+  authority: 'User decisions 2026-11-25 authorize this planning package: first verify session isolation
+    in one shared mitmproxy engine, then multiple allocations in one Runtime with per-Runtime startup
+    capacity, Runtime-owned HTTP and Podman resources, mandatory cleanup and a shared Artifact cache.
+    User additionally requires minimizing code growth and reducing code where possible. Agent proposals
+    are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. Implementation
+    tasks remain pending.'
+  test_command_contract: The experiment command is introduced by this task. It exits nonzero for missing/incomplete
+    evidence or a failed negative control. A fully evaluated unsupported design produces an explicit negative
+    verdict, which V487-002 must reject as its start condition.
+scope:
+  in:
+  - A reproducible experiment under scripts/experiments with pinned Runtime dependencies, local fixtures
+    and structured evidence under tasks/evidence.
+  - Inspect global ctx/options, TLS caches, native callbacks/threads, ingress and pool ownership. Prototype
+    the minimum shared-engine/session split needed to evaluate these paths.
+  - Record pass/fail by guarantee, necessary library integration changes, production-code estimate and
+    a recommendation.
+  out:
+  - Production ownership/protocol changes belong to V487-002 through V487-004.
+  - Selection of a subprocess fallback after a failed experiment requires the recorded decision.
+requirements:
+- id: R1
+  text: Use testdata fixtures and deterministic barriers/injected clocks. Regression cases observe the
+    real boundary and detect cross-owner misrouting. Count executed cases, fail empty selection, and report
+    skips explicitly. Ordinary database regressions require real PostgreSQL. Heavy-I/O stays opt-in.
+- id: R2
+  text: Use one actual shared engine, without per-allocation child engines or serializing entire sessions.
+    Target fixtures verify received auth/cookie/body and connection ownership, including concurrent conflicting
+    trust bundles.
+- id: R3
+  text: Cover same origin and same identity names with different credentials/cookies, separate CA trust
+    and negative trust checks, HTTP/2 streams, CONNECT, token misuse/revocation, redirects and retries.
+    Pool and capture attribution remain session-local.
+- id: R4
+  text: Close/cancel one session during queued sends, DNS/TLS threads and scanner activity. Join its callbacks
+    and prove no late traffic or authority transfer after slot reuse. Other sessions continue.
+- id: R5
+  text: Exercise repeated session churn with weak references, owned task/socket/file inventories and TLS
+    cache inspection. Use an intentionally broken owner key or routing mutation to prove the isolation
+    check detects leakage.
+- id: R6
+  text: A complete negative assessment may finish this research task, but grants no implementation permission.
+    Record context.decision_needed on V487-002 through V487-005 and leave them pending. Options are isolated
+    HTTP subprocesses or revised shared integration, with evidence-based recommendation.
+failure_outcomes:
+- operation: Experiment exchange or cleanup
+  permanent: Record the exact failed isolation guarantee and stop any claim of feasibility. An incomplete
+    harness is unfinished work.
+  retryable: Repeat only bounded local fixture startup/transport setup with the same pinned conditions.
+  ambiguous: Compare endpoint observations and operation IDs without replaying a possibly sent target
+    request.
+  cancelled: Experiment owner joins native callbacks, sockets, threads and fixture servers.
+  timeout: Per-case deadlines classify an unjoined case as failure, then teardown the owned process.
+cardinality:
+- collection: Live experiment sessions
+  expected: 2 conflicting sessions
+  maximum: 4 concurrent sessions with repeated sequential churn
+  bound: Existing HTTP body/header limits and bounded request counts. Churn count and resource inventories
+    are recorded in evidence.
+lifecycle:
+- entity: Experiment session and fixtures
+  delete: Harness revokes each session before joined cleanup.
+  cascade: Own sockets, tasks, files, trust material and local servers.
+  retention: Only redacted aggregate results and fixture identifiers in evidence.
+acceptance_criteria:
+- id: A1
+  given: Pinned dependencies and local endpoints
+  when: The experiment is executed
+  then: Every isolation case records an observed result and exact reproduction command, versions and engine/process
+    count.
+- id: A2
+  given: Conflicting sessions and an intentional routing mutation
+  when: Real target observations are compared
+  then: Healthy routing passes or yields a documented blocker, while the deliberately broken routing is
+    detected.
+- id: A3
+  given: One session closes while peers run
+  when: Cancellation, delayed callbacks and churn execute
+  then: Evidence records independent progress and cleanup or a precise counterexample, including TLS thread/cache
+    behavior.
+- id: A4
+  given: The complete evidence matrix
+  when: The recommendation is recorded
+  then: A successful feasibility verdict names the minimal viable design. A negative verdict records a
+    decision_needed in dependent pending tasks and cannot unlock implementation.
+tests:
+- command: cd runtime && uv run python ../scripts/experiments/mitmproxy_shared_sessions.py --output ../tasks/evidence/v487-001-mitmproxy-isolation.json
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A4
