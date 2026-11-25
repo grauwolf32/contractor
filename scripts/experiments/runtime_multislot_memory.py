@@ -176,6 +176,20 @@ def measure_case(binary, directory, slots, target):
                     result["runtime_pss_bytes" if pid in roots else "helper_pss_bytes"] += (
                         memory.pss
                     )
+                    if pid not in roots:
+                        command = child.cmdline()
+                        if "contractor_runtime.sandbox.podman.owner" in command:
+                            backends += 1
+                            result["podman_backend_pss_bytes"] += memory.pss
+                        if any(Path(argument).name == "nuclei.py" for argument in command):
+                            scanners += 1
+                            result["scanner_pss_bytes"] += memory.pss
+                require(
+                    backends == len(roots) and scanners == 4,
+                    "the measured backend/scanner process topology changed",
+                )
+                result["podman_backends"] = backends
+                result["scanner_children"] = scanners
                 result["processes"] = len(processes)
                 result["helpers"] = len(processes) - len(roots)
                 return result
