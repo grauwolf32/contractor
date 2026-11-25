@@ -158,11 +158,16 @@ func stageManagedEvalConfiguration(t *testing.T, root, target string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value := strings.Replace(string(raw), "  skills:\n    - namespace: skills\n      name: trace", "  skills: []", 1)
-	if string(raw) == value {
-		t.Fatal("Audit fixture skill block changed")
+	var document map[string]any
+	if err := yaml.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
 	}
-	if err = os.WriteFile(path, []byte(value), 0600); err != nil {
+	document["spec"].(map[string]any)["skills"] = []any{}
+	encoded, err := yaml.Marshal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(path, encoded, 0600); err != nil {
 		t.Fatal(err)
 	}
 }
