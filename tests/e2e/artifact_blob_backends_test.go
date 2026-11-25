@@ -222,10 +222,10 @@ func stageBlobCatalogFixtures(t *testing.T, repositoryRoot, target string) {
 		}
 	}
 	for destination, relative := range map[string]string{
-		"audit-profiles/owasp_top10_2025_source_risk.yaml": "audit-profiles/owasp_top10_2025_source_risk.yaml",
-		"workflows/audit_top10_source_risk.yaml":           "workflows/audit_top10_source_risk.yaml",
-		"agent-templates/audit_risk_source_checker.yaml":   "agent-templates/audit_risk_source_checker.yaml",
-		"instructions/audit-risk-source-checker-worker.md": "instructions/audit-risk-source-checker-worker.md",
+		"audit-profiles/owasp_top10_2025_source_risk.yaml":    "audit-profiles/owasp_top10_2025_source_risk.yaml",
+		"workflows/audit_top10_source_risk.yaml":              "workflows/audit_top10_source_risk.yaml",
+		"agent-templates/audit_risk_source_checker.yaml":      "agent-templates/audit_risk_source_checker.yaml",
+		"instructions/audit-risk-source-checker-worker-v3.md": "instructions/audit-risk-source-checker-worker-v3.md",
 	} {
 		data, err := os.ReadFile(filepath.Join(source, filepath.FromSlash(relative)))
 		if err != nil {

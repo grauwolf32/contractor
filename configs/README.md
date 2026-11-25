@@ -1,7 +1,9 @@
 # Contractor configuration
 
 The pre-production catalog was reset on 2026-11-23. Each supplied object has
-one current definition at `@1`; exact selectors and content locks still apply.
+one current definition; exact selectors and content locks still apply. Source Audit
+checkers and their dependent profiles use `@3` to prepare their workspace before
+model invocation. Other objects retain their current versions.
 
 This directory contains the executable default configuration for Contractor's
 Application Security orchestration platform. Versioned Workflows define checks
@@ -235,7 +237,7 @@ tool read sizes and request timeouts are separate absolute limits; see
 [timeout configuration](../docs/operations/timeout-configuration.md).
 
 The model-backed Audit Worker templates, including the
-`audit_source_checker@1` completion variant, retain mandatory
+`audit_source_checker@3` completion variant, retain mandatory
 `audit-results@2` submission and omit terminal summarization;
 `audit-check-results@1` completion prohibits it. The two tool-runtime scan
 templates use `scan@1` instead.
@@ -291,9 +293,9 @@ capability requirements are recorded in its `assets/provenance.md`. It is seeded
 into the owner Skill catalog without changing existing Workflow selections.
 See [the Skill guide](../docs/guides/agent-skills.md) for selection and execution.
 
-The four passive source-review Worker templates (`audit_source_checker@1`,
-`audit_risk_source_checker@1`, `audit_standard_source_verifier@1` and
-`audit_asvs_source_verifier@1`) select both `trace` and `vuln-scan`. Their
+The four passive source-review Worker templates (`audit_source_checker@3`,
+`audit_risk_source_checker@3`, `audit_standard_source_verifier@3` and
+`audit_asvs_source_verifier@3`) select both `trace` and `vuln-scan`. Their
 instructions direct the Worker to load both through `load_skill` before
 investigating and keep the passive source-review contract: skill guidance is
 supplementary method and grants no authority to send requests or execute code.
@@ -454,3 +456,10 @@ facts, and keep normal reports and Audit evidence/results. Facts require an acti
 Project; a publication denial is a reported limitation. Audit publication precedes
 final result submission. Builders, validators, scanners, hypothesis generation and
 existing-Finding review retain their existing roles. See FND-R242.
+
+Source checklist, Top 10, ASVS and WSTG source checks prepare the exact ZIP
+through `context.workspace` before the Worker starts. Their read-only filesystem
+tools inspect the prepared overlay; code evidence uses `workspace=true` to retain
+exact source provenance. Archive validation failures stop allocation preparation
+before a model call. Existing Audits retain their pinned definitions; select a
+new `@3` profile for checks using prepared workspaces.

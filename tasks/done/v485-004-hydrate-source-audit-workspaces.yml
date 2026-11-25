@@ -1,0 +1,92 @@
+schema_version: '1.0'
+id: V485-004
+title: Prepare source Audit workspaces before invoking the model
+milestone: catalog-and-agent-prompts
+epic: workflows
+kind: defect
+introduced_by: V480-001
+priority: P1
+status: completed
+depends_on: []
+languages: [yaml, python, go]
+goal: Source Audit Workers inspect an automatically prepared exact source workspace without model-driven archive initialization.
+context:
+  authority: >-
+    User investigation request 2026-11-25 for project_49a1e85b7af32f8295eae0a24c83271a;
+    user decision 2026-11-25 says the model must not unpack the archive and
+    source must be prepared automatically in its workspace. User follow-up
+    2026-11-25 requests merging the finished branch into local main and pushing
+    that branch separately to origin.
+  finding: >-
+    configs/workflows/audit_top10_source_risk.yaml:40 omits context.workspace;
+    configs/agent-templates/audit_risk_source_checker.yaml:24 selects an explicit
+    archive opener. Five completed Runs in audit_05efb22e1004eb0fc60d33eeeff37021
+    are inconclusive without reading source: source_analysis/tools.py:774 rejects
+    colon-bearing names. The exact ZIP has 4560 entries and 30679998 expanded
+    bytes, including 316 colon-bearing entries; existing workspace hydration
+    accepts it and exposes 3248 text files and exact source captures.
+  siblings: >-
+    audit-source-check, audit-asvs-source-verification and audit-standard-source-review
+    have the same configuration defect. Migrate all four and their seven owning
+    profiles. Separate archive-oriented LikeC4-from-analysis and source-findings-review
+    are outside this Audit change; their explicit archive contract remains CAN-R19/R20.
+    Existing graph-backed Audit operation Workflows already prepare overlay workspaces.
+  specification:
+    - docs/spec/tools/workspace.md#WSP-R10
+    - docs/spec/tools/workspace.md#WSP-R180
+    - docs/spec/configuration/catalog.md#CAT-R74
+  decision: >-
+    Reuse an overlay workspace with only filesystem read tools and no edits or
+    export. Overlay preserves exact source capture for fact, finding and Audit
+    evidence. Direct mode is simpler to materialize on disk but does not provide
+    source capture. No new parser, store, API, Runtime capability or graph build.
+    Reopen only if checks need mutation or physical command execution.
+scope:
+  in:
+    - Publish version 2 of four source Audit Workflows and AgentTemplates, new instruction paths and seven dependent profiles.
+    - Remove the old model-driven archive tool selection from current source Audit definitions.
+    - Preserve exact source evidence with workspace=true and existing preparation failure and cleanup behavior.
+    - Validate shipped identities, real workspace hydration/source capture and affected process configuration consumers.
+  out:
+    - Changing the configured model, replaying paused Audits, rewriting historical results or changing archive-tool path grammar.
+    - Migrating separate LikeC4 or standalone source review contracts.
+acceptance_criteria:
+  - id: A1
+    text: All four source Audit Workflows declare an exact source overlay workspace before model invocation and expose only filesystem source readers.
+  - id: A2
+    text: Files with ordinary nested double-colon names are readable after real hydration and claim tools capture exact source provenance without open_source_archive.
+  - id: A3
+    text: New versions and instruction paths preserve the catalog lock history and all seven dependent profiles resolve to the new Workflows.
+  - id: A4
+    text: Updated instructions select workspace=true for code evidence; existing result, authority, lifecycle and failure contracts remain unchanged.
+tests:
+  - command: cd runtime && uv run --locked pytest -q tests/test_claim_workspace_sources.py tests/test_projectfs_zip.py tests/test_projectfs_overlay.py
+    covers: [A2, A4]
+  - command: go test -tags=e2e ./tests/e2e -run 'TestAudit(SourceWorkspaceCatalog|InvestigationInstructionCatalog|ProgramsE2EConfigurationLoads|ProgramCatalogRemovalConfigurationClosure)$' -count=1
+    covers: [A1, A3, A4]
+  - command: .local/demo/bin/contractor server config validate --root ./configs --require-catalog-lock
+    covers: [A1, A3, A4]
+  - command: go test ./tests/e2e -count=1
+    covers: [A1, A3, A4]
+  - command: make test-release-config-fixtures
+    covers: [A1, A3, A4]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<owned-test-db> go test -tags=e2e ./tests/e2e -run '^TestAuditProgramCatalogReplacementRestartsServer$' -count=1
+    covers: [A1, A3, A4]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<owned-test-db> go test -tags=e2e ./tests/e2e -run '^TestArtifactBlobBackendsContainers$' -count=1
+    covers: [A1, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+
+implementation_commit: b60d8e9002457898622e17b4814c7d806f2430ad
+verification: >-
+  All acceptance criteria passed. The exact Project ZIP hydrates through the
+  existing workspace path with 3248 readable text files and exact source capture.
+  46 Runtime cases, the complete default e2e package suite, 13 release catalog
+  fixtures, real PostgreSQL Server catalog restart, all four container blob
+  backend cases, shipped catalog validation and make lint pass. Node 24.20 UI
+  gates pass separately. Owned test databases and container images are removed.
+  New source Audit profiles are deployed locally; model settings, Project and
+  paused Audit are preserved. No live model rerun or complete release gate is claimed.
+  Main integration renumbered this task from V485-001 to V485-004 to avoid
+  a collision and combined the workspace setup with the passive source skills.
+  The combined definitions use version 3 and retain the version 2 lock entries.

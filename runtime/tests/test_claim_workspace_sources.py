@@ -26,14 +26,17 @@ FACTORIES = (
 
 @pytest.mark.parametrize("factory_type", FACTORIES)
 @pytest.mark.parametrize("mode", ["overlay", "direct", "absent"])
-def test_claim_source_view_uses_hydrated_workspace_without_requiring_one(factory_type, mode):
+@pytest.mark.parametrize("source_path", ["app.py", "schemas/App::Identity::handle/input.json"])
+def test_claim_source_view_uses_hydrated_workspace_without_requiring_one(
+    factory_type, mode, source_path
+):
     async def scenario():
         factory = factory_type(lambda *_: None)
         if mode == "absent":
             assert AllocationPreparation._workspace_tool_view(factory, None) is None
             return
         original = "def handle():\n    return external_client.get('/items')\n"
-        spec, reader = workspace_inputs([("source", "", archive({"app.py": original.encode()}))])
+        spec, reader = workspace_inputs([("source", "", archive({source_path: original.encode()}))])
         spec.mode = mode
         session = await hydrate_workspace(
             provider=MemoryWorkspaceProvider(settings("memory")),
@@ -43,14 +46,15 @@ def test_claim_source_view_uses_hydrated_workspace_without_requiring_one(factory
             timeout_seconds=5,
         )
         try:
+            assert await session.reader_view().read_text(source_path) == original
             view = AllocationPreparation._workspace_tool_view(factory, session)
             if mode == "direct":
                 assert view is None
                 return
-            capture = await view.capture_source_file("app.py")
+            capture = await view.capture_source_file(source_path)
             assert capture.original == original
             assert capture.current == original
-            assert capture.source_path == "app.py"
+            assert capture.source_path == source_path
             assert capture.source_ref == spec.sources[0].artifact
             assert not hasattr(view, "write_text")
             assert not hasattr(view, "read_text")

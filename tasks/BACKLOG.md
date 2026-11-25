@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 10 in progress, 42 pending, 13 deferred. 1697 finished: 1679 completed, 18 archived.
+65 open tasks: 10 in progress, 42 pending, 13 deferred. 1698 finished: 1680 completed, 18 archived.
 
 ## In progress
 
@@ -166,7 +166,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 5 | 26 | 38 | 16 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 22 | 16 | 13 | 30 |
-| Workflow catalog and document workflows (`workflows`) | 6 | 22 | 17 | 16 | 27 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 16 | 27 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 78 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 21 | 55 |
@@ -174,5 +174,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 1 | 56 | 83 | 34 | 80 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 18 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 19 |
 | Quality, CI and process (`quality`) | 11 | 1 | 38 | 156 | 32 |

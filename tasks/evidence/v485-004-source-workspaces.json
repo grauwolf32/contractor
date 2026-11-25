@@ -1,0 +1,91 @@
+{
+  "task": "V485-004",
+  "date": "2026-11-25",
+  "diagnosis": {
+    "projectId": "project_49a1e85b7af32f8295eae0a24c83271a",
+    "auditId": "audit_05efb22e1004eb0fc60d33eeeff37021",
+    "runsSucceeded": 5,
+    "conclusions": "all five inconclusive, no source code inspected",
+    "cause": "source-analysis archive opener rejects colon-bearing nested paths; source Audit Workflows omit prepared workspace",
+    "sourceArchive": {
+      "compressedBytes": 19343035,
+      "entries": 4560,
+      "expandedBytes": 30679998,
+      "colonBearingEntries": 316
+    },
+    "existingWorkspaceDemonstration": {
+      "hydrated": true,
+      "textFiles": 3248,
+      "colonTextFiles": 177,
+      "binaryFiles": 106,
+      "exactSourceCapture": true
+    }
+  },
+  "implementation": {
+    "workflows": 4,
+    "templates": 4,
+    "dependentProfiles": 7,
+    "version": "2",
+    "workspace": "overlay",
+    "tools": [
+      "ls",
+      "glob",
+      "read_file",
+      "grep"
+    ],
+    "codeSources": "workspace=true",
+    "newRuntimeOrStoreMechanisms": 0
+  },
+  "deployment": {
+    "task": "V485-001",
+    "status": "deployed",
+    "release": "/home/ruslan/src/contractor/.local/demo/releases/main-14dddad6-20261124",
+    "changedPaths": [
+      "configs/agent-templates/audit_asvs_source_verifier.yaml",
+      "configs/agent-templates/audit_risk_source_checker.yaml",
+      "configs/agent-templates/audit_source_checker.yaml",
+      "configs/agent-templates/audit_standard_source_verifier.yaml",
+      "configs/audit-profiles/hypothesis_research.yaml",
+      "configs/audit-profiles/owasp_asvs_5_0_l1_source_pilot.yaml",
+      "configs/audit-profiles/owasp_asvs_5_0_l1_source_review.yaml",
+      "configs/audit-profiles/owasp_top10_2025_source_risk.yaml",
+      "configs/audit-profiles/owasp_wstg_4_2_fast_source_review.yaml",
+      "configs/audit-profiles/owasp_wstg_4_2_source_review.yaml",
+      "configs/audit-profiles/source_checklist.yaml",
+      "configs/instructions/audit-asvs-source-verifier-worker.md",
+      "configs/instructions/audit-risk-source-checker-worker.md",
+      "configs/instructions/audit-source-checker-worker.md",
+      "configs/instructions/audit-standard-source-verifier-worker.md",
+      "configs/workflows/audit_asvs_source_verification.yaml",
+      "configs/workflows/audit_source_check.yaml",
+      "configs/workflows/audit_standard_source_review.yaml",
+      "configs/workflows/audit_top10_source_risk.yaml",
+      "configs/instructions/audit-asvs-source-verifier-worker-v2.md",
+      "configs/instructions/audit-risk-source-checker-worker-v2.md",
+      "configs/instructions/audit-source-checker-worker-v2.md",
+      "configs/instructions/audit-standard-source-verifier-worker-v2.md"
+    ],
+    "modelsUnchanged": true,
+    "databaseMigrations": [],
+    "existingAuditPreserved": "audit_05efb22e1004eb0fc60d33eeeff37021",
+    "deployedAt": "2026-11-24T21:29:38Z",
+    "backup": "/home/ruslan/src/contractor/.local/demo/operations/source-workspaces-20261125/previous-operator-configs",
+    "apiVerified": true,
+    "projectUnchanged": true,
+    "pausedAuditUnchanged": true
+  },
+  "verification": {
+    "runtimeTests": 46,
+    "focusedCatalogTests": "passed",
+    "e2ePackageDefaultSuite": "passed",
+    "postgresServerCatalogRestart": "passed; owned database dropped",
+    "blobContainerGate": "passed all four backend cases; owned database and images/containers cleaned",
+    "releaseConfigGate": "passed (13 fixture tests)",
+    "lint": "passed",
+    "fullReleaseGateRun": false,
+    "liveModelRerun": false,
+    "runtimeAgents": "two idle after restart",
+    "uiGatesNode24": "passed with Node 24.20.0"
+  },
+  "implementationCommit": "b60d8e9002457898622e17b4814c7d806f2430ad"
+}
