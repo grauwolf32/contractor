@@ -56,7 +56,7 @@ def source_digest():
         *sorted((ROOT / "runtime/src").rglob("*.py")),
         ROOT / "runtime/uv.lock",
         ROOT / "runtime/pyproject.toml",
-        Path(__file__),
+        Path(__file__).resolve(),
         *(
             ROOT / "tests/e2e" / name
             for name in (
