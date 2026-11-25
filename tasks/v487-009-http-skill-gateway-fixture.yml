@@ -6,7 +6,7 @@ epic: http-tools
 kind: chore
 introduced_by: V485-002
 priority: P2
-status: completed
+status: in_progress
 depends_on: []
 languages:
 - go
@@ -25,9 +25,24 @@ context:
   sibling_finding: V485-003 also added stride to audit_hypothesis_generator@1; generationProposalStage
     omits its three native Skill tools. Ordinary continuation and the browser research gate share that
     helper.
+  additional_sibling_finding: A second exact tool-set fixture in tests/e2e/material_set_process_test.go:23
+    stages audit_hypothesis_generator@1 but omits the same three native Skill tools. Reopen to correct
+    that sibling; the real material-set consumer/proposal scenario failed before model response dispatch.
+  previous_acceptance:
+    result: passed
+    commands:
+    - command: go test ./tests/e2e
+      result: passed
+    - command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses)$'
+      result: both real-component scenarios passed, 147.566 seconds
+    - command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^TestAuditHypothesisContinuationAcrossProductionProcesses$'
+      result: both continuation subcases passed, 168.788 seconds
+    - command: make test-audit-research-ui (release-verify-browser-a)
+      result: continuation and interrupted real browser/process cases passed, 126.97 seconds
 scope:
   in:
   - Include the three native Skill tools in the exact expected HTTP and hypothesis generator tool sets.
+  - Include the same native Skill tools in the material-set hypothesis-generator Gateway expectation.
   out:
   - Runtime tool exports
   - configured Skills
@@ -56,15 +71,7 @@ tests:
   covers:
   - A1
   - A2
-implementation_commit: 5f99dc914f4a8705aaaa003a3d0dfd71c0462bfd
-verification:
-  result: passed
-  commands:
-  - command: go test ./tests/e2e
-    result: passed
-  - command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses)$'
-    result: both real-component scenarios passed, 147.566 seconds
-  - command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^TestAuditHypothesisContinuationAcrossProductionProcesses$'
-    result: both continuation subcases passed, 168.788 seconds
-  - command: make test-audit-research-ui (release-verify-browser-a)
-    result: continuation and interrupted real browser/process cases passed, 126.97 seconds
+- command: go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestWorkflowMaterialSetsAcrossProductionProcesses$'
+  covers:
+  - A1
+  - A2

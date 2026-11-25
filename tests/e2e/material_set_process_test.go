@@ -20,7 +20,7 @@ func TestWorkflowMaterialSetsAcrossProductionProcesses(t *testing.T) {
 	ordinary := domainGatewayStage{name: "ordinary-material-set", tools: []string{"read_artifact", "write_text_artifact"}}
 	ordinary.steps = materialSetReadSteps()
 	ordinary.steps = append(ordinary.steps, toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "report", "media_type": "text/plain", "text": "Read exact members from one ordinary set"})), finalGatewayStep("Materials read", map[string]domainArtifactBinding{"report": {namespace: "reader", name: "report"}}))
-	generator := domainGatewayStage{name: "initial-material-set", tools: []string{"read_artifact", "list_project_findings", "read_project_finding", "select_project_findings", "read_finding_selection", "submit_hypothesis_proposals"}}
+	generator := domainGatewayStage{name: "initial-material-set", tools: []string{"list_skills", "load_skill", "load_skill_resource", "read_artifact", "list_project_findings", "read_project_finding", "select_project_findings", "read_finding_selection", "submit_hypothesis_proposals"}}
 	generator.steps = materialSetReadSteps()
 	generator.steps = append(generator.steps, toolGatewayStep("submit_hypothesis_proposals", fixedArguments(map[string]any{"hypotheses_json": `{"next":{"statement":"An alternate actor can access the selected record","scope":{"actor":"alternate reader"},"grounds":"The selected architecture materials leave this actor untested"}}`, "work_json": "[]"})), finalGatewayStep("Hypothesis proposal retained", map[string]domainArtifactBinding{"proposals": {namespace: "generator", name: "proposals"}}))
 	h := startConfiguredFindingsHarness(t, []domainGatewayStage{ordinary, generator}, func(root string) { installMaterialSetProgram(t, root) })
