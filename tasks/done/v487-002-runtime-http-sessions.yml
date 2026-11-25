@@ -5,7 +5,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: http-tools
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V487-001
 languages:
@@ -158,3 +158,21 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 623da1a90f6b7bf050e859dab8fb2fe3879fc44c
+verification:
+  result: passed
+  commands:
+  - command: make release-verify-unit (includes full Runtime)
+    result: 'passed: 6698 Runtime cases, 135 declared skips; 587 compaction Runtime selections, 416 shared
+      fixtures, 470 Go and 297 Python shared cases; PostgreSQL Go unit cases passed.'
+  - command: make release-verify-lint and subsequent focused Ruff/spec checks
+    result: full lint/build/catalog gate passed; the final TLS serialization and lifecycle fixture deltas
+      pass Ruff and spec checks. Final acceptance repeats lint after the measurement harness.
+  - command: HTTP/Caido, sitemap and bounds process boundary command in tests
+    result: all three real process scenarios passed, 169.931 seconds.
+  - command: native TLS overlap negative control and Linux/macOS native matrix plus Podman engine modules
+    result: unserialized negative control was rejected; production serialization, restored umask, all
+      nine isolation scenarios and owner lock canaries passed on both platforms.
+  exit_boundary: The complete release graph, same-build Linux memory comparison and owned-resource delivery
+    remain mandatory in V487-005; this completes group 2 implementation, not milestone release acceptance.
+  complexity: tasks/evidence/v487-004-implementation-review.json
