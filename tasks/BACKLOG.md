@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 10 in progress, 46 pending, 13 deferred. 1699 finished: 1681 completed, 18 archived.
+71 open tasks: 15 in progress, 43 pending, 13 deferred. 1700 finished: 1682 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,11 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V487-002](v487-002-runtime-http-sessions.yml) | http-tools | feature | P2 | Share the Runtime HTTP engine through isolated allocation sessions |
+| [V487-003](v487-003-runtime-podman-resources.yml) | sandbox | feature | P2 | Manage allocation containers through one Runtime Podman owner |
+| [V487-004](v487-004-runtime-allocation-slots.yml) | execution-core | feature | P2 | Run bounded concurrent allocations in one configurable Runtime process |
+| [V487-006](v487-006-podman-artifact-fixture.yml) | sandbox | chore | P2 | Exercise file-backed publication in the Linux Podman lifecycle test |
+| [V487-008](v487-008-planner-gateway-finish-fixture.yml) | execution-core | chore | P2 | Use Runtime-owned finish revisions in the scripted Gateway fixture |
 
 ## Pending
 
@@ -30,7 +35,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
 | [V469-002](v469-002-opencode-audit-runtime.yml) | feature | P1 | V469-001 | Run OpenCode in one retained Audit environment through existing A2A |
-| [V487-004](v487-004-runtime-allocation-slots.yml) | feature | P2 | — | Run bounded concurrent allocations in one configurable Runtime process |
 | [V487-005](v487-005-runtime-multislot-acceptance.yml) | chore | P2 | V487-002, V487-003, V487-004 | Verify isolation cleanup and memory benefit of the multi-slot Runtime |
 
 ### Planners and the Worker model boundary (`planner-worker`)
@@ -50,7 +54,6 @@ the epics are in [epics.yml](epics.yml).
 | [V410-037](v410-037-allocation-openvpn-bridge-egress.yml) | feature | P2 | — | Route bridge egress through an allocation-owned OpenVPN tunnel |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
-| [V487-002](v487-002-runtime-http-sessions.yml) | feature | P2 | — | Share the Runtime HTTP engine through isolated allocation sessions |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -96,7 +99,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V411-013](v411-013-pentest-sandbox-integration.yml) | feature | P1 | V411-015 | Compose the existing networked sandbox into HTTP investigations |
 | [V469-003](v469-003-opencode-audit-recovery.yml) | chore | P1 | V469-002 | Verify retained environment recovery and deletion across owner failures |
-| [V487-003](v487-003-runtime-podman-resources.yml) | feature | P2 | — | Manage allocation containers through one Runtime Podman owner |
 
 ### Web UI (`ui`)
 
@@ -160,8 +162,8 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 5 | 52 | 73 | 42 | 109 |
-| Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 99 |
+| Run execution core (`execution-core`) | 6 | 52 | 73 | 44 | 109 |
+| Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 100 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 14 | 4 | 2 | 4 |
@@ -174,9 +176,9 @@ tasks in `introduced_by`.
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 78 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 21 | 55 |
-| Podman sandbox (`sandbox`) | 3 | 11 | 2 | 2 | 6 |
+| Podman sandbox (`sandbox`) | 4 | 11 | 2 | 3 | 6 |
 | Web UI (`ui`) | 1 | 56 | 83 | 34 | 80 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 19 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 20 |
 | Quality, CI and process (`quality`) | 11 | 1 | 38 | 156 | 32 |

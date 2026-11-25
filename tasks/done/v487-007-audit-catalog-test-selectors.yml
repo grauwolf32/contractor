@@ -1,0 +1,55 @@
+schema_version: '1.0'
+id: V487-007
+title: Follow the shipped AuditProfile identities in catalog acceptance tests
+milestone: runtime-allocation-slots-2026-11
+epic: execution-core
+kind: chore
+introduced_by: V480-001
+priority: P2
+status: completed
+depends_on: []
+languages:
+- go
+goal: Existing catalog acceptance tests resolve the shipped immutable identities and can exercise their
+  domain assertions.
+context:
+  authority: User request 2026-11-25 authorizes completing multi-slot execution groups 2 and 3. The full
+    Go gate exposed stale test selectors before integrated acceptance.
+  finding: tests/eval/audit_programs/common_catalog_test.go:21 and http_engagement_test.go:40 request
+    absent source-checklist@4 and WSTG HTTP @4 objects. Current manifests expose source-checklist@3 and
+    both HTTP profiles at @1.
+  specification: docs/spec/configuration/catalog.md
+  bootstrap_finding: The corrected HTTP profile requires skills/auth; the fixture initialized standards
+    but omitted ordinary Skill bundle initialization. Reuse agentskills.Catalog.Initialize before admission.
+  history: V480-001 reset supplied catalog identities and required updating consumers; Git history is
+    squashed at 14dddad611a579c7a8611ecdb5727ec3647b58ad. No publication or catalog content changes are
+    needed.
+scope:
+  in:
+  - Correct every absent sibling exact selector and the matching HTTP draft selector in the existing catalog
+    tests.
+  - Seed the current required Skill bundles through the existing catalog initializer before HTTP Audit
+    admission.
+  out:
+  - Catalog manifests and lock
+  - domain expectations
+  - live evaluation data.
+acceptance_criteria:
+- id: A1
+  text: Common assertion and trusted HTTP engagement tests resolve the exact shipped profiles and retain
+    all domain assertions.
+- id: A2
+  text: The full audit_programs package passes with real PostgreSQL.
+tests:
+- command: go test ./tests/eval/audit_programs
+  covers:
+  - A1
+  - A2
+implementation_commit: d7f3bec0d2e6b404d38eedfd75edd60ed72b661d
+verification:
+  result: passed
+  commands:
+  - command: go test ./tests/eval/audit_programs
+    result: passed against the owned UTF8 PostgreSQL database; complete package
+  environment: Owned PostgreSQL and Linux rootless test lane; no demo database or production contract
+    changes.
