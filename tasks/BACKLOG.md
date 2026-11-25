@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 16 in progress, 43 pending, 13 deferred. 1704 finished: 1686 completed, 18 archived.
+71 open tasks: 15 in progress, 43 pending, 13 deferred. 1705 finished: 1687 completed, 18 archived.
 
 ## In progress
 
@@ -22,7 +22,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V487-002](v487-002-runtime-http-sessions.yml) | http-tools | feature | P2 | Share the Runtime HTTP engine through isolated allocation sessions |
-| [V487-003](v487-003-runtime-podman-resources.yml) | sandbox | feature | P2 | Manage allocation containers through one Runtime Podman owner |
 | [V487-004](v487-004-runtime-allocation-slots.yml) | execution-core | feature | P2 | Run bounded concurrent allocations in one configurable Runtime process |
 | [V487-007](v487-007-audit-catalog-test-selectors.yml) | execution-core | chore | P2 | Follow the shipped AuditProfile identities in catalog acceptance tests |
 | [V487-012](v487-012-managed-eval-yaml-fixture.yml) | evals | chore | P2 | Edit the managed Eval Skill selection through the existing YAML parser |
@@ -36,7 +35,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
 | [V469-002](v469-002-opencode-audit-runtime.yml) | feature | P1 | V469-001 | Run OpenCode in one retained Audit environment through existing A2A |
-| [V487-005](v487-005-runtime-multislot-acceptance.yml) | chore | P2 | V487-002, V487-003, V487-004 | Verify isolation cleanup and memory benefit of the multi-slot Runtime |
+| [V487-005](v487-005-runtime-multislot-acceptance.yml) | chore | P2 | V487-002, V487-004 | Verify isolation cleanup and memory benefit of the multi-slot Runtime |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -177,7 +176,7 @@ tasks in `introduced_by`.
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 78 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 5 | 23 | 47 | 23 | 55 |
-| Podman sandbox (`sandbox`) | 3 | 11 | 2 | 4 | 6 |
+| Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 6 |
 | Web UI (`ui`) | 1 | 56 | 83 | 34 | 80 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |

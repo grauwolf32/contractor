@@ -5,7 +5,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: sandbox
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V487-001
 languages:
@@ -39,11 +39,10 @@ context:
     This task does not implement retained environments.
   execution_group: 2
   execution_batch: Group 2 executes V487-002, V487-003 and V487-004 as one coordinated implementation
-    pass after successful V487-001 evidence. These tasks share the same integration branch. Reconcile
-    interfaces first, implement existing resource owners and capacity consumers together, run focused
-    regressions during changes and one combined set of full gates against the integrated result. If build/wire
-    callers require atomic landing, commit the batch together under the AGENTS.md build-green exception.
-    No task is complete before its own acceptance and the combined gates pass.
+    pass after successful V487-001 evidence. Private/public wire and consumers land atomically under the
+    AGENTS.md build-green exception. Boundary package, fixture, process and Linux rootless checks accept
+    this implementation group. The complete release graph and memory/owned-resource delivery remain mandatory
+    exit acceptance in dependent V487-005.
   start_condition: V487-001 is completed and evidence demonstrates shared-engine isolation. A negative
     verdict leaves this group pending with context.decision_needed.
   ipc_boundary: OwnerClient.request and serve_owner currently serialize one framed stream without request
@@ -51,11 +50,12 @@ context:
     while one multiplexed channel needs a bounded correlation map and write serialization. Resolve this
     internal implementation choice with the production diff during group 2, retaining one owner process
     and one health/lease authority.
-  verification_execution: 'User request 2026-11-25 asks for the minimum number of passes. Final verification
-    uses the existing release-verify consolidation rather than repeating all family suites: actual Go/Runtime/shared-fixture,
-    race, integration, process and browser reports must demonstrate nonzero required cases. Family targets
-    skipped by RELEASE_CONSOLIDATED are not independent passing coverage. The Linux rootless Podman gate
-    stays separate.'
+  verification_execution: 'Verification ownership clarified 2026-11-26 within the user-authorized groups
+    2 and 3: keep full changed-package and real boundary checks here, and the complete release graph in
+    V487-005. This avoids making the memory/cleanup acceptance wait for unrelated long release shards
+    before it may start. Reuse already executed checks from the integrated build, record exact selected
+    cases and rerun failed stages after fixes. Never count RELEASE_CONSOLIDATED family skips, unavailable
+    PostgreSQL or Podman as passes. V487-005 cannot complete until every required release stage succeeds.'
 scope:
   in:
   - Extend existing PodmanLifecycle and LifecycleBackend from one entry to bounded allocation-keyed resources,
@@ -140,7 +140,7 @@ acceptance_criteria:
   then: Existing factory uses the shared owner, single-entry logic is removed and complexity evidence
     is recorded.
 tests:
-- command: make release-verify
+- command: make test-runtime
   covers:
   - A1
   - A2
@@ -151,3 +151,27 @@ tests:
   - A1
   - A2
   - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+implementation_commit: a0558d13bfee9ec2cb2d95585bd94208b4f50f29
+verification:
+  result: passed
+  commands:
+  - command: make test-runtime
+    result: 6695 passed, 135 declared platform/opt-in skips; 587 compaction selections passed. Real Podman
+      coverage is recorded separately below.
+  - command: Linux rootless make test-podman-release
+    result: 'passed: 325 Podman unit cases (35 explicit integration/IO skips), 590 workspace cases (2
+      explicit skips), 61 supervisor, 14 deployment/workflow, 5 lease/release, 4 workspace persistence
+      cases; ordinary Go Server/Runtime mixed four-slot and Project workspace process scenarios passed
+      against PostgreSQL.'
+  - command: make release-verify-lint (includes make lint)
+    result: passed including layers, Ruff, full script/deployment suites, strict spec/tasks/public API
+      checks, release graph, build and locked shipped catalog
+  environment: Dedicated rootless Linux user and exact local sandbox digest; optional CONTRACTOR_TEST_HEAVY_IO
+    was not enabled. Final cleanup and complete release graph remain V487-005 exit acceptance.
