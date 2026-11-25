@@ -7,7 +7,7 @@ kind: feature
 priority: P2
 status: pending
 depends_on:
-- V487-003
+- V487-001
 languages:
 - go
 - python
@@ -41,7 +41,18 @@ context:
     capacity, Runtime-owned HTTP and Podman resources, mandatory cleanup and a shared Artifact cache.
     User additionally requires minimizing code growth and reducing code where possible. Agent proposals
     are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. Implementation
-    tasks remain pending.'
+    tasks remain pending. User follow-up 2026-11-25 requests grouping and execution in the minimum number
+    of passes. Execution groups are isolation assessment, coordinated resource/capacity implementation,
+    and integrated acceptance.'
+  execution_group: 2
+  execution_batch: Group 2 executes V487-002, V487-003 and V487-004 as one coordinated implementation
+    pass after successful V487-001 evidence. These tasks share the same integration branch. Reconcile
+    interfaces first, implement existing resource owners and capacity consumers together, run focused
+    regressions during changes and one combined set of full gates against the integrated result. If build/wire
+    callers require atomic landing, commit the batch together under the AGENTS.md build-green exception.
+    No task is complete before its own acceptance and the combined gates pass.
+  start_condition: V487-001 is completed and evidence demonstrates shared-engine isolation. A negative
+    verdict leaves this group pending with context.decision_needed.
 scope:
   in:
   - Per-Runtime --allocation-slots startup parsing and immutable registration capacity, bounded multi-allocation

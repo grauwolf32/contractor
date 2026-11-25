@@ -7,7 +7,7 @@ kind: feature
 priority: P2
 status: pending
 depends_on:
-- V487-002
+- V487-001
 languages:
 - python
 - go
@@ -29,10 +29,26 @@ context:
     capacity, Runtime-owned HTTP and Podman resources, mandatory cleanup and a shared Artifact cache.
     User additionally requires minimizing code growth and reducing code where possible. Agent proposals
     are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. Implementation
-    tasks remain pending.'
+    tasks remain pending. User follow-up 2026-11-25 requests grouping and execution in the minimum number
+    of passes. Execution groups are isolation assessment, coordinated resource/capacity implementation,
+    and integrated acceptance.'
   related_plan_review: Before implementation inspect current V469-002 code if landed. Its retained Audit
     environment has its own lifecycle and must not be removed as a neighboring ordinary allocation resource.
     This task does not implement retained environments.
+  execution_group: 2
+  execution_batch: Group 2 executes V487-002, V487-003 and V487-004 as one coordinated implementation
+    pass after successful V487-001 evidence. These tasks share the same integration branch. Reconcile
+    interfaces first, implement existing resource owners and capacity consumers together, run focused
+    regressions during changes and one combined set of full gates against the integrated result. If build/wire
+    callers require atomic landing, commit the batch together under the AGENTS.md build-green exception.
+    No task is complete before its own acceptance and the combined gates pass.
+  start_condition: V487-001 is completed and evidence demonstrates shared-engine isolation. A negative
+    verdict leaves this group pending with context.decision_needed.
+  ipc_boundary: OwnerClient.request and serve_owner currently serialize one framed stream without request
+    IDs. Independent per-resource framed channels reuse the existing codec and bound active lanes to capacity,
+    while one multiplexed channel needs a bounded correlation map and write serialization. Resolve this
+    internal implementation choice with the production diff during group 2, retaining one owner process
+    and one health/lease authority.
 scope:
   in:
   - Extend existing PodmanLifecycle and LifecycleBackend from one entry to bounded allocation-keyed resources,
@@ -58,8 +74,11 @@ requirements:
     and slow prepare/cleanup cannot serialize unrelated allocations behind one long RPC. Keep control/lease
     renewal responsive with bounded IPC dispatch.
 - id: R4
-  text: Route every command, reply and reject by allocation and existing request identity. Retry reuses
-    the same creation/cleanup operation and never creates a second container for an ambiguous result.
+  text: Route every command, reply and reject to the correct allocation. The current owner stream is serialized
+    and has no request correlation ID. Compare up to four independent framed channels to the same owner
+    against a bounded request-ID demultiplexer and choose the smaller implementation preserving joined
+    response ownership. Retry inspects the existing allocation/container identity and cannot create a
+    second container for an ambiguous result. No persistent RPC receipt mechanism is introduced.
 - id: R5
   text: Revocation joins commands, confirms cgroup/container stop and removal, then removes mounted files.
     Cleanup/discovery filters exact owned identities and cannot delete a live neighbor. Shutdown/lease

@@ -5,7 +5,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: http-tools
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - python
@@ -27,10 +27,13 @@ context:
     capacity, Runtime-owned HTTP and Podman resources, mandatory cleanup and a shared Artifact cache.
     User additionally requires minimizing code growth and reducing code where possible. Agent proposals
     are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. Implementation
-    tasks remain pending.'
+    tasks remain pending. User follow-up 2026-11-25 requests grouping and execution in the minimum number
+    of passes. Execution groups are isolation assessment, coordinated resource/capacity implementation,
+    and integrated acceptance.'
   test_command_contract: The experiment command is introduced by this task. It exits nonzero for missing/incomplete
     evidence or a failed negative control. A fully evaluated unsupported design produces an explicit negative
     verdict, which V487-002 must reject as its start condition.
+  execution_group: 1
 scope:
   in:
   - A reproducible experiment under scripts/experiments with pinned Runtime dependencies, local fixtures
@@ -123,3 +126,39 @@ tests:
   covers:
   - A1
   - A4
+verification:
+  date: '2026-11-25'
+  result: passed
+  evidence:
+  - tasks/evidence/v487-001-mitmproxy-isolation.md
+  - tasks/evidence/v487-001-mitmproxy-isolation.json
+  commands:
+  - command: cd runtime && uv run python ../scripts/experiments/mitmproxy_shared_sessions.py --output
+      ../tasks/evidence/v487-001-mitmproxy-isolation.json
+    result: passed; 9 real-socket scenarios, one observed native Master per case, positive context isolation
+      and negative global-trust/routing controls
+  - command: make test-runtime
+    result: passed; 6690 passed, 134 declared skips; Runtime and compaction report validators passed (587
+      selected compaction cases)
+  - command: make lint
+    result: passed
+  - command: ruff check and format --check with runtime/pyproject.toml for scripts/experiments/mitmproxy_shared_sessions.py
+    result: passed
+  skip_reasons:
+    'OPS-R1: Linux byte-exact filename/long-path fixture; excluded from macOS acceptance': 2
+    run make test-interactsh-protocol for the pinned upstream server: 1
+    live LLM Gateway environment is not configured: 3
+    ? 'OPS-R1: the allocation-scoped Podman backend needs Linux host capabilities (AF_UNIX SOCK_SEQPACKET
+      socket pairs, pidfd_open)'
+    : 94
+    explicit real-rootless startup capability gate: 2
+    explicit real-rootless deployment/workflow gate: 1
+    explicit real-rootless command execution gate: 12
+    explicit real-rootless owner-process gate: 3
+    explicit real Podman release gate: 5
+    'explicit real gate: make test-podman-supervisor': 11
+  environment: Used Go 1.26.10, Node 24.20.0 and provisioned ffuf 2.3.0 on PATH. Initial attempts exposed
+    missing Go and unsupported Homebrew ffuf 2.1.0-dev; corrected the lane PATH, all 18 ffuf cases and
+    the final full Runtime gate passed. Heavy-I/O remained opt-in and disabled. No test database was created.
+  delivery: Experiment and grouping are on codex/runtime-multislot-proposal. Group 2 and group 3 remain
+    pending. No production ownership/protocol implementation in this research change.

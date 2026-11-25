@@ -7,6 +7,8 @@ kind: chore
 priority: P2
 status: pending
 depends_on:
+- V487-002
+- V487-003
 - V487-004
 languages:
 - python
@@ -31,10 +33,13 @@ context:
     capacity, Runtime-owned HTTP and Podman resources, mandatory cleanup and a shared Artifact cache.
     User additionally requires minimizing code growth and reducing code where possible. Agent proposals
     are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. Implementation
-    tasks remain pending.'
+    tasks remain pending. User follow-up 2026-11-25 requests grouping and execution in the minimum number
+    of passes. Execution groups are isolation assessment, coordinated resource/capacity implementation,
+    and integrated acceptance.'
   test_command_contract: Introduce the memory experiment command with actual process startup/teardown
     and redacted reproducible evidence. It must fail unavailable prerequisites rather than substitute
     synthetic measurements. Deterministic scenarios are required in the release graph.
+  execution_group: 3
 scope:
   in:
   - Integrated acceptance matrix and persistent redacted evidence covering V487-001 through V487-004 through
