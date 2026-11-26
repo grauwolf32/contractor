@@ -1,0 +1,514 @@
+{
+  "task": "V488-002",
+  "status": "passed",
+  "implementation_commit": "7f7df86645ca730322b9ccb4024c3eaf9fdf0c35",
+  "scope": "Entire Streamline model loop in its own Runtime allocation; Server owns canonical execution operations; Router stays Go.",
+  "core_go": {
+    "command": "go test -race -count=1 -json ./internal/planner/... ./internal/scheduler ./internal/controlplane ./internal/contracts/... ./internal/httpapi/privateartifacts",
+    "postgres": "owned disposable PostgreSQL 17, port 55489",
+    "packages": {
+      "pass": 21
+    },
+    "root_tests": {
+      "pass": 848
+    },
+    "test_records": {
+      "pass": 3302
+    },
+    "skips": [],
+    "log_sha256": "f55b8a28886bce49ce8a375f04c3742a2caf8d207f4bdf95d72e79c46243a9d0"
+  },
+  "additional_go_packages": {
+    "command": "go test -race -count=1 -json -p=4 -timeout=15m ./internal/planner/... ./internal/scheduler ./internal/controlplane ./internal/contracts/... ./internal/config/... ./internal/httpapi/privateartifacts ./internal/app ./internal/archtest ./internal/runtimeconfig ./internal/gatewayrecovery ./internal/telemetry",
+    "packages": {
+      "pass": 29
+    },
+    "root_tests": {
+      "pass": 1316,
+      "skip": 1
+    },
+    "test_records": {
+      "pass": 4964,
+      "skip": 1
+    },
+    "skips": [
+      "TestPlannerOTLPCollectorProjection"
+    ],
+    "log_sha256": "a741b2c0a33d23bb9b8fa1332531c43fc6ae8a02ce9ad26dfb2d6120c5674175"
+  },
+  "runtime": {
+    "command": "make test-runtime",
+    "passed": 6743,
+    "skipped": 135,
+    "skip_reasons": {
+      "OPS-R1: Linux byte-exact filename/long-path fixture; excluded from macOS acceptance": 2,
+      "run make test-interactsh-protocol for the pinned upstream server": 1,
+      "live LLM Gateway environment is not configured": 3,
+      "OPS-R1: the allocation-scoped Podman backend needs Linux host capabilities (AF_UNIX SOCK_SEQPACKET socket pairs, pidfd_open)": 94,
+      "explicit real-rootless startup capability gate": 2,
+      "explicit real-rootless deployment/workflow gate": 1,
+      "explicit real-rootless command execution gate": 13,
+      "explicit real-rootless owner-process gate": 3,
+      "explicit real Podman release gate": 5,
+      "explicit real gate: make test-podman-supervisor": 11
+    },
+    "compaction_selected_passed": 610,
+    "log_sha256": "7ecc13c5cfceecac14bc245065bf12ab97053f5fe03294f41bd2144bddff71c2",
+    "junit_sha256": "26e50e016535fdbd44de878fc5c6060be8b2b7f5b5d4a9ccf79d2b1f391c479c"
+  },
+  "lint": {
+    "command": "make lint",
+    "result": "passed",
+    "log_sha256": "71e7586a9abac8fc216edd3326cf93a789b27b743691de67e8d21b3bb92e34c4"
+  },
+  "wire": {
+    "command": "make test-wire-cross-language",
+    "result": "passed",
+    "fixtures": 434,
+    "go_shared_tests": 472,
+    "python_shared_tests": 300,
+    "optional_heavy_io_skipped": 1,
+    "log_sha256": "9f6915742fd8cb1f4ae1b4926d9207da0fc73f20a4867b00f3fafcaaffc0987d"
+  },
+  "configuration": {
+    "command": "make test-config",
+    "result": "passed",
+    "catalog_lock_checked": true,
+    "log_sha256": "8a3f24e9c98e1cd99884927f32c944bbbc5120f9c2887194e779d24f040d6e26"
+  },
+  "architecture": {
+    "command": "make verify-architecture",
+    "result": "passed",
+    "log_sha256": "eeac79ba4996c61caaf6e142b639b2a85d5570f5dcd1d9a9f3cb9ea903f04baf"
+  },
+  "processes": {
+    "command": "make -j3 test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c",
+    "result": "passed",
+    "unique_roots": 71,
+    "same_root_set_as_make_test_e2e": true,
+    "missing": [],
+    "unexpected": [],
+    "shards": {
+      "a": {
+        "packages": {
+          "pass": 1
+        },
+        "root_tests": {
+          "pass": 26
+        },
+        "test_records": {
+          "pass": 43
+        },
+        "skips": [],
+        "log_sha256": "5f2147b9feb8e147a5443eb3e955dd2016aa81d9f085819e13684161975a4bf7",
+        "roots": [
+          [
+            "TestArtifactHistoryAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestArtifactImagesAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestAuditBasicExactHandoffAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestAuditCommonObservationProfilesAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestAuditCompactionLeaseLossAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestAuditHypothesisContinuationAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestAuditFixedHypothesesAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestAuditIncrementalEvidenceAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestAuditPartialJudgmentsAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestAuditWorkspaceAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestLocalGoToPythonArtifactCopy",
+            "pass"
+          ],
+          [
+            "TestArtifactFilePublicationAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses",
+            "pass"
+          ],
+          [
+            "TestProjectSitemapHTTPCollectionAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestWorkflowMaterialSetsAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestOpenAPIPreparedWorkServerOperation",
+            "pass"
+          ],
+          [
+            "TestProjectSitemapReportImportsAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestProjectSitemapServerOperationsAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestProjectSitemapToolsAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestRuntimeManagedArtifactWritesAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestRuntimeManagedSitemapEditsAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestRuntimeManagedMaterialVersionsAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestMemoryMVPProcesses",
+            "pass"
+          ]
+        ]
+      },
+      "b": {
+        "packages": {
+          "pass": 1
+        },
+        "root_tests": {
+          "pass": 16
+        },
+        "test_records": {
+          "pass": 66
+        },
+        "skips": [],
+        "log_sha256": "4cb867ce58ce6911ea09ea26007b89581cd3daaf8e028a7d6cd60520591037b7",
+        "roots": [
+          [
+            "TestAuditProgramCatalogReplacementRestartsServer",
+            "pass"
+          ],
+          [
+            "TestEngagementHTTPBoundsAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestEngagementHTTPSelectedEvidenceAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestEngagementHTTPLifecycleAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestEngagementHTTPRouteMatrixAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestEngagementIdentityLifecycleAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestEngagementIdentitySessionsAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestEngagementOrdinaryRunAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestRoutingAndEscalationProductionBoundaries",
+            "pass"
+          ],
+          [
+            "TestRunMetadataLabelsAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestRuntimeAdapterSelectionAllowsAdditionalCapabilities",
+            "pass"
+          ],
+          [
+            "TestLabelDrivenRuntimeConfigurationAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestSchedulerConcurrencyAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestTaintAnnotationsAcrossRealRuntimeProcess",
+            "pass"
+          ],
+          [
+            "TestWorkerSummarizerProductionBoundaries",
+            "pass"
+          ]
+        ]
+      },
+      "c": {
+        "packages": {
+          "pass": 1
+        },
+        "root_tests": {
+          "pass": 29
+        },
+        "test_records": {
+          "pass": 76
+        },
+        "skips": [],
+        "log_sha256": "7bd4173629e0dc32b9f523700f0b458b43afebe92f9bc29319651c8784e4982d",
+        "roots": [
+          [
+            "TestAgentSkillsMVPProcesses",
+            "pass"
+          ],
+          [
+            "TestHeterogeneousRuntimeCapabilityPlacement",
+            "pass"
+          ],
+          [
+            "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",
+            "pass"
+          ],
+          [
+            "TestDiscoveryFactsAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestEvalFindingProjectNavigationAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestFactExtractionAuditEvalAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestFactExtractionAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestFindingsReaderBoundariesAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestFindingLocationsAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestFindingsProducerAndReaderAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts",
+            "pass"
+          ],
+          [
+            "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestMemorySnapshotAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestNucleiWebWithDeterministicScannerAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestProcessDatabaseIsolation",
+            "pass"
+          ],
+          [
+            "TestIndependentFindingsServersAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestProductionMemoryTemplatesAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestProjectFactsAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestProjectFindingsReaderAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestProjectDocumentResponseRecoveryAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestProjectDocumentOutputLimitRecoveryAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestProjectWorkspaceLifecycleAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestRuntimeGuidanceAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestRuntimePlacementScannerFixture",
+            "pass"
+          ],
+          [
+            "TestRuntimePlacementAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestRuntimeAllocationSlotsAcrossProductionProcesses",
+            "pass"
+          ],
+          [
+            "TestTraceFindingCoordinatesAcrossProcesses",
+            "pass"
+          ],
+          [
+            "TestWorkerCompactionContinuesIsolatedWorker",
+            "pass"
+          ],
+          [
+            "TestWorkerSessionModesAcrossProductionProcesses",
+            "pass"
+          ]
+        ]
+      }
+    },
+    "log_sha256": "5d185a16fd4fa67793b4f9da7102ff5cc50976375dfb0154374e05646c088536"
+  },
+  "focused_processes": {
+    "command": "go test -json -tags=e2e -count=1 -timeout=25m ./tests/e2e -run selected P1 roots",
+    "packages": {
+      "pass": 1
+    },
+    "root_tests": {
+      "pass": 5
+    },
+    "test_records": {
+      "pass": 11
+    },
+    "skips": [],
+    "log_sha256": "1892ec8b7ed85e11ab8e4faf4ab27915d80f04070409567c184a53d6002d6f53",
+    "roots": [
+      [
+        "TestProjectDocumentResponseRecoveryAcrossProcesses",
+        "pass"
+      ],
+      [
+        "TestProjectDocumentOutputLimitRecoveryAcrossProcesses",
+        "pass"
+      ],
+      [
+        "TestRoutingAndEscalationProductionBoundaries",
+        "pass"
+      ],
+      [
+        "TestMemoryMVPProcesses",
+        "pass"
+      ],
+      [
+        "TestWorkerSummarizerProductionBoundaries",
+        "pass"
+      ]
+    ]
+  },
+  "new_path_evidence": {
+    "two_subtasks": "TestWorkerSessionModesAcrossProductionProcesses: streamline-isolated adds and executes subtask 0, then 1, then finishes; Server/PostgreSQL/Python Runtime/controlled Gateway.",
+    "remote_dispatch": "TestRoutingAndEscalationProductionBoundaries places Planner and Worker on distinct capacity-one Runtime processes; accepted exact refs, cancellation and release verified.",
+    "cost": "Seven native calls total cost exactly USD 0.007; three are attributed to Planner. Ordered replay does not duplicate known cost or Worker dispatch.",
+    "compaction": "Real process continuation/compaction and local injected-host ADK tests; real PostgreSQL checkpoint tests cover stale generation and lost marker acknowledgement.",
+    "headless": "Core imports with Server/allocation/A2A adapters blocked; actual ADK loop and compactor run with injected local host/model. No production local backend claimed.",
+    "fencing": "Existing Run claim, session owner, grant and Runtime instance checks; sequence is only per-host delivery ordering. No resume/adoption added."
+  },
+  "negative_control": {
+    "mutation": "Go overlay disables the last-response replay branch; no working-tree edit.",
+    "expected_failed_subtests": [
+      "complete",
+      "required-event-rejected"
+    ],
+    "negative_log_sha256": "4ed10b42f4fb01b571eedddf0c94bb5fb63e6a8f3ca3978e93bbf9a066908762",
+    "positive_recheck": "Both original subtests passed after removing overlay",
+    "positive_log_sha256": "a078adc0e90894e42a6f5bd680c672be6ea87cf605cf55a0cf14b5268b36465f"
+  },
+  "unsuccessful_attempts": {
+    "sequential_process_gate": "Stopped after obsolete capacity-one Worker compaction fixture failed under Streamline; fixture updated and all 71 declared roots passed in supported CI shards. The failed attempt is not passing coverage.",
+    "runtime_fixture_iterations": "Earlier failing/interrupted runs are not passing coverage; final immutable functional code Runtime suite passed."
+  },
+  "production_lines": {
+    "added": 2603,
+    "deleted": 584,
+    "net": 2019,
+    "reason": "Shared request encoding and one-shot model moved/reused; Server domain owners reused. Total code still grows because the shared Go engine remains a Router production dependency."
+  },
+  "cleanup": {
+    "databases_dropped": [
+      "contractor_process_3329eb7bb4467444",
+      "contractor_process_6601e23acb658da2",
+      "contractor_test_v488_p1"
+    ],
+    "cluster_stopped_and_removed": "/private/tmp/contractor-v488-p1-pg",
+    "owned_server_caches_removed": [
+      "/private/tmp/contractor-e2e-server-1844368146"
+    ],
+    "owned_runtime_processes_remaining": 0,
+    "demo_untouched": true
+  },
+  "delivery": {
+    "branch": "codex/runtime-planner-p1",
+    "merged": false,
+    "deployed": false,
+    "live_models_used": false,
+    "primary_user_files_untouched": true
+  },
+  "remaining_scope": [
+    "Local production PlannerHost/headless backend",
+    "Runtime replacement resume and owner-transfer recovery",
+    "Router relocation and deletion of its Go model engine",
+    "Possible audit assistant remains a proposal"
+  ]
+}

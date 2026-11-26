@@ -5,7 +5,7 @@ milestone: runtime-planner-p1-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V488-001
 languages: [go, python, yaml, markdown]
@@ -46,7 +46,7 @@ context:
     durable journal or polling service. Native cost observations travel as bounded
     cumulative LLMCost snapshots into the existing Server Planner report; the
     Planner allocation has no duplicate cost contribution. Full process acceptance
-    uses the three supported CI shards (the same 72 roots as make test-e2e).
+    uses the three supported CI shards (the same 71 roots as make test-e2e).
     The sequential attempt exposed an obsolete capacity-one compaction fixture;
     the fixture now accounts for Planner and Worker separately. Keep domain rules in existing owners.
 scope:
@@ -101,3 +101,18 @@ tests:
   covers: [A3]
 - command: make verify-architecture
   covers: [A3]
+
+implementation_commit: 7f7df86645ca730322b9ccb4024c3eaf9fdf0c35
+verification:
+  result: passed
+  evidence: tasks/evidence/v488-002-runtime-streamline-p1.json
+  go: 848 root tests and 3302 test/subtest records in 21 packages passed with race detection and real PostgreSQL; no skips. Additional config, app, RuntimeConfig, Gateway recovery, telemetry and architecture package suites passed, with the optional external OTLP collector test skipped.
+  runtime: 6743 passed and 135 declared platform/live/opt-in skips; Runtime and compaction report verifiers passed, including 610 selected compaction cases.
+  wire: 434 fixtures, 472 Go and 300 Python shared tests; one optional disk-heavy fixture skipped and not counted as passing coverage.
+  processes: All 71 distinct roots selected by the full make test-e2e pattern passed without skips across the three supported CI shards; all shard report verifiers passed. Five focused P1 process roots also passed.
+  failures: The earlier sequential process attempt failed an obsolete single-slot compaction fixture. Its capacity and report expectations were fixed before the complete sharded acceptance; failed or interrupted attempts are not passing coverage.
+  negative_control: Disabling replay through a Go overlay failed both real-store replay cases; both passed with the original implementation. Working tree was not mutated by this control.
+  boundaries: Runtime core accepts injected model and PlannerHost and imports no Server/A2A/bootstrap adapter; local test runs actual ADK loop and compaction. Server remains on the critical path. Sequence is live-host delivery ordering, while existing claims/session/grants fence authority. No LocalHost backend, resume/adoption or second engine was added.
+  checks: make lint, make verify-architecture and make test-config including shipped catalog lock validation passed.
+  delivery: Separate codex/runtime-planner-p1 branch; not merged or deployed. Router and the possible audit assistant remain next-stage/proposal scope.
+  cleanup: All three remaining owned test databases explicitly dropped; owned PostgreSQL 17 cluster on port 55489 stopped and removed; owned Runtime processes joined, recorded interrupted-lane server cache removed. Primary user files unchanged.

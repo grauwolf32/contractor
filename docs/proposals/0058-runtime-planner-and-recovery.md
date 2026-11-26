@@ -1,7 +1,7 @@
 # Planner в Runtime и восстановление выполнения
 
 Обновлено 26 ноября 2026 года. Пользователь поручил начать P1. Завершена
-подготовительная задача V488-001; V488-002 реализует весь Streamline, включая
+подготовительная задача V488-001; V488-002 завершена в отдельной ветке: весь Streamline, включая
 `compact@1` и document recovery. Router остаётся на Go до следующего этапа. Planner получает отдельную учитываемую allocation по решению
 пользователя от 2026-11-26. Возобновление остаётся следующим этапом. Основание — завершённый multi-allocation
 в `main`, merge `57ba7a21675559fc4b86eebba0bb596252cac770`, и исправления
@@ -293,8 +293,8 @@ Runtime lifecycle; enforcement — process fence и joined shutdown
 
 P1 начат с завершённой [V488-001](../../tasks/done/v488-001-planner-tool-sdk-boundary.yml):
 отделить серверные операции плана и dispatch от ADK-контекста, сохранив текущий
-production caller. [V488-002](../../tasks/v488-002-runtime-streamline-p1.yml)
-описывает весь удалённый Streamline и находится в реализации: отдельная
+production caller. [V488-002](../../tasks/done/v488-002-runtime-streamline-p1.yml)
+завершена: весь удалённый Streamline, отдельная
 allocation, ordered host, compaction и существующая политика восстановления Gateway
 для основной модели. Compactor сохраняет one-shot без повторов. D1 принят: отдельная allocation; D2 сохраняет Server WorkerInvoker.
 Остальные этапы ниже — предложенный порядок.
@@ -461,3 +461,10 @@ sequenceDiagram
   Owner-->>Old: Отказ старому владельцу
   New->>Owner: Продолжить разрешённый остаток
 ```
+
+
+Приёмка P1 записана в [evidence V488-002](../../tasks/evidence/v488-002-runtime-streamline-p1.json):
+Runtime, Go/PostgreSQL/race, wire, lint, архитектура и полный набор из 71
+процессного сценария через штатные CI-шарды прошли. Ветка не слита в main.
+P1 не реализует производственный LocalHost или замену Runtime с продолжением
+того же плана. Следующие этапы сохраняют указанные выше открытые решения.
