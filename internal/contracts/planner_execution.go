@@ -30,7 +30,7 @@ type PlannerTool struct {
 }
 
 const (
-	MaxPlannerOperationBytes        = 2 << 20
+	MaxPlannerOperationBytes        = 4 << 20
 	MaxPlannerInvocationBytes       = 512 * 1024
 	MaxPlannerTools                 = 64
 	MaxPlannerOperations            = 5*MaxWorkerModelCalls + 1

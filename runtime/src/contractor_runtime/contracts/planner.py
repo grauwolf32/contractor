@@ -20,7 +20,7 @@ from contractor_runtime.contracts.settings import (
     _require_worker_compactor_policy,
 )
 
-MAX_PLANNER_OPERATION_BYTES = 2 << 20
+MAX_PLANNER_OPERATION_BYTES = 4 << 20
 MAX_PLANNER_INVOCATION_BYTES = 512 * 1024
 MAX_PLANNER_TOOLS = 64
 MAX_PLANNER_OPERATIONS = 5001

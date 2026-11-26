@@ -1137,7 +1137,9 @@ nor registration. The Server adapter alone binds operations to the allocation's
 ordinary mTLS private transport. This permits another host implementation without
 changing the model loop; no local persistence backend, offline execution or resume
 is implied. The wire shapes and bounds are in `planner-execution.schema.json`
-and LIM-PLN-23/24. `before_model` admits a model call; `after_model` charges its
+and LIM-PLN-23/24. The 4 MiB operation/reply ceiling accommodates the 2 MiB
+canonical session state plus the Stage objective and operation envelope.
+`before_model` admits a model call; `after_model` charges its
 usage and admits at most one known tool. Tool operations use existing Server
 owners. Compactor admission, reply acceptance and checkpoint publication retain
 PLN-R127–130, with Runtime holding the raw ledger and summary and Server holding

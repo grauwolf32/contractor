@@ -9,7 +9,7 @@ import pytest
 from contractor_runtime import _https
 from contractor_runtime.artifacts import ArtifactHTTPResponse, ArtifactTransportError
 from contractor_runtime.contracts import API_VERSION
-from contractor_runtime.contracts.planner import PlannerOperationResult
+from contractor_runtime.contracts.planner import MAX_PLANNER_OPERATION_BYTES, PlannerOperationResult
 from contractor_runtime.planner import server_host
 from contractor_runtime.planner.host import PlannerStoppedError
 from contractor_runtime.planner.server_host import ServerPlannerHost
@@ -89,7 +89,7 @@ def test_planner_host_rejects_oversized_operation_without_transport_or_retry():
             "allocation-1", transport, deadline=datetime.now(UTC) + timedelta(minutes=1)
         )
         with pytest.raises(PlannerStoppedError) as error:
-            await host.execute("add_subtask", {"instructions": "x" * (2 << 20)})
+            await host.execute("add_subtask", {"instructions": "x" * MAX_PLANNER_OPERATION_BYTES})
         assert error.value.code == "planner_operation_invalid"
         assert not error.value.retryable
         transport.request.assert_not_called()
