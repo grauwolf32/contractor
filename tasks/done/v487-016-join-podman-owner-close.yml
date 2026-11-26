@@ -3,7 +3,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: execution-core
 kind: defect
 priority: P1
-status: in_progress
+status: completed
 languages:
 - python
 id: V487-016
@@ -58,3 +58,12 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 7ef06d3ad344cb1ee6b5e4d4d694fd3c521c2c70
+verification:
+  result: passed
+  evidence: tasks/evidence/v487-014-017-review-fixes.json
+  negative_control: All three owner EOF and backend error/cancellation cases failed on original code.
+  modules: 'macOS: 11 passed, 33 declared Linux-specific skips; Linux: all 65 selected owner/allocation/join
+    cases passed without skips.'
+  shared_exit: 'Full Runtime: 6707 passed, 135 declared skips, both report verifiers passed; make lint
+    passed with real PostgreSQL.'

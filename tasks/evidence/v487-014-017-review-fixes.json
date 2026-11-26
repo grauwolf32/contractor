@@ -1,5 +1,5 @@
 {
-  "status": "in_progress",
+  "status": "verification_passed_merge_pending",
   "source_commits": {
     "014": "deaac4718594234271bbe050e66a3bce65b63e0a",
     "015": "9997e93c393c10f37dec8445b09a8af61ed036a9",
@@ -16,7 +16,8 @@
     },
     "V487-016": {
       "negative_control": "3 cases failed on original source",
-      "modules": "11 passed, 33 declared Linux-specific skips on macOS; separate Linux run pending"
+      "modules": "11 passed, 33 declared Linux-specific skips on macOS; separate Linux run pending",
+      "linux": "All selected Linux modules passed, 65 cases across the combined allocation/owner/join suites."
     }
   },
   "process": {
@@ -34,8 +35,6 @@
     "optional_heavy_skip": 1
   },
   "pending": [
-    "Linux module validation",
-    "test resource cleanup",
     "main merge and user-work preservation"
   ],
   "lint": {
@@ -57,5 +56,25 @@
   "linux_initial": {
     "result": "64 passed, 1 fixture prerequisite failure",
     "cause": "The code-analysis sibling needed a writable parser cache; the source mount is read-only. All new regressions and other selected modules passed. Retry uses an explicitly initialized writable parser cache."
+  },
+  "linux": {
+    "result": "passed",
+    "tests": 65,
+    "seconds": 5.69,
+    "skipped": 0,
+    "runtime": "Python 3.13.16, locked dependencies, UID 1000, production lifecycle/backend and native Linux ownership seams",
+    "parser_cache": "Explicit writable private cache initialized through the pinned language-pack API; source remains read-only.",
+    "local_log": "/tmp/contractor-v487-fix-linux-accepted.log"
+  },
+  "cleanup": {
+    "postgres": "Owned review database and exact isolated port-55488 cluster removed after all clients stopped.",
+    "linux": "Only contractor-v487-review-linux stopped and removed with its anonymous volumes/cache/venv; owned wrapper removed. Shared image untouched."
+  },
+  "log_sha256": {
+    "runtime": "4aa6c03b05be8acb2a1348795923abfd5ac9e5cb3d1ce2390f0f71eb52e19788",
+    "lint-accepted": "4426f4a96b91920c806bfa5a9993a0a0bcb6dedfbc6f8105d29c0c6fe59dc469",
+    "process": "979b9473e1d4200e52a97d1fc88cf143381698becf3223617ac423e371e8a757",
+    "wire": "445263353c84d9a97e87a096ebe6b92f199294613e5e4ae436514051785a09fa",
+    "linux-accepted": "2202421ef9210a81633a9ff2b7b249c3a1a17376133496bae70de5a2b826ef5b"
   }
 }
