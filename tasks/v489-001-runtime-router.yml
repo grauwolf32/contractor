@@ -5,7 +5,7 @@ milestone: runtime-planner-p3-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V488-004]
 languages: [go, python, yaml, markdown]
 goal: >-
@@ -26,10 +26,9 @@ context:
     move Router into Runtime and delete replaced Go code, keeping headless
     possible and reducing total code. P3 has no dependency on P2. Earlier user
     decision 2026-11-26 assigns Planner its own allocation and keeps one engine
-    behind replaceable host interactions. This planning change starts no code
-    implementation. Proposal: retain the existing WorkerInvoker and domain
-    owners, finish Router relocation before V489-002 removes the remaining Go
-    SDK bridge. No new recovery guarantees or local production backend.
+    behind replaceable host interactions. User instruction 2026-11-27 starts implementation through merge readiness. Proposal: retain the existing WorkerInvoker and domain
+    owners and delete the Go execution/SDK bridge atomically; V489-002 is
+    consolidated into this task under implementation_replan below. No new recovery guarantees or local production backend.
   proposal: docs/proposals/0058-runtime-planner-and-recovery.md
   specification:
     - docs/spec/execution/planners.md#PLN-R9
@@ -58,12 +57,12 @@ scope:
   in:
     - Entire current Router surface, including none/compact@1, roster, Worker selection, Memory, State, scoped history, deterministic finish and reports.
     - Existing allocation placement/preparation and private Planner callbacks for both modeled strategies; capacity and cancellation regressions.
-    - Delete replaced Go runner, model/compactor execution, Planner Gateway adapter and local-engine composition/test paths once unused.
+    - Delete production Go model construction, runner/compactor/Gateway client, provider cost/classification and SDK tool/event bridge; migrate regression callers to Runtime operations and allocation-bound recovery.
     - Update owning specifications and architecture with implementation; extend existing shared fixtures and process gate coverage.
   out:
     - P2 replacement/resume, allocation history changes, Server recovery, headless production backend, new stores/leases/queues and direct peer dispatch.
     - Dynamic Workers, parallel plan dispatch, changing configured models or extending Streamline-only summary continuation to Router.
-    - Remaining SDK-only tool/event bridge cleanup and final milestone acceptance, owned by V489-002.
+    - Package renaming or a generic replacement SDK/framework.
 requirements:
   - id: R1
     text: >-
@@ -97,8 +96,8 @@ requirements:
       Keep PlannerHost and injected models deployment-neutral. Prove the actual
       Router Python loop with two Worker names and compaction through a local
       test host, without Server/A2A/bootstrap imports or a second local engine.
-      Remove the replaced Go execution rather than retaining it for tests or
-      compatibility. V489-002 owns only the still-used SDK bridge.
+      Remove the coupled Go execution and SDK test bridge after regression
+      migration; no production fallback is retained.
 failure_outcomes:
   - operation: Planner placement and A2A invocation
     permanent: Existing invalid configuration/authority errors stop before model or Worker calls; never downgrade to the Go engine.
@@ -144,7 +143,7 @@ acceptance_criteria:
     when: It routes work to two named Workers and compacts without Server bootstrap.
     then: The loop completes through the existing protocol, with no new local production engine or Server dependency in core.
   - id: A5
-    text: Owning specs, fixtures, gates and deleted execution paths agree; full touched-package tests pass and evidence distinguishes passes/skips. Final P3 acceptance remains V489-002.
+    text: Owning specs, fixtures, gates and deleted execution paths agree; full touched-package tests pass and evidence distinguishes passes/skips. Final P3 acceptance includes SDK cleanup, dependency removal and the cleanup gates below.
 tests:
   - command: go test -race -tags=integration -count=1 ./internal/planner/... ./internal/scheduler ./internal/controlplane ./internal/runstore ./internal/httpapi/privateartifacts ./internal/app
     covers: [A1, A2, A3, A5]
@@ -152,7 +151,7 @@ tests:
     covers: [A2, A3, A4, A5]
   - command: make test-wire-cross-language
     covers: [A2, A3, A5]
-  - command: make test-e2e
+  - command: make -j3 test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
     covers: [A1, A2, A3, A5]
   - command: make test-config
     covers: [A2, A5]
@@ -160,3 +159,31 @@ tests:
     covers: [A4, A5]
   - command: make verify-architecture
     covers: [A5]
+  - command: make verify-public-api
+    covers: [A5]
+  - command: make verify-public-api-postgres
+    covers: [A5]
+
+implementation_replan:
+  authority: >-
+    User instruction 2026-11-27 implements the whole P3 through merge readiness.
+    Inspection shows model execution, SDK tool/event bridge and old regression
+    callers must migrate together to keep the no-test-only-exports gate green.
+    Consolidate V489-002 into this task; the authorized outcome and scope are
+    unchanged. Its full acceptance criteria and test commands below apply.
+  cleanup_acceptance:
+    - Streamline and Router no longer execute or import Go ADK/GenAI machinery. Production and test callers are migrated before old implementations are deleted; go mod tidy removes unused direct/transitive dependencies and the module graph is checked. No old engine remains solely for tests.
+    - Direct session writes preserve durable ordering, redaction, bounded counters, exact error/cancellation precedence and compaction confirmation. Real PostgreSQL tests cover failures before/after commit, rejected writes, lost replies and terminal/cancel races. No raw dialogue, arguments or secrets enter reduced facts, and no new receipt/table/lease is added.
+    - Native declarations preserve both strategies' schema, Worker constraints, optional/required fields, model-visible domain errors, finish actions and Memory/State/history behavior. One Python loop with injected host still runs Router and Streamline, including compaction, without Server bootstrap; no second local domain engine is introduced.
+    - Final evidence runs full touched packages and both modeled strategies through real Server/PostgreSQL/Runtime process gates, including capacity four, distributed routing, cancellation, stale authority, replay, strict usage/JSON/filtering, compaction and exact result acceptance. Gate selections are nonempty; removed/renamed tests have a coverage mapping. Negative controls detect Worker misrouting, duplicate dispatch/charge and lost required-event failure propagation. Disabled/skipped cases are not passes.
+    - Record before/after Go+Python production LOC separately from tests, generated files and docs, deleted execution paths and dependency delta. Target is net code reduction across P3; if it is not achieved, explain the remaining callers and revisit scope before claiming simplification. P2 stays deferred. State merge status explicitly; readiness is not merge authorization. The milestone is complete only when every listed gate and criterion passes.
+  cleanup_tests:
+    - go test -race -tags=integration -count=1 ./internal/planner/... ./internal/scheduler ./internal/controlplane ./internal/runstore ./internal/httpapi/privateartifacts ./internal/app ./internal/telemetry ./internal/gatewayrecovery ./internal/archtest
+    - make test-runtime
+    - make test-wire-cross-language
+    - make -j3 test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
+    - make verify-public-api
+    - make verify-public-api-postgres
+    - make test-config
+    - make lint
+    - make verify-architecture

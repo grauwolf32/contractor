@@ -1,13 +1,6 @@
 package streamline
 
-import (
-	"errors"
-
-	"github.com/grauwolf32/contractor/internal/stageresult"
-	"google.golang.org/adk/v2/model"
-)
-
-var errDocumentResponseRecovery = errors.New("document response recovery")
+import "github.com/grauwolf32/contractor/internal/stageresult"
 
 func (p *streamlinePlanner) readyForDocumentRecovery() bool {
 	if p.finishRecovery || p.plan.CanFinish(stageresult.StageSucceeded) != nil {
@@ -24,20 +17,4 @@ func (p *streamlinePlanner) readyForDocumentRecovery() bool {
 		}
 	}
 	return len(p.invocation.Stage.Agents) > 0
-}
-
-func singleFinish(response *model.LLMResponse) bool {
-	if response == nil || response.Content == nil {
-		return false
-	}
-	count := 0
-	for _, part := range response.Content.Parts {
-		if part != nil && part.FunctionCall != nil {
-			if part.FunctionCall.Name != finishToolName {
-				return false
-			}
-			count++
-		}
-	}
-	return count == 1
 }

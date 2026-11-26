@@ -12,7 +12,7 @@ import (
 // executionStage adds the built-in Planner executor only to the allocation
 // view. It never changes the immutable Workflow/Stage snapshot or Worker set.
 func executionStage(stage resolved.ResolvedStage) resolved.ResolvedStage {
-	if stage.Planner.Selector() != resolved.StreamlinePlanner {
+	if stage.Planner.Selector() != resolved.StreamlinePlanner && stage.Planner.Selector() != resolved.RouterPlanner {
 		return stage
 	}
 	name := "planner_executor"

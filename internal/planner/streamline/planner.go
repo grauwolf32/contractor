@@ -3,10 +3,8 @@ package streamline
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -14,20 +12,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
-	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
-	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/planner/stateview"
 	"github.com/grauwolf32/contractor/internal/stageresult"
-	"github.com/grauwolf32/contractor/internal/telemetry"
-	"google.golang.org/adk/v2/agent"
-	"google.golang.org/adk/v2/agent/llmagent"
-	"google.golang.org/adk/v2/model"
-	"google.golang.org/adk/v2/runner"
-	adksession "google.golang.org/adk/v2/session"
-	"google.golang.org/adk/v2/tool"
-	"google.golang.org/genai"
 )
 
 // The Planner prompt context is distinct from the Worker request/result contracts.
@@ -42,22 +30,18 @@ type streamlinePlanner struct {
 	plan                      *planner.PlannerPlanController
 	resultContract            map[string]resolved.ArtifactSlot
 	sessions                  planner.PlanSessionService
-	adkSessions               ADKSessionFactory
 	invoker                   planner.WorkerInvoker
 	inspector                 planner.ArtifactInspector
 	stateViews                *stateview.Service
-	model                     model.LLM
 	limits                    Limits
 	deadline                  time.Time
 	finishRecovery            bool
 	finishRecoveryCallStarted bool
-	guidance                  *genai.Content
 	recoveryArtifacts         map[string]bool
-	// compactionSettings selects compact@1; compaction is its live state and
-	// compactor its tool-free model client (PLN-R125).
+	// compactionSettings selects compact@1; compaction retains only the Server
+	// history and confirmed generation. Runtime owns the conversation (PLN-R125).
 	compactionSettings *compactionSettings
 	compaction         *contextCompaction
-	compactor          compactionModel
 
 	reportMu  sync.RWMutex
 	report    reporting.ExecutionReport
@@ -75,7 +59,6 @@ func (p *streamlinePlanner) Run(
 	startedAt := time.Now()
 	defer p.stateViews.Close()
 	state := newExecutionState(p.limits)
-	ctx = gatewayrecovery.WithLLMCostCollector(ctx, &state.cost)
 	var identity planner.SessionIdentity
 	defer func() {
 		var returned *planner.Failure
@@ -121,7 +104,7 @@ func (p *streamlinePlanner) Run(
 		// the caller retains the Planner to read its execution report.
 		defer func() { p.compaction = nil }()
 	}
-	tools, allowed, err := p.buildTools(state, identity)
+	tools, allowed, err := p.buildTools()
 	if err != nil {
 		return stageresult.StageContentResult{}, p.fail(
 			ctx, identity, state, planner.NewError(
@@ -129,184 +112,7 @@ func (p *streamlinePlanner) Run(
 			),
 		)
 	}
-	if p.profile.runtime {
-		return p.runRuntime(ctx, identity, state, tools, allowed)
-	}
-	allowedNames := make([]string, 0, len(allowed))
-	for name := range allowed {
-		allowedNames = append(allowedNames, name)
-	}
-	sort.Strings(allowedNames)
-	adkSessions, err := p.adkSessions.NewADKSession(ctx, identity, plannersession.ADKOptions{
-		AppName: p.profile.adkAppName, UserID: p.invocation.StageExecutionID, AllowedTools: allowedNames,
-	})
-	if err != nil {
-		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, planner.SessionError("create ADK session", err))
-	}
-	adkSessionSpan := instrumentation.StartSpan(
-		telemetry.PlannerSpanSession,
-		telemetry.PlannerSpanAttributes{Operation: "session.adk_create", SessionID: identity.SessionID},
-	)
-	if _, err := adkSessions.Create(ctx, &adksession.CreateRequest{
-		AppName: p.profile.adkAppName, UserID: p.invocation.StageExecutionID,
-		SessionID: identity.SessionID, State: map[string]any{"metrics": map[string]any{}},
-	}); err != nil {
-		sessionError := planner.SessionError("initialize ADK session", err)
-		planner.EndSessionSpan(adkSessionSpan, sessionError)
-		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, sessionError)
-	}
-	adkSessionSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
-
-	root, err := p.newRootAgent(state, tools, allowed, identity, adkSessions)
-	if err != nil {
-		return stageresult.StageContentResult{}, p.fail(
-			ctx, identity, state, planner.NewError(
-				"planner_initialization_failed", "Planner agent could not be initialized", false, err,
-			),
-		)
-	}
-	adkRunner, err := runner.New(runner.Config{
-		AppName: p.profile.adkAppName, Agent: root, SessionService: adkSessions,
-	})
-	if err != nil {
-		return stageresult.StageContentResult{}, p.fail(
-			ctx, identity, state, planner.NewError(
-				"planner_initialization_failed", "Planner runner could not be initialized", false, err,
-			),
-		)
-	}
-
-	deadline := p.invocation.Deadline
-	wallDeadline := time.Now().Add(p.limits.MaxWallTime)
-	if wallDeadline.Before(deadline) {
-		deadline = wallDeadline
-	}
-	p.deadline = deadline
-	runContext, cancel := context.WithDeadline(ctx, deadline)
-	defer cancel()
-	message, err := p.initialMessage()
-	if err != nil {
-		return stageresult.StageContentResult{}, p.fail(
-			ctx, identity, state, planner.NewError(
-				"planner_context_invalid", "Planner context could not be encoded", false, err,
-			),
-		)
-	}
-
-	for {
-		var iterationErr error
-		for _, eventErr := range adkRunner.Run(
-			runContext,
-			p.invocation.StageExecutionID,
-			identity.SessionID,
-			message,
-			// The domain callback runs before ADK counts the call and owns
-			// budget classification. Explicitly mirror its limit so SDK
-			// defaults and ADK_MAX_LLM_CALLS cannot change the pinned policy.
-			agent.RunConfig{MaxLLMCalls: p.limits.MaxModelCalls},
-		) {
-			if eventErr != nil {
-				iterationErr = eventErr
-				break
-			}
-		}
-		var writeError *plannersession.ADKEventWriteError
-		if errors.As(iterationErr, &writeError) {
-			// finish selects its candidate before ADK appends the response.
-			// A required write failure cannot become a completed candidate.
-			failure := planner.SessionError("record ADK event", writeError)
-			if result, _ := state.terminal(); result != nil {
-				failure = planner.CompletionWriteError(planner.Completion{Result: result}, writeError)
-			}
-			if stopped := stoppedPlannerError(ctx, runContext); stopped != nil {
-				failure = planner.NewError(
-					stopped.Code, stopped.Message, stopped.Retryable && failure.Retryable,
-					errors.Join(stopped, writeError),
-				)
-			}
-			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
-		}
-		if result, failure := state.terminal(); result != nil {
-			completion := planner.Completion{Result: result}
-			if err := planner.CompleteSession(ctx, p.sessions, identity, completion); err != nil {
-				return stageresult.StageContentResult{}, planner.CompletionWriteError(completion, err)
-			}
-			return result.Clone(), nil
-		} else if failure != nil {
-			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
-		}
-		if failure := stoppedPlannerError(ctx, runContext); failure != nil {
-			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
-		}
-		if errors.Is(iterationErr, errCompactionCheckpoint) {
-			// The Runner stopped at a complete tool group; compact outside
-			// its callbacks, then continue in the same session (PLN-R127).
-			if failure := p.compactContext(ctx, runContext, identity, state, adkSessions); failure != nil {
-				return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
-			}
-			message = continuePlanningMessage()
-			continue
-		}
-		if errors.Is(iterationErr, errDocumentResponseRecovery) {
-			message = genai.NewContentFromText("The document work is complete. Submit exactly one complete concise finish with the retained result artifacts.", genai.RoleUser)
-			continue
-		}
-		if iterationErr != nil {
-			var plannerError *planner.Error
-			if errors.As(iterationErr, &plannerError) {
-				return stageresult.StageContentResult{}, p.fail(ctx, identity, state, plannerError)
-			}
-			if planner.SessionWriteRejected(iterationErr) {
-				// The session refused a redacted ADK event (PLN-R106).
-				return stageresult.StageContentResult{}, p.fail(
-					ctx, identity, state, planner.SessionError("record ADK event", iterationErr),
-				)
-			}
-			return stageresult.StageContentResult{}, p.fail(
-				ctx, identity, state, planner.NewError(
-					"planner_execution_failed", "Planner ADK execution failed", true, iterationErr,
-				),
-			)
-		}
-		if exhausted := state.exhaustedAfterTurn(); exhausted != nil {
-			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, exhausted)
-		}
-		message = continuePlanningMessage()
-	}
-}
-
-func continuePlanningMessage() *genai.Content {
-	return genai.NewContentFromText(
-		"Continue planning. Call exactly one declared planning, Worker, or finish tool; a text-only answer does not complete the Stage.",
-		genai.RoleUser,
-	)
-}
-
-// prepareCompactedRequest applies compact@1 before a main-model request: it
-// fences a recorded failure, requests a due checkpoint or projects the
-// bounded post-checkpoint context into request.
-func (p *streamlinePlanner) prepareCompactedRequest(
-	ctx context.Context,
-	state *executionState,
-	identity planner.SessionIdentity,
-	sessions adksession.Service,
-	request *model.LLMRequest,
-) error {
-	if _, failure := state.terminal(); failure != nil {
-		return failure
-	}
-	loaded, err := sessions.Get(ctx, &adksession.GetRequest{
-		AppName: p.profile.adkAppName, UserID: p.invocation.StageExecutionID, SessionID: identity.SessionID,
-	})
-	if err != nil {
-		return state.setExternalFailure(planner.SessionError("read ADK session", err))
-	}
-	err = p.compaction.prepareMain(loaded.Session, p.plan.Snapshot(), request)
-	var failure *planner.Error
-	if errors.As(err, &failure) {
-		return state.setExternalFailure(failure)
-	}
-	return err
+	return p.runRuntime(ctx, identity, state, tools, allowed)
 }
 
 func stoppedPlannerError(caller, execution context.Context) *planner.Error {
@@ -323,160 +129,6 @@ func (p *streamlinePlanner) ExecutionReport() (reporting.ExecutionReport, bool) 
 	p.reportMu.RLock()
 	defer p.reportMu.RUnlock()
 	return p.report, p.hasReport
-}
-
-func (p *streamlinePlanner) newRootAgent(
-	state *executionState, tools []tool.Tool, allowed map[string]struct{},
-	identity planner.SessionIdentity, sessions adksession.Service,
-) (agent.Agent, error) {
-	var temperature *float32
-	if selected := p.invocation.ModelAccess.ModelPolicy.Temperature; selected != nil {
-		value := float32(*selected)
-		temperature = &value
-	}
-	instrumentation := planner.InvocationInstrumentation(p.invocation)
-	modelAlias := p.invocation.ModelAccess.ModelPolicy.Model
-	var modelSpanMu sync.Mutex
-	var modelSpan telemetry.PlannerSpan
-	startModelSpan := func(request *model.LLMRequest) {
-		modelSpanMu.Lock()
-		previous := modelSpan
-		modelSpan = instrumentation.StartSpan(
-			telemetry.PlannerSpanModel,
-			telemetry.PlannerSpanAttributes{
-				Operation: "model.generate", ModelAlias: modelAlias,
-			},
-		)
-		telemetry.CapturePlannerInput(modelSpan, func() any {
-			if request == nil {
-				return nil
-			}
-			payload := map[string]any{"contents": request.Contents}
-			if request.Config != nil {
-				payload["systemInstruction"] = request.Config.SystemInstruction
-				payload["tools"] = request.Config.Tools
-			}
-			return payload
-		})
-		modelSpanMu.Unlock()
-		if previous != nil {
-			previous.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: "planner_model_overlap"})
-		}
-	}
-	endModelSpan := func(outcome, code string, response *model.LLMResponse) {
-		modelSpanMu.Lock()
-		current := modelSpan
-		modelSpan = nil
-		modelSpanMu.Unlock()
-		if current != nil {
-			attributes := telemetry.PlannerSpanAttributes{ErrorCode: code}
-			if response != nil {
-				if response.Content != nil {
-					telemetry.CapturePlannerOutput(current, func() any { return response.Content })
-				}
-				if usage := response.UsageMetadata; usage != nil {
-					attributes.ModelUsage = &telemetry.PlannerModelUsage{InputTokens: int64(usage.PromptTokenCount), OutputTokens: int64(usage.CandidatesTokenCount), CachedInputTokens: int64(usage.CachedContentTokenCount)}
-				}
-			}
-			current.End(outcome, attributes)
-		}
-	}
-	return llmagent.New(llmagent.Config{
-		Name: p.profile.agentName, Model: p.model,
-		Description: p.profile.agentDescription,
-		InstructionProvider: func(agent.ReadonlyContext) (string, error) {
-			return p.systemInstruction(), nil
-		},
-		GenerateContentConfig: &genai.GenerateContentConfig{Temperature: temperature},
-		Tools:                 tools,
-		BeforeModelCallbacks: []llmagent.BeforeModelCallback{
-			func(ctx agent.Context, request *model.LLMRequest) (*model.LLMResponse, error) {
-				if p.compaction != nil {
-					if err := p.prepareCompactedRequest(ctx, state, identity, sessions, request); err != nil {
-						return nil, err
-					}
-				}
-				if p.finishRecoveryCallStarted {
-					return nil, state.setExternalFailure(planner.NewError("planner_gateway_invalid_response", "Document recovery did not produce a valid finish", true, nil))
-				}
-				if p.finishRecovery {
-					p.finishRecoveryCallStarted = true
-				}
-				if err := state.beforeModel(); err != nil {
-					return nil, err
-				}
-				if err := p.prepareGuidance(state, request); err != nil {
-					return nil, err
-				}
-				startModelSpan(request)
-				return nil, nil
-			},
-		},
-		AfterModelCallbacks: []llmagent.AfterModelCallback{
-			func(_ agent.Context, response *model.LLMResponse, _ error) (*model.LLMResponse, error) {
-				result, err := state.afterModel(response, allowed)
-				if err == nil && p.finishRecovery && !singleFinish(response) {
-					result, err = nil, state.setExternalFailure(planner.NewError(
-						"planner_tool_selection_invalid", "Document recovery requires exactly one finish", true, nil,
-					))
-				}
-				if err == nil && p.compaction != nil && response != nil {
-					if failure := p.compaction.observeMain(response.UsageMetadata); failure != nil {
-						result, err = nil, state.setExternalFailure(failure)
-					}
-				}
-				if err != nil {
-					failure := planner.FailureFrom(err)
-					endModelSpan("failed", failure.Code, response)
-				} else {
-					endModelSpan("succeeded", "", response)
-				}
-				return result, err
-			},
-		},
-		OnModelErrorCallbacks: []llmagent.OnModelErrorCallback{
-			func(ctx agent.Context, _ *model.LLMRequest, providerErr error) (*model.LLMResponse, error) {
-				if ctx.Err() != nil {
-					var rejected *gatewayResponseRejected
-					var received *model.LLMResponse
-					if errors.As(providerErr, &rejected) {
-						state.cancelledGatewayUsage(rejected)
-						received = &model.LLMResponse{UsageMetadata: rejected.usage}
-					}
-					endModelSpan("cancelled", "planner_cancelled", received)
-					return nil, providerErr
-				}
-				var rejected *gatewayResponseRejected
-				var gatewayFailure *gatewayrecovery.FailureError
-				var failure *planner.Error
-				switch {
-				case errors.As(providerErr, &rejected):
-					if (rejected.emptyStop || rejected.outputLimited) && p.readyForDocumentRecovery() {
-						failure = state.chargeUsage(rejected.usage)
-						received := &model.LLMResponse{UsageMetadata: rejected.usage}
-						if failure != nil {
-							endModelSpan("failed", failure.Code, received)
-							return nil, failure
-						}
-						endModelSpan("failed", "planner_gateway_invalid_response", received)
-						p.finishRecovery = true
-						return nil, errDocumentResponseRecovery
-					}
-					failure = state.rejectedGatewayResponse(rejected)
-				case errors.As(providerErr, &gatewayFailure) && !gatewayFailure.Failure.Retryable:
-					failure = state.rejectedGatewayRequest(gatewayFailure.Failure.Code)
-				default:
-					failure = state.providerFailure()
-				}
-				var received *model.LLMResponse
-				if rejected != nil && rejected.usage != nil {
-					received = &model.LLMResponse{UsageMetadata: rejected.usage}
-				}
-				endModelSpan("failed", planner.FailureFrom(failure).Code, received)
-				return nil, failure
-			},
-		},
-	})
 }
 
 type promptWorker struct {
@@ -501,7 +153,7 @@ type continuationPrompt struct {
 	Artifacts       map[string]contracts.ArtifactRef `json:"artifacts"`
 }
 
-func (p *streamlinePlanner) initialMessage() (*genai.Content, error) {
+func (p *streamlinePlanner) initialMessage() (string, error) {
 	workers := make([]promptWorker, 0, len(p.workers))
 	for _, binding := range p.workers {
 		workers = append(workers, promptWorker{
@@ -524,9 +176,9 @@ func (p *streamlinePlanner) initialMessage() (*genai.Content, error) {
 	}
 	payload, err := json.Marshal(stageContext)
 	if err != nil || len(payload) > maxPlannerContextBytes {
-		return nil, fmt.Errorf("Planner context exceeds its bounded contract")
+		return "", fmt.Errorf("Planner context exceeds its bounded contract")
 	}
-	return genai.NewContentFromText(string(payload), genai.RoleUser), nil
+	return string(payload), nil
 }
 
 func clonePromptArtifacts(

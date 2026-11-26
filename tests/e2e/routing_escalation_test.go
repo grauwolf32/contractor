@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
-
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -61,7 +60,7 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("issue Control Plane certificate: %v", err)
 	}
-	agentPaths := make([]localpki.Paths, 2)
+	agentPaths := make([]localpki.Paths, 3)
 	for index := range agentPaths {
 		agentPaths[index], err = generator.IssueAgent(
 			pkiRoot, fmt.Sprintf("routing-e2e-agent-%d", index+1), leaf,
@@ -395,8 +394,8 @@ func runWorkerObservationsProcessGate(
 		runtimeURLs, runtimeInstanceIDs, workRoots, workspaceRoots,
 	)
 	initialInstances := allocationInstanceSet(routerAllocations)
-	if len(initialInstances) != 2 {
-		t.Fatalf("observation Router used %d Runtime instances, want two: %+v", len(initialInstances), routerAllocations)
+	if len(initialInstances) != 3 {
+		t.Fatalf("observation Router used %d Runtime instances, want three: %+v", len(initialInstances), routerAllocations)
 	}
 
 	reuseFixture := fixtureForObservationScenario("observation-router-reuse-planner")
@@ -769,7 +768,7 @@ func assertCompleteAllocations(
 	if err := json.Unmarshal(execution.StageSpecSnapshot, &stage); err != nil {
 		t.Fatal(err)
 	}
-	if stage.Planner.Selector() == resolved.StreamlinePlanner {
+	if stage.Planner.Selector() == resolved.StreamlinePlanner || stage.Planner.Selector() == resolved.RouterPlanner {
 		want++
 		logicalNames = append(logicalNames, "planner_executor")
 	}

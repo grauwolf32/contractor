@@ -62,7 +62,7 @@ following ones.
 | Passthrough Planner (`passthrough@1`, `PassthroughPlanner`) | The deterministic, model-free baseline Planner that sends one Worker task to its sole Worker and maps the completion into a candidate. |
 | Streamline Planner (`streamline@1`) | The model-backed Planner that works through a bounded subtask plan with exactly one logical Worker. |
 | Router Planner (`router@1`) | The model-backed Planner that works through a bounded subtask plan and selects a logical Worker by `worker_name` for each dispatch. |
-| Model-backed Planner | A bounded Google ADK model loop: Streamline runs in Runtime; Router runs in Server. Both use Server-owned plan and tool operations. |
+| Model-backed Planner | A bounded Google ADK model loop: Streamline and Router run in Runtime. Both use Server-owned plan and tool operations. |
 | Subtask (`PlannerSubtask`) | One plan record with a Server-assigned decimal string ID, its objective, its instructions and an adapter-controlled status. |
 | Current subtask | The first unresolved subtask of the plan, named by `currentSubtaskId`. |
 | Active dispatch | The in-flight Worker dispatch of the current subtask, holding a Server-generated call ID and the logical Worker name. |
@@ -93,7 +93,7 @@ Worker-selection contract is deliberately different.
 | --- | --- | --- | --- | --- |
 | `passthrough@1` | Deterministic Go code, no model client | Exactly one | One deterministic Worker-task request | None |
 | `streamline@1` | One Google ADK Python `LlmAgent` in a separate Runtime allocation | Exactly one | `execute_current_subtask(subtask_id)` | `add_subtask`, `list_subtasks`, `finish`; when selected, mirrored MemoryTools with the sole Worker's signatures; projection tools without `worker_name` |
-| `router@1` | One Google ADK Go `LlmAgent` | Fixed non-empty mapping | `execute_current_subtask(subtask_id, worker_name)` | `add_subtask`, `list_subtasks`, `finish`; when selected, mirrored MemoryTools; projection tools; each memory and projection tool with a constrained `worker_name` |
+| `router@1` | One Google ADK Python `LlmAgent` in a separate Runtime allocation | Fixed non-empty mapping | `execute_current_subtask(subtask_id, worker_name)` | `add_subtask`, `list_subtasks`, `finish`; when selected, mirrored MemoryTools; projection tools; each memory and projection tool with a constrained `worker_name` |
 
 ### Passthrough path
 
@@ -121,7 +121,7 @@ the model never addresses a Worker directly.
 ```mermaid
 sequenceDiagram
     participant S as Workflow Scheduler
-    participant M as Planner model (Streamline Runtime / Router Server)
+    participant M as Planner model (Streamline / Router Runtime)
     participant A as Planner adapter (Server)
     participant W as Worker (Runtime Agent)
     S->>M: Planner.Run(ctx)
@@ -178,15 +178,12 @@ replaceable Contractor abstraction is the Go `PlannerFactory`; the Workflow
 Scheduler sees only the framework-neutral
 `Planner.Run(context.Context) (StageContentResult, error)` boundary.
 
-**PLN-R2.** `passthrough@1` is deterministic Go code. `streamline@1`
-executes its Google ADK Python model loop in Runtime through PLN-R135; `router@1`
-uses the shared Go ADK engine in Server. Both use the same Server-owned subtask
-plan, budget and `finish` operations. The Go dependency is
-`google.golang.org/adk/v2` v2.8.0; Runtime dependencies are pinned in `uv.lock`.
-Native SDK compaction and resumability remain disabled. Each Runner receives
-its resolved model-call ceiling explicitly; Server admission supplies the
-classified budget stop before an additional provider call. The isolated
-one-shot compactor permits two SDK attempts so its wrapper can refuse a second
+**PLN-R2.** `passthrough@1` is deterministic Go code. `streamline@1` and
+`router@1` execute the same Google ADK Python loop in Runtime through PLN-R135.
+Server owns subtask plan, budgets and `finish`; it has no model SDK or Gateway
+model adapter. Runtime dependencies are pinned in `uv.lock`. Native SDK
+compaction and resumability remain disabled; the pinned model-call ceiling and
+Server admission bound calls. The one-shot compactor wrapper refuses a second
 provider operation.
 
 **PLN-R3.** ADK types do not enter Scheduler, RunStore, A2A or
@@ -830,18 +827,19 @@ The number of Planner instances, invocations, Sessions and ADK conversations
 per StageExecution is specified in [Scheduler](scheduler.md) (SCH-R8,
 LIM-SCH-2).
 
-**PLN-R92.** Every Planner runs in Server with one database-backed
+**PLN-R92.** Every Planner has one Server-owned database-backed
 Contractor session. Its identity is created for one StageExecution and recorded
 with that execution.
 
 **PLN-R93.** `passthrough@1` writes bounded request and completion
 events directly.
 
-**PLN-R94.** `streamline@1` and `router@1` additionally supply
-Google ADK with a SessionService adapter. Live conversation contents remain in
-memory, while every non-partial ADK event is reduced, before its PostgreSQL
-append, to author, allowed function names, action flags and aggregate token
-counts (LIFE-PLN-2, LIFE-PLN-3).
+**PLN-R94.** `streamline@1` and `router@1` keep the live ADK conversation
+in Runtime memory. Their ordered Server host writes reduced activity facts
+directly through the existing session service: author, allowed function names,
+action flags and aggregate token counts (LIFE-PLN-2, LIFE-PLN-3). Server creates
+no synthetic ADK conversation or SDK events. Existing public fact fields and
+the `adk_event` activity kind retain their meaning.
 
 **PLN-R95.** Prompt and model text, generic tool arguments and
 results, provider bodies and unknown provider-controlled function names are
@@ -996,7 +994,7 @@ plan/model/Worker-call budgets and do not request another strategy escalation.
 **PLN-R125.** A `streamline@1` or `router@1` Stage selects its context
 management with `plannerContextManagement`
 ([WFL-R90](../configuration/workflows.md)). Streamline selects and projects
-conversation groups in Runtime; Router uses the Go engine. Both share Server
+conversation groups in Runtime; Router uses that same Runtime engine. Both share Server
 compactor acceptance, cumulative budgets, exact-result history and marker writes. `none` keeps the whole conversation. `compact@1` lets the
 invocation replace earlier turns with one rolling summary; its compactor is the
 Planner execution selection's exact `compactorModelPolicy`, selected through
@@ -1122,14 +1120,14 @@ artifact-backed notes through the explicit MemoryTools contract
 ([Memory](../tools/memory.md)); that remains Run-scoped artifact state rather
 than Planner-session inheritance.
 
-**PLN-R135.** Streamline executes its model loop in one separately accounted
-`planner@1` allocation, alongside its sole Worker. Server keeps the framework-neutral
+**PLN-R135.** Streamline and Router execute their model loops in one separately accounted
+`planner@1` allocation, alongside their fixed Workers. Server keeps the framework-neutral
 Planner boundary, canonical plan, budgets, exact-result acceptance, Memory and
-State operations. Its Runtime factory cannot construct a Go model client.
+State operations. Their shared Runtime factory cannot construct a Go model client.
 The main model uses the exact Planner execution selection. The compactor uses
 its independently pinned policy with that same Gateway and credential and no
 Gateway recovery. `none`, `compact@1`, document recovery, Memory and State retain
-their existing semantics; deterministic Planners and Router execute on Server.
+their existing semantics; deterministic Planners execute on Server.
 
 **PLN-R136.** The Runtime Planner core takes an injected model and `PlannerHost`
 operation interface. It imports neither Server transport, A2A, allocation bootstrap

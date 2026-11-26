@@ -29,12 +29,6 @@ func (s *Scheduler) invokeStagePlanner(ctx context.Context, run runstore.Workflo
 			run, execution, "planner_execution_config_unavailable", "Planner execution configuration is unavailable", err,
 		))
 	}
-	if runtimeExecutor == nil && modelAccess != nil && s.options.GatewayRecovery != nil {
-		route := plannerModelRoute(run.OwnerID, workflow.stage)
-		modelAccess.Recovery = s.options.GatewayRecovery.Planner(
-			run.RunID, execution.StageExecutionID, *route, modelAccess.LLMGateway.EffectiveFailureSignatures(),
-		)
-	}
 	plannerRef := workflow.stage.Planner.Selector()
 	plannerTelemetry := s.newPlannerTelemetry(
 		ctx, run, execution, reservations, plannerRef, modelAccess,

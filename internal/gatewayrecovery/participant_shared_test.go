@@ -123,35 +123,12 @@ func TestSharedGatewayRecoveryParticipantCases(t *testing.T) {
 		}
 	}
 
+	// Runtime owns outcome selection and redelivery. Server validates the
+	// normalized requests it can receive for every recorded outcome.
 	for _, test := range fixture.Outcomes {
-		var failure *Failure
-		switch {
-		case test.Failure != nil:
-			// readResponse folds an x-should-retry: false response into a
-			// non-retryable failure before the update is chosen.
-			retryable := test.Failure.Retryable && (test.Failure.ShouldRetry == nil || *test.Failure.ShouldRetry)
-			failure = &Failure{Code: test.Failure.Code, Retryable: retryable, Abandoned: test.Failure.Abandoned}
-		case test.Cancelled:
-			// Do sees the ended invocation as a failed send.
-			failure = &Failure{Code: "gateway_unavailable", Retryable: true}
-		}
-		update := attemptUpdate("request-1", failure, test.RetryAfterSeconds, test.Cancelled)
-		got := participantUpdate{Action: update.Action, Code: update.Code, RetryAfterSeconds: update.RetryAfterSeconds}
-		if got != test.Update || (update.Action == "failed") != test.Resend {
-			t.Errorf("%s: update = %+v, resend = %t; want %+v, %t", test.Name, got, update.Action == "failed", test.Update, test.Resend)
-		}
-		update.Model = "worker"
-		if err := update.Validate(); err != nil {
-			t.Errorf("%s: update %+v is not accepted: %v", test.Name, update, err)
-		}
-	}
-
-	for _, test := range fixture.Redelivery {
-		update := Request{RequestID: "request-1", Action: test.Update.Action, Code: test.Update.Code, RetryAfterSeconds: test.Update.RetryAfterSeconds}
-		redelivered := redelivery(update)
-		got := participantUpdate{Action: redelivered.Action, Code: redelivered.Code, RetryAfterSeconds: redelivered.RetryAfterSeconds}
-		if got != test.Redelivered || redelivered.RequestID != update.RequestID {
-			t.Errorf("redelivery of %+v = %+v, want %+v", test.Update, redelivered, test.Redelivered)
+		request := Request{Model: "worker", RequestID: "request-1", Action: test.Update.Action, Code: test.Update.Code, RetryAfterSeconds: test.Update.RetryAfterSeconds}
+		if err := request.Validate(); err != nil {
+			t.Errorf("%s: %v", test.Name, err)
 		}
 	}
 }

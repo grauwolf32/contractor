@@ -47,15 +47,15 @@ LM Studio rejects the otherwise equivalent schema when that field is omitted.
 
 ## Planner Gateway dialect
 
-The live Gateway dialect check is opt-in so normal tests remain deterministic.
-It verifies that a deployed LiteLLM or LM Studio model returns a real function
-tool call through the same Go adapter:
+The live Router check uses the same Python PlannerLoop and Gateway adapter as
+Runtime, with two named test Workers behind a local host. Configure the desired
+model explicitly; no live calls are part of deterministic acceptance.
 
 ```shell
-CONTRACTOR_STREAMLINE_LIVE_GATEWAY_URL='http://127.0.0.1:4000/v1' \
-CONTRACTOR_STREAMLINE_LIVE_GATEWAY_TOKEN='replace-with-gateway-token' \
-CONTRACTOR_STREAMLINE_LIVE_MODEL='planner-model' \
-  go test -count=1 -run TestLiveGatewayToolCall ./tests/integration/streamline
+CONTRACTOR_LIVE_LLM_GATEWAY_URL='http://127.0.0.1:4000/v1' \
+CONTRACTOR_LIVE_LLM_GATEWAY_TOKEN='replace-with-gateway-token' \
+CONTRACTOR_LIVE_LLM_MODEL='planner-model' \
+  make test-live-routing
 ```
 
 ## Worker and summarizer Gateway checks

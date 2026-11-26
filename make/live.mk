@@ -9,10 +9,11 @@ test-project-workflows-live: require-database runtime-venv
 	@test -n "$$CONTRACTOR_WORKFLOWS_LIVE_MODEL" || (echo "CONTRACTOR_WORKFLOWS_LIVE_MODEL is required" >&2; exit 1)
 	go test -count=1 -timeout=65m ./tests/eval/project_workflows -run '^TestLiveProjectWorkflows$$'
 
-test-live-routing:
-	@test -n "$$CONTRACTOR_LIVE_LLM_URL" || (echo "CONTRACTOR_LIVE_LLM_URL is required" >&2; exit 1)
+test-live-routing: runtime-venv
+	@test -n "$$CONTRACTOR_LIVE_LLM_GATEWAY_TOKEN" || (echo "CONTRACTOR_LIVE_LLM_GATEWAY_TOKEN is required" >&2; exit 1)
+	@test -n "$$CONTRACTOR_LIVE_LLM_GATEWAY_URL" || (echo "CONTRACTOR_LIVE_LLM_GATEWAY_URL is required" >&2; exit 1)
 	@test -n "$$CONTRACTOR_LIVE_LLM_MODEL" || (echo "CONTRACTOR_LIVE_LLM_MODEL is required" >&2; exit 1)
-	go test -v -count=1 -timeout=3m ./tests/integration/streamline -run '^TestLiveRouterWorkflow$$'
+	cd runtime && uv run pytest -q tests/test_live_gateway.py -k live_router_uses_runtime_loop_and_named_workers
 
 UI_STACK_TEST_FLAGS := go test -json -tags=e2e -count=1 -timeout=26m
 UI_STACK_TEST := $(UI_STACK_TEST_FLAGS) ./tests/ui-stack

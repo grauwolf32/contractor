@@ -1466,7 +1466,7 @@ runtime configuration the same way: the selected credential must authorize
 its model, and its Gateway route is tracked for recovery. It is mutually
 exclusive with `summarizerModelPolicy`.
 
-**CTL-R174.** A Streamline Stage reserves one additional built-in
+**CTL-R174.** A Streamline or Router Stage reserves one additional built-in
 `planner-executor@1` AgentTemplate using `planner@1`. It consumes one ordinary
 allocation slot and shares the existing batch admission, preparation, process
 lease, finalization and release protocol. It is excluded from the Stage's

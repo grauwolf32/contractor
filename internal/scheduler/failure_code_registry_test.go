@@ -55,7 +55,6 @@ func TestStageFailureCodesAreRegistered(t *testing.T) {
 		"planner_execution_config_unavailable": "a forwarding method",
 		"planner_tool_selection_invalid":       "a Failure literal wrapped into an ExecutionError",
 		"allocation_report_unavailable":        "an ExecutionError literal",
-		"planner_model_overlap":                "a Planner span",
 		"publication_attempts_exhausted":       "an output publication result",
 		"invalid_request":                      "an operation Failure literal",
 	} {

@@ -94,7 +94,7 @@ func TestPostgresRuntimePlannerOrderedReplayAndRequiredEvent(t *testing.T) {
 				return workerCompletion("0", "Planner loop finished", map[string]contracts.ArtifactRef{}), nil
 			})
 			var err error
-			factory, err = NewRuntimeFactoryWithMemory(sessions, sessions, invoker, &fakeInspector{}, unavailableWorkerStateReader{}, nil, Limits{MaxWallTime: time.Minute})
+			factory, err = NewRuntimeFactoryWithMemory(sessions, invoker, &fakeInspector{}, unavailableWorkerStateReader{}, nil, Limits{MaxWallTime: time.Minute})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -172,7 +172,7 @@ func TestPostgresRuntimePlannerCancellationJoinsAdmittedWorker(t *testing.T) {
 		return contracts.WorkerCompletion{}, callContext.Err()
 	})
 	var err error
-	factory, err = NewRuntimeFactoryWithMemory(sessions, sessions, invoker, &fakeInspector{}, unavailableWorkerStateReader{}, nil, Limits{MaxWallTime: time.Minute})
+	factory, err = NewRuntimeFactoryWithMemory(sessions, invoker, &fakeInspector{}, unavailableWorkerStateReader{}, nil, Limits{MaxWallTime: time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +257,7 @@ func TestPostgresRuntimePlannerClassifiedFailures(t *testing.T) {
 				return contracts.WorkerCompletion{}, nil
 			})
 			var err error
-			factory, err = NewRuntimeFactoryWithMemory(sessions, sessions, invoker, &fakeInspector{}, unavailableWorkerStateReader{}, nil, Limits{MaxWallTime: time.Minute})
+			factory, err = NewRuntimeFactoryWithMemory(sessions, invoker, &fakeInspector{}, unavailableWorkerStateReader{}, nil, Limits{MaxWallTime: time.Minute})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -328,7 +328,7 @@ func TestPostgresRuntimePlannerCheckpointRequiresAcknowledgedMarker(t *testing.T
 				return contracts.WorkerCompletion{}, nil
 			})
 			var err error
-			factory, err = NewRuntimeFactoryWithMemory(sessions, sessions, invoker, compactionInspector(), unavailableWorkerStateReader{}, nil, Limits{MaxWallTime: time.Minute})
+			factory, err = NewRuntimeFactoryWithMemory(sessions, invoker, compactionInspector(), unavailableWorkerStateReader{}, nil, Limits{MaxWallTime: time.Minute})
 			if err != nil {
 				t.Fatal(err)
 			}

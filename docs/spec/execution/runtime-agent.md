@@ -994,7 +994,7 @@ meaning of `complete` and the process-wide scope of the values are
 [OPS-R174 to OPS-R181](../operations/operations.md); the collection request and
 the persisted decision are [CTL-R132 to CTL-R138](control-plane.md).
 
-**RTA-R128.** `planner@1` owns one invocation-local Streamline ADK loop,
+**RTA-R128.** `planner@1` owns one invocation-local Streamline or Router ADK loop,
 conversation and optional `compact@1` compactor in a separate allocation. Its
 main model uses the pinned Planner route and existing Gateway recovery; the
 compactor keeps the existing one-shot contract without recovery.

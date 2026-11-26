@@ -20,7 +20,7 @@
     "v1alpha1/valid/shared-config.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/engagement-cases.json": {"readers": ["go", "python", "ui"], "reason": "UI reads valid saved document examples and structural errors using the shared schema; canonical network and cross-field execution authority remain with Server/Runtime validators."},
     "workflow-context-management-cases.json": {"readers": ["go", "ui"]},
-    "compaction-boundary-cases.json": {"readers": ["go", "python"]},
+    "compaction-boundary-cases.json": {"readers": ["python"], "reason": "After P3 only Runtime selects and projects conversation groups. Server validates compact replies and exact results but no longer implements the removed Go conversation ledger."},
     "server-operation-openapi-work.json": {"readers": ["go", "ui"], "reason": "Server configuration and Studio share the registered passive preparation Stage; Runtime receives no operation stages."},
     "server-operation-stage-cases.json": {"readers": ["go", "ui"], "reason": "Server Workflow execution selection is shared with the Studio; Runtime receives no operation stages."},
     "public/tool-diagnostic-values.json": {"readers": ["go", "ui"]},
@@ -83,6 +83,7 @@
     "findings/finding-http-attempts.json": {"readers": ["go", "python", "ui"]},
     "toolset-descriptors.json": {"readers": ["go", "python"]},
     "telemetry-genai-cases.json": {"readers": ["go", "python"]},
+    "v1alpha1/gateway-response-limits.json": {"readers": ["python"], "reason": "All model HTTP responses are consumed by Runtime after P3; Server has no Gateway HTTP client."},
     "v1alpha1/": {"readers": ["go", "python"]},
     "v1alpha1/artifact-name-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/config-identity-cases.json": {"readers": ["go", "python", "ui"]},
@@ -96,7 +97,7 @@
     "v1alpha1/runtime-label-set-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/workspace-path-cases.json": {"readers": ["go", "python", "ui"]},
     "document-response-policy.json": {"readers": ["go", "python"]},
-    "model-response-recovery.json": {"readers": ["go", "python"]},
+    "model-response-recovery.json": {"readers": ["python"], "reason": "Planner and Worker Gateway response decoding both execute in Runtime after P3; Server receives only the normalized operation contract."},
     "request-guidance.json": {"readers": ["go", "python"]}
   }
 }

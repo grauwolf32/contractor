@@ -9,8 +9,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/telemetry"
-	adksession "google.golang.org/adk/v2/session"
-	"google.golang.org/genai"
 )
 
 func (h *runtimeHost) checkRuntimeRetained(retained int64) *planner.Error {
@@ -29,7 +27,7 @@ func (h *runtimeHost) checkRuntimeRetained(retained int64) *planner.Error {
 
 // Conversation selection and model execution stay in Runtime. Server reuses
 // compactor acceptance, budget, exact-result history and the required marker write.
-func (h *runtimeHost) contextOperation(ctx context.Context, request contracts.PlannerOperation) (any, *adksession.Event, *planner.Error) {
+func (h *runtimeHost) contextOperation(ctx context.Context, request contracts.PlannerOperation) (any, *planner.Activity, *planner.Error) {
 	c := h.planner.compaction
 	if c == nil || h.nextTool != "" {
 		return nil, nil, invalidRuntimeOperation()
@@ -88,7 +86,7 @@ func (h *runtimeHost) contextOperation(ctx context.Context, request contracts.Pl
 		if strictjson.DecodeNonNull(request.Arguments, &args) != nil || h.modelPhase != "compaction" || args.Input < 0 || args.Output < 0 || args.Cached < 0 || args.Tools < 0 || args.Tools > contracts.MaxPlannerTools || args.Source < 1 || args.Source > maxCompactionRetainedBytes || !h.acceptCost(args.Cost) {
 			return nil, nil, invalidRuntimeOperation()
 		}
-		usage := &genai.GenerateContentResponseUsageMetadata{PromptTokenCount: args.Input, CandidatesTokenCount: args.Output, CachedContentTokenCount: args.Cached}
+		usage := &modelUsage{PromptTokenCount: args.Input, CandidatesTokenCount: args.Output, CachedContentTokenCount: args.Cached}
 		if len(args.Content) <= telemetry.MaxContentBytes && len(args.Content) > 0 {
 			telemetry.CapturePlannerOutput(h.modelSpan, func() any { return json.RawMessage(args.Content) })
 		}
@@ -116,9 +114,7 @@ func (h *runtimeHost) contextOperation(ctx context.Context, request contracts.Pl
 		if failure := h.checkRuntimeRetained(args.Retained); failure != nil {
 			return nil, nil, failure
 		}
-		marker := adksession.NewEvent(ctx, "planner-context-checkpoint")
-		marker.Author = h.planner.profile.agentName
-		if err := h.events.AppendEvent(ctx, h.session, marker); err != nil {
+		if err := h.planner.sessions.RecordActivity(ctx, h.identity, *h.activity()); err != nil {
 			return nil, nil, planner.SessionError("record Runtime context checkpoint", err)
 		}
 		c.generation++

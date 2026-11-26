@@ -1668,8 +1668,8 @@ recovery and cleanup converge at every valid limit. Project deletion's use of
 ordinary cancellation is specified in [DEL-R44,
 DEL-R46](../artifacts/retention-and-deletion.md).
 
-**SCH-R185.** Streamline includes its separate Planner allocation in the same
-all-or-nothing placement batch as its fixed Worker. Scheduler excludes that
+**SCH-R185.** Streamline and Router include their separate Planner allocation in the same
+all-or-nothing placement batch as their fixed Workers. Scheduler excludes that
 executor from logical Worker handles passed to Planner operations. Planner
 model execution runs in Runtime, while Server retains claim ownership, Stage
 acceptance, canonical plan writes and sequential dispatch through WorkerInvoker.

@@ -187,8 +187,8 @@ test_prerequisites:
 - Use disposable real PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set for persistence acceptance; an unreachable
   configured database fails. Canonicalize TMPDIR as Makefile does. Full package suites accompany focused regressions.
   make test-streamline does not cover Router, so run all internal/planner packages too.
-- Use actual production Runner/tool dispatch and controlled Gateway responses; after P3 this is Python ADK in Runtime. tests/integration/streamline
-  uses a fake WorkerInvoker and does not prove a real Server/Runtime process. Register new process cases in
+- Use actual production Runner/tool dispatch and controlled Gateway responses; after P3 this is Python ADK in Runtime. Runtime host unit tests
+  use a fake WorkerInvoker and do not prove a real Server/Runtime process. Register new process cases in
   the release graph and provide their fixtures/prerequisites.
 - Use testdata and test-only pseudo-Skills rather than reading live configs. Use injected clocks, synchronization
   barriers and work/byte/row counters, not wall-clock assertions. Live Gateway benchmarks are outside deterministic

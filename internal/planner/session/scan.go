@@ -291,7 +291,7 @@ func (s *Service) appendScan(ctx context.Context, identity planner.ScanSessionId
 	runData, err := encodeBounded(plannerRunEventData{
 		StageExecutionID: identity.StageExecutionID, SessionID: identity.SessionID,
 		InvocationID: identity.InvocationID,
-		Activity:     &adkEventFacts{Kind: event.Kind, Author: "scan_planner", FunctionCalls: []string{}, FunctionResults: []string{}},
+		Activity:     &planner.Activity{Kind: event.Kind, Author: "scan_planner", FunctionCalls: []string{}, FunctionResults: []string{}},
 	})
 	if err != nil {
 		return err

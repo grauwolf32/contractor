@@ -20,13 +20,11 @@ type memoryToolArgs struct {
 }
 
 type plannerMemoryTool struct {
-	planner     *streamlinePlanner
-	state       *executionState
-	operation   string
-	description string
-	schema      *jsonschema.Schema
-	bindings    []workerBinding
-	router      bool
+	planner   *streamlinePlanner
+	state     *executionState
+	operation string
+	bindings  []workerBinding
+	router    bool
 }
 
 func (t *plannerMemoryTool) run(

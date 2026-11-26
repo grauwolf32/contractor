@@ -164,17 +164,9 @@ type ResolvedLLMGatewayConfig struct {
 	URL               string                       `json:"url" strictjson:"required"`
 	CredentialManager *LLMGatewayCredentialManager `json:"credentialManager,omitempty"`
 	// FailureSignatures is present only when the Gateway declares its own set,
-	// which keeps the digest of existing declarations stable; readers use
-	// EffectiveFailureSignatures.
+	// which keeps the digest of declarations stable; Runtime applies protocol
+	// defaults when the selection is absent.
 	FailureSignatures *GatewayFailureSignatures `json:"failureSignatures,omitempty"`
-}
-
-// EffectiveFailureSignatures returns the declared set or the protocol default.
-func (c ResolvedLLMGatewayConfig) EffectiveFailureSignatures() GatewayFailureSignatures {
-	if c.FailureSignatures != nil {
-		return c.FailureSignatures.Clone()
-	}
-	return DefaultGatewayFailureSignatures()
 }
 
 // Clone returns a copy that shares no pointer or slice with c. It is the one

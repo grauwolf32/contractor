@@ -225,3 +225,58 @@ def test_live_worker_result_finalizer_separates_tools_and_schema(tmp_path: Path)
         )
 
     asyncio.run(scenario())
+
+
+@pytest.mark.skipif(
+    not GATEWAY_URL or not GATEWAY_TOKEN,
+    reason="live LLM Gateway environment is not configured",
+)
+def test_live_router_uses_runtime_loop_and_named_workers() -> None:
+    from contractor_runtime.contracts.planner import PlannerInvocation, PlannerOperationResult
+    from contractor_runtime.planner.loop import PlannerLoop
+
+    async def scenario():
+        selected = []
+
+        class Host:
+            async def execute(self, name, arguments):
+                if name == "execute_current_subtask":
+                    selected.append(arguments["worker_name"])
+                return PlannerOperationResult(
+                    apiVersion=API_VERSION,
+                    result={"ok": True},
+                    stop=name == "finish",
+                    escalate=name == "finish",
+                )
+
+        model = OpenAICompatibleGatewayLlm(
+            model=GATEWAY_MODEL,
+            client_handle=new_gateway_client(
+                base_url=GATEWAY_URL, api_key=GATEWAY_TOKEN, timeout_seconds=180.0
+            ),
+        )
+        invocation = PlannerInvocation(
+            input="Call builder, then reviewer, then finish. Use the declared tools in that order.",
+            tools=[
+                {"name": "execute_current_subtask", "description": "Execute the named Worker",
+                 "parameters": {"type": "object", "properties": {
+                     "worker_name": {"type": "string", "enum": ["builder", "reviewer"]}},
+                     "required": ["worker_name"], "additionalProperties": False}},
+                {"name": "finish", "description": "Finish after both Workers",
+                 "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
+            ],
+        )
+        policy = ResolvedModelPolicy(
+            ref=ModelPolicyRef(policyId="live-router", version="1", digest="sha256:" + "a" * 64),
+            model=GATEWAY_MODEL, maxModelCalls=4, maxWorkerCalls=2,
+            maxOutputTokens=512, maxTotalTokens=10000,
+        )
+        try:
+            await asyncio.wait_for(PlannerLoop(model, Host(), policy).run(
+                invocation, "Route using exactly one declared tool per turn."
+            ), timeout=180)
+        finally:
+            await model.close()
+        assert selected == ["builder", "reviewer"]
+
+    asyncio.run(scenario())

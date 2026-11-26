@@ -3,15 +3,13 @@ package streamline
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/stageresult"
-	"google.golang.org/adk/v2/model"
-	"google.golang.org/genai"
 )
 
 // maxReportErrors is the report's error bound (LIM-OBS-5). Rejected tool
@@ -24,7 +22,6 @@ const maxRejectionErrors = maxReportErrors - 2
 
 type executionState struct {
 	mu          sync.Mutex
-	cost        reporting.LLMCostCollector
 	runtimeCost *reporting.LLMCost
 
 	materials                    map[string]map[string]contracts.ArtifactRef
@@ -80,55 +77,32 @@ func (s *executionState) beforeModel() *planner.Error {
 	return nil
 }
 
-func (s *executionState) afterModel(response *model.LLMResponse, allowed map[string]struct{}) (*model.LLMResponse, error) {
+type modelUsage struct{ PromptTokenCount, CandidatesTokenCount, CachedContentTokenCount, TotalTokenCount int32 }
+
+func (s *executionState) afterModel(usage *modelUsage, calls []string, allowed map[string]struct{}) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if response == nil {
-		return nil, s.setFailureLocked(planner.NewError(
-			"planner_gateway_invalid_response", "Planner Gateway returned no response", true, nil,
-		))
+	if usage == nil || usage.PromptTokenCount < 0 || usage.CandidatesTokenCount < 0 {
+		return false, s.setFailureLocked(planner.NewError("planner_gateway_invalid_response", "Planner Gateway returned invalid token usage", true, nil))
 	}
-	if response.UsageMetadata == nil || response.UsageMetadata.PromptTokenCount < 0 ||
-		response.UsageMetadata.CandidatesTokenCount < 0 {
-		return nil, s.setFailureLocked(planner.NewError(
-			"planner_gateway_invalid_response", "Planner Gateway returned invalid token usage", true, nil,
-		))
-	}
-	s.inputTokens += int64(response.UsageMetadata.PromptTokenCount)
-	s.outputTokens += int64(response.UsageMetadata.CandidatesTokenCount)
+	s.inputTokens += int64(usage.PromptTokenCount)
+	s.outputTokens += int64(usage.CandidatesTokenCount)
 	if s.inputTokens+s.outputTokens > s.limits.MaxTokens {
-		return nil, s.setFailureLocked(limitError(
-			"planner_token_limit", "Planner exhausted its cumulative token limit",
-		))
+		return false, s.setFailureLocked(limitError("planner_token_limit", "Planner exhausted its cumulative token limit"))
 	}
-	functionCount := 0
 	unknown := false
-	if response.Content != nil {
-		for _, part := range response.Content.Parts {
-			if part == nil || part.FunctionCall == nil {
-				continue
-			}
-			functionCount++
-			if _, ok := allowed[part.FunctionCall.Name]; !ok {
-				unknown = true
-			}
+	for _, name := range calls {
+		if _, ok := allowed[name]; !ok {
+			unknown = true
 		}
 	}
-	if functionCount <= 1 && !unknown {
-		return nil, nil
+	if len(calls) <= 1 && !unknown {
+		return false, nil
 	}
 	if len(s.rejections) < maxRejectionErrors {
-		s.rejections = append(s.rejections, executionError(planner.Failure{
-			Code:    "planner_tool_selection_invalid",
-			Message: "Planner model selected an unknown or concurrent tool call",
-		}))
+		s.rejections = append(s.rejections, executionError(planner.Failure{Code: "planner_tool_selection_invalid", Message: "Planner model selected an unknown or concurrent tool call"}))
 	}
-	replacement := *response
-	replacement.Content = genai.NewContentFromText(
-		"The tool selection was rejected. Call exactly one of the declared tools, then continue.",
-		genai.RoleModel,
-	)
-	return &replacement, nil
+	return true, nil
 }
 
 func (s *executionState) providerFailure() *planner.Error {
@@ -150,38 +124,16 @@ func (s *executionState) rejectedGatewayRequest(code string) *planner.Error {
 	))
 }
 
-// Cancellation owns the outcome, while an already received reply still owns
-// its spent usage. Avoid replacing cancellation with a budget failure.
-func (s *executionState) cancelledGatewayUsage(rejected *gatewayResponseRejected) {
-	if rejected == nil || rejected.usage == nil {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.inputTokens += int64(rejected.usage.PromptTokenCount)
-	s.outputTokens += int64(rejected.usage.CandidatesTokenCount)
-}
-
-func (s *executionState) rejectedGatewayResponse(rejected *gatewayResponseRejected) *planner.Error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if rejected.usage != nil {
-		s.inputTokens += int64(rejected.usage.PromptTokenCount)
-		s.outputTokens += int64(rejected.usage.CandidatesTokenCount)
-		if s.inputTokens+s.outputTokens > s.limits.MaxTokens {
-			return s.setFailureLocked(limitError(
-				"planner_token_limit", "Planner exhausted its cumulative token limit",
-			))
+func (s *executionState) rejectedGatewayResponse(usage *modelUsage) *planner.Error {
+	if usage != nil {
+		if failure := s.chargeUsage(usage); failure != nil {
+			return failure
 		}
 	}
-	return s.setFailureLocked(planner.NewError(
-		"planner_gateway_invalid_response", "Planner Gateway returned an invalid response", true, nil,
-	))
+	return s.setExternalFailure(planner.NewError("planner_gateway_invalid_response", "Planner Gateway returned an invalid response", true, nil))
 }
 
-// chargeUsage charges the known usage of an accepted compactor response to
-// the cumulative Planner token budget, once (PLN-R127).
-func (s *executionState) chargeUsage(usage *genai.GenerateContentResponseUsageMetadata) *planner.Error {
+func (s *executionState) chargeUsage(usage *modelUsage) *planner.Error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if usage == nil {
@@ -276,25 +228,6 @@ func (s *executionState) terminal() (*stageresult.StageContentResult, *planner.E
 	return result, s.failure
 }
 
-func (s *executionState) exhaustedAfterTurn() *planner.Error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.completion != nil || s.failure != nil {
-		return s.failure
-	}
-	if s.modelCalls >= int64(s.limits.MaxModelCalls) {
-		return s.setFailureLocked(limitError(
-			"planner_model_call_limit", "Planner exhausted its model-call limit",
-		))
-	}
-	if s.inputTokens+s.outputTokens >= s.limits.MaxTokens {
-		return s.setFailureLocked(limitError(
-			"planner_token_limit", "Planner exhausted its cumulative token limit",
-		))
-	}
-	return nil
-}
-
 func (s *executionState) setExternalFailure(value *planner.Error) *planner.Error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -332,7 +265,7 @@ func (s *executionState) report(
 			Calls: &calls, Succeeded: &succeeded, Failed: &failed,
 		}
 	}
-	cost := s.cost.Snapshot(modelCalls)
+	cost := new(reporting.LLMCostCollector).Snapshot(modelCalls)
 	if s.runtimeCost != nil {
 		value := *s.runtimeCost
 		value.Calls = max(value.Calls, modelCalls)

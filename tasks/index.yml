@@ -375,7 +375,7 @@ execution_policy:
 
 milestones:
   - id: runtime-planner-p3-2026-11
-    exit_task: V489-002
+    exit_task: V489-001
     outcome: >-
       Router and Streamline execute through the same Runtime Planner loop and
       replaceable PlannerHost, with Server-owned progress, exact Worker routing

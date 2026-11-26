@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V488-002
 priority: P1
-status: pending
+status: archived
 depends_on: [V489-001]
 languages: [go, python, yaml, markdown]
 goal: >-
@@ -48,7 +48,7 @@ context:
 scope:
   in:
     - Direct existing Contractor tool declarations and ordered operation dispatch; direct bounded/redacted session activity writes and compaction marker.
-    - Delete ADK session wrapper, local model/tool callback plumbing, SDK type conversions, unused factories/exports and dependencies after checking all callers.
+    - Delete replaced Go runner, model/compactor execution, Gateway adapter, ADK session wrapper, local model/tool callback plumbing, SDK type conversions, unused factories/exports and dependencies after checking all callers.
     - Keep one implementation of budgets, validation, exact result history, Memory/State, finish and required-write failure semantics; no generic new abstraction.
     - Migrate meaningful old-engine regressions to Runtime/host/store tests, update gate selectors/report validators and accept both strategies end to end.
     - Retire Go-ADK migration scripts/gates once they have no active caller; retain historical evidence and do not make completed migration tasks a dependency of the new engine.
@@ -115,3 +115,8 @@ tests:
     covers: [A1, A2, A3, A4, A5]
   - command: make verify-architecture
     covers: [A1, A5]
+
+archive:
+  date: '2026-11-27'
+  previous_status: pending
+  reason: Consolidated into V489-001 during implementation because runner/tool/session SDK callers and regressions must migrate atomically to keep required lint gates green; no scope or acceptance was dropped.

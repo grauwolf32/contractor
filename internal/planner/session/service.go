@@ -529,7 +529,7 @@ type plannerRunEventData struct {
 	WorkerName       string                         `json:"workerName,omitempty"`
 	Outcome          string                         `json:"outcome,omitempty"`
 	Code             string                         `json:"code,omitempty"`
-	Activity         *adkEventFacts                 `json:"activity,omitempty"`
+	Activity         *planner.Activity              `json:"activity,omitempty"`
 }
 
 type requestEvent struct {
