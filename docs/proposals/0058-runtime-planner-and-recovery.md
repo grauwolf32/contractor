@@ -1,7 +1,9 @@
 # Planner в Runtime: P3 — единый модельный движок
 
 Обновлено 27 ноября 2026. P1 принят в main; P3 реализован в отдельной ветке
-`codex/runtime-planner-p3-plan`. Приёмка P3 и статус слияния фиксируются в V489-001.
+`codex/runtime-planner-p3-plan`. P3 готов к слиянию; в main ещё не слит.
+Приёмка: [V489-001](../../tasks/done/v489-001-runtime-router.yml) и
+[evidence](../../tasks/evidence/v489-001-runtime-router.json).
 
 ## Решения пользователя
 
@@ -21,6 +23,12 @@ Multi-allocation и P1 уже в main. В ветке P3 Streamline и Router и�
 Server владеет планом, бюджетами, подтверждением результатов, Artifact refs,
 WorkerInvoker, Scheduler и Control Plane. Один план допускает один active dispatch.
 Go model runner, compactor, Gateway client и SDK tool/session bridge удалены.
+Production-код Go/Python сокращён на 2 742 строки без учёта tests/generated/docs;
+из Go module requirements удалены ADK, GenAI и ещё 21 неиспользуемая зависимость.
+Приёмка: 1 269 Go root tests, 6 774 Runtime cases и все 71 process roots;
+136 platform/live/opt-in Runtime skips и один optional heavy-I/O skip не
+считаются пройденным покрытием. Wire, public API/PostgreSQL, config, lint и
+architecture gates прошли. Owned test DB/процессы убраны; live модели не запускались.
 
 Потеря Runtime по-прежнему прерывает попытку; retry по Workflow создаёт новую
 StageExecution. Completed Stages сохраняются, план подзадач прерванной попытки
@@ -162,7 +170,7 @@ flowchart LR
   P2["P2 отложен пользователем"]
 ```
 
-[V489-001](../../tasks/v489-001-runtime-router.yml) объединяет перенос Router,
+[V489-001](../../tasks/done/v489-001-runtime-router.yml) объединяет перенос Router,
 прямые tool declarations/session facts и удаление Go SDK. Первоначальная
 [V489-002](../../tasks/done/v489-002-runtime-planner-go-removal.yml) архивирована:
 production runner, SDK bridge и regression callers пришлось менять атомарно,

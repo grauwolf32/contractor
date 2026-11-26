@@ -5,7 +5,7 @@ milestone: runtime-planner-p3-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V488-004]
 languages: [go, python, yaml, markdown]
 goal: >-
@@ -198,3 +198,65 @@ implementation_replan:
     - make test-config
     - make lint
     - make verify-architecture
+
+implementation_commit: 8f541e1ff96300eef89d7094c4023f885309b38e
+verification:
+  result: passed
+  evidence: tasks/evidence/v489-001-runtime-router.json
+  runtime: >-
+    make test-runtime passed: 6774 cases, 136 declared platform/live/opt-in skips;
+    runtime and compaction report validators passed, including 610 selected
+    compaction cases. Router runs both none and compact through one injected
+    Python loop, with exact configured sampling/output policy and no Server
+    bootstrap. The real HTTP request regression preserves empty object tool
+    parameters through the common Runtime Gateway adapter.
+  go: >-
+    All 1269 effective root tests in 28 touched Go packages passed with race
+    detection and real PostgreSQL. Complete affected packages were rerun after
+    dead Gateway/cost removal; latest complete reports supersede earlier package
+    results. The removed test-only cost collector is not counted. The thin Router
+    package has no standalone tests; common host and process coverage exercise it.
+    The external OTLP collector integration test skipped without its endpoint.
+  processes: >-
+    All 71 distinct roots passed across the three supported process targets,
+    exactly matching test-e2e, without skips and with every report validator
+    passing. A/C were rerun completely after adjusting old Memory/session
+    fixture capacity for Router N+1. B uses its separate accepted report directory;
+    interrupted or mixed reports are not acceptance. The three corrected
+    Memory/session roots also passed in a focused real-process run.
+  wire: >-
+    make test-wire-cross-language passed: 434 fixtures, 465 Go and 300 Python
+    shared tests; 450 Runtime contract cases and 1642 selected Runtime shared
+    cases passed. One optional heavy-I/O test skipped and is not passing coverage.
+  contracts: >-
+    make verify-public-api, verify-public-api-postgres, test-config and
+    verify-architecture passed. Shipped catalog lock validated with unchanged
+    configuration identities. No public shape or database schema changed.
+  lint: >-
+    make lint passed, including staticcheck/test-only exports, generated source,
+    specification/task, release graph and Go/Python layer checks. Dependency HTML
+    was regenerated with its generator. Final task layout/links/backlog were
+    checked after acceptance metadata moved into tasks/done.
+  negative_controls: >-
+    Intentional misrouting, disabled replay, duplicate Worker invocation,
+    duplicate usage charge and ignored required-event append all failed the real
+    host regressions; their original sources passed. The empty-tool HTTP request
+    regression failed before the two-line common adapter correction and passed
+    with it. No negative-control mutation remains in production source.
+  boundary: >-
+    One Python modeled Planner engine; native Go tool declarations and reduced
+    facts replace SDK machinery. Net production delta is -2742 physical Go/Python
+    source lines, excluding tests/generated/docs; 23 Go module requirements were
+    removed, including ADK and GenAI. No new endpoint/table/lease/receipt or local
+    execution engine. Full headless backend and P2 recovery remain outside P3.
+  cleanup: >-
+    All owned test processes/pools stopped before explicit database removal.
+    The exclusive PostgreSQL 17 test cluster on port 55493 and its initial
+    SQL_ASCII setup directory were stopped/removed. The temporary Runtime venv
+    link was removed and the borrowed owned environment restored. Primary main
+    and the user's two working paths were not modified.
+  delivery: >-
+    codex/runtime-planner-p3-plan is ready for merge; not merged, pushed or
+    deployed. No live-model quality, Linux/rootless optional acceptance or
+    complete release-verify claim. V489-002 is archived as consolidated; P2
+    remains deferred and V420-003/004/005/006 are not marked completed by P3.
