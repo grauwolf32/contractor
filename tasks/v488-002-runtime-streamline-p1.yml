@@ -45,7 +45,10 @@ context:
     session reduced-event writes, per-invocation request ordering and replay, no new
     durable journal or polling service. Native cost observations travel as bounded
     cumulative LLMCost snapshots into the existing Server Planner report; the
-    Planner allocation has no duplicate cost contribution. Keep domain rules in existing owners.
+    Planner allocation has no duplicate cost contribution. Full process acceptance
+    uses the three supported CI shards (the same 72 roots as make test-e2e).
+    The sequential attempt exposed an obsolete capacity-one compaction fixture;
+    the fixture now accounts for Planner and Worker separately. Keep domain rules in existing owners.
 scope:
   in:
   - Entire Streamline execution (Memory, State, compaction, document recovery, telemetry), typed bounded progress protocol, existing Server session and invoker owners, allocation lifecycle, cancellation and budgets.
@@ -92,7 +95,7 @@ tests:
   covers: [A1, A2, A3]
 - command: make test-wire-cross-language
   covers: [A2, A3]
-- command: make test-e2e
+- command: make -j3 test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A3]
