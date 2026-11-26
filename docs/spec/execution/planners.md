@@ -184,7 +184,9 @@ Server owns subtask plan, budgets and `finish`; it has no model SDK or Gateway
 model adapter. Runtime dependencies are pinned in `uv.lock`. Native SDK
 compaction and resumability remain disabled; the pinned model-call ceiling and
 Server admission bound calls. The one-shot compactor wrapper refuses a second
-provider operation.
+provider operation. The common Runtime Gateway adapter emits explicit
+`properties: {}` for object tool parameters with no declared properties,
+including no-argument Planner tools.
 
 **PLN-R3.** ADK types do not enter Scheduler, RunStore, A2A or
 artifact contracts.

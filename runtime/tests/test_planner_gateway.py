@@ -139,6 +139,8 @@ async def run_gateway_case(phase, case):
             ),
         )
         invocation = planner_input()
+        # Native Go declarations omit an empty properties map during JSON encoding.
+        invocation.tools[0].parameters.pop("properties")
         main, compactor = model, None
         if phase == "compactor":
             invocation = compaction_input()
@@ -168,5 +170,12 @@ async def run_gateway_case(phase, case):
                     {"inputTokens": 13, "outputTokens": 4} if trusted else None
                 )
             assert len(requests) == 1
+            if phase == "main":
+                declaration = json.loads(requests[0].content)["tools"][0]["function"]
+                assert declaration["parameters"] == {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": False,
+                }
         finally:
             await model.close()

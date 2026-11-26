@@ -220,6 +220,8 @@ def _tools(config_tools: Sequence[Any] | None) -> list[dict[str, Any]]:
                 parameters = _schema_dict(declaration.parameters)
             else:
                 parameters = {"type": "object", "properties": {}}
+            if parameters.get("type") == "object":
+                parameters.setdefault("properties", {})
             result.append(
                 {
                     "type": "function",
