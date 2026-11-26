@@ -211,7 +211,9 @@ class Conversation:
             payload = await to_thread_until_done(
                 completion_request, model.model, llm_request, name="planner-compactor-admission"
             )
-            size = len(encoded(payload))
+            size = len(
+                await to_thread_until_done(encoded, payload, name="planner-compactor-request-size")
+            )
             messages = len(payload["messages"])
             framing = 1024 + (128 * messages if messages > 8 else 0)
             required = size + framing + config.policy.max_output_tokens

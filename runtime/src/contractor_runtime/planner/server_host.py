@@ -11,6 +11,7 @@ from contractor_runtime.contracts.planner import (
     PlannerOperationResult,
 )
 from contractor_runtime.planner.host import PlannerStoppedError
+from contractor_runtime.threads import to_thread_until_done
 
 
 class ServerPlannerHost:
@@ -27,10 +28,19 @@ class ServerPlannerHost:
         async with self._lock:
             self._sequence += 1
             try:
-                request = PlannerOperation(
-                    apiVersion=API_VERSION, sequence=self._sequence, name=name, arguments=arguments
+                body = await to_thread_until_done(
+                    lambda: (
+                        PlannerOperation(
+                            apiVersion=API_VERSION,
+                            sequence=self._sequence,
+                            name=name,
+                            arguments=arguments,
+                        )
+                        .model_dump_json(by_alias=True)
+                        .encode()
+                    ),
+                    name="planner-operation-encoding",
                 )
-                body = request.model_dump_json(by_alias=True).encode()
             except ValueError:
                 raise PlannerStoppedError(
                     "planner_operation_invalid", "Planner operation exceeds its contract", False
@@ -68,7 +78,12 @@ class ServerPlannerHost:
                     retryable,
                 )
             try:
-                return decode_private(PlannerOperationResult, response.body)
+                return await to_thread_until_done(
+                    decode_private,
+                    PlannerOperationResult,
+                    response.body,
+                    name="planner-operation-decoding",
+                )
             except PrivateProtocolDecodeError:
                 raise PlannerStoppedError(
                     "planner_operation_invalid", "Planner execution host reply is invalid", False

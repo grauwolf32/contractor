@@ -23,6 +23,10 @@ context:
     User decision 2026-11-26 makes P1 merge-ready for all Streamline settings,
     including compact@1; Router remains on Server until a later stage. Its shared
     Go model engine therefore remains a production dependency in this slice.
+    User follow-up 2026-11-26 distinguishes P1 Server-dependent execution from
+    headless, live-host replay from recovery, requires one plan owner through
+    existing fencing, and excludes a second local execution engine. Record the
+    proposed fresh-Planner recovery scenario for P2 without implementing it here.
   proposal: docs/proposals/0058-runtime-planner-and-recovery.md
   specification:
   - docs/spec/execution/planners.md

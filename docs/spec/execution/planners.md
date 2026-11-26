@@ -1153,7 +1153,10 @@ and exact Planner allocation. The host retains only the last encoded operation
 and reply in bounded invocation memory. One identical transport retry replays
 that reply without repeating a mutation, usage charge, dispatch or marker; a
 changed payload, skipped sequence or unadmitted operation is permanently invalid.
-No new durable receipt, lease or queue is added. A disconnected HTTP request does
+The sequence is a delivery position within this host, not an ownership or fencing
+token. Plan authority remains with the existing Scheduler claim and session owner;
+allocation and process fencing apply before admission. No new durable receipt,
+lease or queue is added. A disconnected HTTP request does
 not revoke an admitted operation: Stage cancellation owns it, and Planner.Run
 joins it before removing the host and allowing allocation release. Process loss
 uses ordinary interruption/fresh-attempt recovery; it never adopts a former host.
