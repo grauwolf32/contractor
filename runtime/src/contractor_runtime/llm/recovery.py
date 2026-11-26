@@ -72,8 +72,9 @@ class RecoveryUpdate(WireModel):
 class RecoveryDecision(WireModel):
     """The Server's gatewayrecovery.Decision, decoded strictly and completely.
 
-    ``code`` and ``requires_retry`` are status for the Run page; a Runtime Planner or Worker acts only on ``allowed`` and the retry
-    timing, and bounds each model request by its own allocation timeout. They
+    ``code`` and ``requires_retry`` are status for the Run page; a Runtime Planner
+    or Worker acts only on ``allowed`` and the retry timing, and bounds each
+    model request by its own allocation timeout. They
     stay declared because the strict wire model forbids unknown members and the
     Server always sends ``requiresRetry``: dropping them would make every
     decision undecodable and stop model recovery.

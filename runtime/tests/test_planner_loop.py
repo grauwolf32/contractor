@@ -260,25 +260,52 @@ def test_router_uses_the_same_loop_with_two_logical_workers_and_local_host(compa
                 if name == "execute_current_subtask":
                     routed.append(arguments["worker_name"])
                 return PlannerOperationResult(
-                    apiVersion=API_VERSION, result={"plan": {"revision": 2}, "retainedBytes": 0, "summary": "Both Workers completed."},
-                    stop=name == "finish", escalate=name == "finish",
+                    apiVersion=API_VERSION,
+                    result={
+                        "plan": {"revision": 2},
+                        "retainedBytes": 0,
+                        "summary": "Both Workers completed.",
+                    },
+                    stop=name == "finish",
+                    escalate=name == "finish",
                 )
 
         invocation = planner_input()
         if compact:
             invocation.compaction = compaction_input().compaction
-        invocation.tools.append(PlannerTool.model_validate({
-            "name": "execute_current_subtask", "description": "Execute the selected Worker",
-            "parameters": {"type": "object", "properties": {
-                "subtask_id": {"type": "string"},
-                "worker_name": {"type": "string", "enum": ["builder", "reviewer"]},
-            }, "required": ["subtask_id", "worker_name"], "additionalProperties": False},
-        }))
-        model = scripted_model([
-            tool_call("execute_current_subtask", {"subtask_id": "0", "worker_name": "builder"}, call_id="route-0"),
-            tool_call("execute_current_subtask", {"subtask_id": "1", "worker_name": "reviewer"}, call_id="route-1"),
-            tool_call("finish", {}, call_id="finish-router"),
-        ], model=planner_policy().model)
+        invocation.tools.append(
+            PlannerTool.model_validate(
+                {
+                    "name": "execute_current_subtask",
+                    "description": "Execute the selected Worker",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "subtask_id": {"type": "string"},
+                            "worker_name": {"type": "string", "enum": ["builder", "reviewer"]},
+                        },
+                        "required": ["subtask_id", "worker_name"],
+                        "additionalProperties": False,
+                    },
+                }
+            )
+        )
+        model = scripted_model(
+            [
+                tool_call(
+                    "execute_current_subtask",
+                    {"subtask_id": "0", "worker_name": "builder"},
+                    call_id="route-0",
+                ),
+                tool_call(
+                    "execute_current_subtask",
+                    {"subtask_id": "1", "worker_name": "reviewer"},
+                    call_id="route-1",
+                ),
+                tool_call("finish", {}, call_id="finish-router"),
+            ],
+            model=planner_policy().model,
+        )
         if compact:
             for response in model.responses[:2]:
                 response.usage_metadata.prompt_token_count = 100
@@ -295,6 +322,8 @@ def test_router_uses_the_same_loop_with_two_logical_workers_and_local_host(compa
         assert routed == ["builder", "reviewer"]
         assert len(model.requests) == 3
         assert all(request["temperature"] == 0.15 for request in model.requests)
-        assert all(request["maxOutputTokens"] == policy.max_output_tokens for request in model.requests)
+        assert all(
+            request["maxOutputTokens"] == policy.max_output_tokens for request in model.requests
+        )
 
     asyncio.run(scenario())

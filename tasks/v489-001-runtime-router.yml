@@ -44,7 +44,8 @@ context:
   boundary: >-
     Server keeps canonical plan, session, budget, result/Artifact validation,
     Memory/State and WorkerInvoker; Runtime owns model calls and conversation.
-    Extend the existing synthetic allocation and host registration. Both factory descriptors share the existing host registry; Router
+    Extend the existing synthetic allocation and host registration. Both factory
+    descriptors share the existing host registry; Router
     dispatch/history/Memory/State resolve their exact logical Worker. Select
     the host from trusted Stage/allocation identity, never a Runtime-supplied
     strategy or fallback across handlers. Reuse the generic Python PlannerLoop.
@@ -53,6 +54,10 @@ context:
     CONTRACTOR_TEST_DATABASE_URL; an unavailable configured database fails.
     Reuse one database for the lane, drop it after pools/processes stop and
     remove owned processes/resources. Do not enable heavy I/O implicitly.
+    The three process targets cover exactly the same 71 roots as test-e2e;
+    targets may run separately with isolated report paths. Rerun A/C after
+    correcting the shared Memory/session fixture capacity for Router N+1;
+    keep the separately verified B report, without concurrent report writers.
 scope:
   in:
     - Entire current Router surface, including none/compact@1, roster, Worker selection, Memory, State, scoped history, deterministic finish and reports.
@@ -151,7 +156,11 @@ tests:
     covers: [A2, A3, A4, A5]
   - command: make test-wire-cross-language
     covers: [A2, A3, A5]
-  - command: make -j3 test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
+  - command: make test-release-process-e2e-a
+    covers: [A1, A2, A3, A5]
+  - command: make test-release-process-e2e-b
+    covers: [A1, A2, A3, A5]
+  - command: make test-release-process-e2e-c
     covers: [A1, A2, A3, A5]
   - command: make test-config
     covers: [A2, A5]
@@ -181,7 +190,9 @@ implementation_replan:
     - go test -race -tags=integration -count=1 ./internal/planner/... ./internal/scheduler ./internal/controlplane ./internal/runstore ./internal/httpapi/privateartifacts ./internal/app ./internal/telemetry ./internal/gatewayrecovery ./internal/archtest
     - make test-runtime
     - make test-wire-cross-language
-    - make -j3 test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
+    - make test-release-process-e2e-a
+    - make test-release-process-e2e-b
+    - make test-release-process-e2e-c
     - make verify-public-api
     - make verify-public-api-postgres
     - make test-config

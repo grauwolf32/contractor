@@ -1337,7 +1337,7 @@ overwritten. The [operator guide](../../guides/audit-traces.md) defines usage,
 local limits and exit statuses. No new Server API, persistence or retention
 mechanism is introduced.
 
-**OBS-R129.** Runtime Streamline reports model admission, classified outcome,
+**OBS-R129.** Runtime Streamline and Router report model admission, classified outcome,
 known usage and tool execution through its ordered execution host. Server
 retains the canonical Planner report, reduced events and configured Planner
 telemetry exporter; Runtime does not inherit Worker telemetry configuration.

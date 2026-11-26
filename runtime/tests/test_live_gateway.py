@@ -258,23 +258,44 @@ def test_live_router_uses_runtime_loop_and_named_workers() -> None:
         invocation = PlannerInvocation(
             input="Call builder, then reviewer, then finish. Use the declared tools in that order.",
             tools=[
-                {"name": "execute_current_subtask", "description": "Execute the named Worker",
-                 "parameters": {"type": "object", "properties": {
-                     "worker_name": {"type": "string", "enum": ["builder", "reviewer"]}},
-                     "required": ["worker_name"], "additionalProperties": False}},
-                {"name": "finish", "description": "Finish after both Workers",
-                 "parameters": {"type": "object", "properties": {}, "additionalProperties": False}},
+                {
+                    "name": "execute_current_subtask",
+                    "description": "Execute the named Worker",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "worker_name": {"type": "string", "enum": ["builder", "reviewer"]}
+                        },
+                        "required": ["worker_name"],
+                        "additionalProperties": False,
+                    },
+                },
+                {
+                    "name": "finish",
+                    "description": "Finish after both Workers",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": False,
+                    },
+                },
             ],
         )
         policy = ResolvedModelPolicy(
             ref=ModelPolicyRef(policyId="live-router", version="1", digest="sha256:" + "a" * 64),
-            model=GATEWAY_MODEL, maxModelCalls=4, maxWorkerCalls=2,
-            maxOutputTokens=512, maxTotalTokens=10000,
+            model=GATEWAY_MODEL,
+            maxModelCalls=4,
+            maxWorkerCalls=2,
+            maxOutputTokens=512,
+            maxTotalTokens=10000,
         )
         try:
-            await asyncio.wait_for(PlannerLoop(model, Host(), policy).run(
-                invocation, "Route using exactly one declared tool per turn."
-            ), timeout=180)
+            await asyncio.wait_for(
+                PlannerLoop(model, Host(), policy).run(
+                    invocation, "Route using exactly one declared tool per turn."
+                ),
+                timeout=180,
+            )
         finally:
             await model.close()
         assert selected == ["builder", "reviewer"]
