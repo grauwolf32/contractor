@@ -1,0 +1,240 @@
+{
+  "task": "V488-003",
+  "reviewed_commit": "64e95fdf8d5dd48e7a0c66462e6a3c1e4aa25d4c",
+  "implementation_commit": "5f07199fe51c4ffd89ce0d829b57250c841069b5",
+  "result": "passed",
+  "date": "2026-11-27",
+  "boundary": {
+    "headless": "No Server transport imports or host interface changes; one Planner loop, shared strict_json decoder and token-usage projection. No LocalHost backend or resume claim.",
+    "growth": "25 net production lines relative to the reviewed revision; no new engine, endpoint, DTO, store or dependency."
+  },
+  "regressions": [
+    "Main and compactor reject missing, empty, partial, negative or inconsistent usage; no tool/checkpoint, no invented token charge.",
+    "Main and compactor reject duplicate nested or top-level envelope members and trailing data; tool arguments reject plain, escaped and nested duplicate keys and trailing JSON; valid provider extensions remain accepted.",
+    "Filtered main response ends in planner_gateway_invalid_response with known usage retained, without another model request.",
+    "Rejected unknown tool selection on the first post-checkpoint high-token response still ends in planner_compaction_failed (ineffective), after usage charge and before further tool/model work."
+  ],
+  "runtime": {
+    "command": "make test-runtime",
+    "total_cases": 6907,
+    "passed": 6772,
+    "skipped": 135,
+    "skip_reasons": {
+      "OPS-R1: Linux byte-exact filename/long-path fixture; excluded from macOS acceptance": 2,
+      "run make test-interactsh-protocol for the pinned upstream server": 1,
+      "live LLM Gateway environment is not configured": 3,
+      "OPS-R1: the allocation-scoped Podman backend needs Linux host capabilities (AF_UNIX SOCK_SEQPACKET socket pairs, pidfd_open)": 94,
+      "explicit real-rootless startup capability gate": 2,
+      "explicit real-rootless deployment/workflow gate": 1,
+      "explicit real-rootless command execution gate": 13,
+      "explicit real-rootless owner-process gate": 3,
+      "explicit real Podman release gate": 5,
+      "explicit real gate: make test-podman-supervisor": 11
+    },
+    "new_path_cases": 33,
+    "report_sha256": "cb48f90b9337705ec874d35e19890ca77ebe80dd41ed3adc250a6afecff8f794",
+    "verifiers": [
+      "verify-runtime",
+      "verify-compaction-runtime"
+    ]
+  },
+  "go": {
+    "command": "go test -race -count=1 -json ./internal/planner/... ./internal/httpapi/privateartifacts",
+    "log": "/private/tmp/v488-review-go.jsonl",
+    "sha256": "a779249283e1993eb2c56baef84855091ae5cc4b7ce29f166e9822ef9d8dfa48",
+    "passed_test_records": 1051,
+    "packages": 8,
+    "skipped": [],
+    "root_count": 318
+  },
+  "processes": {
+    "command": "make -j3 test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c",
+    "distinct_roots": 71,
+    "same_as_full_test_e2e": true,
+    "shards": [
+      {
+        "log": "/Users/ruslan/src/contractor-worktrees/runtime-planner-p1/reports/go-process-a.jsonl",
+        "sha256": "e7e72b2f2acfd972b447d493371998bb05f9e3449d913eb8519ece647f1166f9",
+        "roots": [
+          "TestArtifactHistoryAcrossProductionProcesses",
+          "TestArtifactImagesAcrossProcesses",
+          "TestAuditBasicExactHandoffAcrossProductionProcesses",
+          "TestAuditCommonObservationProfilesAcrossProductionProcesses",
+          "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+          "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses",
+          "TestAuditCompactionLeaseLossAcrossProcesses",
+          "TestAuditHypothesisContinuationAcrossProductionProcesses",
+          "TestAuditFixedHypothesesAcrossProductionProcesses",
+          "TestAuditIncrementalEvidenceAcrossProcesses",
+          "TestAuditPartialJudgmentsAcrossProcesses",
+          "TestAuditWorkspaceAcrossProductionProcesses",
+          "TestLocalGoToPythonArtifactCopy",
+          "TestArtifactFilePublicationAcrossProcesses",
+          "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses",
+          "TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses",
+          "TestProjectSitemapHTTPCollectionAcrossProductionProcesses",
+          "TestWorkflowMaterialSetsAcrossProductionProcesses",
+          "TestOpenAPIPreparedWorkServerOperation",
+          "TestProjectSitemapReportImportsAcrossProductionProcesses",
+          "TestProjectSitemapServerOperationsAcrossProductionProcesses",
+          "TestProjectSitemapToolsAcrossProductionProcesses",
+          "TestRuntimeManagedArtifactWritesAcrossProcesses",
+          "TestRuntimeManagedSitemapEditsAcrossProcesses",
+          "TestRuntimeManagedMaterialVersionsAcrossProcesses",
+          "TestMemoryMVPProcesses"
+        ],
+        "passed_test_records": 43,
+        "packages": 1,
+        "skipped": []
+      },
+      {
+        "log": "/Users/ruslan/src/contractor-worktrees/runtime-planner-p1/reports/go-process-b.jsonl",
+        "sha256": "2ef5f14bc5b2d4e672202e7c3e153b71706a12d1c7da0d26a940ea756a6d2abe",
+        "roots": [
+          "TestAuditProgramCatalogReplacementRestartsServer",
+          "TestEngagementHTTPBoundsAcrossProcesses",
+          "TestEngagementHTTPSelectedEvidenceAcrossProcesses",
+          "TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses",
+          "TestEngagementHTTPLifecycleAcrossProcesses",
+          "TestEngagementHTTPRouteMatrixAcrossProcesses",
+          "TestEngagementIdentityLifecycleAcrossProcesses",
+          "TestEngagementIdentitySessionsAcrossProcesses",
+          "TestEngagementOrdinaryRunAcrossProcesses",
+          "TestRoutingAndEscalationProductionBoundaries",
+          "TestRunMetadataLabelsAcrossProcesses",
+          "TestRuntimeAdapterSelectionAllowsAdditionalCapabilities",
+          "TestLabelDrivenRuntimeConfigurationAcrossProcesses",
+          "TestSchedulerConcurrencyAcrossProductionProcesses",
+          "TestTaintAnnotationsAcrossRealRuntimeProcess",
+          "TestWorkerSummarizerProductionBoundaries"
+        ],
+        "passed_test_records": 71,
+        "packages": 1,
+        "skipped": []
+      },
+      {
+        "log": "/Users/ruslan/src/contractor-worktrees/runtime-planner-p1/reports/go-process-c.jsonl",
+        "sha256": "515781d071bc3bd2cb63e193a7cfeb153b43c47c0c736c14b2b8f7d988f48922",
+        "roots": [
+          "TestAgentSkillsMVPProcesses",
+          "TestHeterogeneousRuntimeCapabilityPlacement",
+          "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",
+          "TestDiscoveryFactsAcrossProcesses",
+          "TestEvalFindingProjectNavigationAcrossProcesses",
+          "TestFactExtractionAuditEvalAcrossProcesses",
+          "TestFactExtractionAcrossProcesses",
+          "TestFindingsReaderBoundariesAcrossProcesses",
+          "TestFindingLocationsAcrossProcesses",
+          "TestFindingsProducerAndReaderAcrossProcesses",
+          "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts",
+          "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses",
+          "TestMemorySnapshotAcrossProcesses",
+          "TestNucleiWebWithDeterministicScannerAcrossProcesses",
+          "TestProcessDatabaseIsolation",
+          "TestIndependentFindingsServersAcrossProcesses",
+          "TestProductionMemoryTemplatesAcrossProcesses",
+          "TestProjectFactsAcrossProcesses",
+          "TestProjectFindingsReaderAcrossProcesses",
+          "TestProjectDocumentResponseRecoveryAcrossProcesses",
+          "TestProjectDocumentOutputLimitRecoveryAcrossProcesses",
+          "TestProjectWorkspaceLifecycleAcrossProductionProcesses",
+          "TestRuntimeGuidanceAcrossProductionProcesses",
+          "TestRuntimePlacementScannerFixture",
+          "TestRuntimePlacementAcrossProductionProcesses",
+          "TestRuntimeAllocationSlotsAcrossProductionProcesses",
+          "TestTraceFindingCoordinatesAcrossProcesses",
+          "TestWorkerCompactionContinuesIsolatedWorker",
+          "TestWorkerSessionModesAcrossProductionProcesses"
+        ],
+        "passed_test_records": 76,
+        "packages": 1,
+        "skipped": []
+      }
+    ],
+    "focused": {
+      "log": "/private/tmp/v488-review-routing.jsonl",
+      "sha256": "74a4ca8e6c0f3e38116fc8f1bd604fcfd61abf23ae5f374e174ebc89906951b7",
+      "roots": [
+        "TestRoutingAndEscalationProductionBoundaries"
+      ],
+      "passed_test_records": 6,
+      "packages": 1,
+      "skipped": []
+    },
+    "new_real_process_cases": 5,
+    "assertions": "Real Server/PostgreSQL/Runtime confirms retryable invalid-response termination, exactly one model call, zero tool effects/Worker dispatches, zero untrusted usage or exactly 18 trusted tokens, and allocation cleanup."
+  },
+  "negative_control": {
+    "command": "PYTHONPATH=/private/tmp/v488-review-original runtime/.venv/bin/python -m pytest -q runtime/tests/test_planner_gateway.py runtime/tests/test_planner_loop.py",
+    "source": "Separate temporary source copy with the five changed production modules restored from the reviewed revision; repository source untouched.",
+    "exit_code": 1,
+    "failed_cases": [
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[empty_usage-main]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[empty_usage-compactor]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[missing_prompt_tokens-main]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[missing_prompt_tokens-compactor]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[missing_completion_tokens-main]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[missing_completion_tokens-compactor]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[missing_total_tokens-main]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[missing_total_tokens-compactor]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[inconsistent_usage-main]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[inconsistent_usage-compactor]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[negative_usage-main]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[negative_usage-compactor]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[envelope_duplicate-main]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[envelope_duplicate-compactor]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[envelope_nested-main]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[envelope_nested-compactor]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[envelope_trailing-main]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_untrusted_usage_and_envelopes[envelope_trailing-compactor]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_arguments_and_filtered_main_response[arguments_duplicate]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_arguments_and_filtered_main_response[arguments_escaped]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_arguments_and_filtered_main_response[arguments_nested]",
+      "runtime/tests/test_planner_gateway.py::test_runtime_planner_gateway_rejects_arguments_and_filtered_main_response[filtered]",
+      "runtime/tests/test_planner_loop.py::test_planner_compacts_with_local_host_and_injected_models_without_server[True]"
+    ],
+    "log_sha256": "979aef665401d4baae4fa298870a55f776ffc14f895950430478b6efcb9e1c1e"
+  },
+  "logs": [
+    {
+      "path": "/private/tmp/v488-review-runtime-final.log",
+      "sha256": "064c17196a2380284ec6f78de80fc85d1515316555ef4ae3926fbe935eba3ef8"
+    },
+    {
+      "path": "/private/tmp/v488-review-lint-wire-final2.log",
+      "sha256": "6c4376eb12196f16849311e9891326b4bc6b9d0b42bbb7485df58547be6774cd"
+    },
+    {
+      "path": "/private/tmp/v488-review-process-shards.log",
+      "sha256": "6fe4bdf17bee1375afd8427527e53f1b980403f602d8351f4d6fdaa151e2fc64"
+    },
+    {
+      "path": "/private/tmp/v488-review-focused4.log",
+      "sha256": "457eab217183b11d58af123f2c744d92857c5ed075c893800113f52f81d036bd"
+    }
+  ],
+  "superseded_attempts": {
+    "lint": "First invocation lacked the disposable database URL; next invocation found stale generated dependency HTML. Regenerated via make docs-dependencies; final lint and wire ran with PostgreSQL.",
+    "runtime": "Initial run exposed the pre-existing last-key-wins conformance expectation; interrupted after 853 passes/1 failure, corrected test and ran the complete suite again. No partial run counts as acceptance.",
+    "focused": "Early test fixture supplied an explicit null optional failure member; fixed fixture before acceptance. Byte-bound tests were adapted to the strict decoder entry point while retaining off-loop/cancellation assertions.",
+    "negative_control": "First shell setup used a reserved zsh variable and failed; a subsequent original-source filtered-response test loop was interrupted and bounded by a valid second fixture reply. Only final negative2 is evidence."
+  },
+  "not_run": [
+    "Live models",
+    "Optional heavy disk I/O",
+    "Full release-verify",
+    "Deployment",
+    "Merge"
+  ],
+  "cleanup": {
+    "negative_control_source_copy_removed": true,
+    "cluster_identity": "/private/tmp/v488-review-pg|55491",
+    "client_connections_before_cleanup": 0,
+    "dropped_databases": [
+      "contractor_review_v488"
+    ],
+    "cluster_stopped_and_removed": true,
+    "demo_or_user_databases_touched": false,
+    "podman_resources_created": false
+  }
+}
