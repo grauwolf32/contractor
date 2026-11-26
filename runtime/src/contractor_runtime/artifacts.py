@@ -9,6 +9,7 @@ error model and response checks. Finding proposals
 from __future__ import annotations
 
 import asyncio
+import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -32,6 +33,7 @@ from contractor_runtime.contracts import (
     validate_media_type,
 )
 from contractor_runtime.contracts.base import NAME_PATTERN, is_blank, trim_whitespace
+from contractor_runtime.contracts.planner import MAX_PLANNER_OPERATION_BYTES
 from contractor_runtime.shared_config import artifact_list_max_items, artifact_payload_max_bytes
 
 if TYPE_CHECKING:
@@ -103,6 +105,7 @@ class ArtifactTransport(Protocol):
         headers: Mapping[str, str],
         body: bytes,
         max_response_bytes: int,
+        timeout_seconds: float | None = None,
     ) -> ArtifactHTTPResponse: ...
 
 
@@ -533,14 +536,20 @@ class MTLSArtifactTransport:
         headers: Mapping[str, str],
         body: bytes,
         max_response_bytes: int,
+        timeout_seconds: float | None = None,
     ) -> ArtifactHTTPResponse:
         if method not in {"GET", "PUT", "POST"} or not path.startswith("/") or "#" in path:
             raise ValueError("invalid private Artifact API request target")
         # Metadata/list/write replies have their own JSON budget. A smaller
         # payload policy must not make those protocol responses impossible.
-        response_ceiling = max(artifact_payload_max_bytes(), MAX_ARTIFACT_JSON_BYTES)
+        response_ceiling = max(
+            artifact_payload_max_bytes(), MAX_ARTIFACT_JSON_BYTES, MAX_PLANNER_OPERATION_BYTES
+        )
         if type(max_response_bytes) is not int or not 0 <= max_response_bytes <= response_ceiling:
             raise ValueError("invalid Artifact API response limit")
+        timeout = self._timeout if timeout_seconds is None else timeout_seconds
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("private API request timeout must be positive and finite")
         try:
             request_headers = {
                 "Host": _https.host_header(self._host, self._port),
@@ -555,7 +564,7 @@ class MTLSArtifactTransport:
                 self._port,
                 request,
                 idempotent=method == "GET",
-                timeout_seconds=self._timeout,
+                timeout_seconds=timeout,
                 max_response_bytes=max_response_bytes,
             )
         except _https.HTTPResponseTooLargeError:

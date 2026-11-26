@@ -6,6 +6,13 @@ type contentSpan interface {
 	captureContent(string, any)
 }
 
+// PlannerSpanCapturesContent lets a remote executor avoid assembling content
+// when the selected instrumentation cannot consume it.
+func PlannerSpanCapturesContent(span PlannerSpan) bool {
+	_, ok := span.(contentSpan)
+	return ok
+}
+
 // CapturePlannerInput/Output evaluate content only for a configured exporter.
 // SDK projection precedes masking; byte bounds apply to sanitized content.
 func CapturePlannerInput(span PlannerSpan, value func() any) {

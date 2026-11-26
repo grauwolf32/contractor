@@ -4,7 +4,7 @@ Requirement prefix: `PLN` · [Specification index](../README.md)
 
 ## Purpose and scope
 
-This document owns the Planner: the Server component that the Workflow
+This document owns the Planner: the Stage execution boundary that the Workflow
 Scheduler constructs for one prepared Stage and that turns the Stage input
 into one candidate StageResult by dispatching work to the fixed prepared
 Worker set. It owns:
@@ -57,12 +57,12 @@ following ones.
 
 | Term | Meaning here |
 | --- | --- |
-| Planner | The Server component constructed for one prepared Stage that runs one invocation over the fixed prepared Worker set and returns a candidate StageResult. |
+| Planner | The component constructed for one prepared Stage that runs one invocation over the fixed prepared Worker set and returns a candidate StageResult; Server owns acceptance and durable progress. |
 | `PlannerFactory` | The replaceable Go abstraction that constructs a Planner for one prepared Stage. |
 | Passthrough Planner (`passthrough@1`, `PassthroughPlanner`) | The deterministic, model-free baseline Planner that sends one Worker task to its sole Worker and maps the completion into a candidate. |
 | Streamline Planner (`streamline@1`) | The model-backed Planner that works through a bounded subtask plan with exactly one logical Worker. |
 | Router Planner (`router@1`) | The model-backed Planner that works through a bounded subtask plan and selects a logical Worker by `worker_name` for each dispatch. |
-| Model-backed Planner | A `streamline@1` or `router@1` Planner, which runs one Google ADK Go `LlmAgent` inside Server. |
+| Model-backed Planner | A bounded Google ADK model loop: Streamline runs in Runtime; Router runs in Server. Both use Server-owned plan and tool operations. |
 | Subtask (`PlannerSubtask`) | One plan record with a Server-assigned decimal string ID, its objective, its instructions and an adapter-controlled status. |
 | Current subtask | The first unresolved subtask of the plan, named by `currentSubtaskId`. |
 | Active dispatch | The in-flight Worker dispatch of the current subtask, holding a Server-generated call ID and the logical Worker name. |
@@ -86,13 +86,13 @@ following ones.
 
 A Planner is constructed through the `PlannerFactory` for one prepared Stage
 and works over the fixed prepared Worker set. `streamline@1` and `router@1`
-share the Go ADK dependency, the bounded subtask plan and `finish`; their
+share the bounded subtask plan and `finish`; their
 Worker-selection contract is deliberately different.
 
 | Strategy | Implementation | Logical Workers | Worker dispatch | Model-facing Planner tools |
 | --- | --- | --- | --- | --- |
 | `passthrough@1` | Deterministic Go code, no model client | Exactly one | One deterministic Worker-task request | None |
-| `streamline@1` | One Google ADK Go `LlmAgent` | Exactly one | `execute_current_subtask(subtask_id)` | `add_subtask`, `list_subtasks`, `finish`; when selected, mirrored MemoryTools with the sole Worker's signatures; projection tools without `worker_name` |
+| `streamline@1` | One Google ADK Python `LlmAgent` in a separate Runtime allocation | Exactly one | `execute_current_subtask(subtask_id)` | `add_subtask`, `list_subtasks`, `finish`; when selected, mirrored MemoryTools with the sole Worker's signatures; projection tools without `worker_name` |
 | `router@1` | One Google ADK Go `LlmAgent` | Fixed non-empty mapping | `execute_current_subtask(subtask_id, worker_name)` | `add_subtask`, `list_subtasks`, `finish`; when selected, mirrored MemoryTools; projection tools; each memory and projection tool with a constrained `worker_name` |
 
 ### Passthrough path
@@ -121,7 +121,7 @@ the model never addresses a Worker directly.
 ```mermaid
 sequenceDiagram
     participant S as Workflow Scheduler
-    participant M as Planner model (ADK LlmAgent in Server)
+    participant M as Planner model (Streamline Runtime / Router Server)
     participant A as Planner adapter (Server)
     participant W as Worker (Runtime Agent)
     S->>M: Planner.Run(ctx)
@@ -178,18 +178,16 @@ replaceable Contractor abstraction is the Go `PlannerFactory`; the Workflow
 Scheduler sees only the framework-neutral
 `Planner.Run(context.Context) (StageContentResult, error)` boundary.
 
-**PLN-R2.** `passthrough@1` is deterministic Go code. `streamline@1` and
-`router@1` each construct one Google ADK Go `LlmAgent` behind the same
-boundary, share that Go ADK dependency and use the same bounded subtask plan
-and `finish` operation. The supported Server dependency is
-`google.golang.org/adk/v2` v2.8.0, installed through the committed Go module
-graph. Native session compaction and SDK resumability remain disabled;
-Contractor keeps its own Gateway, A2A, budgets and reduced durable facts.
-The main Runner receives the resolved Contractor model-call limit explicitly;
-ADK's default and process environment cannot replace the pinned ModelPolicy.
-The domain admission callback owns the classified budget failure. The one-shot
-compactor allows two SDK calls so its existing model wrapper can reject a repair
-attempt before a second provider operation.
+**PLN-R2.** `passthrough@1` is deterministic Go code. `streamline@1`
+executes its Google ADK Python model loop in Runtime through PLN-R135; `router@1`
+uses the shared Go ADK engine in Server. Both use the same Server-owned subtask
+plan, budget and `finish` operations. The Go dependency is
+`google.golang.org/adk/v2` v2.8.0; Runtime dependencies are pinned in `uv.lock`.
+Native SDK compaction and resumability remain disabled. Each Runner receives
+its resolved model-call ceiling explicitly; Server admission supplies the
+classified budget stop before an additional provider call. The isolated
+one-shot compactor permits two SDK attempts so its wrapper can refuse a second
+provider operation.
 
 **PLN-R3.** ADK types do not enter Scheduler, RunStore, A2A or
 artifact contracts.
@@ -198,16 +196,16 @@ ordinary execution contexts. Their ADK bindings own SDK control actions:
 an accepted finish skips summarization and escalates, a rejected finish does
 neither, and a Worker budget stop skips summarization without escalation.
 This separation preserves the same operation and persistence rules for both
-modeled strategies; it does not enable remote Planner execution or resume.
+modeled strategies. Runtime execution uses PLN-R135–137; it enables no resume.
 
 **PLN-R4.** Contractor does not depend on ADK's experimental
 remote-agent/A2A API, so a change to that API cannot change the Planner or
 Scheduler domain interfaces.
 
 **PLN-R5.** Allocation routing comes only from the prepared
-`WorkerHandle` and its Agent Card. The ADK agent and its live conversation stay
-inside Server memory; an execution function crosses the process boundary
-through A2A.
+`WorkerHandle` and its Agent Card. The live conversation stays in the process
+that executes the model loop. Worker dispatch always crosses the existing
+Server `WorkerInvoker`; a Runtime Planner cannot choose a peer URL.
 
 **PLN-R6.** A Planner may decompose and iterate, and Router may select
 among the fixed logical names, but neither can:
@@ -997,8 +995,9 @@ plan/model/Worker-call budgets and do not request another strategy escalation.
 
 **PLN-R125.** A `streamline@1` or `router@1` Stage selects its context
 management with `plannerContextManagement`
-([WFL-R90](../configuration/workflows.md)); both Planners share one Server-side
-compaction engine. `none` keeps the whole conversation. `compact@1` lets the
+([WFL-R90](../configuration/workflows.md)). Streamline selects and projects
+conversation groups in Runtime; Router uses the Go engine. Both share Server
+compactor acceptance, cumulative budgets, exact-result history and marker writes. `none` keeps the whole conversation. `compact@1` lets the
 invocation replace earlier turns with one rolling summary; its compactor is the
 Planner execution selection's exact `compactorModelPolicy`, selected through
 Workflow executionConfig rather than the context block
@@ -1035,8 +1034,8 @@ Planner's cumulative `maxModelCalls` and `maxTotalTokens` (PLN-R81); known
 usage of a rejected response is charged too, and missing usage is
 `planner_gateway_invalid_response` (PLN-R86). The compactor's own output and
 request bounds add limits but no second total budget. The original Planner
-deadline bounds the call, and each request also obeys the Server's Planner
-Gateway request timeout, the same as a main model request.
+deadline bounds the call, and each request also obeys its executor's effective Gateway operation timeout, the
+same as a main model request.
 
 **PLN-R128.** Before transport, the complete serialized compactor request in
 bytes (including its response schema), plus a framing reserve of 1,024 tokens
@@ -1122,6 +1121,40 @@ Planner instance.
 artifact-backed notes through the explicit MemoryTools contract
 ([Memory](../tools/memory.md)); that remains Run-scoped artifact state rather
 than Planner-session inheritance.
+
+**PLN-R135.** Streamline executes its model loop in one separately accounted
+`planner@1` allocation, alongside its sole Worker. Server keeps the framework-neutral
+Planner boundary, canonical plan, budgets, exact-result acceptance, Memory and
+State operations. Its Runtime factory cannot construct a Go model client.
+The main model uses the exact Planner execution selection. The compactor uses
+its independently pinned policy with that same Gateway and credential and no
+Gateway recovery. `none`, `compact@1`, document recovery, Memory and State retain
+their existing semantics; deterministic Planners and Router execute on Server.
+
+**PLN-R136.** The Runtime Planner core takes an injected model and `PlannerHost`
+operation interface. It imports neither Server transport, A2A, allocation bootstrap
+nor registration. The Server adapter alone binds operations to the allocation's
+ordinary mTLS private transport. This permits another host implementation without
+changing the model loop; no local persistence backend, offline execution or resume
+is implied. The wire shapes and bounds are in `planner-execution.schema.json`
+and LIM-PLN-23/24. `before_model` admits a model call; `after_model` charges its
+usage and admits at most one known tool. Tool operations use existing Server
+owners. Compactor admission, reply acceptance and checkpoint publication retain
+PLN-R127–130, with Runtime holding the raw ledger and summary and Server holding
+the exact-result history index. Their combined retained accounting obeys the
+existing compaction bounds. Only a confirmed marker permits the next projection.
+
+**PLN-R137.** One live invocation serializes operations by increasing sequence
+under its original deadline and Run claim. Admission requires the current
+allocation grant, Runtime principal and process instance, the active Stage host
+and exact Planner allocation. The host retains only the last encoded operation
+and reply in bounded invocation memory. One identical transport retry replays
+that reply without repeating a mutation, usage charge, dispatch or marker; a
+changed payload, skipped sequence or unadmitted operation is permanently invalid.
+No new durable receipt, lease or queue is added. A disconnected HTTP request does
+not revoke an admitted operation: Stage cancellation owns it, and Planner.Run
+joins it before removing the host and allowing allocation release. Process loss
+uses ordinary interruption/fresh-attempt recovery; it never adopts a former host.
 
 ## Interfaces
 
@@ -1347,5 +1380,5 @@ from distinct Workers or input roles are ambiguous and rejected. Exact inspector
 CanFinish and Scheduler validation remain unchanged. Private refs survive ADK
 compaction, are bounded by LIM-PLN-21/22, and end with executionState. Recovered
 completed Stage results keep their existing exact validation path. Model summaries
-and mutable alias lookups cannot supply a missing version; no Runtime round trip
-or persistent registry is introduced. Returned/input metadata retain revisions.
+and mutable alias lookups cannot supply a missing version; no extra artifact lookup or persistent registry is introduced. A Runtime
+Planner reaches this same Server-owned operation through PLN-R136. Returned/input metadata retain revisions.

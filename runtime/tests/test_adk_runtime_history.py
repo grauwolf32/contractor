@@ -24,8 +24,8 @@ from test_adk_runtime import (
 
 import contractor_runtime.worker.runtime as runtime_module
 from contractor_runtime.contracts import WorkerSessionMode
+from contractor_runtime.llm.one_shot import OneShotSession
 from contractor_runtime.worker.history import ToolHistory, ToolHistoryError
-from contractor_runtime.worker.one_shot import OneShotSession
 
 
 def responses(payload):

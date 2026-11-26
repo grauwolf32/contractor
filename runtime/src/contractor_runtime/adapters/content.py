@@ -6,7 +6,17 @@ import json
 from collections.abc import Callable
 from typing import Any
 
+from contractor_runtime.threads import to_thread_until_done
+
 MAX_CONTENT_BYTES = 256 * 1024
+
+
+async def bounded_content(value: Any) -> str | None:
+    """Serialize optional telemetry off the event loop without affecting execution."""
+    try:
+        return await to_thread_until_done(encode_content, value, name="model-content-capture")
+    except Exception:
+        return None
 
 
 def _json_value(value: Any) -> Any:

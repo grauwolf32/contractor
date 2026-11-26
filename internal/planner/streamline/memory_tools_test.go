@@ -131,7 +131,7 @@ func TestPlannerAndWorkerShareOneLogicalMemoryNamespace(t *testing.T) {
 		},
 	}}
 	sessions := newFakeSessions()
-	factory, err := NewConfiguredFactoryWithMemory(
+	factory, err := newLocalFactoryWithMemory(
 		sessions, sessions, worker, &fakeInspector{}, unavailableWorkerStateReader{},
 		store, testModelFactory(scripted), Limits{},
 	)

@@ -402,6 +402,13 @@ func mergePinnedLayer(
 	return merged, originsForPinned(layer, ordered), ordered, nil
 }
 
+// ForPlanner retains Server telemetry and provenance while excluding Worker
+// routes and adapters before candidate merge and credential lookup.
+func ForPlanner(value PinnedRuntimeConfig) PinnedRuntimeConfig {
+	value.Spec.Worker = WorkerPatch{}
+	return value
+}
+
 // WithoutWorkerModel keeps immutable provenance while projecting irrelevant
 // model leaves out before merge and catalog/credential lookups for tool Workers.
 func WithoutWorkerModel(value PinnedRuntimeConfig) PinnedRuntimeConfig {

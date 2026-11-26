@@ -9,6 +9,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 
 import httpx
+from google.genai import types
 
 from contractor_runtime.contracts import GatewayFailureSignatures
 
@@ -26,6 +27,42 @@ class GatewayFailure:
     code: str
     retryable: bool
     status: int | None = None
+
+
+class GatewayModelError(RuntimeError):
+    """Secret-free boundary error for failures below the model adapter.
+
+    ``response_received`` marks a Gateway response the adapter rejected (for
+    example invalid tool-call JSON): the provider already spent tokens, so the
+    parsed numeric ``usage_metadata`` (or ``None`` when unavailable) must still
+    be accounted. No response content is retained.
+    """
+
+    def __init__(
+        self,
+        provider_error_type: str,
+        *,
+        retryable: bool = True,
+        failure: GatewayFailure | None = None,
+        response_received: bool = False,
+        usage_metadata: types.GenerateContentResponseUsageMetadata | None = None,
+        request_invalid: bool = False,
+        empty_stop: bool = False,
+    ) -> None:
+        self.provider_error_type = provider_error_type
+        self.retryable = retryable
+        self.failure = failure
+        self.response_received = response_received
+        self.usage_metadata = usage_metadata if response_received else None
+        self.request_invalid = request_invalid
+        self.empty_stop = empty_stop
+        super().__init__(f"LLM gateway call failed ({provider_error_type})")
+
+
+class _AdapterFailure(RuntimeError):
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(code)
 
 
 def classify_response(

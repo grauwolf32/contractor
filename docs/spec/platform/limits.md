@@ -980,7 +980,7 @@ its owning requirement.
 | `LIM-WRK-6` | 1 to 64 characters matching [a-z][a-z0-9_]{0,63} | WorkerFailure.code | WorkerCompletion validation (Runtime and Server) | [WRK-R36](../execution/worker.md) |
 | `LIM-WRK-7` | 4,096 UTF-8 bytes | WorkerFailure.message (sanitized, non-empty) | WorkerCompletion validation (Runtime and Server) | [WRK-R36](../execution/worker.md) |
 | `LIM-WRK-8` | 1..128 bytes | WorkerCompletion.invocation_id | WorkerCompletion validation (Runtime and Server) | [WRK-R36](../execution/worker.md) |
-| `LIM-WRK-9` | 256 KiB of compact UTF-8 JSON each | StageContentRequest, WorkerCompletion, Planner-facing WorkerResult and the resulting StageResult | Runtime (Python) and Server (Go) validators; for StageResult one Server validator shared by every Planner, the Workflow Scheduler and RunStore | [WRK-R37](../execution/worker.md) |
+| `LIM-WRK-9` | 256 KiB of compact UTF-8 JSON each | Worker StageContentRequest, WorkerCompletion, Planner-facing WorkerResult and the resulting StageResult; a Planner execution envelope uses LIM-PLN-24 | Runtime (Python) and Server (Go) validators; for StageResult one Server validator shared by every Planner, the Workflow Scheduler and RunStore | [WRK-R37](../execution/worker.md) |
 | `LIM-WRK-10` | 256 KiB encoded | Result-finalizer input document (subtaskId, resultText) | Runtime | [WRK-R46](../execution/worker.md) |
 | `LIM-WRK-11` | exactly 1 provider call | Result finalizer per ordinary completion | Runtime | [WRK-R48](../execution/worker.md) |
 | `LIM-WRK-12` | 16 UTF-8 bytes | Credential length from which a value is rejected anywhere in result text (shorter only as the whole text; the LLM Gateway token at any length), and the length from which a RuntimeSettings credential or private endpoint is replaced with [REDACTED] in the summarizer input (WRK-R146) | Runtime secret-retention scan and summarizer projection | [WRK-R61](../execution/worker.md) |
@@ -1062,3 +1062,6 @@ its owning requirement.
 
 | `LIM-PLN-21` | 4096 exact refs | Latest accepted material refs across logical Workers per Planner invocation | modeled Planner finish adapter | [PLN-R134](../execution/planners.md) |
 | `LIM-PLN-22` | 4 MiB encoded metadata | Latest accepted material refs across logical Workers per Planner invocation | modeled Planner finish adapter | [PLN-R134](../execution/planners.md) |
+
+| `LIM-PLN-23` | 2 MiB compact UTF-8 JSON per operation or reply; 64 unique tool declarations; 5,001 ordered operations | One live Runtime Planner host | Go/Python DTOs, strict private handler, ordered host and bounded transport | [PLN-R136](../execution/planners.md), [PLN-R137](../execution/planners.md) |
+| `LIM-PLN-24` | 512 KiB compact UTF-8 JSON for a Planner execution envelope; 4 MiB for the surrounding A2A JSON-RPC request including escaping | Runtime Planner A2A ingress; Worker content retains LIM-WRK-9 | Server StageContentRequest validation, Runtime Planner DTO, A2A body admission | [PLN-R136](../execution/planners.md) |

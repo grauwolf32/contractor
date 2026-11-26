@@ -37,7 +37,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.factories import built_in_factories
-from contractor_runtime.llm.openai import _tools
+from contractor_runtime.llm.request import _tools
 from contractor_runtime.toolsets.likec4.tools import (
     MAX_DOCUMENT_UTF8_BYTES,
     LikeC4ToolsetFactory,

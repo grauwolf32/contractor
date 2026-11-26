@@ -31,14 +31,17 @@ type routingGateway struct {
 	server *httptest.Server
 	token  string
 
-	mu           sync.Mutex
-	steps        map[string]int
-	modelCalls   map[string]int
-	requests     int
-	observations []routingGatewayObservation
-	stateUsages  map[string]workerObservationUsage
-	pending      map[string]routingFinalizerExpectation
-	failures     []string
+	mu                        sync.Mutex
+	steps                     map[string]int
+	modelCalls                map[string]int
+	requests                  int
+	observations              []routingGatewayObservation
+	stateUsages               map[string]workerObservationUsage
+	pending                   map[string]routingFinalizerExpectation
+	failures                  []string
+	blockedPlanner            chan struct{}
+	plannerDisconnected       chan struct{}
+	blockOnce, disconnectOnce sync.Once
 }
 
 type routingFinalizerExpectation struct {
@@ -74,6 +77,13 @@ func newRoutingGateway(token string) *routingGateway {
 func (g *routingGateway) close() { g.server.Close() }
 
 func (g *routingGateway) URL() string { return g.server.URL + "/v1" }
+
+func (g *routingGateway) blockPlanner() (<-chan struct{}, <-chan struct{}) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.blockedPlanner, g.plannerDisconnected = make(chan struct{}), make(chan struct{})
+	return g.blockedPlanner, g.plannerDisconnected
+}
 
 func (g *routingGateway) Failures() []string {
 	g.mu.Lock()
@@ -121,12 +131,22 @@ func (g *routingGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		g.writeFailure(w, http.StatusBadRequest, "invalid routing Gateway request")
 		return
 	}
+	g.mu.Lock()
+	blocked, disconnected := g.blockedPlanner, g.plannerDisconnected
+	g.mu.Unlock()
+	if blocked != nil && request["model"] == "planner-model" {
+		g.blockOnce.Do(func() { close(blocked) })
+		<-r.Context().Done()
+		g.disconnectOnce.Do(func() { close(disconnected) })
+		return
+	}
 	message, finishReason, modelName, call, err := g.next(request)
 	if err != nil {
 		g.writeFailure(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("x-litellm-response-cost", "0.001")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"id":      fmt.Sprintf("chatcmpl-routing-%d", call),
 		"object":  "chat.completion",

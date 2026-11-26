@@ -14,9 +14,9 @@ from contractor_runtime.llm.client import new_gateway_client
 from contractor_runtime.llm.openai import (
     GatewayModelError,
     OpenAICompatibleGatewayLlm,
-    _completion_request,
     _to_llm_response,
 )
+from contractor_runtime.llm.request import completion_request
 
 SECRET = "recognizable-openai-gateway-secret"
 
@@ -55,7 +55,7 @@ def test_gateway_request_completes_only_unanswered_parallel_tool_calls() -> None
         ]
     )
 
-    messages = _completion_request("worker-model", request)["messages"]
+    messages = completion_request("worker-model", request)["messages"]
     assert [message["role"] for message in messages] == [
         "user",
         "assistant",
@@ -751,7 +751,7 @@ def test_retry_wait_obeys_aggregate_deadline_and_cancellation(
 
 
 def test_reasoning_only_history_turn_keeps_an_empty_assistant_message():
-    from contractor_runtime.llm.openai import _content_messages
+    from contractor_runtime.llm.request import _content_messages
 
     content = types.Content(role="model", parts=[types.Part(text="earlier thought", thought=True)])
     assert _content_messages(content) == [{"role": "assistant", "content": ""}]

@@ -14,13 +14,22 @@ import (
 
 func (s *Scheduler) invokeStagePlanner(ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, execution runstore.StageExecution, stageDeadline time.Time, prepared *preparedStageWorkers) error {
 	reservations, handles := prepared.reservations, prepared.handles
+	var runtimeExecutor *contracts.WorkerHandle
+	handles = clone.Map(handles)
+	for name, handle := range handles {
+		if handle.WorkerRuntimeRef.IsPlanner() {
+			detached := handle.Clone()
+			runtimeExecutor = &detached
+			delete(handles, name)
+		}
+	}
 	modelAccess, err := s.plannerModelAccess(ctx, workflow.stage)
 	if err != nil {
 		return s.beginAbort(ctx, run, workflow, execution, reservations, s.credentialFailure(
 			run, execution, "planner_execution_config_unavailable", "Planner execution configuration is unavailable", err,
 		))
 	}
-	if modelAccess != nil && s.options.GatewayRecovery != nil {
+	if runtimeExecutor == nil && modelAccess != nil && s.options.GatewayRecovery != nil {
 		route := plannerModelRoute(run.OwnerID, workflow.stage)
 		modelAccess.Recovery = s.options.GatewayRecovery.Planner(
 			run.RunID, execution.StageExecutionID, *route, modelAccess.LLMGateway.EffectiveFailureSignatures(),
@@ -38,6 +47,7 @@ func (s *Scheduler) invokeStagePlanner(ctx context.Context, run runstore.Workflo
 		instrumentation = plannerTelemetry.Instrumentation()
 	}
 	invocation := planner.Invocation{
+		RuntimeExecutor:  runtimeExecutor,
 		StageExecutionID: execution.StageExecutionID,
 		RunID:            run.RunID,
 		Stage:            workflow.stage,

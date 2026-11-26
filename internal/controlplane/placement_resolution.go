@@ -3,6 +3,7 @@ package controlplane
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -131,8 +132,17 @@ func (a *PlacementAllocator) resolveCandidateWithCache(
 	if err != nil {
 		return runtimeconfig.ResolvedRuntimeConfig{}, err
 	}
-	agentConfigs := make([]runtimeconfig.PinnedRuntimeConfig, 0, len(principal.Labels))
-	for _, label := range principal.Labels {
+	labels := principal.Labels
+	if binding.AgentTemplate.Runtime.IsPlanner() {
+		labels = nil
+		defaultConfig = runtimeconfig.ForPlanner(defaultConfig)
+		runConfigs = slices.Clone(runConfigs)
+		for i := range runConfigs {
+			runConfigs[i] = runtimeconfig.ForPlanner(runConfigs[i])
+		}
+	}
+	agentConfigs := make([]runtimeconfig.PinnedRuntimeConfig, 0, len(labels))
+	for _, label := range labels {
 		var loaded runtimeconfig.PinnedRuntimeConfig
 		if cache == nil {
 			loaded, err = loadAgentPinnedRuntimeConfig(ctx, repository, label)
@@ -150,6 +160,7 @@ func (a *PlacementAllocator) resolveCandidateWithCache(
 	}
 	if binding.AgentTemplate.IsToolWorker() {
 		defaultConfig = runtimeconfig.WithoutWorkerModel(defaultConfig)
+		runConfigs = slices.Clone(runConfigs)
 		for i := range runConfigs {
 			runConfigs[i] = runtimeconfig.WithoutWorkerModel(runConfigs[i])
 		}

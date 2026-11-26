@@ -114,7 +114,7 @@ func TestWorkerSummarizerProductionBoundaries(t *testing.T) {
 	runtimeProcess := startProcess(
 		t, "Worker summarizer Python Runtime", filepath.Join(repositoryRoot, "runtime"),
 		map[string]string{"PYTHONUNBUFFERED": "1"},
-		python, "-m", "contractor_runtime", "--allocation-slots", "1",
+		python, "-m", "contractor_runtime", "--allocation-slots", "2",
 		"--control-plane-url", privateBaseURL,
 		"--advertised-control-url", runtimeBaseURL,
 		"--advertised-a2a-url", runtimeBaseURL,
@@ -588,15 +588,28 @@ func runSummaryContinuationProcess(t *testing.T, ctx context.Context, server, ru
 	reports := telemetry.NewRepository(pool)
 	allocations := make([]runstore.StageAllocation, 0, 2)
 	for _, e := range executions {
+		want := 1
+		if e.StageExecutionID == target.StageExecutionID {
+			want = 2
+		}
 		rows, err := store.ListStageAllocations(ctx, e.StageExecutionID)
-		if err != nil || len(rows) != 1 {
+		if err != nil || len(rows) != want {
 			t.Fatalf("continuation allocations: %v", err)
 		}
 		stored, err := reports.ListAllocationReports(ctx, e.StageExecutionID)
-		if err != nil || len(stored) != 1 || !stored[0].Report.Worker.Complete {
+		if err != nil || len(stored) != want {
 			t.Fatalf("cumulative reports: %v", err)
 		}
-		allocations = append(allocations, rows[0])
+		for _, report := range stored {
+			if !report.Report.Worker.Complete || !report.Report.Runtime.Complete {
+				t.Fatal("incomplete continuation allocation report")
+			}
+		}
+		for _, allocation := range rows {
+			if !allocation.WorkerRuntimeRef.IsPlanner() {
+				allocations = append(allocations, allocation)
+			}
+		}
 	}
 	if allocations[0].Namespace != allocations[1].Namespace || allocations[0].AgentTemplateRef != allocations[1].AgentTemplateRef ||
 		allocations[0].LogicalAgentName != allocations[1].LogicalAgentName || allocations[0].AllocationID == allocations[1].AllocationID {

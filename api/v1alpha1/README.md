@@ -22,10 +22,27 @@ adapter receives `StageContentRequest` in an A2A DataPart with media type
 `WorkerCompletion` with media type
 `application/vnd.contractor.worker-completion+json`.
 `StageContentRequest.deadline` is required: every Planner sets it to the
-effective Worker-call deadline. Runtime uses it as control data and does not
+effective invocation deadline (Worker call or Planner Stage). Runtime uses it as control data and does not
 include it in the model prompt. The Stage result a Planner returns to the
 Scheduler (`StageContentResult`) never crosses this boundary and is not part of
 this catalog.
+
+`planner@1` uses an ordinary separately accounted allocation and A2A invocation.
+The optional `StageContentRequest.planner` contains the initial input, bounded
+tool declarations and optional pinned compactor configuration; ordinary Workers
+reject it. `planner-execution.schema.json` defines ordered `PlannerOperation`
+and `PlannerOperationResult` messages for the existing mTLS allocation transport
+at `POST /private/v1/allocations/{allocationId}/planner-operations`. A live host
+caches only its last exact request/reply, permitting one identical transport
+retry; process loss follows ordinary Stage interruption. The shared
+`planner-execution-limits.json` pins the byte, tool and sequence limits.
+
+The official A2A SDK represents DataPart numbers through protobuf Struct.
+The A2A adapter restores exact integral values before strict DTO validation;
+fractional and unsafe integral values remain invalid. Private HTTP JSON keeps
+its original strict numeric rules. Planner invocation data is bounded to
+512 KiB, Worker invocation data to 256 KiB; the A2A envelope is bounded to
+4 MiB to account for SDK framing and escaping.
 
 This is the single private contract catalog. There is no separate protocol
 number, alternate DTO family or conversion path. HTTP routes retain their

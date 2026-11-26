@@ -321,6 +321,10 @@ class ToolWorkerRuntime:
                 raise asyncio.CancelledError
 
     async def invoke(self, request: StageContentRequest) -> WorkerCompletion:
+        if request.planner is not None:
+            return await self.failure_completion(
+                "worker_request_invalid", "Worker rejects Planner input"
+            )
         # Convert once, before any admission or receipt I/O. Replay does not
         # execute semantic work and keeps its independent request budget.
         loop = asyncio.get_running_loop()

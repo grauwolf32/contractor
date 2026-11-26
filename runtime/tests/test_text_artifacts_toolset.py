@@ -32,7 +32,7 @@ from contractor_runtime.contracts import (
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.lines import split_lines
 from contractor_runtime.factories import built_in_factories
-from contractor_runtime.llm.openai import _tools
+from contractor_runtime.llm.request import _tools
 from contractor_runtime.toolsets.common.cursors import b64url_decode
 from contractor_runtime.toolsets.run_artifacts.tools import (
     MAX_VISIBLE_TEXT_BYTES,
@@ -1173,13 +1173,13 @@ def test_worker_gateway_transcript_continues_an_exact_multibyte_line(tmp_path: P
     from fakes.model import ScriptedLlm, text_result, tool_call
     from test_adk_runtime import create_runtime, stage_request
 
-    from contractor_runtime.llm.openai import _completion_request
+    from contractor_runtime.llm.request import completion_request
 
     transcripts = []
 
     class TranscriptModel(ScriptedLlm):
         async def generate_content_async(self, llm_request, stream=False):
-            transcripts.append(_completion_request(self.model, llm_request))
+            transcripts.append(completion_request(self.model, llm_request))
             async for response in super().generate_content_async(llm_request, stream):
                 yield response
 

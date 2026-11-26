@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -26,6 +27,7 @@ func (s *Scheduler) workerExecutionSettingsForRun(
 	stage resolved.ResolvedStage,
 	reservationSet []controlplane.Reservation,
 ) (map[string]runtimesettings.WorkerExecutionSettings, error) {
+	stage = executionStage(stage)
 	if len(reservationSet) != len(stage.ExecutionConfig.Agents) {
 		return nil, fmt.Errorf("reservation set differs from Worker execution settings")
 	}
@@ -51,6 +53,9 @@ func (s *Scheduler) workerExecutionSettingsForRun(
 		runtimeSettings, err := s.materializeRuntimeSettings(ctx, runtimeConfig)
 		if err != nil {
 			return nil, err
+		}
+		if stage.Agents[logicalName].Template.Runtime.IsPlanner() {
+			runtimeSettings.RequestTimeoutSeconds = int(math.Ceil(s.options.PlannerTimeout.Seconds()))
 		}
 		if run.ProjectHTTPTarget != nil && agentUsesHTTPRequest(stage.Agents[logicalName].Template) {
 			target, targetErr := s.materializeHTTPOriginTarget(ctx, *run.ProjectHTTPTarget)

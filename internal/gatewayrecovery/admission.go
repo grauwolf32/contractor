@@ -41,7 +41,7 @@ func (s *Service) Admit(ctx context.Context, runID, stageID string, routes []Rou
 	}
 	if run == nil {
 		run = &runState{id: runID, stageID: stageID, ownerID: owner, routes: make(map[string]struct{}),
-			bindings: make(map[bindingKey]string), waits: make(map[bindingKey]string),
+			bindings: make(map[bindingKey]allocationRoute), waits: make(map[bindingKey]string),
 			failures: make(map[string]struct{}), changed: make(chan struct{})}
 		s.runs[runID] = run
 	}
@@ -95,7 +95,7 @@ func (s *Service) Admit(ctx context.Context, runID, stageID string, routes []Rou
 }
 
 // Bind records a trusted Scheduler allocation binding before Runtime preparation.
-func (s *Service) Bind(ctx context.Context, allocationID, runID, stageID string, route Route) error {
+func (s *Service) Bind(ctx context.Context, allocationID, runID, stageID string, route Route, planner bool) error {
 	if err := checkContext(ctx); err != nil {
 		return err
 	}
@@ -109,9 +109,14 @@ func (s *Service) Bind(ctx context.Context, allocationID, runID, stageID string,
 	if _, ok := run.routes[key]; !ok {
 		return ErrUnavailable
 	}
+	timeout := s.workerRequestTimeout
+	if planner {
+		timeout = s.plannerRequestTimeout
+	}
+	resolved := allocationRoute{key: key, timeout: timeout}
 	binding := bindingKey{"allocation:" + allocationID, route.Model}
 	if old, exists := run.bindings[binding]; exists {
-		if old != key {
+		if old != resolved {
 			return ErrInvalid
 		}
 		return nil
@@ -119,7 +124,7 @@ func (s *Service) Bind(ctx context.Context, allocationID, runID, stageID string,
 	if len(run.bindings) >= maximumBindingsPerRun || len(s.bindings) >= maximumBindings {
 		return errCapacity
 	}
-	run.bindings[binding] = key
+	run.bindings[binding] = resolved
 	s.bindings[binding] = run
 	return nil
 }

@@ -13,7 +13,7 @@ from pydantic import PrivateAttr
 
 from contractor_runtime.contracts import ResolvedModelPolicy, WorkerModelResult
 from contractor_runtime.core.async_tasks import join_owned_task
-from contractor_runtime.worker.one_shot import OneShotModel, generation_config, one_shot_session
+from contractor_runtime.llm.one_shot import OneShotModel, generation_config, one_shot_session
 
 MAX_RESULT_FINALIZER_INPUT_BYTES = 256 * 1024
 _DOCUMENT_PREAMBLE = "Contractor Worker result finalization input (JSON):\n"

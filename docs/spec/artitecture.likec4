@@ -388,7 +388,7 @@ model {
         #contractor
       }
 
-      stagePlanner = component 'Stage-local ADK Planner — Passthrough, Streamline or Router' {
+      stagePlanner = component 'Stage Planner authority — canonical progress, Worker dispatch; Router ADK loop' {
         #contractor
       }
 
@@ -823,8 +823,16 @@ model {
       }
     }
 
-    workerExecution = component 'Worker Execution — A2A, ADK, session lifecycle and trusted observations' {
+    workerExecution = component 'Allocation Execution — Planner/Worker A2A, ADK and trusted observations' {
       #contractor
+
+      plannerLoop = component 'Streamline Planner — injected model/host, private conversation and compactor' {
+        #contractor
+      }
+
+      plannerHost = component 'PlannerHost Server adapter — ordered allocation-authenticated operations' {
+        #contractor
+      }
 
       a2aServer = component 'Allocation-scoped A2A Server' {
         #contractor
@@ -979,6 +987,10 @@ model {
     agentControl.capabilityProbe -> agentControl.registryClient 'Publish exact usable runtime / Toolset tools / sandbox / RuntimeAdapter refs once per instance'
     agentControl.slotManager -> allocationCapabilities.adapterHost 'Construct / flush / destroy typed allocation-scoped adapters'
     agentControl.slotManager -> workerExecution.workerRuntime 'Create / destroy one in-process Worker instance'
+    agentControl.slotManager -> workerExecution.plannerLoop 'Own separate accounted planner@1 allocation'
+    workerExecution.a2aServer -> workerExecution.plannerLoop 'Deliver one bounded Planner invocation'
+    workerExecution.plannerLoop -> workerExecution.plannerHost 'PlannerHost operations; core accepts a local injected host'
+    workerExecution.plannerLoop -> allocationCapabilities.modelClient 'Pinned main/compactor model calls and Gateway recovery'
     agentControl.slotManager -> workerExecution.a2aServer 'Activate / deactivate allocation identity and Agent Card'
     agentControl.slotManager -> workerExecution.workerSessionLifecycle 'Own allocation-local SessionService and carried eligible State'
     agentControl.slotManager -> workerExecution.workerState 'Create / destroy canonical Contractor State'
@@ -1113,8 +1125,9 @@ model {
   runtimeAgent.allocationCapabilities.otlpExporter -> telemetryBackend 'Sequential whole-span batches; default 8 MiB and 2 attempts; final flush deadline caps retries'
   runtimeAgent.allocationCapabilities.adapterHost -> workerHttpProxy 'Selected Worker LLM/tool HTTP only; private Contractor traffic bypasses'
 
-  server.orchestration.stagePlanner -> llmGateway 'Streamline/Router calls with resolved Planner policy/Gateway/credential'
-  runtimeAgent.allocationCapabilities.modelClient -> llmGateway 'Worker/finalizer/summarizer calls with Control Plane-supplied resolved URL/token'
+  server.orchestration.stagePlanner -> llmGateway 'Router calls with resolved Planner policy/Gateway/credential'
+  runtimeAgent.workerExecution.plannerHost -> server.orchestration.stagePlanner 'Confirm plan/budget, dispatch via WorkerInvoker; replay last ordered operation'
+  runtimeAgent.allocationCapabilities.modelClient -> llmGateway 'Worker/finalizer/summarizer and Streamline/compactor calls with pinned URL/token'
   server.identityConfiguration.executionConfigService -> llmGateway 'Create/delete LiteLLM virtual keys; Gateway enforces submitted key policy'
   llmGateway -> llmProvider 'Provider requests'
 

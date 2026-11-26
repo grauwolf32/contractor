@@ -1,0 +1,6 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "sequence": 1,
+  "name": "before_model",
+  "arguments": []
+}

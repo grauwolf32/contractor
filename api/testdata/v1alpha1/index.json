@@ -228,6 +228,38 @@
     "allocation-spec-project-boundary.json": {
       "type": "AllocationSpec",
       "schema": "allocation.schema.json"
+    },
+    "allocation-spec-planner.json": {
+      "schema": "allocation.schema.json",
+      "type": "AllocationSpec"
+    },
+    "planner-operation-failure.json": {
+      "schema": "planner-execution.schema.json#/$defs/result",
+      "type": "PlannerOperationResult"
+    },
+    "planner-operation-last.json": {
+      "schema": "planner-execution.schema.json#/$defs/operation",
+      "type": "PlannerOperation"
+    },
+    "planner-operation-result.json": {
+      "schema": "planner-execution.schema.json#/$defs/result",
+      "type": "PlannerOperationResult"
+    },
+    "planner-operation.json": {
+      "schema": "planner-execution.schema.json#/$defs/operation",
+      "type": "PlannerOperation"
+    },
+    "stage-content-planner-compaction.json": {
+      "schema": "stage-content.schema.json",
+      "type": "StageContentRequest"
+    },
+    "stage-content-planner-request.json": {
+      "schema": "stage-content.schema.json",
+      "type": "StageContentRequest"
+    },
+    "allocation-spec-planner-null-adapters.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
     }
   },
   "invalid": {
@@ -798,6 +830,51 @@
       "type": "AllocationSpec",
       "schema": "allocation.schema.json",
       "strict": true
+    },
+    "allocation-spec-planner-missing-budget.json": {
+      "schema": "allocation.schema.json",
+      "strict": true,
+      "type": "AllocationSpec"
+    },
+    "allocation-spec-planner-worker-tools.json": {
+      "schema": "allocation.schema.json",
+      "strict": true,
+      "type": "AllocationSpec"
+    },
+    "planner-operation-arguments-array.json": {
+      "schema": "planner-execution.schema.json#/$defs/operation",
+      "strict": true,
+      "type": "PlannerOperation"
+    },
+    "planner-operation-result-array.json": {
+      "schema": "planner-execution.schema.json#/$defs/result",
+      "strict": true,
+      "type": "PlannerOperationResult"
+    },
+    "planner-operation-result-escalate.json": {
+      "schema": "planner-execution.schema.json#/$defs/result",
+      "strict": true,
+      "type": "PlannerOperationResult"
+    },
+    "planner-operation-sequence-overflow.json": {
+      "schema": "planner-execution.schema.json#/$defs/operation",
+      "strict": true,
+      "type": "PlannerOperation"
+    },
+    "planner-operation-sequence-zero.json": {
+      "schema": "planner-execution.schema.json#/$defs/operation",
+      "strict": true,
+      "type": "PlannerOperation"
+    },
+    "planner-operation-unknown-field.json": {
+      "schema": "planner-execution.schema.json#/$defs/operation",
+      "strict": true,
+      "type": "PlannerOperation"
+    },
+    "stage-content-planner-null.json": {
+      "schema": "stage-content.schema.json",
+      "strict": true,
+      "type": "StageContentRequest"
     }
   }
 }

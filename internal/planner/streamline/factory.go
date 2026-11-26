@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -19,6 +20,7 @@ import (
 )
 
 type plannerProfile struct {
+	runtime          bool
 	ref              string
 	adkAppName       string
 	agentName        string
@@ -47,6 +49,7 @@ type ADKSessionFactory interface {
 }
 
 type Factory struct {
+	runtimeHosts *sync.Map
 	profile      plannerProfile
 	sessions     planner.PlanSessionService
 	adkSessions  ADKSessionFactory
@@ -60,20 +63,27 @@ type Factory struct {
 
 type InvocationModelFactory func(planner.ModelAccess) (model.LLM, error)
 
-func NewConfiguredFactoryWithMemory(
+func NewRuntimeFactoryWithMemory(
 	sessions planner.PlanSessionService,
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
 	stateReader planner.WorkerStateReader,
 	memoryStore plannermemory.Store,
-	modelFactory InvocationModelFactory,
 	limits Limits,
 ) (*Factory, error) {
+	profile := streamlineProfile
+	profile.runtime = true
 	return newFactory(
-		streamlineProfile, sessions, adkSessions, invoker, inspector, stateReader,
-		memoryStore, modelFactory, limits,
+		profile, sessions, adkSessions, invoker, inspector, stateReader,
+		memoryStore, nil, limits,
 	)
+}
+
+// NewConfiguredFactoryWithMemory builds the local agent engine shared with Router.
+// Production Streamline uses NewRuntimeFactoryWithMemory.
+func NewConfiguredFactoryWithMemory(sessions planner.PlanSessionService, adkSessions ADKSessionFactory, invoker planner.WorkerInvoker, inspector planner.ArtifactInspector, stateReader planner.WorkerStateReader, memory plannermemory.Store, models InvocationModelFactory, limits Limits) (*Factory, error) {
+	return newFactory(streamlineProfile, sessions, adkSessions, invoker, inspector, stateReader, memory, models, limits)
 }
 
 func NewConfiguredRouterDelegateWithMemory(
@@ -86,10 +96,11 @@ func NewConfiguredRouterDelegateWithMemory(
 	modelFactory InvocationModelFactory,
 	limits Limits,
 ) (*Factory, error) {
-	return newFactory(
-		routerProfile, sessions, adkSessions, invoker, inspector, stateReader,
-		memoryStore, modelFactory, limits,
-	)
+	factory, err := NewConfiguredFactoryWithMemory(sessions, adkSessions, invoker, inspector, stateReader, memoryStore, modelFactory, limits)
+	if err == nil {
+		factory.profile = routerProfile
+	}
+	return factory, err
 }
 
 func newFactory(
@@ -104,7 +115,7 @@ func newFactory(
 	limits Limits,
 ) (*Factory, error) {
 	if sessions == nil || adkSessions == nil || invoker == nil || inspector == nil || stateReader == nil ||
-		modelFactory == nil {
+		(modelFactory == nil && !profile.runtime) {
 		return nil, fmt.Errorf("model-backed Planner dependencies are incomplete")
 	}
 	normalized, err := normalizeLimits(limits)
@@ -112,7 +123,7 @@ func newFactory(
 		return nil, err
 	}
 	return &Factory{
-		profile: profile, sessions: sessions, adkSessions: adkSessions, invoker: invoker,
+		profile: profile, sessions: sessions, adkSessions: adkSessions, invoker: invoker, runtimeHosts: &sync.Map{},
 		inspector: inspector, stateReader: stateReader, memoryStore: memoryStore,
 		modelFactory: modelFactory, limits: normalized,
 	}, nil
@@ -206,7 +217,7 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 		return nil, fmt.Errorf("initialize Planner Worker State projections: %w", err)
 	}
 	instance := &streamlinePlanner{
-		profile: f.profile, invocation: invocation, request: request, workers: workers, plan: plan,
+		profile: f.profile, invocation: invocation, request: request, workers: workers, plan: plan, runtimeHosts: f.runtimeHosts,
 		resultContract: cloneResultContract(invocation.Stage.Result.Artifacts),
 		sessions:       f.sessions, adkSessions: f.adkSessions,
 		invoker: f.invoker, inspector: f.inspector, stateViews: stateViews,
@@ -220,6 +231,13 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	compaction, err := newCompactionSettings(invocation.Stage, invocation.ModelAccess.ModelPolicy)
 	if err != nil {
 		return nil, fmt.Errorf("configure %s context compaction: %w", f.profile.ref, err)
+	}
+	if f.profile.runtime {
+		if invocation.RuntimeExecutor == nil {
+			return nil, fmt.Errorf("Runtime Streamline requires a prepared Planner allocation")
+		}
+		instance.compactionSettings = compaction
+		return instance, nil
 	}
 	selectedModel, err := f.modelFactory(*invocation.ModelAccess)
 	if err != nil {

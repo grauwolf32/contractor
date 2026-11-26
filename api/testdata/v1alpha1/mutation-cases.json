@@ -3060,6 +3060,298 @@
         "/runtimeSettings"
       ]
     },
+    "allocation-spec-planner-null-adapters.json": {
+      "zero": [
+        "/modelPolicy/contextWindowTokens",
+        "/modelPolicy/maxModelCalls",
+        "/modelPolicy/maxOutputTokens",
+        "/modelPolicy/maxToolCalls",
+        "/modelPolicy/maxTotalTokens",
+        "/modelPolicy/maxWorkerCalls",
+        "/resolvedRuntimeConfigProvenance/default/bindingRevision",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/bindingRevision",
+        "/runtimeSettings/requestTimeoutSeconds"
+      ],
+      "memberAliases": [
+        "/agentTemplate",
+        "/agentTemplate/ref/templateId",
+        "/agentTemplate/runtime/runtimeId",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/sandboxProfile/sandboxProfileId",
+        "/allocationId",
+        "/apiVersion",
+        "/contextManagement",
+        "/leaseExpiresAt",
+        "/logicalAgentName",
+        "/modelPolicy",
+        "/modelPolicy/maxModelCalls",
+        "/modelPolicy/maxOutputTokens",
+        "/modelPolicy/maxTotalTokens",
+        "/modelPolicy/maxWorkerCalls",
+        "/modelPolicy/ref/policyId",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels",
+        "/resolvedRuntimeConfigProvenance/default/bindingRevision",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig/gatewayId",
+        "/resolvedRuntimeConfigProvenance/runLabels",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/bindingRevision",
+        "/resolvedRuntimeConfigProvenance/runtimeAdapters",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs",
+        "/resolvedSkills",
+        "/runId",
+        "/runMetadataLabels",
+        "/runtimeSettings",
+        "/runtimeSettings/artifactApiUrl",
+        "/runtimeSettings/httpOriginTarget",
+        "/runtimeSettings/httpProxy",
+        "/runtimeSettings/llmGatewayToken",
+        "/runtimeSettings/llmGatewayUrl",
+        "/runtimeSettings/requestTimeoutSeconds",
+        "/stageExecutionId",
+        "/workerSessionMode"
+      ],
+      "enum": [
+        "/apiVersion",
+        "/contextManagement/strategy",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/contextManagement",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/runtimeSettings"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/contextManagement",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/runMetadataLabels",
+        "/runtimeSettings"
+      ]
+    },
+    "allocation-spec-planner.json": {
+      "zero": [
+        "/modelPolicy/contextWindowTokens",
+        "/modelPolicy/maxModelCalls",
+        "/modelPolicy/maxOutputTokens",
+        "/modelPolicy/maxToolCalls",
+        "/modelPolicy/maxTotalTokens",
+        "/modelPolicy/maxWorkerCalls",
+        "/resolvedRuntimeConfigProvenance/default/bindingRevision",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/bindingRevision",
+        "/runtimeSettings/requestTimeoutSeconds"
+      ],
+      "memberAliases": [
+        "/agentTemplate",
+        "/agentTemplate/ref/templateId",
+        "/agentTemplate/runtime/runtimeId",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/sandboxProfile/sandboxProfileId",
+        "/allocationId",
+        "/apiVersion",
+        "/contextManagement",
+        "/leaseExpiresAt",
+        "/logicalAgentName",
+        "/modelPolicy",
+        "/modelPolicy/maxModelCalls",
+        "/modelPolicy/maxOutputTokens",
+        "/modelPolicy/maxTotalTokens",
+        "/modelPolicy/maxWorkerCalls",
+        "/modelPolicy/ref/policyId",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels",
+        "/resolvedRuntimeConfigProvenance/default/bindingRevision",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig/gatewayId",
+        "/resolvedRuntimeConfigProvenance/runLabels",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/bindingRevision",
+        "/resolvedRuntimeConfigProvenance/runtimeAdapters",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs",
+        "/resolvedSkills",
+        "/runId",
+        "/runMetadataLabels",
+        "/runtimeSettings",
+        "/runtimeSettings/artifactApiUrl",
+        "/runtimeSettings/llmGatewayToken",
+        "/runtimeSettings/llmGatewayUrl",
+        "/runtimeSettings/requestTimeoutSeconds",
+        "/stageExecutionId",
+        "/workerSessionMode"
+      ],
+      "enum": [
+        "/apiVersion",
+        "/contextManagement/strategy",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/contextManagement",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/runtimeSettings"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/contextManagement",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/runMetadataLabels",
+        "/runtimeSettings"
+      ]
+    },
     "allocation-spec-project-boundary.json": {
       "zero": [
         "/modelPolicy/contextWindowTokens",
@@ -6485,6 +6777,103 @@
         "/ref"
       ]
     },
+    "planner-operation-failure.json": {
+      "zero": [],
+      "memberAliases": [
+        "/apiVersion"
+      ],
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        "",
+        "/failure"
+      ],
+      "duplicateKey": [
+        "",
+        "/failure"
+      ]
+    },
+    "planner-operation-last.json": {
+      "zero": [
+        "/sequence"
+      ],
+      "memberAliases": [
+        "/apiVersion"
+      ],
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/name",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        ""
+      ],
+      "duplicateKey": [
+        ""
+      ]
+    },
+    "planner-operation-result.json": {
+      "zero": [],
+      "memberAliases": [
+        "/apiVersion"
+      ],
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [],
+      "maxBytes": [],
+      "unknownMember": [
+        ""
+      ],
+      "duplicateKey": [
+        "",
+        "/result"
+      ]
+    },
+    "planner-operation.json": {
+      "zero": [
+        "/sequence"
+      ],
+      "memberAliases": [
+        "/apiVersion"
+      ],
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/name",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        ""
+      ],
+      "duplicateKey": [
+        ""
+      ]
+    },
     "release-allocation.json": {
       "zero": [],
       "memberAliases": [
@@ -7035,6 +7424,213 @@
       "duplicateKey": [
         "",
         "/limits"
+      ]
+    },
+    "stage-content-planner-compaction.json": {
+      "zero": [
+        "/planner/compaction/keepRecentGroups",
+        "/planner/compaction/maxCompactions",
+        "/planner/compaction/policy/contextWindowTokens",
+        "/planner/compaction/policy/maxModelCalls",
+        "/planner/compaction/policy/maxOutputTokens",
+        "/planner/compaction/policy/maxToolCalls",
+        "/planner/compaction/policy/maxTotalTokens",
+        "/planner/compaction/policy/maxWorkerCalls",
+        "/planner/compaction/threshold"
+      ],
+      "memberAliases": [
+        "/apiVersion",
+        "/planner/compaction/keepRecentGroups",
+        "/planner/compaction/maxCompactions",
+        "/planner/compaction/policy/contextWindowTokens",
+        "/planner/compaction/policy/maxModelCalls",
+        "/planner/compaction/policy/maxOutputTokens",
+        "/planner/compaction/policy/maxTotalTokens",
+        "/planner/compaction/policy/ref/policyId",
+        "/resultArtifacts",
+        "/subtaskId"
+      ],
+      "enum": [
+        "/apiVersion",
+        "/planner/compaction/policy/maxModelCalls"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/artifacts/source/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/artifacts/source/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/planner/compaction/instructions",
+          "maxLength": 8000
+        },
+        {
+          "pointer": "/planner/tools/0/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resultArtifacts/report/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resultArtifacts/report/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/subtaskId",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/artifacts/source/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/artifacts/source/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/planner/compaction/instructions",
+          "maxLength": 8000,
+          "verdict": "accept"
+        },
+        {
+          "pointer": "/planner/tools/0/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resultArtifacts/report/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resultArtifacts/report/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/artifacts/source",
+        "/planner",
+        "/planner/compaction",
+        "/planner/compaction/policy",
+        "/planner/compaction/policy/ref",
+        "/planner/tools/0",
+        "/resultArtifacts/report"
+      ],
+      "duplicateKey": [
+        "",
+        "/artifacts",
+        "/artifacts/source",
+        "/parameters",
+        "/planner",
+        "/planner/compaction",
+        "/planner/compaction/policy",
+        "/planner/compaction/policy/ref",
+        "/planner/tools/0",
+        "/planner/tools/0/parameters",
+        "/resultArtifacts",
+        "/resultArtifacts/report"
+      ]
+    },
+    "stage-content-planner-request.json": {
+      "zero": [],
+      "memberAliases": [
+        "/apiVersion",
+        "/resultArtifacts",
+        "/subtaskId"
+      ],
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/artifacts/source/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/artifacts/source/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/planner/tools/0/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resultArtifacts/report/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resultArtifacts/report/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/subtaskId",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/artifacts/source/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/artifacts/source/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/planner/tools/0/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resultArtifacts/report/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resultArtifacts/report/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/artifacts/source",
+        "/planner",
+        "/planner/tools/0",
+        "/resultArtifacts/report"
+      ],
+      "duplicateKey": [
+        "",
+        "/artifacts",
+        "/artifacts/source",
+        "/parameters",
+        "/planner",
+        "/planner/tools/0",
+        "/planner/tools/0/parameters",
+        "/resultArtifacts",
+        "/resultArtifacts/report"
       ]
     },
     "stage-content-request.json": {

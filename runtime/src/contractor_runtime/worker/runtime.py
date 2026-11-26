@@ -49,6 +49,7 @@ from contractor_runtime.core.worker_completion import (
 )
 from contractor_runtime.llm.cost import model_cost_phase
 from contractor_runtime.llm.factory import ModelFactory, gateway_model
+from contractor_runtime.llm.one_shot import candidate_text, generation_config
 from contractor_runtime.llm.openai import (
     GatewayModelError,
     OpenAICompatibleGatewayLlm,
@@ -94,7 +95,6 @@ from contractor_runtime.worker.invocation import (
     InvocationDeadline,
     InvocationLifecycle,
 )
-from contractor_runtime.worker.one_shot import candidate_text, generation_config
 from contractor_runtime.worker.prompts import (
     _exposes_private_value,
     _summarizer_secrets,
@@ -304,6 +304,10 @@ class AdkWorkerRuntime:
         return await self._worker_state.agent_state_snapshot()
 
     async def invoke(self, request: StageContentRequest) -> WorkerCompletion:
+        if request.planner is not None:
+            return await self.failure_completion(
+                "worker_request_invalid", "Worker rejects Planner input"
+            )
         span = start_isolated_span(
             self._instrumentation,
             "contractor.worker.a2a_task",

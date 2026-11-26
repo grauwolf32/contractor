@@ -79,6 +79,8 @@ func revealingCodecFor[T contracts.Validatable](reveal func(T) ([]byte, error)) 
 }
 
 var fixtureCodecs = map[string]fixtureCodec{
+	"PlannerOperation":                codecFor[contracts.PlannerOperation](),
+	"PlannerOperationResult":          codecFor[contracts.PlannerOperationResult](),
 	"SharedConfig":                    codecFor[control.SharedConfig](),
 	"AbortAllocationRequest":          codecFor[control.AbortAllocationRequest](),
 	"AgentHeartbeat":                  codecFor[control.AgentHeartbeat](),

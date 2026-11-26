@@ -32,12 +32,16 @@ type Service struct {
 }
 
 type bindingKey struct{ participant, model string }
+type allocationRoute struct {
+	key     string
+	timeout time.Duration
+}
 
 type runState struct {
 	id, stageID, ownerID string
 	active               bool
 	routes               map[string]struct{}
-	bindings             map[bindingKey]string
+	bindings             map[bindingKey]allocationRoute
 	waits                map[bindingKey]string
 	failures             map[string]struct{}
 	changed              chan struct{}

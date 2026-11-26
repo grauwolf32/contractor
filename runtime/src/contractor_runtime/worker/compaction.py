@@ -28,6 +28,7 @@ from pydantic import BaseModel, ConfigDict, PrivateAttr
 
 from contractor_runtime.contracts import CompactWorkerContextManagement, ResolvedModelPolicy
 from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.llm.one_shot import OneShotModel, generation_config, one_shot_session
 from contractor_runtime.llm.usage import project_token_usage
 from contractor_runtime.reasoning import (
     MAX_REASONING_TOTAL_BYTES,
@@ -36,7 +37,6 @@ from contractor_runtime.reasoning import (
     ReasoningBudget,
 )
 from contractor_runtime.threads import to_thread_until_done
-from contractor_runtime.worker.one_shot import OneShotModel, generation_config, one_shot_session
 from contractor_runtime.worker.summarizer import _project_event, _without_reasoning
 
 # Registered in docs/spec/platform/limits.md (LIM-WRK-30 to LIM-WRK-36).

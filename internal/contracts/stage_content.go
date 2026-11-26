@@ -8,6 +8,7 @@ import (
 )
 
 type StageContentRequest struct {
+	Planner         *PlannerInvocation     `json:"planner,omitempty"`
 	APIVersion      string                 `json:"apiVersion" strictjson:"required"`
 	SubtaskID       string                 `json:"subtaskId" strictjson:"required"`
 	Objective       string                 `json:"objective" strictjson:"required"`
@@ -26,10 +27,28 @@ func (r StageContentRequest) Clone() StageContentRequest {
 	result.Parameters = clone.Map(r.Parameters)
 	result.Artifacts = CloneArtifactRefs(r.Artifacts)
 	result.ResultArtifacts = CloneArtifactRefs(r.ResultArtifacts)
+	if r.Planner != nil {
+		p := *r.Planner
+		p.Tools = append([]PlannerTool(nil), p.Tools...)
+		if p.Compaction != nil {
+			c := *p.Compaction
+			c.Policy = c.Policy.Clone()
+			p.Compaction = &c
+		}
+		for i := range p.Tools {
+			p.Tools[i].Parameters = append([]byte(nil), p.Tools[i].Parameters...)
+		}
+		result.Planner = &p
+	}
 	return result
 }
 
 func (r StageContentRequest) Validate() error {
+	if r.Planner != nil {
+		if err := r.Planner.Validate(); err != nil {
+			return err
+		}
+	}
 	if err := ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
@@ -74,7 +93,11 @@ func (r StageContentRequest) Validate() error {
 	// The Runtime measures the same compact UTF-8 encoding (WRK-R37), so a
 	// request the Planner sends is never rejected by the Worker for its size.
 	size, err := ResultJSONSize(r)
-	if err != nil || size > MaxStageRequestBytes {
+	maximum := MaxStageRequestBytes
+	if r.Planner != nil {
+		maximum = MaxPlannerInvocationBytes
+	}
+	if err != nil || size > maximum {
 		return Invalidf("StageContentRequest exceeds its bounded contract")
 	}
 	return nil

@@ -33,6 +33,7 @@ from contractor_runtime.contracts import (
     WorkerObservations,
 )
 from contractor_runtime.llm.image_parts import image_response_metadata
+from contractor_runtime.llm.one_shot import OneShotModel, generation_config, one_shot_session
 from contractor_runtime.llm.usage import project_token_usage
 from contractor_runtime.reasoning import (
     MAX_REASONING_TOTAL_BYTES,
@@ -44,7 +45,6 @@ from contractor_runtime.reasoning import (
     redact_known_values,
     tagged_size,
 )
-from contractor_runtime.worker.one_shot import OneShotModel, generation_config, one_shot_session
 
 MAX_SUMMARIZER_INPUT_BYTES = 512 * 1024
 _MAX_PROJECTED_TEXT_BYTES = 64 * 1024

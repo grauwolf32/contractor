@@ -71,7 +71,8 @@ func (s *Service) Update(ctx context.Context, allocationID string, request Reque
 		}
 		return Decision{}, ErrUnavailable
 	}
-	return s.update(run, binding, run.bindings[binding], request, s.workerRequestTimeout)
+	route := run.bindings[binding]
+	return s.update(run, binding, route.key, request, route.timeout)
 }
 
 type Participant struct {

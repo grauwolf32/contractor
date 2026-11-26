@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-66 open tasks: 10 in progress, 43 pending, 13 deferred. 1716 finished: 1698 completed, 18 archived.
+66 open tasks: 11 in progress, 42 pending, 13 deferred. 1716 finished: 1698 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V488-002](v488-002-runtime-streamline-p1.yml) | planner-worker | feature | P1 | Execute the Streamline model loop in Runtime with Server-owned progress |
 
 ## Pending
 
@@ -38,7 +39,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
-| [V488-002](v488-002-runtime-streamline-p1.yml) | feature | P1 | — | Execute the Streamline model loop in Runtime with Server-owned progress |
 
 ### HTTP and Caido tools (`http-tools`)
 

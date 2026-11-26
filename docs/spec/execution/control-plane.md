@@ -1466,6 +1466,17 @@ runtime configuration the same way: the selected credential must authorize
 its model, and its Gateway route is tracked for recovery. It is mutually
 exclusive with `summarizerModelPolicy`.
 
+**CTL-R174.** A Streamline Stage reserves one additional built-in
+`planner-executor@1` AgentTemplate using `planner@1`. It consumes one ordinary
+allocation slot and shares the existing batch admission, preparation, process
+lease, finalization and release protocol. It is excluded from the Stage's
+logical Worker set and immutable Workflow snapshot. All allocations must fit
+before admission; Planner and Worker may be placed on different processes.
+Planner uses the Stage's pinned Planner Gateway, credential and policy, without
+Worker RuntimeConfig patches or Agent-label layers. Default/Run-label Planner
+telemetry remains Server-owned. Planner allocations forbid Worker tools,
+Skills, workspace, engagement, proxy and adapter material.
+
 ## Interfaces
 
 The Workflow Scheduler drives the Control Plane through this protocol:

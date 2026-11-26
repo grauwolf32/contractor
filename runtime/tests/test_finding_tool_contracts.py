@@ -6,7 +6,7 @@ from pathlib import Path
 from google.adk.tools import FunctionTool
 from google.genai import types
 
-from contractor_runtime.llm.openai import _tools
+from contractor_runtime.llm.request import _tools
 from contractor_runtime.toolsets.security_findings.facades import (
     CodeFindingTool,
     FactTool,

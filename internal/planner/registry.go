@@ -1,7 +1,10 @@
 package planner
 
 import (
+	"context"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"maps"
 	"slices"
 	"strings"
@@ -42,4 +45,17 @@ func (r *Registry) Create(ref string, invocation Invocation) (Planner, error) {
 		return nil, fmt.Errorf("unknown PlannerFactory %q", ref)
 	}
 	return factory.Create(invocation)
+}
+
+// ExecuteOperation routes an allocation-authenticated callback to the current
+// Streamline invocation. Its Factory owns registration and removal during Run.
+func (r *Registry) ExecuteOperation(ctx context.Context, stageID, allocationID string, request contracts.PlannerOperation) (contracts.PlannerOperationResult, error) {
+	if r != nil {
+		if factory, ok := r.factories[resolved.StreamlinePlanner].(interface {
+			ExecuteOperation(context.Context, string, string, contracts.PlannerOperation) (contracts.PlannerOperationResult, error)
+		}); ok {
+			return factory.ExecuteOperation(ctx, stageID, allocationID, request)
+		}
+	}
+	return contracts.PlannerOperationResult{}, fmt.Errorf("Runtime Planner is unavailable")
 }

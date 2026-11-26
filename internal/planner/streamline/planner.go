@@ -34,6 +34,7 @@ import (
 const maxPlannerContextBytes = 256 * 1024
 
 type streamlinePlanner struct {
+	runtimeHosts              *sync.Map
 	profile                   plannerProfile
 	invocation                planner.Invocation
 	request                   contracts.StageContentRequest
@@ -127,6 +128,9 @@ func (p *streamlinePlanner) Run(
 				"planner_initialization_failed", "Planner tools could not be initialized", false, err,
 			),
 		)
+	}
+	if p.profile.runtime {
+		return p.runRuntime(ctx, identity, state, tools, allowed)
 	}
 	allowedNames := make([]string, 0, len(allowed))
 	for name := range allowed {

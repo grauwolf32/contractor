@@ -95,7 +95,7 @@ layers = [
   # composition: the toolset/worker factory registry and startup capability discovery
   "capabilities : factories",
   # agent loop
-  "worker",
+  "worker : planner",
   # tools: concrete toolsets and their shared base (see the toolsets contract)
   "toolsets",
   # platform: infrastructure clients, workspace, sandbox, settings and protocol

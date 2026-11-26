@@ -5,18 +5,24 @@ milestone: runtime-planner-p1-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V488-001
 languages: [go, python, yaml, markdown]
-goal: A narrow Streamline Stage runs its model loop in Runtime while Server confirms plan changes and dispatches its prepared Worker through the existing invoker.
+goal: Every supported Streamline Stage, including compact@1 and document recovery, runs its model loop in Runtime while Server confirms plan changes and dispatches its prepared Worker through the existing invoker.
 demonstration: Real Server, PostgreSQL and Runtime with a controlled Gateway complete a two-subtask Streamline fixture, show committed plan events and stop correctly on cancellation without changing the configured model. A placement case puts Planner and Worker on separate capacity-one Runtime processes, reached through Server WorkerInvoker.
 context:
   authority: >-
     User instruction 2026-11-26 starts P1 from proposal 0058. The user explicitly
     selected a separate accounted Planner allocation on 2026-11-26, accepting that
     Streamline needs two slots. P1 keeps the proposed Server WorkerInvoker route.
-    This does not authorize recovery or change configured models.
+    User follow-up 2026-11-26 requires Server interactions behind replaceable
+    execution interfaces for a possible future headless Runtime, and asks to reduce
+    total project code and avoid broad growth. This does not assign a local backend,
+    offline mode or recovery, or change configured models.
+    User decision 2026-11-26 makes P1 merge-ready for all Streamline settings,
+    including compact@1; Router remains on Server until a later stage. Its shared
+    Go model engine therefore remains a production dependency in this slice.
   proposal: docs/proposals/0058-runtime-planner-and-recovery.md
   specification:
   - docs/spec/execution/planners.md
@@ -27,11 +33,18 @@ context:
   boundary: >-
     D1 is decided: one accounted Planner allocation in the existing lifecycle,
     separate from its Worker. D2 retains Server WorkerInvoker. Before starting,
-    record exact protocol and supported first-slice settings from the completed
-    SDK-boundary prerequisite, with any newly discovered prerequisite in its own task.
+    use ordinary allocation lifecycle and A2A with a typed Planner invocation.
+    Runtime Planner core depends on a PlannerHost protocol and injected model, not
+    Server transport or registration. Current host adapter uses the existing private
+    allocation transport and Server-owned operations. Support none and compact@1
+    Planner context management, including existing document recovery. Reuse existing
+    session reduced-event writes, per-invocation request ordering and replay, no new
+    durable journal or polling service. Native cost observations travel as bounded
+    cumulative LLMCost snapshots into the existing Server Planner report; the
+    Planner allocation has no duplicate cost contribution. Keep domain rules in existing owners.
 scope:
   in:
-  - Narrow real-component Streamline execution, typed bounded progress protocol, existing Server session and invoker owners, allocation lifecycle, cancellation and budgets.
+  - Entire Streamline execution (Memory, State, compaction, document recovery, telemetry), typed bounded progress protocol, existing Server session and invoker owners, allocation lifecycle, cancellation and budgets.
   - Same-change owning specification, wire fixtures and architecture updates; exact implementation boundary recorded before start.
   out:
   - Runtime replacement resume, Router relocation, direct peer dispatch, dynamic Worker sets, parallel plan dispatch, offline progress and active-active Server.
@@ -54,7 +67,7 @@ failure_outcomes:
 cardinality:
 - collection: Planner plan and live allocations
   expected: One Planner and one Worker, two subtasks in the demonstration.
-  maximum: Existing process capacity 1..4, plan limit 1000, one active dispatch; exact protocol byte limits resolved before implementation.
+  maximum: Existing process capacity 1..4, plan limit 1000, one active dispatch, 64 tools, 5001 operations, 2 MiB per operation, 512 KiB Planner envelope.
   bound: No whole-Run scan per call; paged reads and bounded requests, replies and transactions.
 lifecycle:
 - entity: Remote Planner invocation

@@ -176,8 +176,24 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 	assertRoutingOutput(t, ctx, pool, publicClient, publicBaseURL, streamlineRunID, streamline)
 	streamlineExecutions := requireExecutions(t, ctx, store, streamlineRunID, 1)
 	assertSucceededExecution(t, streamlineExecutions[0], 1)
-	assertCompleteAllocations(t, ctx, store, telemetryReports, streamlineExecutions[0], 1, "builder")
+	streamlineAllocations := assertCompleteAllocations(t, ctx, store, telemetryReports, streamlineExecutions[0], 1, "builder")
+	if len(allocationInstanceSet(streamlineAllocations)) != 2 {
+		t.Fatalf("capacity-one Streamline did not place Planner and Worker on distinct Runtimes: %+v", streamlineAllocations)
+	}
 	assertModeledPlanEvents(t, ctx, store, streamlineExecutions[0], "builder", nil, runtimeURLs)
+	cost, _, _, err := store.ReadLLMCost(ctx, userID, streamlineRunID)
+	if err != nil || cost.Calls != "7" || cost.PricedCalls != "7" || cost.UnknownReports != "0" || cost.KnownAmount() == nil || *cost.KnownAmount() != "0.007" {
+		t.Fatalf("Runtime Planner cost was lost or counted twice: %+v, %v", cost, err)
+	}
+	plannerCostCalls := ""
+	for _, group := range cost.Groups {
+		if group.Role == "planner" && group.Model == "planner-model" {
+			plannerCostCalls = group.Calls
+		}
+	}
+	if plannerCostCalls != "3" {
+		t.Fatalf("Planner cost attributed to another role: %+v", cost.Groups)
+	}
 
 	builderCallsBeforeRouter := gateway.ModelCalls("worker-model")
 	routerRunID := createWorkflowRunWithParameters(
@@ -228,6 +244,32 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 		t, ctx, pool, store, telemetryReports, gateway, server, runtimes, controlClient,
 		publicClient, publicBaseURL, runtimeURLs, runtimeInstanceIDs, workRoots, workspaceRoots,
 	)
+	started, disconnected := gateway.blockPlanner()
+	cancelRunID := createWorkflowRunWithParameters(t, publicClient, publicBaseURL, "streamline-copy@1", "runtime-planner-cancel", uploaded, map[string]string{"mode": "cancel"})
+	select {
+	case <-started:
+	case <-ctx.Done():
+		t.Fatal("Runtime Planner did not reach the model cancellation barrier")
+	}
+	cancelRequest, _ := http.NewRequestWithContext(ctx, http.MethodPost, publicBaseURL+"/v1/runs/"+cancelRunID+"/cancel", strings.NewReader(`{"reason":"Cancel Runtime Planner at model boundary"}`))
+	cancelRequest.Header.Set("Authorization", "Bearer "+publicToken)
+	cancelRequest.Header.Set("Content-Type", "application/json")
+	cancelResponse, err := publicClient.Do(cancelRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancelResponse.Body.Close()
+	if cancelResponse.StatusCode != http.StatusAccepted {
+		t.Fatalf("cancel Runtime Planner: HTTP %d", cancelResponse.StatusCode)
+	}
+	waitForRunState(t, ctx, server, runtimes[0], gateway, publicClient, publicBaseURL, cancelRunID, "cancelled")
+	select {
+	case <-disconnected:
+	case <-ctx.Done():
+		t.Fatal("cancelled Runtime Planner retained its model request")
+	}
+	cancelled := requireExecutions(t, ctx, store, cancelRunID, 1)
+	assertCompleteAllocations(t, ctx, store, telemetryReports, cancelled[0], 1, "builder")
 	if failures := gateway.Failures(); len(failures) != 0 {
 		t.Fatalf("routing Gateway validation failures: %v", failures)
 	}
@@ -437,16 +479,26 @@ func assertWorkerObservationExecution(
 	}
 	executions := requireExecutions(t, ctx, store, status.RunID, 1)
 	assertSucceededExecution(t, executions[0], 1)
-	allocations, err := store.ListStageAllocations(ctx, executions[0].StageExecutionID)
-	if err != nil || len(allocations) != len(wantOutputs) {
-		t.Fatalf("Worker observation allocations = (%+v, %v), want %d", allocations, err, len(wantOutputs))
+	var stage resolved.ResolvedStage
+	if err := json.Unmarshal(executions[0].StageSpecSnapshot, &stage); err != nil {
+		t.Fatal(err)
 	}
+	names := make([]string, 0, len(stage.Agents))
+	for name := range stage.Agents {
+		names = append(names, name)
+	}
+	allocations := assertCompleteAllocations(t, ctx, store, telemetryReports, executions[0], len(wantOutputs), names...)
 	reports, err := telemetryReports.ListAllocationReports(ctx, executions[0].StageExecutionID)
 	if err != nil || len(reports) != len(allocations) {
 		t.Fatalf("Worker observation reports = (%+v, %v), want %d", reports, err, len(allocations))
 	}
 	stateUsages := gateway.StateUsages()
 	for _, report := range reports {
+		if report.LogicalAgentName == "planner_executor" {
+			// Planner usage is accepted by the Server session and appears in the
+			// Stage's Planner report; the allocation owns only Runtime resources.
+			continue
+		}
 		usage, ok := stateUsages[scenario+"/"+report.LogicalAgentName]
 		if !ok {
 			t.Fatalf("Gateway did not observe live State usage for %s/%s: %+v",
@@ -669,6 +721,14 @@ func assertCompleteAllocations(
 	logicalNames ...string,
 ) []runstore.StageAllocation {
 	t.Helper()
+	var stage resolved.ResolvedStage
+	if err := json.Unmarshal(execution.StageSpecSnapshot, &stage); err != nil {
+		t.Fatal(err)
+	}
+	if stage.Planner.Selector() == resolved.StreamlinePlanner {
+		want++
+		logicalNames = append(logicalNames, "planner_executor")
+	}
 	allocations, err := store.ListStageAllocations(ctx, execution.StageExecutionID)
 	if err != nil || len(allocations) != want {
 		t.Fatalf("Stage %s allocations = (%+v, %v), want %d", execution.StageExecutionID, allocations, err, want)

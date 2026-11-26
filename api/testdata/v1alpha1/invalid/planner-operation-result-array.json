@@ -1,0 +1,6 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "result": [],
+  "stop": true,
+  "escalate": true
+}

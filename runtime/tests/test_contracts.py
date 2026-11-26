@@ -49,6 +49,7 @@ from contractor_runtime.contracts import (
     decode_private,
 )
 from contractor_runtime.contracts.base import json_byte_size
+from contractor_runtime.contracts.planner import PlannerOperation, PlannerOperationResult
 from contractor_runtime.digests import (
     _agent_template_digest,
 )
@@ -80,6 +81,8 @@ MODELS: dict[str, type[BaseModel]] = {
         RuntimeReport,
         RuntimeSettings,
         StageContentRequest,
+        PlannerOperation,
+        PlannerOperationResult,
         WorkerCompletion,
         WorkspaceCapabilities,
     )

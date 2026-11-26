@@ -13,7 +13,7 @@ from google.genai import types
 
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import ArtifactRef, WorkerCompletionContract
-from contractor_runtime.llm.openai import _tools
+from contractor_runtime.llm.request import _tools
 from contractor_runtime.toolsets.audit_results.completion import PreparedAuditCompletion
 from contractor_runtime.toolsets.audit_results.encoding import AuditResultError
 from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFactory

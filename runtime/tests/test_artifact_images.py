@@ -34,9 +34,9 @@ from contractor_runtime.llm.image_parts import (
 )
 from contractor_runtime.llm.openai import (
     OpenAICompatibleGatewayLlm,
-    _completion_request,
     _observed_input,
 )
+from contractor_runtime.llm.request import completion_request
 from contractor_runtime.toolsets.common.artifact_images import validate_image
 from contractor_runtime.toolsets.common.artifact_visibility import ModelArtifactAccessError
 from contractor_runtime.toolsets.run_artifacts.tools import ReadArtifactTool
@@ -316,7 +316,7 @@ def test_gateway_parallel_pairing_and_metadata_only_observer():
         ]
         from google.adk.models.llm_request import LlmRequest
 
-        request = _completion_request("worker", LlmRequest(contents=contents), allow_images=True)
+        request = completion_request("worker", LlmRequest(contents=contents), allow_images=True)
         assert [m["role"] for m in request["messages"]] == ["assistant", "tool", "tool", "user"]
         image_url = request["messages"][-1]["content"][1]["image_url"]["url"]
         assert base64.b64decode(image_url.partition(",")[2]) == picture()
@@ -457,7 +457,7 @@ def test_actual_worker_delivers_native_image_through_http_gateway(tmp_path):
 def test_native_image_capacity_is_checked_before_encoding(monkeypatch):
     from google.adk.models.llm_request import LlmRequest
 
-    import contractor_runtime.llm.openai as bridge
+    import contractor_runtime.llm.request as bridge
     from contractor_runtime.llm.image_parts import MAX_CONTEXT_IMAGE_BYTES
 
     def event(data, ordinal):
@@ -481,7 +481,7 @@ def test_native_image_capacity_is_checked_before_encoding(monkeypatch):
     request = LlmRequest(
         contents=[types.Content(role="user", parts=[event(data, i) for i in range(4)])]
     )
-    encoded = _completion_request("vision", request, allow_images=True)
+    encoded = completion_request("vision", request, allow_images=True)
     observed = _observed_input(encoded)
     sizes = [
         part["image"]["size"]
@@ -501,7 +501,7 @@ def test_native_image_capacity_is_checked_before_encoding(monkeypatch):
         ([event(data, 0)], False),
     ]:
         with pytest.raises(RuntimeError, match="UnsupportedContentPart"):
-            _completion_request(
+            completion_request(
                 "vision",
                 LlmRequest(contents=[types.Content(role="user", parts=parts)]),
                 allow_images=allowed,

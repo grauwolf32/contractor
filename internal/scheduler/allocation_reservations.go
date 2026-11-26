@@ -173,15 +173,11 @@ func verifyReservations(
 	recorded []runstore.StageAllocation,
 	reservations []controlplane.Reservation,
 ) error {
-	expectedContracts := make(map[string]*contracts.WorkerCompletionContract, len(expectedBindings))
+	expectedByName := make(map[string]controlplane.BindingRequirement, len(expectedBindings))
 	for _, binding := range expectedBindings {
-		expectedContracts[binding.LogicalAgentName] = binding.CompletionContract
+		expectedByName[binding.LogicalAgentName] = binding
 	}
-	var expectedWorkspace *contracts.AllocationWorkspaceSpec
-	if len(expectedBindings) > 0 {
-		expectedWorkspace = expectedBindings[0].Workspace
-	}
-	if len(reservations) != len(workflow.stage.Agents) {
+	if len(reservations) != len(expectedBindings) {
 		return fmt.Errorf("Control Plane returned an incomplete allocation set")
 	}
 	recordedByName := make(map[string]runstore.StageAllocation, len(recorded))
@@ -191,20 +187,20 @@ func verifyReservations(
 	seen := make(map[string]struct{}, len(reservations))
 	for _, reservation := range reservations {
 		grant := reservation.Grant
-		binding, ok := workflow.stage.Agents[grant.LogicalAgentName]
+		binding, ok := expectedByName[grant.LogicalAgentName]
 		if !ok || grant.RunID != run.RunID || grant.StageExecutionID != execution.StageExecutionID ||
-			grant.Namespace != binding.Namespace || reservation.AgentTemplate.Ref != binding.Template.Ref ||
-			reservation.WorkerSessionMode != workflow.stage.Session ||
-			!reflect.DeepEqual(reservation.ContextManagement, contracts.EffectiveContextManagement(binding.ContextManagement, binding.Template)) ||
-			reservation.AgentTemplate.Runtime != binding.Template.Runtime || reservation.LeaseExpiresAt.IsZero() ||
-			!reflect.DeepEqual(reservation.Workspace, expectedWorkspace) ||
+			grant.Namespace != binding.Namespace || reservation.AgentTemplate.Ref != binding.AgentTemplate.Ref ||
+			reservation.WorkerSessionMode != binding.WorkerSessionMode ||
+			!reflect.DeepEqual(reservation.ContextManagement, binding.ContextManagement) ||
+			reservation.AgentTemplate.Runtime != binding.AgentTemplate.Runtime || reservation.LeaseExpiresAt.IsZero() ||
+			!reflect.DeepEqual(reservation.Workspace, binding.Workspace) ||
 			!equalRunMetadataLabels(reservation.RunMetadataLabels, run.MetadataLabels) ||
-			!reflect.DeepEqual(reservation.CompletionContract, expectedContracts[grant.LogicalAgentName]) {
+			!reflect.DeepEqual(reservation.CompletionContract, binding.CompletionContract) {
 			return fmt.Errorf("Control Plane returned an allocation for different resolved inputs")
 		}
 		runtimeConfig := reservation.ResolvedRuntimeConfig
-		selection := workflow.stage.ExecutionConfig.Agents[grant.LogicalAgentName]
-		if runtimeConfig == nil || runtimeConfig.Validate() != nil || runtimeConfig.ModelFree != binding.Template.IsToolWorker() || runtimeConfig.ModelPolicy.Ref != selection.ModelPolicy.Ref ||
+		selection := binding.RuntimeSelection
+		if runtimeConfig == nil || runtimeConfig.Validate() != nil || runtimeConfig.ModelFree != binding.AgentTemplate.IsToolWorker() || runtimeConfig.ModelPolicy.Ref != selection.ModelPolicy.Ref ||
 			!contracts.PlacementLabelsMatch(run.RequiredPlacementLabels, reservation.PlacementLabels) ||
 			reservation.RuntimeAgentLabelRevision == 0 || grant.RuntimeAgentID == "" ||
 			reservation.PerformanceCollectionPolicy.ValidatePinned() != nil ||
@@ -224,8 +220,8 @@ func verifyReservations(
 		if persisted, exists := recordedByName[grant.LogicalAgentName]; exists &&
 			(!reflect.DeepEqual(persisted.CompletionContract, reservation.CompletionContract) || persisted.AllocationID != grant.AllocationID ||
 				persisted.RuntimeAgentInstanceID != grant.RuntimeInstanceID ||
-				persisted.Namespace != grant.Namespace || persisted.AgentTemplateRef != binding.Template.Ref ||
-				persisted.WorkerRuntimeRef != binding.Template.Runtime ||
+				persisted.Namespace != grant.Namespace || persisted.AgentTemplateRef != binding.AgentTemplate.Ref ||
+				persisted.WorkerRuntimeRef != binding.AgentTemplate.Runtime ||
 				persisted.RuntimeAgentID != grant.RuntimeAgentID ||
 				persisted.RuntimeAgentLabelRevision != reservation.RuntimeAgentLabelRevision ||
 				!slices.Equal(persisted.RuntimePlacementLabels, reservation.PlacementLabels) ||

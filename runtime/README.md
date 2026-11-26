@@ -10,6 +10,13 @@ different values. HTTP and Podman owners and the immutable archive cache are
 shared, while sessions, containers, credentials and mutable workspaces remain
 allocation-local.
 
+`streamline@1` runs its model loop and optional compactor in a separate
+`planner@1` allocation. A Streamline Stage therefore needs two slots across the
+fleet: Planner and Worker can run in different processes. Server confirms plan
+operations and dispatches the Worker through its existing invoker. Router stays
+on Server. The Planner core accepts an injected `PlannerHost` and models; a
+standalone headless backend is not shipped.
+
 Install with the committed uv lock. The supported ADK 2.15.0 closure uses
 OpenTelemetry API/SDK 1.45.1 within upstream dependency metadata, without
 resolver overrides or SDK source patches. Both packages have a minimum version

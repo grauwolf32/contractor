@@ -23,8 +23,9 @@ const maxReportErrors = 100
 const maxRejectionErrors = maxReportErrors - 2
 
 type executionState struct {
-	mu   sync.Mutex
-	cost reporting.LLMCostCollector
+	mu          sync.Mutex
+	cost        reporting.LLMCostCollector
+	runtimeCost *reporting.LLMCost
 
 	materials                    map[string]map[string]contracts.ArtifactRef
 	materialCount, materialBytes int
@@ -331,10 +332,16 @@ func (s *executionState) report(
 			Calls: &calls, Succeeded: &succeeded, Failed: &failed,
 		}
 	}
+	cost := s.cost.Snapshot(modelCalls)
+	if s.runtimeCost != nil {
+		value := *s.runtimeCost
+		value.Calls = max(value.Calls, modelCalls)
+		cost = &value
+	}
 	report := reporting.ExecutionReport{
 		ReportID: reportID, Complete: true,
 		Metrics: reporting.ExecutionMetrics{
-			LLMCost:    s.cost.Snapshot(modelCalls),
+			LLMCost:    cost,
 			DurationMS: &durationMS, ModelCalls: &modelCalls,
 			InputTokens: &inputTokens, OutputTokens: &outputTokens,
 			TotalTokens: &totalTokens, Tools: tools,
