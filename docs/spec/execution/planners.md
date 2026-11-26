@@ -193,6 +193,12 @@ attempt before a second provider operation.
 
 **PLN-R3.** ADK types do not enter Scheduler, RunStore, A2A or
 artifact contracts.
+Server-owned plan, Worker-dispatch, finish, Memory and State operations accept
+ordinary execution contexts. Their ADK bindings own SDK control actions:
+an accepted finish skips summarization and escalates, a rejected finish does
+neither, and a Worker budget stop skips summarization without escalation.
+This separation preserves the same operation and persistence rules for both
+modeled strategies; it does not enable remote Planner execution or resume.
 
 **PLN-R4.** Contractor does not depend on ADK's experimental
 remote-agent/A2A API, so a change to that API cannot change the Planner or

@@ -1,0 +1,83 @@
+schema_version: '1.0'
+id: V488-002
+title: Execute the Streamline model loop in Runtime with Server-owned progress
+milestone: runtime-planner-p1-2026-11
+epic: planner-worker
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V488-001
+languages: [go, python, yaml, markdown]
+goal: A narrow Streamline Stage runs its model loop in Runtime while Server confirms plan changes and dispatches its prepared Worker through the existing invoker.
+demonstration: Real Server, PostgreSQL and Runtime with a controlled Gateway complete a two-subtask Streamline fixture, show committed plan events and stop correctly on cancellation without changing the configured model. A placement case puts Planner and Worker on separate capacity-one Runtime processes, reached through Server WorkerInvoker.
+context:
+  authority: >-
+    User instruction 2026-11-26 starts P1 from proposal 0058. The user explicitly
+    selected a separate accounted Planner allocation on 2026-11-26, accepting that
+    Streamline needs two slots. P1 keeps the proposed Server WorkerInvoker route.
+    This does not authorize recovery or change configured models.
+  proposal: docs/proposals/0058-runtime-planner-and-recovery.md
+  specification:
+  - docs/spec/execution/planners.md
+  - docs/spec/execution/control-plane.md
+  - docs/spec/execution/runtime-agent.md
+  - docs/spec/execution/scheduler.md
+  - docs/spec/platform/persistence.md
+  boundary: >-
+    D1 is decided: one accounted Planner allocation in the existing lifecycle,
+    separate from its Worker. D2 retains Server WorkerInvoker. Before starting,
+    record exact protocol and supported first-slice settings from the completed
+    SDK-boundary prerequisite, with any newly discovered prerequisite in its own task.
+scope:
+  in:
+  - Narrow real-component Streamline execution, typed bounded progress protocol, existing Server session and invoker owners, allocation lifecycle, cancellation and budgets.
+  - Same-change owning specification, wire fixtures and architecture updates; exact implementation boundary recorded before start.
+  out:
+  - Runtime replacement resume, Router relocation, direct peer dispatch, dynamic Worker sets, parallel plan dispatch, offline progress and active-active Server.
+requirements:
+- id: R1
+  text: Runtime executes the model loop and deterministic adapters; Server alone accepts durable progress and Stage transitions. No new receipt, lease, queue or checkpoint store is presumed.
+- id: R2
+  text: Validate exact scope, identities, revisions and limits on both sides; rejected operations cause no Worker dispatch. Reconcile lost replies through existing receipts and revisions.
+- id: R3
+  text: Preserve configured model, remaining budgets, Stage deadlines and ordinary interruption/retry recovery. No legacy fallback or silent downgrade of unsupported settings.
+- id: R4
+  text: The demonstrator uses explicit bounded settings; resolve Memory, State, compaction and observability support before assigning a public capability. Delete the replaced execution path or keep the experiment confined to its task until replacement.
+failure_outcomes:
+- operation: Remote Planner operation and lifecycle
+  permanent: Invalid scope/revision/configuration fails with an explicitly registered stable code and no side effect.
+  retryable: Existing transport/storage deadlines bound retries of the identical operation.
+  ambiguous: Reconcile existing operation identity; never repeat an unknown external action blindly.
+  cancelled: Fence and join model, callback and Worker work before releasing owned allocations.
+  timeout: Preserve separate operation, Stage, control-lease and cleanup budgets.
+cardinality:
+- collection: Planner plan and live allocations
+  expected: One Planner and one Worker, two subtasks in the demonstration.
+  maximum: Existing process capacity 1..4, plan limit 1000, one active dispatch; exact protocol byte limits resolved before implementation.
+  bound: No whole-Run scan per call; paged reads and bounded requests, replies and transactions.
+lifecycle:
+- entity: Remote Planner invocation
+  delete: Existing Stage and allocation owners cancel and drain; Project/Run deletion remains available.
+  cascade: Join invocation work before erasing secrets and private state; no resource survives release.
+  retention: Existing reduced facts and exact Artifact refs; no raw conversation persistence.
+acceptance_criteria:
+- id: A1
+  text: The real-component fixture proves that the Planner model runs in Runtime, committed plan precedes dependent dispatch and the accepted result uses exact refs.
+- id: A2
+  text: Cancellation, capacity waiting, stale identity, lost reply, permanent rejection and budget exhaustion yield their declared bounded outcomes.
+- id: A3
+  text: Full touched-package, Runtime, cross-language, real-store/process and lint checks pass with unsupported cases and skips explicitly reported.
+tests:
+- command: go test -race -count=1 ./internal/planner/... ./internal/scheduler ./internal/controlplane
+  covers: [A1, A2, A3]
+- command: make test-runtime
+  covers: [A1, A2, A3]
+- command: make test-wire-cross-language
+  covers: [A2, A3]
+- command: make test-e2e
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A3]
+- command: make verify-architecture
+  covers: [A3]

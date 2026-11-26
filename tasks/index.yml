@@ -374,6 +374,13 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: runtime-planner-p1-2026-11
+    exit_task: V488-002
+    outcome: >-
+      A narrow Streamline Stage executes its model loop in Runtime while Server
+      confirms durable plan progress, dispatches Workers through the existing
+      invoker and retains ordinary cancellation, budgets and interruption/retry.
+      A real Server/PostgreSQL/Runtime fixture proves the execution boundary.
   - id: runtime-allocation-slots-2026-11
     exit_task: V487-005
     outcome: >-

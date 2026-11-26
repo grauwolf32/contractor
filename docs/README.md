@@ -23,6 +23,9 @@ are specified by their owning contracts. [Project sitemap](proposals/0042-live-p
 is partially implemented, with its first-slice release gate still pending.
 The [common Audit hypothesis model](proposals/0050-audit-common-hypothesis-model.md)
 revises the superseded research-only [proposal 0045](proposals/0045-audit-hypothesis-search.md).
+The [Runtime Planner and recovery proposal](proposals/0058-runtime-planner-and-recovery.md)
+builds on the completed multi-allocation Runtime and separates Planner relocation
+from checkpoint recovery, with proposed boundaries, diagrams and open decisions.
 
 Accepted contracts belong in the specification; implementation status belongs
 in [task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml).
