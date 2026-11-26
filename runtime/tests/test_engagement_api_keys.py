@@ -7,10 +7,10 @@ from urllib.parse import quote_plus
 
 import pytest
 from fakes.engagement_socket import SocketTarget, resolver_for, tls_contexts
+from fakes.http_transport import HTTPTransport
 from test_engagement_identity import identity_spec
 
 from contractor_runtime.adapters.bridge import HTTPProxyBridge
-from contractor_runtime.adapters.http_transport import HTTPTransport
 
 FIELDS = {
     "header:X-Api-Key": "header-canary",

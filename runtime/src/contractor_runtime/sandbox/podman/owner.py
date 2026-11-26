@@ -75,9 +75,13 @@ def deadline_value(value: object) -> float:
 
 
 async def serve_owner(
-    control: socket.socket, health: socket.socket, backend: LifecycleBackend
+    control: socket.socket,
+    health: socket.socket,
+    backend: LifecycleBackend,
+    lanes: tuple[socket.socket, ...],
 ) -> None:
     lost = asyncio.Event()
+    in_flight: set[asyncio.Task] = set()
 
     async def watch_health() -> None:
         try:
@@ -151,45 +155,69 @@ async def serve_owner(
                 Path(message["root"]), deadline=deadline, network=message["network"]
             )
         elif op == "close":
+            backend.disconnect()
+            await asyncio.gather(
+                *(task for task in tuple(in_flight) if task is not asyncio.current_task()),
+                return_exceptions=True,
+            )
             await backend.close(deadline=deadline)
         else:
             raise ValueError("invalid owner operation")
         return {"result": result}
 
+    async def serve_channel(channel):
+        reader = None
+        try:
+            while not lost.is_set() and not backend.closed:
+                reader = asyncio.create_task(receive_rpc(channel))
+                done, _ = await asyncio.wait({reader, loss}, return_when=asyncio.FIRST_COMPLETED)
+                if loss in done:
+                    break
+                message = await reader
+                try:
+                    operation = asyncio.create_task(dispatch(message))
+                    in_flight.add(operation)
+                    operation.add_done_callback(in_flight.discard)
+                    response = await asyncio.shield(operation)
+                except SandboxContractError as error:
+                    response = {"error": error.code.value}
+                except Exception:
+                    # An unexpected backend error invalidates this channel. Never
+                    # send exception text, paths, image names or CLI diagnostics.
+                    lost.set()
+                    break
+                await send_rpc(channel, response)
+        except (OSError, ValueError):
+            lost.set()
+        finally:
+            if reader is not None:
+                reader.cancel()
+                await asyncio.gather(reader, return_exceptions=True)
+            lost.set()
+
     watcher = asyncio.create_task(watch_health(), name="podman-owner-health")
     renewer = asyncio.create_task(renew(), name="podman-owner-renew")
-    reader: asyncio.Task | None = None
     loss = asyncio.create_task(lost.wait())
+    workers = [asyncio.create_task(serve_channel(channel)) for channel in (control, *lanes)]
     try:
-        while not lost.is_set() and not backend.closed:
-            reader = asyncio.create_task(receive_rpc(control))
-            done, _ = await asyncio.wait({reader, loss}, return_when=asyncio.FIRST_COMPLETED)
-            if loss in done:
-                break
-            message = await reader
-            try:
-                response = await dispatch(message)
-            except SandboxContractError as error:
-                response = {"error": error.code.value}
-            except Exception:
-                # An unexpected backend error invalidates this channel. Never
-                # send exception text, paths, image names or CLI diagnostics.
-                break
-            await send_rpc(control, response)
+        await loss
     except (OSError, ValueError):
         pass
     finally:
         backend.disconnect()
         lost.set()
-        for task in (watcher, renewer, reader, loss):
+        for task in (watcher, renewer, loss, *workers):
             if task is not None:
                 task.cancel()
         await asyncio.gather(
-            *(task for task in (watcher, renewer, reader, loss) if task is not None),
+            *(task for task in (watcher, renewer, loss, *workers) if task is not None),
             return_exceptions=True,
         )
+        await asyncio.gather(*tuple(in_flight), return_exceptions=True)
         control.close()
         health.close()
+        for channel in lanes:
+            channel.close()
         # No mutation is issued before a successful open. Otherwise keep the
         # owner alive even for an indefinitely uncertain create; a successor
         # must fail startup, never infer that bind deletion is safe from EOF.
@@ -200,7 +228,11 @@ async def serve_owner(
                 await asyncio.sleep(1)
 
 
-async def _main(control_fd: int, health_fd: int) -> None:
+async def _main(control_fd: int, health_fd: int, lane_fds: tuple[int, ...]) -> None:
+    lanes = tuple(socket.socket(fileno=fd) for fd in lane_fds)
+    for channel in lanes:
+        channel.setblocking(False)
+        channel.set_inheritable(False)
     control = socket.socket(fileno=control_fd)
     health = socket.socket(fileno=health_fd)
     control.setblocking(False)
@@ -213,7 +245,7 @@ async def _main(control_fd: int, health_fd: int) -> None:
         if set(initial) != {"settings"} or not isinstance(initial["settings"], dict):
             raise ValueError("invalid owner configuration")
         backend = LifecycleBackend(PodmanSettings(**initial["settings"]))
-        await serve_owner(control, health, backend)
+        await serve_owner(control, health, backend, lanes)
     finally:
         control.close()
         health.close()
@@ -221,7 +253,9 @@ async def _main(control_fd: int, health_fd: int) -> None:
 
 def main() -> None:
     try:
-        asyncio.run(_main(int(sys.argv[1]), int(sys.argv[2])))
+        asyncio.run(
+            _main(int(sys.argv[1]), int(sys.argv[2]), tuple(int(value) for value in sys.argv[3:]))
+        )
     except Exception:
         raise SystemExit(70) from None
 

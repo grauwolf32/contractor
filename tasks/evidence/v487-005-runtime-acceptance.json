@@ -1,0 +1,319 @@
+{
+  "status": "passed",
+  "base": "e40825690",
+  "production_batch": "a0558d13bfee9ec2cb2d95585bd94208b4f50f29",
+  "native_tls_fix": "623da1a90f6b7bf050e859dab8fb2fe3879fc44c",
+  "measured_revision": "48cd0dce43acf2aa26b4d1c79f52dfc5e1e03924",
+  "delivery": {
+    "branch": "codex/runtime-multislot-proposal",
+    "merged": false,
+    "primary_user_work": "preserved"
+  },
+  "go_unit": {
+    "package_skip": 29,
+    "test_pass": 11428,
+    "package_pass": 124,
+    "test_skip": 17
+  },
+  "runtime_macos": {
+    "tests": "6833",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "135"
+  },
+  "memory": {
+    "report": "tasks/evidence/v487-005-runtime-memory.json",
+    "paired_repetitions": 3,
+    "result": "passed",
+    "warm_pss_savings_percent": {
+      "min": 65.59665797788713,
+      "median": 65.61909226442064,
+      "max": 65.63180772181028
+    },
+    "includes": "Runtime processes, each Runtime-owned Podman backend and four scanner children",
+    "cleanup": "all sampled Runtime/backend/scanner processes gone, four Runs completed and no owned containers in every case"
+  },
+  "release_execution": "The original make -k release-verify exposed fixture prerequisites. Preserve those failures; accept the existing 12 stages individually after repairs, each with nonzero required cases and ordinary PostgreSQL. The original driver was stopped after both race commands completed; remaining independent stages use separate reports. No failed top-level invocation is reported as passing.",
+  "release_stages": {
+    "release-verify-lint": "passed",
+    "release-verify-unit": "passed",
+    "release-verify-ui": "passed",
+    "release-verify-families": "passed",
+    "release-verify-browser-a": "passed",
+    "release-verify-browser-b": "passed",
+    "release-verify-race": "passed",
+    "release-verify-race-discovered": "passed",
+    "release-verify-integration": "passed",
+    "release-verify-process-a": "passed",
+    "release-verify-process-b": "passed",
+    "release-verify-process-c": "passed"
+  },
+  "linux_rootless_podman": {
+    "command": "make test-podman-release",
+    "result": "passed",
+    "counts": {
+      "podman_unit": 325,
+      "workspace": 590,
+      "supervisor": 61,
+      "deployment_workflow": 14,
+      "lease_release": 5,
+      "workspace_persistence": 4
+    },
+    "process_cases": [
+      "four parallel commands and targeted removal, stale handle and fifth owner reuse",
+      "one Podman Worker and three model-free Workers in one capacity-4 process",
+      "Project workspace persistence through real production processes"
+    ],
+    "skips": "35 explicit integration/heavy-IO opt-in cases in unit collection and 2 declared workspace skips; the separately enabled real engine/workflow/release cases passed without skips."
+  },
+  "additional_linux_runtime": {
+    "initial_pytest": {
+      "passed": 6713,
+      "skipped": 120,
+      "failed": 0
+    },
+    "initial_make_target": "The tests passed, then mandatory report verification correctly rejected the absent optional installed Nuclei canary. A full same-source target retry includes matching Nuclei 3.11.1 and ffuf 2.3.0.",
+    "final_retry": {
+      "command": "make test-runtime",
+      "result": "passed",
+      "passed": 6777,
+      "skipped": 56,
+      "failed": 0,
+      "seconds": 658.8,
+      "report_verifiers": "verify-runtime passed; verify-compaction-runtime passed with 587 selected cases",
+      "local_log": "/tmp/contractor-v487-linux-runtime-accepted.log",
+      "log_sha256": "79fd8a0c2718f802cd7932c9d306a60dca867ca04e2b08075de37bd6399f29fc",
+      "xml_sha256": "2b9af03a670eea9a72543c6788c43d716d9613180082fb1b1c1b6fdeb97e2e90",
+      "skip_reasons": {
+        "run make test-interactsh-protocol for the pinned upstream server": 1,
+        "live LLM Gateway environment is not configured": 3,
+        "Vacuum executable is unavailable": 2,
+        "explicit real-rootless startup capability gate": 2,
+        "explicit real-rootless deployment/workflow gate": 1,
+        "explicit real-rootless command execution gate": 13,
+        "explicit real-rootless owner-process gate": 3,
+        "explicit real Podman release gate": 5,
+        "explicit real gate: make test-podman-supervisor": 11,
+        "optional Katana binary is absent": 5,
+        "optional sqlmap binary is absent": 3,
+        "real SQLMap is absent": 7
+      }
+    },
+    "provisioning_retry": {
+      "result": "stopped after 16 ffuf capability rejections",
+      "cause": "go build of the v2.3.0 module retains the upstream 2.1.0-dev default unless release VERSION and VERSION_APPENDIX linker flags are supplied. Production strict validation correctly rejected it.",
+      "resolution": "Rebuild the same module with the host release flags, verify ffuf -V equals 2.3.0, then run full real-scanner preflight before the final whole Runtime target. No project source changed.",
+      "local_log": "/tmp/contractor-v487-linux-runtime-scanners.log",
+      "log_sha256": "214940f3b7427508a7eea4efc0d33498c157fa81c7a8c80dc18bb2f2d6b344aa"
+    },
+    "scanner_preflight": {
+      "result": "passed",
+      "tests": 58,
+      "seconds": 21.53,
+      "nuclei": "3.11.1 (official Linux arm64 release checksum verified)",
+      "ffuf": "2.3.0 (same module and release linker flags as the accepted host build)",
+      "binaries_sha256": {
+        "nuclei": "f27098e0be0cc370af52274611608ad61896d7f0a024e35b136327d39e725477",
+        "ffuf": "eed48419d944530f3913d8871910cc361aa652d6576482bcdfc8a6f40761a890"
+      },
+      "local_log": "/tmp/contractor-v487-linux-scanner-preflight.log"
+    }
+  },
+  "additional_cases": {
+    "new_measurement_branch_default_path": "passed, 125.704 seconds; normal four-active/fifth-waits path and smaller-capacity restart unchanged",
+    "taint_lost_release_and_clean_reuse": "passed, 64.582 seconds; retained fenced allocation is observable and consumes one slot",
+    "native_tls_overlap_negative_control": "unserialized setup rejected; positive real matrix and owner-file mode canary passed on macOS and Linux"
+  },
+  "optional_heavy_io": "not enabled; disabled cases are not passing coverage",
+  "pending": [],
+  "release_stage_reports": {
+    "release-verify-lint": {
+      "command": "make release-verify-lint",
+      "result": "passed",
+      "local_log": "/tmp/contractor-v487-release-lint-clean.log",
+      "log_sha256": "fd7075159c33df2fe3b0309ab1ac87f63f756d8b28881006560a0310135255d7"
+    },
+    "release-verify-unit": {
+      "command": "make release-verify-unit",
+      "result": "passed",
+      "local_log": "/tmp/contractor-v487-release-unit-final.log",
+      "log_sha256": "dc70a5cd5b61e7c007040df7a2bfae9503c94273f209bd684990027ea3e1403d",
+      "report": "/tmp/contractor-v487-final-unit-reports/go-unit.jsonl",
+      "report_sha256": "44f04860c8324bd36ac49c8c2b646962c47d57e53795bbf49acf7ee2d4b00efa",
+      "counts": {
+        "package_skip": 29,
+        "test_pass": 11428,
+        "root_pass": 3233,
+        "package_pass": 124,
+        "test_skip": 17,
+        "root_skip": 15
+      }
+    },
+    "release-verify-ui": {
+      "command": "make release-verify-ui",
+      "result": "passed",
+      "local_log": "/tmp/contractor-v487-release-verify.log",
+      "log_sha256": "5382749c2f918b16092052187d906ab4989b1676c27b3835658e966fac332914",
+      "provenance": "This stage passed inside the original top-level log; failures of other stages are retained and were repaired/rerun separately.",
+      "counts": {
+        "tests_passed": 2586,
+        "authored_expected_failure": 1
+      }
+    },
+    "release-verify-families": {
+      "command": "make release-verify-families",
+      "result": "passed",
+      "local_log": "/tmp/contractor-v487-release-verify.log",
+      "log_sha256": "5382749c2f918b16092052187d906ab4989b1676c27b3835658e966fac332914",
+      "provenance": "This stage passed inside the original top-level log; failures of other stages are retained and were repaired/rerun separately."
+    },
+    "release-verify-browser-a": {
+      "command": "make release-verify-browser-a",
+      "result": "passed",
+      "local_log": "/tmp/contractor-v487-browser-a-accepted.log",
+      "log_sha256": "8a4aaf10af941ac6754ff80d1c5a4aaf73937e6134c08ea827dc63315c43c40f",
+      "counts": {
+        "mocked_browser_cases": 259,
+        "stack_root_cases": 12,
+        "operations_browser_cases": 117,
+        "scanner_journey": 1,
+        "native_eval_journey": 1
+      }
+    },
+    "release-verify-browser-b": {
+      "command": "make release-verify-browser-b",
+      "result": "passed",
+      "local_log": "/tmp/contractor-v487-browser-stack-final.log",
+      "log_sha256": "95f3c36ed825f4df4ecbabef97e32b01ae1ce7d4b0e6cf72fb4b4f72a9026c79",
+      "provenance": "The B target completed its native external Eval case and package successfully. The log also retains an earlier A-target fixture failure; final A is accepted from its separate complete retry.",
+      "counts": {
+        "external_eval_journey": 1
+      }
+    },
+    "release-verify-race": {
+      "command": "make release-verify-race",
+      "result": "passed",
+      "local_log": "/tmp/contractor-v487-release-verify.log",
+      "log_sha256": "5382749c2f918b16092052187d906ab4989b1676c27b3835658e966fac332914",
+      "provenance": "This stage passed inside the original top-level log; failures of other stages are retained and were repaired/rerun separately."
+    },
+    "release-verify-race-discovered": {
+      "command": "make release-verify-race-discovered",
+      "result": "passed",
+      "local_log": "/tmp/contractor-v487-release-verify.log",
+      "log_sha256": "5382749c2f918b16092052187d906ab4989b1676c27b3835658e966fac332914",
+      "provenance": "This stage passed inside the original top-level log; failures of other stages are retained and were repaired/rerun separately.",
+      "exit_proof": {
+        "race_discovered_exit_code": 0,
+        "proof": "macOS sysctl KERN_PROC_PID: zombie status 5, wait status 0; all selected package summaries retained in original release log",
+        "original_driver": "held after both race stages; remaining stages dispatched once with separate reports",
+        "top_level_invocation": "failed earlier lint/offline/browser prerequisites; no top-level success claimed"
+      }
+    },
+    "release-verify-integration": {
+      "command": "make release-verify-integration",
+      "result": "passed",
+      "local_log": "/tmp/contractor-v487-integration-accepted.log",
+      "log_sha256": "e0d59ad48d4e03640b9cf382da3dd93e3f5a8bd288d68daea1677d235536f906",
+      "report": "/tmp/contractor-v487-stage-integration-accepted/go-integration.jsonl",
+      "report_sha256": "a7aa170d577f3d9e4d98b924bd448a1603904ae9d504bc3187f6a108861e4c70",
+      "counts": {
+        "test_skip": 4,
+        "root_skip": 4,
+        "test_pass": 505,
+        "root_pass": 162,
+        "package_pass": 20
+      },
+      "skips": "Four explicitly disabled disk-heavy fixtures; no ordinary database-unavailable skips."
+    },
+    "release-verify-process-a": {
+      "command": "make release-verify-process-a",
+      "result": "passed",
+      "local_log": "/tmp/contractor-v487-process-a-accepted.log",
+      "log_sha256": "8f78b94494cbd4f79316a7a6ffac0859c58281ee77bb27ef070662b39a94048d",
+      "report": "/tmp/contractor-v487-stage-process-a-accepted/go-process-a.jsonl",
+      "report_sha256": "c4203b19812f2ca8149b4216704415872598063aebfaec614ba0404e3d9c309a",
+      "counts": {
+        "test_pass": 43,
+        "root_pass": 26,
+        "package_pass": 1
+      }
+    },
+    "release-verify-process-b": {
+      "command": "make release-verify-process-b",
+      "result": "passed",
+      "local_log": "/tmp/contractor-v487-process-b-accepted.log",
+      "log_sha256": "45b3e2a1d35be92fe76e1732eb18aa0dd6ed89abdac4fae9dbab68084be62d34",
+      "report": "/tmp/contractor-v487-stage-process-b-accepted/go-process-b.jsonl",
+      "report_sha256": "1eecb2172db3af1e084a90971bd19cb6fe23fd803bc6f783ac07c41d60e57c8d",
+      "counts": {
+        "test_pass": 66,
+        "root_pass": 16,
+        "package_pass": 1
+      }
+    },
+    "release-verify-process-c": {
+      "command": "make release-verify-process-c",
+      "result": "passed",
+      "local_log": "/tmp/contractor-v487-process-c.log",
+      "log_sha256": "13691966efab58931b1cd8dc62d65129c155ed509fe414ab1d32e5665c819e18",
+      "report": "/tmp/contractor-v487-stage-process-c/go-process-c.jsonl",
+      "report_sha256": "ae177cbdb1c7d9b5ff2a356997849dc13ac85bd8856d7c38ca612b533535f9ca",
+      "counts": {
+        "test_pass": 76,
+        "root_pass": 29,
+        "package_pass": 1
+      }
+    }
+  },
+  "shared_contracts": {
+    "fixtures": 416,
+    "go_cases": 470,
+    "python_full_reader_audit": 297,
+    "optional_heavy_skip": 1,
+    "result": "passed; the optional skip is not passing coverage"
+  },
+  "prerequisite_repairs": {
+    "tasks": "V487-006 through V487-013, all completed",
+    "reason": "Strict fixture/catalog/native-tool/output contracts exposed by the actual integrated gate; source task provenance is retained rather than weakening selectors or expected behavior."
+  },
+  "report_recheck_note": "An accidental extra process-A runner was stopped. Its report path was restored from the complete original log JSON events (one original invocation, not combined runs), all exact original report verifiers passed again, and its owned database/processes/temp directory were removed.",
+  "complexity": {
+    "report": "tasks/evidence/v487-004-implementation-review.json",
+    "production_text_line_delta": 623,
+    "new_tables_or_leases_or_receipts": 0
+  },
+  "cleanup": {
+    "result": "passed",
+    "host_lane_applications_remaining": 0,
+    "postgres": {
+      "other_client_connections_before_cleanup": 0,
+      "remaining_lane_database": "contractor_v487 explicitly dropped after all fixture databases were removed",
+      "isolated_cluster": "exact port-55487 cluster stopped; current UTF8 and old stopped SQL-ASCII initialization directories removed",
+      "demo_or_user_database_touched": false
+    },
+    "linux": {
+      "test_applications_remaining_before_cleanup": 0,
+      "rootless_containers_remaining": 0,
+      "rootless_volumes_remaining": 0,
+      "remaining_default_network": "removed with dedicated user storage",
+      "owned_user": "contractor-v487 UID 1000 removed together with home, user manager, processes, subordinate ID entries and core setup directory",
+      "temporary_rootful_tag": "explicit image-ID/tag untag removed localhost/contractor-v487-base:export; shared image content remains",
+      "local_log": "/tmp/contractor-v487-linux-cleanup.log"
+    },
+    "shared_rootful_engine": {
+      "container_count_before": 13,
+      "container_count_after": 13,
+      "same_container_id_set": true,
+      "normalized_inventory_sha256": "92f6ea527ec1912d7ed40467a02b59f90482778a5c7c9858ce5ae32b5c103605",
+      "note": "Raw before/after line ordering differed; normalized inventories are byte-identical."
+    },
+    "host_setup": "Only isolated-worktree .local/v487 and owned scanner provisioning directory removed; worktree, branch and reports retained."
+  },
+  "acceptance": {
+    "A1": "passed: integrated isolation and all required release stages, real PostgreSQL and rootless Podman",
+    "A2": "passed: three alternating paired same-build Linux measurements include backend/scanner descendants, progress, throughput/latency and per-case cleanup",
+    "A3": "passed: strict contracts/fixtures/specs/API/UI, immutable source complexity review, production +623 text lines",
+    "A4": "passed: owned resources removed, optional skips separated, isolated branch explicitly unmerged"
+  }
+}

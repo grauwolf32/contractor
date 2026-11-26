@@ -6563,13 +6563,24 @@ export interface components {
             /** @enum {string} */
             observedState: "idle" | "allocated" | "draining" | "fenced";
             /** @enum {string} */
-            slotState: "idle" | "reserved" | "busy" | "draining" | "fenced";
+            state: "idle" | "reserved" | "busy" | "draining" | "fenced";
             /** Format: date-time */
             lastAcceptedHeartbeat?: string;
             /** Format: date-time */
             confirmedLeaseUntil?: string;
-            currentAllocationId?: components["schemas"]["ResourceId"];
-            authoritativeAllocationId?: components["schemas"]["ResourceId"];
+            allocationSlots: number;
+            availableSlots: number;
+            busySlots: number;
+            reservedSlots: number;
+            drainingSlots: number;
+            fencedSlots: number;
+            observedAllocations: {
+                allocationId: components["schemas"]["ResourceId"];
+                /** @enum {string} */
+                observedState: "allocated" | "draining" | "fenced";
+            }[];
+            authoritativeAllocationIds: components["schemas"]["ResourceId"][];
+            pendingReleaseAllocationIds: components["schemas"]["ResourceId"][];
             reconciliationReason?: components["schemas"]["SafeReason"];
         };
         /** @enum {string} */

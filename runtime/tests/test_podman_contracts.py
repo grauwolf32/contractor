@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from fakes.allocation import allocation_context
 from test_projectfs_zip import settings as workspace_settings
 from test_workspace_process_e2e import direct_workspace_spec
 
@@ -113,7 +114,7 @@ def test_prepare_rejects_before_resource_creation(tmp_path: Path, mode, storage,
         with pytest.raises(AllocationError) as failure:
             await service.prepare(spec)
         assert failure.value.code == code
-        assert service._context is None
+        assert allocation_context(service) is None
         assert not (tmp_path / "scratch").exists()
         assert not (tmp_path / "project").exists()
 

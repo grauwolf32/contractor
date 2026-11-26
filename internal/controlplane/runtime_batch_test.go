@@ -219,17 +219,16 @@ func TestFailedRuntimeReleaseRetiresExpiredGrantAndReconcilesReturningAgent(t *t
 	releaseDeletion()
 
 	registration.ObservedState = control.AgentFenced
-	registration.AllocationID = &allocationID
+	registration.Allocations = []control.ObservedAllocation{{AllocationID: allocationID, ObservedState: registration.ObservedState}}
 	if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
 		t.Fatalf("returning fenced Runtime registration = %v", err)
 	}
-	fenced := control.AgentHeartbeat{
+	fenced := control.AgentHeartbeat{Allocations: []control.ObservedAllocation{{AllocationID: allocationID, ObservedState: control.AgentFenced}},
 		APIVersion: contracts.APIVersion, InstanceID: registration.InstanceID,
 		HeartbeatSeq: 1, EchoedAckSeq: 0, ObservedState: control.AgentFenced,
-		AllocationID: &allocationID,
 	}
 	response, err := registry.HeartbeatAuthenticated(principal.RuntimeAgentID, fenced)
-	if err != nil || response.Action != control.ActionRelease {
+	if err != nil || (len(response.AllocationActions) != 1 || response.AllocationActions[0].Action != control.ActionRelease) {
 		t.Fatalf("returning fenced Runtime heartbeat = (%+v, %v)", response, err)
 	}
 	request := ReservationRequest{

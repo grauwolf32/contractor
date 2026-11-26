@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from fakes.allocation import allocation_context
 from test_allocation import NOW, make_service, make_spec
 
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -31,8 +32,8 @@ def test_agent_state_endpoint_returns_exact_snapshot_and_etag(
         state, service = await make_service(tmp_path, runtime_capabilities)
         spec = make_spec()
         await service.prepare(spec)
-        assert service._context is not None
-        worker_state = service._context.worker_state
+        assert allocation_context(service) is not None
+        worker_state = allocation_context(service).worker_state
         assert worker_state is not None
         worker_state.metrics.record_tool_call(
             "read_artifact",
@@ -142,7 +143,7 @@ def test_agent_state_endpoint_classifies_snapshot_failures(
         state, service = await make_service(tmp_path, runtime_capabilities)
         await service.prepare(make_spec())
         if failure == "invalid":
-            service._context.worker_state._state["stateRevision"] = 0
+            allocation_context(service).worker_state._state["stateRevision"] = 0
         elif failure == "oversized":
             # Exercise the wire-size guard after the model has validated the snapshot.
             monkeypatch.setattr(
@@ -154,7 +155,9 @@ def test_agent_state_endpoint_classifies_snapshot_failures(
             async def unavailable():
                 raise RuntimeError(SECRET)
 
-            monkeypatch.setattr(service._context.worker, "agent_state_snapshot", unavailable)
+            monkeypatch.setattr(
+                allocation_context(service).worker, "agent_state_snapshot", unavailable
+            )
         app = create_app(state, allocation_service=service, require_verified_peer=False)
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
@@ -177,8 +180,11 @@ def test_agent_state_snapshot_races_remain_revision_consistent_and_nonblocking(
     async def scenario() -> None:
         state, service = await make_service(tmp_path, runtime_capabilities)
         await service.prepare(make_spec())
-        assert service._context is not None and service._context.worker_state is not None
-        worker_state = service._context.worker_state
+        assert (
+            allocation_context(service) is not None
+            and allocation_context(service).worker_state is not None
+        )
+        worker_state = allocation_context(service).worker_state
         metrics = InvocationMetricsReducer()
         await worker_state.begin_invocation(
             invocation_id="worker-state-race",
@@ -239,7 +245,7 @@ def test_large_unchanged_state_revalidation_runs_no_full_snapshot_work(
     async def scenario():
         state, service = await make_service(tmp_path, runtime_capabilities)
         await service.prepare(make_spec())
-        store = service._context.worker_state
+        store = allocation_context(service).worker_state
         for index in range(1000):
             store.metrics.record_tool_call(
                 "read_file", arguments={"index": index, "safe": "x" * 3500}, duration_ms=index
@@ -295,7 +301,7 @@ def test_fresh_and_changed_conditional_revisions_must_pass_validation(
     async def scenario():
         state, service = await make_service(tmp_path, runtime_capabilities)
         await service.prepare(make_spec())
-        store = service._context.worker_state
+        store = allocation_context(service).worker_state
         app = create_app(state, allocation_service=service, require_verified_peer=False)
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
@@ -353,6 +359,7 @@ def test_conditional_state_reuse_is_bound_to_the_live_allocation(
                     )
                     await service.confirm_release("allocation-1")
                 if terminal == "replaced":
+                    await state.confirm_release(None)
                     await service.prepare(make_spec())
 
             calls = []

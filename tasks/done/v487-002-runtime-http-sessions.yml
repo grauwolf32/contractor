@@ -1,0 +1,178 @@
+schema_version: '1.0'
+id: V487-002
+title: Share the Runtime HTTP engine through isolated allocation sessions
+milestone: runtime-allocation-slots-2026-11
+epic: http-tools
+kind: feature
+priority: P2
+status: completed
+depends_on:
+- V487-001
+languages:
+- python
+- markdown
+goal: HTTP tools and scanner ingress obtain isolated sessions from a Runtime-owned native engine, with
+  independent cleanup and bounded shared ownership.
+demonstration: Ordinary HTTPTransport and scanner bridge callers use one process-owned engine. Concurrent
+  local target exchanges preserve identities and one session closes while others continue.
+context:
+  proposal: docs/proposals/0057-runtime-allocation-slots.md
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R138
+  - docs/spec/tools/http-caido.md#HTP-R139
+  - docs/spec/tools/http-caido.md#HTP-R146
+  - docs/spec/tools/http-caido.md#HTP-R148
+  - docs/spec/tools/http-caido.md#HTP-R149
+  - docs/spec/tools/http-caido.md#HTP-R156
+  - docs/spec/execution/runtime-agent.md#RTA-R90
+  authority: 'User decisions 2026-11-25 authorize this planning package: first verify session isolation
+    in one shared mitmproxy engine, then multiple allocations in one Runtime with per-Runtime startup
+    capacity, Runtime-owned HTTP and Podman resources, mandatory cleanup and a shared Artifact cache.
+    User additionally requires minimizing code growth and reducing code where possible. Agent proposals
+    are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. Implementation
+    tasks remain pending. User follow-up 2026-11-25 requests grouping and execution in the minimum number
+    of passes. Execution groups are isolation assessment, coordinated resource/capacity implementation,
+    and integrated acceptance. User instruction 2026-11-25 explicitly authorizes completing execution
+    groups 2 and 3 end to end, simplifying and reducing code and reusing existing mechanisms wherever
+    possible.'
+  start_condition: V487-001 is completed and evidence demonstrates shared-engine isolation. A negative
+    verdict leaves this group pending with context.decision_needed.
+  related_plan_review: Before implementation inspect current V410-037/V411-013 code if landed. Their allocation-specific
+    egress and scanner/sandbox authority must bind to the correct shared-engine session. This task does
+    not add those separate capabilities.
+  execution_group: 2
+  design: tasks/evidence/v487-001-mitmproxy-isolation.md
+  execution_batch: Group 2 executes V487-002, V487-003 and V487-004 as one coordinated implementation
+    pass after successful V487-001 evidence. Private/public wire and consumers land atomically under the
+    AGENTS.md build-green exception. Boundary package, fixture, process and Linux rootless checks accept
+    this implementation group. The complete release graph and memory/owned-resource delivery remain mandatory
+    exit acceptance in dependent V487-005.
+  verification_execution: 'Verification ownership clarified 2026-11-26 within the user-authorized groups
+    2 and 3: keep full changed-package and real boundary checks here, and the complete release graph in
+    V487-005. This avoids making the memory/cleanup acceptance wait for unrelated long release shards
+    before it may start. Reuse already executed checks from the integrated build, record exact selected
+    cases and rerun failed stages after fixes. Never count RELEASE_CONSOLIDATED family skips, unavailable
+    PostgreSQL or Podman as passes. V487-005 cannot complete until every required release stage succeeds.'
+  native_process_state_finding: The repeated full Runtime gate exposed a leaked restrictive umask in the
+    following Podman lock-mode canary. Concurrent native CertStore.create_store calls use a process-wide
+    os.umask context from worker threads. Reuse the common engine initialization lock around joined TLS
+    setup; keep requests allocation-local. A deterministic overlap regression and the real nine-case matrix
+    verify serialization and restored process umask. This is inside the existing common native process-state
+    ownership boundary, not another resource mechanism.
+scope:
+  in:
+  - Move engine lifetime to existing Runtime composition and give ordinary HTTPTransport callers allocation-owned
+    sessions.
+  - Native protocol/TLS isolation, scanner capabilities, cancellation, session cleanup and final engine
+    shutdown.
+  - Update HTTP specification, lifecycle/failure registries and architecture with implemented behavior.
+  out:
+  - Runtime capacity/registration/UI changes belong to V487-004.
+  - Transparent sandbox traffic routing and expansion of proxy capabilities from proposal 0053.
+requirements:
+- id: R1
+  text: Extend the existing owners and remove superseded single-allocation paths and duplicate cleanup.
+    Every new abstraction has a production caller. Record deleted fields/functions/branches and production
+    line delta separately from tests/generated/docs, with reasons for remaining growth. Reuse current
+    IDs, receipts, leases and Artifact mechanisms.
+- id: R1a
+  text: Apply the proven stable task-local ctx.options boundary with separate session TLS configuration.
+    Initialize the common engine from process defaults and never retain the first allocation TLS configuration
+    as shared defaults. Guard the pinned native integration at startup and test that unowned TLS context
+    access fails closed. Reuse existing protocol methods and avoid copying native TLS implementation.
+- id: R2
+  text: Implement only the proven design from V487-001. One lazily started engine is shared by at most
+    four live sessions, while policy, target authority, cookies, credentials, TLS profile, capture IDs
+    and quotas stay allocation-local.
+- id: R3
+  text: Pool keys include allocation session, identity, exact origin and effective trust. Explicit owner
+    propagation reaches every callback and thread. Ingress is bound to its per-invocation capability and
+    owner, including CONNECT and HTTP/2. Arbitrary allocationId input grants no authority.
+- id: R4
+  text: Revocation fences future and queued sends. Existing HTTPTransport owns admission and redirects/retries.
+    Keep current error classifications and possibly-sent semantics. Cleanup joins only the owning session
+    resources and preserves healthy peers.
+- id: R5
+  text: Retain exact cleanup handles after partial failure. Runtime shutdown closes the engine after all
+    sessions. A fatal shared-engine fault fences affected sessions and enters existing bounded stop handling,
+    with process exit when producer stop remains unconfirmed.
+- id: R6
+  text: Remove the old per-allocation Master/process-global capture/restore lifecycle when replaced. Preserve
+    runtime TLS-key-log suppression and safe diagnostics for the whole engine lifetime.
+- id: R7
+  text: Use testdata fixtures and deterministic barriers/injected clocks. Regression cases observe the
+    real boundary and detect cross-owner misrouting. Count executed cases, fail empty selection, and report
+    skips explicitly. Ordinary database regressions require real PostgreSQL. Heavy-I/O stays opt-in.
+failure_outcomes:
+- operation: Session request and native engine ownership
+  permanent: Existing scope, identity, TLS and protocol rejection retains its HTTP tool outcome or classified
+    bridge failure. No unchanged permanent retry.
+  retryable: Existing bounded pre-send retry only, within request and allocation deadlines.
+  ambiguous: Retain request_may_have_been_sent and prevent replay after possible send.
+  cancelled: Join the session streams, scanner children, DNS/TLS work and callbacks before erasing authority.
+  timeout: Request, scanner and cleanup deadlines retain their existing owners. Shared failure enters
+    bounded Runtime stop if safe teardown cannot be confirmed.
+cardinality:
+- collection: Engine sessions and per-session HTTP operations
+  expected: 1..4 sessions
+  maximum: 4 live sessions, with existing per-allocation HTTP and scanner bounds
+  bound: Keep existing request/body/header limits, retain only live owned connections/callbacks and remove
+    state at close. Evaluate any previously implicit process bound at four sessions.
+lifecycle:
+- entity: Runtime engine and allocation HTTP session
+  delete: Release revokes and joins the session, Runtime shutdown closes the engine after sessions.
+  cascade: Session pools, ingress capabilities, cookies, credentials, private TLS state and files.
+  retention: No closed-session references in shared registries/caches after confirmed cleanup.
+acceptance_criteria:
+- id: A1
+  given: V487-001 successful verdict
+  when: Production callers acquire sessions
+  then: One Runtime engine serves ordinary tools and scanner ingress with all isolation cases retained
+    as regressions.
+- id: A2
+  given: Four sessions with conflicting material
+  when: One is cancelled/released during pending native work
+  then: Its tokens and late callbacks cannot send, its resources disappear, and the other three continue.
+- id: A3
+  given: Partial cleanup or common engine fault
+  when: Cleanup retries or bounded shutdown executes
+  then: Ownership handles survive uncertainty, no early resource reuse occurs, and failure attribution
+    names all affected sessions.
+- id: A4
+  given: Changed ownership
+  when: Specs and production diff are reviewed
+  then: Old allocation engine ownership and duplicated cleanup are removed, every new API has a caller,
+    and line growth is explained.
+tests:
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A4
+- command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestEngagementHTTPBoundsAcrossProcesses)$'
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: 623da1a90f6b7bf050e859dab8fb2fe3879fc44c
+verification:
+  result: passed
+  commands:
+  - command: make release-verify-unit (includes full Runtime)
+    result: 'passed: 6698 Runtime cases, 135 declared skips; 587 compaction Runtime selections, 416 shared
+      fixtures, 470 Go and 297 Python shared cases; PostgreSQL Go unit cases passed.'
+  - command: make release-verify-lint and subsequent focused Ruff/spec checks
+    result: full lint/build/catalog gate passed; the final TLS serialization and lifecycle fixture deltas
+      pass Ruff and spec checks. Final acceptance repeats lint after the measurement harness.
+  - command: HTTP/Caido, sitemap and bounds process boundary command in tests
+    result: all three real process scenarios passed, 169.931 seconds.
+  - command: native TLS overlap negative control and Linux/macOS native matrix plus Podman engine modules
+    result: unserialized negative control was rejected; production serialization, restored umask, all
+      nine isolation scenarios and owner lock canaries passed on both platforms.
+  exit_boundary: The complete release graph, same-build Linux memory comparison and owned-resource delivery
+    remain mandatory in V487-005; this completes group 2 implementation, not milestone release acceptance.
+  complexity: tasks/evidence/v487-004-implementation-review.json

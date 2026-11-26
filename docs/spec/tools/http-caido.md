@@ -1373,24 +1373,29 @@ their command routes before releasing protocol state. Retention cannot depend on
 past closed-connection count or timer expiry; other live connections keep their
 native keepalive scheduling.
 
-The allocation owns one lazily initialized, pinned mitmproxy 12.3.1 native
-engine. The implementation-neutral module is `adapters.bridge`; its existing
+The Runtime owns one lazily initialized, pinned mitmproxy 12.3.1 native
+Master. Each allocation owns a session with separate options, TLS configuration
+and trust files, connection pools, flows, ingress capabilities and cleanup. A
+stable `ctx.options` proxy resolves task-local options; target and ingress
+callbacks install that context, which propagates to joined worker threads.
+The common owner serializes native certificate initialization, which temporarily
+changes the process umask, and joins it before another session initializes TLS.
+Access without an owning context fails closed. The implementation-neutral module is `adapters.bridge`; its existing
 IPC handle and classified failures belong there. The concrete `MitmproxyEngine`
 and native protocol/lifecycle internals belong to `adapters.bridge.mitmproxy`,
 selected by HTTPTransport's existing composition point. Its native HTTP layers
 own parsing, framing, HPACK, flow control and TLS.
 Contractor owns admission, session state, counters and bounded result assembly.
 Programmatic requests enter the native HTTP layer as messages; scanner ingress
-uses the same engine and delegates each target exchange to that owner. There is
+uses that allocation session and delegates each target exchange to its owner. There is
 no controlled httpcore fallback, flow archive or replay addon. Native callbacks
 fail closed; library diagnostics cannot forward request/response content or
 credentials. TLS key logging from process environment is disabled on both
 local and target contexts before handshake. The embedding does not replace the process asyncio task factory
-or exception handler. After joined cleanup it restores native context and
-logging state after clearing TLS context caches and removing private certificate
-files. A failed join or deletion retains the exact cleanup handles and exclusive
-process ownership for a later close retry; another allocation cannot acquire the
-engine's process state before cleanup succeeds.
+or exception handler. Allocation cleanup joins only its operations and removes its private state and
+certificate files; other sessions continue. Process shutdown joins every
+session before restoring native context and logging state. A failed join or
+deletion retains exact cleanup handles for retry.
 
 Socket termination and resource cleanup are separate outcomes. A peer reset or
 broken pipe returned by the joined close wait is confirmed cleanup only when

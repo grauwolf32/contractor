@@ -138,7 +138,7 @@ func startEngagementProcessHarnessOptions(t *testing.T, targetCA, mode string, e
 			t, "Python Runtime Agent", filepath.Join(repositoryRoot, "runtime"),
 			runtimeEnvironment,
 			python, filepath.Join(repositoryRoot, "tests", "e2e", "testdata", "engagement", "runtime.py"),
-			"--control-plane-url", privateBaseURL,
+			"--allocation-slots", "1", "--control-plane-url", privateBaseURL,
 			"--advertised-control-url", runtimeBaseURL,
 			"--advertised-a2a-url", runtimeBaseURL,
 			"--ca-file", caPaths.Certificate,

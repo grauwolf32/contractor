@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 10 in progress, 42 pending, 13 deferred. 1698 finished: 1680 completed, 18 archived.
+66 open tasks: 11 in progress, 42 pending, 13 deferred. 1714 finished: 1696 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V487-017](v487-017-main-integration.yml) | quality | chore | P1 | Merge the reviewed multi-slot Runtime and race fixes into main |
 
 ## Pending
 
@@ -156,23 +157,23 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 51 | 73 | 41 | 109 |
-| Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 99 |
+| Run execution core (`execution-core`) | 3 | 52 | 76 | 44 | 111 |
+| Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 100 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
-| Agent Skills (`agent-skills`) | 0 | 14 | 4 | 2 | 4 |
+| Agent Skills (`agent-skills`) | 0 | 14 | 4 | 2 | 6 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 26 | 38 | 16 | 39 |
+| HTTP and Caido tools (`http-tools`) | 5 | 27 | 38 | 18 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 22 | 16 | 13 | 30 |
-| Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 16 | 27 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 78 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
-| Evaluations (`evals`) | 4 | 23 | 47 | 21 | 55 |
-| Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
+| Evaluations (`evals`) | 4 | 23 | 47 | 23 | 55 |
+| Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
 | Web UI (`ui`) | 1 | 56 | 83 | 34 | 80 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 19 |
-| Quality, CI and process (`quality`) | 11 | 1 | 38 | 156 | 32 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 20 |
+| Quality, CI and process (`quality`) | 12 | 1 | 38 | 157 | 32 |

@@ -72,6 +72,7 @@ EXPECTED_PROCESS_TESTS = {
     "TestRunMetadataLabelsAcrossProcesses",
     "TestRuntimePlacementAcrossProductionProcesses",
     "TestRuntimePlacementScannerFixture",
+    "TestRuntimeAllocationSlotsAcrossProductionProcesses",
     "TestSchedulerConcurrencyAcrossProductionProcesses",
     "TestMemoryMVPProcesses",
     "TestTaintAnnotationsAcrossRealRuntimeProcess",

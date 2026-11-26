@@ -172,7 +172,7 @@ def test_discovery_pairs_capabilities_only_after_owner_receipt_and_bind_cleanup(
             events = []
 
             async def probe(root, *, deadline, network):
-                assert fixture.backend.recovered and fixture.backend.entry is None
+                assert fixture.backend.recovered and not fixture.backend.entries
                 assert root.is_dir()
                 events.append("probe")
                 return {"available": failure is None, "failure": failure}

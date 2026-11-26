@@ -34,16 +34,22 @@ type observedRuntimeCapability struct {
 }
 
 type observedRuntimeAgent struct {
-	InstanceID                string                      `json:"instanceId"`
-	SupportedRuntimes         []string                    `json:"supportedRuntimes"`
-	SupportedToolsets         []observedRuntimeCapability `json:"supportedToolsets"`
-	SupportedSandboxProfiles  []string                    `json:"supportedSandboxProfiles"`
-	SupportedRuntimeAdapters  []string                    `json:"supportedRuntimeAdapters"`
-	ObservedState             string                      `json:"observedState"`
-	SlotState                 string                      `json:"slotState"`
-	ConfirmedLeaseUntil       *time.Time                  `json:"confirmedLeaseUntil,omitempty"`
-	CurrentAllocationID       *string                     `json:"currentAllocationId,omitempty"`
-	AuthoritativeAllocationID *string                     `json:"authoritativeAllocationId,omitempty"`
+	InstanceID                 string                      `json:"instanceId"`
+	SupportedRuntimes          []string                    `json:"supportedRuntimes"`
+	SupportedToolsets          []observedRuntimeCapability `json:"supportedToolsets"`
+	SupportedSandboxProfiles   []string                    `json:"supportedSandboxProfiles"`
+	SupportedRuntimeAdapters   []string                    `json:"supportedRuntimeAdapters"`
+	ObservedState              string                      `json:"observedState"`
+	State                      string                      `json:"state"`
+	AllocationSlots            int                         `json:"allocationSlots"`
+	AvailableSlots             int                         `json:"availableSlots"`
+	FencedSlots                int                         `json:"fencedSlots"`
+	AuthoritativeAllocationIDs []string                    `json:"authoritativeAllocationIds"`
+	ObservedAllocations        []struct {
+		AllocationID  string `json:"allocationId"`
+		ObservedState string `json:"observedState"`
+	} `json:"observedAllocations"`
+	ConfirmedLeaseUntil *time.Time `json:"confirmedLeaseUntil,omitempty"`
 }
 
 func TestHeterogeneousRuntimeCapabilityPlacement(t *testing.T) {
@@ -140,7 +146,7 @@ func TestHeterogeneousRuntimeCapabilityPlacement(t *testing.T) {
 	initialAgents, initialBody := waitForObservedRuntimeAgents(
 		t, ctx, server, []*childProcess{incompatibleProcess}, publicClient, publicBaseURL,
 		func(agents []observedRuntimeAgent) bool {
-			return len(agents) == 1 && agents[0].SlotState == "idle" &&
+			return len(agents) == 1 && agents[0].State == "idle" &&
 				agents[0].ConfirmedLeaseUntil != nil
 		},
 	)
@@ -170,7 +176,7 @@ func TestHeterogeneousRuntimeCapabilityPlacement(t *testing.T) {
 	}
 	waitingAgents, waitingBody := observedRuntimeAgents(t, publicClient, publicBaseURL)
 	if len(waitingAgents) != 1 || waitingAgents[0].InstanceID != incompatibleAgent.InstanceID ||
-		waitingAgents[0].SlotState != "idle" || waitingAgents[0].AuthoritativeAllocationID != nil {
+		waitingAgents[0].State != "idle" || len(waitingAgents[0].AuthoritativeAllocationIDs) != 0 {
 		t.Fatalf("incompatible slot was reserved while Stage waited: %+v", waitingAgents)
 	}
 
@@ -250,8 +256,8 @@ func TestHeterogeneousRuntimeCapabilityPlacement(t *testing.T) {
 				return false
 			}
 			for _, agent := range agents {
-				if agent.SlotState != "idle" || agent.ObservedState != "idle" ||
-					agent.CurrentAllocationID != nil || agent.AuthoritativeAllocationID != nil {
+				if agent.State != "idle" || agent.ObservedState != "idle" ||
+					len(agent.ObservedAllocations) != 0 || len(agent.AuthoritativeAllocationIDs) != 0 {
 					return false
 				}
 			}
@@ -318,7 +324,7 @@ func startCapabilityRuntime(
 			"PYTHONUNBUFFERED":           "1",
 			"CONTRACTOR_TEST_ENV_CANARY": capabilityEnvironmentCanary,
 		},
-		python, "-m", "contractor_runtime",
+		python, "-m", "contractor_runtime", "--allocation-slots", "1",
 		"--control-plane-url", controlPlaneURL,
 		"--advertised-control-url", runtimeBaseURL,
 		"--advertised-a2a-url", runtimeBaseURL,

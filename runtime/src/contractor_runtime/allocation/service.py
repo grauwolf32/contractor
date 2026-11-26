@@ -1,4 +1,4 @@
-"""Idempotent lifecycle for the Runtime Agent's one allocation slot."""
+"""Bounded admission and independent allocation lifecycle ownership."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from contractor_runtime.allocation.cleanup import (
     _await_before_deadline,
     _close_tools,
 )
-from contractor_runtime.allocation.context import AllocationSnapshot, _AllocationContext
+from contractor_runtime.allocation.context import _AllocationContext
 from contractor_runtime.allocation.errors import AllocationError, _conflict, _not_found
 from contractor_runtime.allocation.identity import _spec_fingerprint
 from contractor_runtime.allocation.preparation import AllocationPreparation
@@ -41,7 +41,7 @@ from contractor_runtime.contracts import (
     ReleaseAllocationRequest,
     TerminationError,
 )
-from contractor_runtime.core.async_tasks import join_owned_task
+from contractor_runtime.core.async_tasks import join_owned_task, join_owned_tasks
 from contractor_runtime.factories import (
     FactoryRegistry,
     SandboxFactory,
@@ -108,8 +108,8 @@ def _preparation_error(error: Exception) -> AllocationError:
     )
 
 
-class AllocationService:
-    """Constructs, drains, and erases exactly one in-process Worker context."""
+class Allocation:
+    """Constructs, drains, and erases one allocation under its own lifecycle lock."""
 
     def __init__(
         self,
@@ -118,6 +118,7 @@ class AllocationService:
         capabilities: CapabilitySnapshot | None = None,
         *,
         a2a_base_url: str,
+        allocation_id: str,
         private_bypass_urls: Sequence[str] = (),
         now: Callable[[], datetime] | None = None,
         confirmed_control_deadline: Callable[[], float | None] | None = None,
@@ -125,6 +126,9 @@ class AllocationService:
         resource_collector_factory: Callable[[], ResourceCollector] = ResourceCollector,
     ) -> None:
         self._state = state
+        self._allocation_id = allocation_id
+        self._released = False
+        self.exit_requested = False
         self._factories = factories
         # Tests and embedded callers may inject an already frozen snapshot.
         # The process entry point resolves it from RuntimeState after the
@@ -139,10 +143,10 @@ class AllocationService:
         self._resource_collector_factory = resource_collector_factory
         self._lock = asyncio.Lock()
         self._context: _AllocationContext | None = None
-        self._released_allocation_id: str | None = None
         self._fingerprint_key = os.urandom(32)
 
     def _force_exit(self, code: int) -> Any:
+        self.exit_requested = True
         # Embedders/tests may replace process exit. Even then an unconfirmed
         # shutdown must not retain a sampler or manufacture a final boundary.
         if self._context is not None and self._context.execution is not None:
@@ -198,24 +202,6 @@ class AllocationService:
         collector.start()
         return collector
 
-    async def snapshot(self) -> AllocationSnapshot | None:
-        async with self._lock:
-            context = self._context
-            if context is None:
-                return None
-            state = await self._state.snapshot()
-            return AllocationSnapshot(
-                allocation_id=context.allocation_id,
-                stage_execution_id=context.stage_execution_id,
-                process_state=state.process_state,
-                workspace=str(context.workspace.path),
-                tool_names=tuple(sorted(context.tools)),
-                has_runtime_settings=context.runtime_settings is not None,
-                has_worker=context.worker is not None,
-                runtime_adapter_refs=context.adapter_host.refs,
-                has_project_workspace=context.project_workspace is not None,
-            )
-
     async def active_a2a_application(self, allocation_id: str) -> Any | None:
         """Resolve A2A only while this exact allocation remains active."""
 
@@ -225,7 +211,7 @@ class AllocationService:
                 return None
             if context.resources is not None and context.resources.execution.failure is not None:
                 return None
-            state = await self._state.snapshot()
+            state = await self._state.snapshot(self._allocation_id)
             if (
                 state.process_state is not ProcessState.ALLOCATED
                 or state.allocation_id != allocation_id
@@ -302,7 +288,7 @@ class AllocationService:
         """Check live ownership while the caller holds the allocation lock."""
 
         context = self._require_context(allocation_id)
-        state = await self._state.snapshot()
+        state = await self._state.snapshot(self._allocation_id)
         worker = context.worker
         if (
             worker is None
@@ -319,6 +305,8 @@ class AllocationService:
 
     async def prepare(self, spec: AllocationSpec) -> PrepareAllocationResponse:
         async with self._lock:
+            if self._released or spec.allocation_id != self._allocation_id:
+                raise _conflict("allocation ownership has ended")
             fingerprint = _spec_fingerprint(spec, self._fingerprint_key)
             if self._context is not None:
                 context = self._context
@@ -336,7 +324,7 @@ class AllocationService:
                     return context.prepare_response
                 raise _conflict("Runtime Agent already owns another allocation")
 
-            state = await self._state.snapshot()
+            state = await self._state.snapshot(self._allocation_id)
             if state.process_state is not ProcessState.IDLE:
                 raise _conflict("Runtime Agent slot is not idle")
             self._validate_spec(spec)
@@ -365,7 +353,6 @@ class AllocationService:
                     raise RuntimeError("Allocation preparation returned no response")
                 await self._state.commit_allocation(spec.allocation_id)
                 self._context = context
-                self._released_allocation_id = None
                 return response
             except (Exception, asyncio.CancelledError) as error:
                 await self._rollback_prepare(
@@ -424,7 +411,7 @@ class AllocationService:
                 # case there is no local allocation state left to remove.
                 return
             context = self._require_context(request.allocation_id)
-            state = await self._state.snapshot()
+            state = await self._state.snapshot(self._allocation_id)
             if state.process_state not in {ProcessState.DRAINING, ProcessState.FENCED}:
                 raise _conflict("allocation must be draining or fenced before release")
             if context.worker is not None:
@@ -447,11 +434,6 @@ class AllocationService:
         async with self._lock:
             context = self._context
             if context is None:
-                if allocation_id is not None and self._released_allocation_id == allocation_id:
-                    if keep_fenced:
-                        await self._state.fence_control_lease()
-                    return
-                await self._state.confirm_release(allocation_id, keep_fenced=keep_fenced)
                 return
             if allocation_id != context.allocation_id:
                 raise _conflict("release action identifies another allocation")
@@ -460,7 +442,7 @@ class AllocationService:
             if not context.release_prepared:
                 await self._prepare_release_cleanup(context)
             await self._state.confirm_release(context.allocation_id, keep_fenced=keep_fenced)
-            self._released_allocation_id = context.allocation_id
+            self._released = True
             context.terminal_response = None
             self._context = None
 
@@ -680,7 +662,7 @@ class AllocationService:
 
         if context.execution is not None:
             context.execution.reject()
-        state = await self._state.snapshot()
+        state = await self._state.snapshot(self._allocation_id)
         if state.process_state is ProcessState.ALLOCATED:
             await self._state.begin_draining(context.allocation_id)
         producer_deadline = self._reserve_stop_flush(context, deadline)
@@ -954,3 +936,138 @@ class AllocationService:
         if self._context is None or self._context.allocation_id != allocation_id:
             raise _not_found()
         return self._context
+
+
+class AllocationService:
+    """Own bounded allocations and route lifecycle work without a process-wide I/O lock."""
+
+    def __init__(self, state, factories, capabilities=None, **options):
+        self._state = state
+        self._factories = factories
+        self._capabilities = capabilities
+        self._options = options
+        self._allocations: dict[str, Allocation] = {}
+        self._lock = asyncio.Lock()
+        self._exit_process = options.pop("force_exit", os._exit)
+        self._exit_requested = False
+
+    def _force_exit(self, code):
+        self._exit_requested = True
+        for owner in self._allocations.values():
+            context = owner._context
+            if context is not None:
+                if context.execution is not None:
+                    context.execution.reject()
+                if context.resource_metrics is not None:
+                    context.resource_metrics.close()
+        return self._exit_process(code)
+
+    def _require_allocation(self, allocation_id):
+        owner = self._allocations.get(allocation_id)
+        if owner is None:
+            raise _not_found()
+        return owner
+
+    async def prepare(self, spec):
+        async with self._lock:
+            owner = self._allocations.get(spec.allocation_id)
+            if owner is None:
+                if self._exit_requested:
+                    raise _conflict("Runtime is stopping")
+                try:
+                    await self._state.reserve_allocation(spec.allocation_id)
+                except RuntimeError:
+                    raise _conflict("Runtime allocation capacity is unavailable") from None
+                try:
+                    owner = Allocation(
+                        self._state,
+                        self._factories,
+                        self._capabilities,
+                        allocation_id=spec.allocation_id,
+                        force_exit=self._force_exit,
+                        **self._options,
+                    )
+                except BaseException:
+                    await self._state.discard_preparation(spec.allocation_id)
+                    raise
+                self._allocations[spec.allocation_id] = owner
+        try:
+            return await owner.prepare(spec)
+        except BaseException:
+            # A confirmed rollback has no resources. Uncertain cleanup retains its
+            # owner until the existing process-exit fence resolves it.
+            async with self._lock:
+                if (
+                    owner._context is None
+                    and not owner.exit_requested
+                    and not owner._lock.locked()
+                    and self._allocations.get(spec.allocation_id) is owner
+                ):
+                    # Requests already holding this owner must not resume on a
+                    # reservation admitted later for the same allocation ID.
+                    owner._released = True
+                    self._allocations.pop(spec.allocation_id)
+                    await self._state.discard_preparation(spec.allocation_id)
+            raise
+
+    async def finalize(self, request):
+        return await self._require_allocation(request.allocation_id).finalize(request)
+
+    async def abort(self, request):
+        return await self._require_allocation(request.allocation_id).abort(request)
+
+    async def release(self, request):
+        owner = self._allocations.get(request.allocation_id)
+        if owner is not None:
+            await owner.release(request)
+
+    async def confirm_release(self, allocation_id, *, keep_fenced=False):
+        if allocation_id is None:
+            await self._state.confirm_release(None, keep_fenced=keep_fenced)
+            return
+        owner = self._allocations.get(allocation_id)
+        if owner is not None:
+            await owner.confirm_release(allocation_id, keep_fenced=keep_fenced)
+            async with self._lock:
+                if owner._released and self._allocations.get(allocation_id) is owner:
+                    self._allocations.pop(allocation_id)
+        elif keep_fenced:
+            await self._state.fence_control_lease()
+
+    async def active_a2a_application(self, allocation_id):
+        owner = self._allocations.get(allocation_id)
+        return await owner.active_a2a_application(allocation_id) if owner is not None else None
+
+    async def agent_state_snapshot(self, allocation_id, *, if_none_match=None):
+        return await self._require_allocation(allocation_id).agent_state_snapshot(
+            allocation_id,
+            if_none_match=if_none_match,
+        )
+
+    async def expire_control_lease(self, shutdown_grace_seconds):
+        await self._state.fence_control_lease()
+        owners = tuple(self._allocations.values())
+        await join_owned_tasks(
+            *(owner.expire_control_lease(shutdown_grace_seconds) for owner in owners)
+        )
+
+    async def close(self, shutdown_grace_seconds: float) -> None:
+        """Join every allocation before process-owned transports and cache close."""
+        await self._state.fence_control_lease()
+
+        async def close_owner(owner):
+            await owner.expire_control_lease(shutdown_grace_seconds)
+            if owner._context is not None:
+                await owner.release(
+                    ReleaseAllocationRequest(
+                        apiVersion=API_VERSION, allocationId=owner._allocation_id
+                    )
+                )
+                await self.confirm_release(owner._allocation_id, keep_fenced=True)
+
+        await join_owned_tasks(*(close_owner(owner) for owner in tuple(self._allocations.values())))
+
+    async def reconcile_drain(self, allocation_id, shutdown_grace_seconds):
+        owner = self._allocations.get(allocation_id)
+        if owner is not None:
+            await owner.reconcile_drain(allocation_id, shutdown_grace_seconds)

@@ -48,15 +48,16 @@ contractor_runtime_pki_issue: true
 
 # Instances -------------------------------------------------------------------
 
-# One Runtime process per entry; each has one allocation slot. Keys:
+# One Runtime process per entry; each has 1..4 allocation slots. Keys:
 #   name (required)  [a-z0-9][a-z0-9_-]{0,62}; unit, certificate and Podman owner
 #   port (required)  listen and advertised port
 #   state            present (default) or absent: stop and remove the unit,
 #                    keep certificates and work roots
 #   listen_host, advertise_host, cert_dns, cert_ips, labels, placement_labels, adapters,
 #   allowed_target_networks, log_level, extra_args, extra_environment,
-#   workspace_limits, podman_limits, podman_owner
+#   allocation_slots (1..4), workspace_limits, podman_limits, podman_owner
 #   capabilities     overrides of the effective capability switches below
+contractor_runtime_allocation_slots: 4
 contractor_runtime_instances:
   - name: "{{ inventory_hostname_short | lower | regex_replace('[^a-z0-9_-]+', '-') }}-1"
     port: 9443

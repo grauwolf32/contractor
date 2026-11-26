@@ -17,11 +17,13 @@ class Owner:
     def __init__(self):
         self.calls = []
         self.engine = None
+        self.runtime_engine = None
 
     async def open_proxy(self):
-        from contractor_runtime.adapters.bridge.mitmproxy.engine import MitmproxyEngine
+        from contractor_runtime.adapters.bridge.mitmproxy import MitmproxyEngine
 
-        self.engine = MitmproxyEngine(require_authority=lambda: None)
+        self.runtime_engine = MitmproxyEngine()
+        self.engine = self.runtime_engine.create_session(require_authority=lambda: None)
         await self.engine.start()
         return self.engine
 
@@ -69,7 +71,7 @@ def test_failed_invocation_refuses_a_scanner_retry_on_a_new_proxy_connection():
                 assert bridge.error_code == "scan_request_failed"
         finally:
             if owner.engine is not None:
-                await owner.engine.close()
+                await owner.runtime_engine.close()
 
     asyncio.run(scenario())
 
@@ -109,7 +111,7 @@ def test_bridge_classifies_delegated_timeout_by_scan_deadline(monkeypatch, expir
             assert not bridge._tasks and not bridge._writers
         finally:
             if owner.engine is not None:
-                await owner.engine.close()
+                await owner.runtime_engine.close()
 
     asyncio.run(scenario())
 
@@ -192,7 +194,7 @@ def test_bridge_delegates_plaintext_and_tls_without_target_resolution(
         try:
             await scenario()
         finally:
-            from contractor_runtime.adapters.bridge.mitmproxy import engine as mitmproxy_engine
+            from contractor_runtime.adapters.bridge.mitmproxy import runtime as mitmproxy_engine
 
             if mitmproxy_engine._active is not None:
                 await mitmproxy_engine._active.close()
@@ -224,7 +226,7 @@ def test_bridge_uses_runtime_cookie_authority_and_keeps_partial_failures(tmp_pat
         try:
             await scenario()
         finally:
-            from contractor_runtime.adapters.bridge.mitmproxy import engine as mitmproxy_engine
+            from contractor_runtime.adapters.bridge.mitmproxy import runtime as mitmproxy_engine
 
             if mitmproxy_engine._active is not None:
                 await mitmproxy_engine._active.close()
@@ -253,7 +255,7 @@ def test_bridge_refuses_unauthenticated_local_client_before_forwarding(tmp_path)
         try:
             await scenario()
         finally:
-            from contractor_runtime.adapters.bridge.mitmproxy import engine as mitmproxy_engine
+            from contractor_runtime.adapters.bridge.mitmproxy import runtime as mitmproxy_engine
 
             if mitmproxy_engine._active is not None:
                 await mitmproxy_engine._active.close()
@@ -293,7 +295,7 @@ def test_bridge_early_engine_exit_joins_and_reports_unfinished_exchange(tmp_path
         try:
             await scenario()
         finally:
-            from contractor_runtime.adapters.bridge.mitmproxy import engine as mitmproxy_engine
+            from contractor_runtime.adapters.bridge.mitmproxy import runtime as mitmproxy_engine
 
             if mitmproxy_engine._active is not None:
                 await mitmproxy_engine._active.close()
@@ -323,6 +325,6 @@ def test_bridge_refuses_http10_before_owner_call(tmp_path):
                 assert owner.calls == []
         finally:
             if owner.engine is not None:
-                await owner.engine.close()
+                await owner.runtime_engine.close()
 
     asyncio.run(scenario())

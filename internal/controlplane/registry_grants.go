@@ -49,13 +49,13 @@ func (r *InMemoryRegistry) PrepareReservation(request Reservation) (Reservation,
 	monotonicNow := r.monotonicNow()
 	r.expireEntry(entry, monotonicNow)
 	stored = r.allocations[allocationID] // expireEntry may have marked it lost.
-	if stored.loss != nil || stored.reservation.Grant.Lost || entry.allocationLost || entry.superseded ||
-		entry.authoritativeAllocationID == nil || *entry.authoritativeAllocationID != allocationID ||
+	if stored.loss != nil || stored.reservation.Grant.Lost || entry.superseded ||
+		!entry.owns(allocationID) ||
 		entry.leaseExpired || entry.confirmedLeaseDeadline == 0 ||
 		monotonicNow >= entry.confirmedLeaseDeadline {
 		return Reservation{}, ErrAllocationLost
 	}
-	if stored.phase == AllocationPreparing && !entry.allocationActivated &&
+	if stored.phase == AllocationPreparing && !stored.activated &&
 		entry.confirmedLeaseExpiresAt.After(stored.reservation.LeaseExpiresAt) {
 		stored.reservation.LeaseExpiresAt = entry.confirmedLeaseExpiresAt
 		r.allocations[allocationID] = stored
@@ -125,8 +125,7 @@ func (r *InMemoryRegistry) SetWriteFence(allocationID string) error {
 		r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
 	}
 	entry, ownsAllocation := r.agents[stored.reservation.Grant.RuntimeInstanceID]
-	if ownsAllocation && entry.authoritativeAllocationID != nil &&
-		*entry.authoritativeAllocationID == allocationID && !entry.reconciliationRequired {
+	if ownsAllocation && entry.owns(allocationID) && !entry.reconciliationRequired {
 		entry.reconciliationRequired = true
 		r.recordOperationsChangeLocked(OperationsRuntimeAgent, entry.registration.InstanceID)
 	}
@@ -167,7 +166,7 @@ func (r *InMemoryRegistry) releaseAllocation(allocationID string, lostOnly bool)
 		return false, ErrAllocationNotFound
 	}
 	entry, ok := r.agents[stored.reservation.Grant.RuntimeInstanceID]
-	if !ok || entry.authoritativeAllocationID == nil || *entry.authoritativeAllocationID != allocationID {
+	if !ok || !entry.owns(allocationID) {
 		return false, ErrAllocationNotFound
 	}
 	if lostOnly {
@@ -184,6 +183,9 @@ func (r *InMemoryRegistry) releaseAllocation(allocationID string, lostOnly bool)
 	// Runtime has applied the authoritative release response. Always require a
 	// fresh post-release heartbeat before offering this slot again.
 	entry.reconciliationRequired = true
+	if !entry.leaseExpired && !entry.superseded {
+		entry.releaseAcks[allocationID] = 0
+	}
 	r.removeAllocationAuthorityLocked(allocationID, entry)
 	r.compactStageReservationLocked(stored.reservation.Grant.StageExecutionID)
 	return true, nil
@@ -193,12 +195,10 @@ func (r *InMemoryRegistry) releaseAllocation(allocationID string, lostOnly bool)
 // replacement waiting on its owner. The caller owns stage replay semantics and
 // whether the old owner needs a fresh heartbeat before becoming eligible.
 func (r *InMemoryRegistry) removeAllocationAuthorityLocked(allocationID string, entry *agentEntry) {
-	entry.authoritativeAllocationID = nil
-	entry.allocationLost = false
-	entry.allocationActivated = false
+	delete(entry.allocationIDs, allocationID)
 	delete(r.allocations, allocationID)
 	for _, candidate := range r.agents {
-		if candidate.blockedByInstanceID != nil && *candidate.blockedByInstanceID == entry.registration.InstanceID {
+		if len(entry.allocationIDs) == 0 && candidate.blockedByInstanceID != nil && *candidate.blockedByInstanceID == entry.registration.InstanceID {
 			candidate.blockedByInstanceID = nil
 			candidate.reconciliationRequired = r.entryNeedsReconciliationLocked(candidate)
 			r.recordOperationsChangeLocked(OperationsRuntimeAgent, candidate.registration.InstanceID)

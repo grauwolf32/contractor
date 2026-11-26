@@ -1,0 +1,91 @@
+{
+  "verdict": "supported",
+  "scope": "one native Master, task-local options adapter, allocation TLS/pools and ordinary HTTPTransport owners",
+  "native_master_count_per_case": 1,
+  "runtime_process_count": 1,
+  "versions": {
+    "mitmproxy": "12.3.1",
+    "cryptography": "50.0.1",
+    "pyOpenSSL": "26.4.0",
+    "httpx": "0.28.1"
+  },
+  "script_sha256": "bd2a33efbed0b550b30333ae5f36cc4423555b27bedc49ea1981ca3516978e0d",
+  "lock_sha256": "37e3374e3dacf9956937a1b7333d5435f3da610f4cc027fbb1998c86ea7ba8ab",
+  "python": "3.13.16",
+  "platform": "Darwin",
+  "matrix": {
+    "http11": {
+      "sessions": 4,
+      "target_connections": 4,
+      "negative_control_detected": true,
+      "private_auth_cookie_and_pool": true,
+      "neighbor_cleanup": true,
+      "released_refs": true,
+      "native_master_creations": 1
+    },
+    "http2": {
+      "sessions": 4,
+      "target_connections": 4,
+      "negative_control_detected": true,
+      "private_auth_cookie_and_pool": true,
+      "neighbor_cleanup": true,
+      "released_refs": true,
+      "native_master_creations": 1
+    },
+    "scanner": {
+      "sessions": 2,
+      "connect_http2": true,
+      "session_proxy_ca_verified": true,
+      "active_scanner_joined": true,
+      "foreign_token_rejected": true,
+      "revoked_token_rejected": true,
+      "neighbor_continues": true,
+      "native_master_creations": 1
+    },
+    "tls_cancellation": {
+      "thread_joined": true,
+      "neighbor_progress": true,
+      "late_send_blocked": true,
+      "native_master_creations": 1
+    },
+    "distinct_trust": {
+      "assigned_ca_a": "completed",
+      "unassigned_ca_a_with_session_trusting_b": "completed",
+      "assigned_ca_b_with_session_trusting_b": "failed",
+      "isolated": false,
+      "target_observed_unassigned_ca_request": true,
+      "native_master_creations": 1
+    },
+    "contextual_trust": {
+      "assigned_ca_a": "completed",
+      "unassigned_ca_a_with_session_trusting_b": "failed",
+      "assigned_ca_b_with_session_trusting_b": "completed",
+      "isolated": true,
+      "target_observed_unassigned_ca_request": false,
+      "native_master_creations": 1
+    },
+    "redirect_retry": {
+      "redirect_auth_cookie_local": true,
+      "presend_refusals": 2,
+      "attempts_independently_counted": true,
+      "native_master_creations": 1
+    },
+    "dns_queue_cleanup": {
+      "dns_joined": true,
+      "queued_http2_cancelled": true,
+      "peer_continues": true,
+      "native_master_creations": 1
+    },
+    "churn": {
+      "cycles": 8,
+      "sessions": 32,
+      "session_refs_released": true,
+      "private_directories_removed": true,
+      "tls_caches_empty": true,
+      "target_sockets_closed": true,
+      "native_master_creations": 1
+    }
+  },
+  "remaining_proof": [],
+  "recommendation": "Use one pinned native Master with allocation-owned TLS/connection state and a stable task-local ctx.options adapter. Guard task/thread context propagation and release with these real-socket regressions."
+}

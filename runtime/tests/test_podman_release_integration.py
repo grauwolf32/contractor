@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fakes.allocation import allocation_context
 from test_podman_execution_integration import allocation, deadline
 
 from contractor_runtime.sandbox.contracts import ExecutionRequest
@@ -98,8 +99,8 @@ def test_real_input_required_reuse_and_concurrent_release(tmp_path, monkeypatch,
             )
             spec, _ = sample_spec(peer)
             prepared = await service.prepare(spec)
-            context = service._context
-            identity = lifecycle._entry.identity
+            context = allocation_context(service)
+            identity = next(iter(lifecycle._entries.values())).identity
             root = Path(context.project_workspace.storage.root)
             assert (
                 await context.execution.executor.execute(
@@ -126,7 +127,7 @@ def test_real_input_required_reuse_and_concurrent_release(tmp_path, monkeypatch,
                     ]
                     task = responses[-1].task
                     assert task.status.state == TaskState.TASK_STATE_INPUT_REQUIRED
-                    assert lifecycle._entry.identity == identity
+                    assert next(iter(lifecycle._entries.values())).identity == identity
                     resumed = data_request(spec.allocation_id, message_id="resume")
                     resumed.message.task_id = task.id
                     resumed.message.context_id = task.context_id
@@ -135,7 +136,7 @@ def test_real_input_required_reuse_and_concurrent_release(tmp_path, monkeypatch,
                         await send(client, data_request(spec.allocation_id, message_id="next"))
                     )["result"]["result"] == "second"
                     assert await service.prepare(spec) == prepared
-                    assert lifecycle._entry.identity == identity
+                    assert next(iter(lifecycle._entries.values())).identity == identity
                     result = await context.execution.executor.execute(
                         ExecutionRequest("cat retained"), deadline=deadline()
                     )
@@ -161,8 +162,17 @@ def test_real_input_required_reuse_and_concurrent_release(tmp_path, monkeypatch,
             await asyncio.gather(service.release(release(spec)), service.release(release(spec)))
             assert context.execution.removed and context.execution.stopped.is_set()
             assert not root.exists() and not context.workspace.path.exists()
-            assert lifecycle._entry is None and not exits
+            assert not lifecycle._entries and not exits
             await service.confirm_release(spec.allocation_id)
+            if termination == "lease":
+                from contractor_runtime.allocation import AllocationError
+
+                assert (await state.snapshot()).process_state is ProcessState.FENCED
+                with pytest.raises(AllocationError, match="capacity"):
+                    await service.prepare(spec)
+                # The control client clears the empty process fence only after
+                # obtaining a new registration/confirmed lease generation.
+                await service.confirm_release(None)
             assert (await state.snapshot()).process_state is ProcessState.IDLE
         finally:
             await lifecycle.close(deadline=time.monotonic() + 30)

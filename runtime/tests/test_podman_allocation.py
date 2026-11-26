@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fakes.allocation import allocation_context, allocation_snapshot
 from fakes.podman_lifecycle import owner
 from fakes.spec import allocation_spec
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory, StubWorkerRuntime
@@ -59,13 +60,16 @@ async def service_for(
     class Worker(StubWorkerRuntime):
         async def finalize(self, deadline):
             events.append("artifacts")
-            assert fixture.backend.entry.rejected or fixture.lifecycle._entry.rejected
+            assert (
+                next(iter(fixture.backend.entries.values())).rejected
+                or next(iter(fixture.lifecycle._entries.values())).rejected
+            )
             await super().finalize(deadline)
 
     class Runtime(StubADKWorkerRuntimeFactory):
         async def create(self, context):
-            assert fixture.backend.entry.prepared
-            root = fixture.backend.entry.root
+            assert next(iter(fixture.backend.entries.values())).prepared
+            root = next(iter(fixture.backend.entries.values())).root
             assert (root / "src/main.py").read_text() == "ready\n"
             events.append("worker")
             if fail_worker:
@@ -93,7 +97,7 @@ async def service_for(
         sandbox_profiles=factories.sandbox_profiles,
         workspace=provider.capability,
     )
-    state = RuntimeState(instance_id="podman-test", capabilities=capabilities)
+    state = RuntimeState(instance_id="podman-test", capabilities=capabilities, allocation_slots=1)
     await state.mark_registered()
     exits = []
     service = AllocationService(
@@ -136,7 +140,7 @@ def test_hydration_one_container_idempotency_finalize_and_authoritative_release(
             changed.run_metadata_labels["changed"] = "yes"
             with pytest.raises(AllocationError):
                 await service.prepare(changed)
-            context = service._context
+            context = allocation_context(service)
             root = Path(context.project_workspace.storage.root)
             scratch = context.workspace.path
             response = await service.finalize(finalization(spec))
@@ -176,8 +180,10 @@ def test_rearmed_lease_allows_podman_prepare_after_local_expiry(tmp_path):
                         {
                             "apiVersion": API_VERSION,
                             "ackSeq": 1,
-                            "action": "release",
-                            "allocationId": spec.allocation_id,
+                            "action": "continue",
+                            "allocationActions": [
+                                {"allocationId": spec.allocation_id, "action": "release"}
+                            ],
                         },
                         {
                             "apiVersion": API_VERSION,
@@ -247,7 +253,7 @@ def test_partial_prepare_removes_container_before_hydrated_workspace(tmp_path, f
             with pytest.raises(AllocationError):
                 await service.prepare(spec)
             assert not fixture.cli.containers and events[-1] == "files"
-            assert await service.snapshot() is None
+            assert await allocation_snapshot(service) is None
             assert (await state.snapshot()).process_state is ProcessState.IDLE
             assert not exits
 
@@ -264,8 +270,11 @@ def test_uncertain_partial_prepare_retains_context_and_fences_confirmation(tmp_p
             with pytest.raises(AllocationError):
                 await service.prepare(spec)
             assert exits == [70] and fixture.cli.containers and "files" not in events
-            assert service._context is not None and service._context.prepare_response is None
-            assert Path(service._context.project_workspace.storage.root).exists()
+            assert (
+                allocation_context(service) is not None
+                and allocation_context(service).prepare_response is None
+            )
+            assert Path(allocation_context(service).project_workspace.storage.root).exists()
             with pytest.raises(AllocationError):
                 await service.confirm_release(spec.allocation_id)
             assert (await state.snapshot()).process_state is not ProcessState.IDLE
@@ -308,7 +317,7 @@ def test_failed_create_cleans_allocation_without_forcing_process_exit(tmp_path):
             assert exits == [] and events[-1] == "files"
             assert fixture.cli.sequence == 1 and not fixture.cli.containers
             assert not fixture.engine._records
-            assert service._context is None
+            assert allocation_context(service) is None
             assert (await state.snapshot()).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
@@ -373,11 +382,11 @@ def test_cancelled_release_retains_one_cleanup_task(tmp_path):
             releasing.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await releasing
-            cleanup = service._context.release_cleanup_task
+            cleanup = allocation_context(service).release_cleanup_task
             assert not cleanup.done() and "files" not in events
             retry = asyncio.create_task(service.release(release(spec)))
             await asyncio.sleep(0.02)
-            assert service._context.release_cleanup_task is cleanup
+            assert allocation_context(service).release_cleanup_task is cleanup
             resume.set()
             await retry
             assert sum(call[0] == "rm" for call in fixture.cli.calls) == 1
@@ -397,7 +406,7 @@ def test_unconfirmed_stop_preserves_files_and_cannot_return_terminal_success(tmp
                 await service.finalize(finalization(spec))
             assert failure.value.code == "sandbox_cleanup_unconfirmed"
             assert exits == [70] and "files" not in events
-            assert service._context.terminal_response is None
+            assert allocation_context(service).terminal_response is None
             assert (await state.snapshot()).process_state is not ProcessState.IDLE
             fixture.cli.noop_stop = False
             await service.confirm_release(spec.allocation_id)
@@ -411,7 +420,7 @@ def test_expired_prepare_deadline_rejects_work_without_restarting_container(tmp_
         async with owner(tmp_path) as fixture:
             service, _state, spec, _events, _exits = await service_for(tmp_path, fixture)
             await service.prepare(spec)
-            handle = fixture.lifecycle._entry
+            handle = next(iter(fixture.lifecycle._entries.values()))
             with pytest.raises(SandboxContractError):
                 await handle.prepare(deadline=datetime.now(UTC) - timedelta(seconds=1))
             assert handle.rejected and fixture.cli.sequence == 1
@@ -463,7 +472,7 @@ def test_a2a_input_required_and_sequential_calls_keep_same_container(tmp_path, m
                 runtime_factory=AdkWorkerRuntimeFactory(model_factory=lambda _: model),
             )
             prepared = await service.prepare(spec)
-            identity = fixture.lifecycle._entry.identity
+            identity = next(iter(fixture.lifecycle._entries.values())).identity
             application = create_app(state, allocation_service=service, require_verified_peer=False)
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=application), base_url="https://runtime.example"
@@ -484,7 +493,7 @@ def test_a2a_input_required_and_sequential_calls_keep_same_container(tmp_path, m
                     ]
                     task = responses[-1].task
                     assert task.status.state == TaskState.TASK_STATE_INPUT_REQUIRED
-                    assert fixture.lifecycle._entry.identity == identity
+                    assert next(iter(fixture.lifecycle._entries.values())).identity == identity
                     resumed = data_request(spec.allocation_id, message_id="resume")
                     resumed.message.task_id = task.id
                     resumed.message.context_id = task.context_id
@@ -494,7 +503,8 @@ def test_a2a_input_required_and_sequential_calls_keep_same_container(tmp_path, m
                     )["result"]["result"] == "second"
                     assert await service.prepare(spec) == prepared
                     assert (
-                        fixture.lifecycle._entry.identity == identity and fixture.cli.sequence == 1
+                        next(iter(fixture.lifecycle._entries.values())).identity == identity
+                        and fixture.cli.sequence == 1
                     )
                 finally:
                     await client.close()

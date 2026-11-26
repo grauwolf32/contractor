@@ -226,7 +226,7 @@ system.
 **OPS-R3.** Platform-dependent resource observations may
 return `unsupported_platform`.
 
-Host placement of one active Server/Control Plane, PostgreSQL, single-slot
+Host placement of one active Server/Control Plane, PostgreSQL, multi-slot
 Runtime Agents and the separate UI service, the single-VM baseline and its
 loopback transports are defined in [Overview](../overview.md). The PostgreSQL
 advisory lease that limits a database to one active Server, the standby's
@@ -428,11 +428,11 @@ manufacture either timestamp from registration time.
 **OPS-R29.** Observed and authoritative fields remain
 separate. A reserved allocation with an idle observation is `reserved`.
 
-**OPS-R30.** An observed `allocated` Runtime proves that the
+**OPS-R30.** An observed `allocated` entry proves that its
 Worker role was prepared but does not prove that an A2A call is currently
 executing, so allocation `observedPhase` reports `prepared`, not a guessed
 `busy`. The derived slot may still be `busy`, because the allocation
-exclusively owns that single slot.
+exclusively owns that allocation slot within the Runtime.
 
 **OPS-R31.** A fenced observation remains visible beside an
 unreleased authoritative allocation during reconciliation.

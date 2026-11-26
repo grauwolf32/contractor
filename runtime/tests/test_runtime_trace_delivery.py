@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from fakes.allocation import allocation_context, allocation_owner
 from fakes.clock import advance_clock, run_with_advanceable_clock
 from test_otlp_adapter import allocation_service, configured_allocation
 
@@ -39,15 +40,17 @@ def test_cleanup_timeout_keeps_flush_inside_original_stop_deadline(tmp_path, col
         spec = configured_allocation()
         spec.runtime_settings.telemetry.flush_timeout_seconds = 10
         await service.prepare(spec)
-        context = service._context
+        context = allocation_context(service)
         instrumentation = context.adapter_host.handles.instrumentation
         instrumentation.start_span("contractor.worker.error").end(outcome="failed")
         loop = asyncio.get_running_loop()
         start = datetime.now(UTC)
         monotonic_start = loop.time()
-        service._now = lambda: start + timedelta(seconds=loop.time() - monotonic_start)
+        allocation_owner(service)._now = lambda: (
+            start + timedelta(seconds=loop.time() - monotonic_start)
+        )
         exits = []
-        service._exit_process = lambda code: exits.append((code, service._now()))
+        service._exit_process = lambda code: exits.append((code, allocation_owner(service)._now()))
 
         async def hanging_http():
             entered.set()
@@ -75,7 +78,7 @@ def test_cleanup_timeout_keeps_flush_inside_original_stop_deadline(tmp_path, col
             await stop
         assert len(received) == 1
         assert exits and exits[0][0] == 70 and exits[0][1] < deadline
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
         assert context.adapter_host.report_metrics()["otlp-http@1"].flush_succeeded is (
             not collector_hangs
         )
@@ -83,7 +86,7 @@ def test_cleanup_timeout_keeps_flush_inside_original_stop_deadline(tmp_path, col
             assert cancelled.is_set()
         context.http_transport = None
         await context.worker.abort(deadline)
-        await context.adapter_host.rollback(deadline=deadline, now=service._now)
+        await context.adapter_host.rollback(deadline=deadline, now=allocation_owner(service)._now)
 
     run_with_advanceable_clock(scenario())
 
@@ -104,7 +107,7 @@ def test_repeated_caller_cancellation_cannot_skip_emergency_flush(tmp_path):
         )
         spec = configured_allocation()
         await service.prepare(spec)
-        context = service._context
+        context = allocation_context(service)
         context.adapter_host.handles.instrumentation.start_span("contractor.worker.error").end(
             outcome="failed"
         )
@@ -136,7 +139,7 @@ def test_repeated_caller_cancellation_cannot_skip_emergency_flush(tmp_path):
         stop.cancel()
         await asyncio.sleep(0)
         assert not stop.done() and not exits
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
         finish.set()
         with pytest.raises(asyncio.CancelledError):
             await stop
@@ -165,7 +168,7 @@ def test_export_rejection_does_not_replace_cleanup_failure(tmp_path, caplog, sta
         )
         spec = configured_allocation()
         await service.prepare(spec)
-        context = service._context
+        context = allocation_context(service)
         context.adapter_host.handles.instrumentation.start_span("contractor.worker.error").end(
             outcome="failed"
         )
@@ -189,7 +192,7 @@ def test_export_rejection_does_not_replace_cleanup_failure(tmp_path, caplog, sta
             )
         assert caught.value is failure
         assert exits == [70] and len(calls) == (1 if status == 400 else 2)
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
         metrics = context.adapter_host.report_metrics()["otlp-http@1"]
         assert metrics.flush_attempted and not metrics.flush_succeeded
         assert "phase=http exception=RuntimeError" in caplog.text

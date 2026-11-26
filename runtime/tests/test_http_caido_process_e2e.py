@@ -16,6 +16,7 @@ from typing import Any
 
 import httpx
 import pytest
+from fakes.allocation import allocation_context, allocation_snapshot
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
 from target_policy_fixtures import SCAN_TEST_POLICY
@@ -148,15 +149,18 @@ def test_http_caido_allocation_tools_finalize_release_and_reuse(tmp_path: Path) 
         spec = http_caido_spec()
 
         await service.prepare(spec)
-        assert service._context is not None and service._context.worker is not None
-        result = await service._context.worker.invoke(stage_request())
+        assert (
+            allocation_context(service) is not None
+            and allocation_context(service).worker is not None
+        )
+        result = await allocation_context(service).worker.invoke(stage_request())
 
         assert result.result is not None
         assert result.result.artifacts["report"].revision == "revision-1"
         assert [request.url.host for request in http_requests] == ["target.example"]
         assert caido_operations == ["RequestsByOffset", "CreateScope"]
         assert all(not name.startswith("http.body.") for _, name in artifacts.bindings)
-        buffer = service._context.resources.http_captures
+        buffer = allocation_context(service).resources.http_captures
         assert not buffer._entries  # The scripted worker explicitly cleared its session.
 
         terminal = await service.finalize(
@@ -174,7 +178,7 @@ def test_http_caido_allocation_tools_finalize_release_and_reuse(tmp_path: Path) 
 
         assert terminal.report.worker.complete
         assert (await state.snapshot()).process_state is ProcessState.IDLE
-        assert await service.snapshot() is None
+        assert await allocation_snapshot(service) is None
         assert list((tmp_path / "work").iterdir()) == []
         assert all(adapter.closed for adapter in http_factory.adapters)
         assert all(adapter.handles.enabled_channels == () for adapter in caido_factory.adapters)
@@ -450,7 +454,7 @@ def test_cookie_login_survives_finalized_allocation_replacement(
             await service.confirm_release(allocation)
 
         await service.prepare(spec)
-        first = service._context
+        first = allocation_context(service)
         assert first is not None
         assert (await first.tools["http_request"]("https://target.example/login", method="POST"))[
             "status"
@@ -464,7 +468,7 @@ def test_cookie_login_survives_finalized_allocation_replacement(
             },
         )
         await service.prepare(spec)
-        second = service._context
+        second = allocation_context(service)
         assert second is not None and second is not first and second.worker is not first.worker
         assert (await second.tools["http_session_get"]())["cookie_names"] == ["sid"]
         assert (await second.tools["http_request"]("https://target.example/private"))[

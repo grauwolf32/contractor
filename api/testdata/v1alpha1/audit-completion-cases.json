@@ -76,7 +76,10 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_result", "submit_results", "evidence"]
+              "submit_result",
+              "submit_results",
+              "evidence"
+            ]
           }
         ]
       },
@@ -183,7 +186,9 @@
             "write_artifact"
           ]
         }
-      ]
+      ],
+      "allocations": [],
+      "allocationSlots": 1
     }
   },
   {
@@ -445,7 +450,10 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_result", "submit_results", "evidence"]
+              "submit_result",
+              "submit_results",
+              "evidence"
+            ]
           }
         ]
       },
@@ -557,7 +565,10 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_result", "submit_results", "evidence"]
+              "submit_result",
+              "submit_results",
+              "evidence"
+            ]
           }
         ]
       },
@@ -884,7 +895,10 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_result", "submit_results", "evidence"]
+              "submit_result",
+              "submit_results",
+              "evidence"
+            ]
           },
           {
             "ref": {
@@ -893,7 +907,10 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_result", "submit_results", "evidence"]
+              "submit_result",
+              "submit_results",
+              "evidence"
+            ]
           }
         ]
       },
@@ -1010,7 +1027,10 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_result", "submit_results", "evidence"]
+              "submit_result",
+              "submit_results",
+              "evidence"
+            ]
           }
         ]
       },
@@ -1134,7 +1154,10 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_result", "submit_results", "evidence"]
+              "submit_result",
+              "submit_results",
+              "evidence"
+            ]
           }
         ]
       },
@@ -1268,7 +1291,10 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_result", "submit_results", "evidence"]
+              "submit_result",
+              "submit_results",
+              "evidence"
+            ]
           }
         ],
         "summarizer": {
@@ -1407,7 +1433,10 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_result", "submit_results", "evidence"]
+              "submit_result",
+              "submit_results",
+              "evidence"
+            ]
           }
         ]
       },
@@ -1541,7 +1570,10 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_result", "submit_results", "evidence"]
+              "submit_result",
+              "submit_results",
+              "evidence"
+            ]
           }
         ],
         "summarizer": {
@@ -1680,7 +1712,10 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_result", "submit_results", "evidence"]
+              "submit_result",
+              "submit_results",
+              "evidence"
+            ]
           }
         ]
       },
@@ -1802,7 +1837,10 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_result", "submit_results", "evidence"]
+              "submit_result",
+              "submit_results",
+              "evidence"
+            ]
           }
         ],
         "summarizer": {

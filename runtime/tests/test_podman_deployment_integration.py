@@ -12,7 +12,7 @@ import uuid
 
 import pytest
 from fakes.podman_workflow import ArtifactPeer, exercise_sample, sample_model
-from test_cli import generate_pki, unused_tcp_port
+from test_cli import ConfigTransport, generate_pki, unused_tcp_port
 from test_control_client import heartbeat_response, registration_response
 
 import contractor_runtime.cli as runtime_cli
@@ -68,7 +68,7 @@ def test_real_cli_startup_registration_sample_artifact_and_release(tmp_path, mon
             captured["service"] = AllocationService(*args, **kwargs, force_exit=exits.append)
             return captured["service"]
 
-        class ControlPeer:
+        class ControlPeer(ConfigTransport):
             def __init__(self):
                 self.ready = asyncio.Event()
                 self.registration = None
@@ -111,7 +111,7 @@ def test_real_cli_startup_registration_sample_artifact_and_release(tmp_path, mon
             assert ready in done, "bounded startup did not register"
             await asyncio.sleep(0)
             await exercise_sample(captured["service"], state, peer, model)
-            assert captured["lifecycle"]._entry is None
+            assert not captured["lifecycle"]._entries
         finally:
             ready.cancel()
             await asyncio.gather(ready, return_exceptions=True)

@@ -36,6 +36,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.digests import _agent_template_digest, _model_policy_digest, sha256_digest
 from contractor_runtime.state import ProcessState
+from fakes.allocation import allocation_context
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
 
@@ -185,7 +186,6 @@ def sample_model(*, publish=True):
                     "name": "check_report",
                     "media_type": "application/json",
                     "source_path": "report.json",
-                    "expected_revision": None,
                 },
             )
         )
@@ -198,7 +198,7 @@ def sample_model(*, publish=True):
 async def exercise_sample(service, state, peer, model, *, publish=True):
     spec, request = sample_spec(peer)
     await service.prepare(spec)
-    context = service._context
+    context = allocation_context(service)
     session = context.project_workspace
     peer.session = session
     root, scratch = Path(session.storage.root), context.workspace.path
@@ -249,6 +249,8 @@ async def exercise_sample(service, state, peer, model, *, publish=True):
     finally:
         # The remote Artifact peer owns the existing authoritative write fence.
         peer.fenced = True
+        with pytest.raises(ArtifactAPIError, match="allocation_write_fenced"):
+            await saved_write("builder", "check_report", "report.json", "application/json")
         await service.finalize(
             FinalizeAllocationRequest(
                 apiVersion=API_VERSION,
@@ -257,8 +259,6 @@ async def exercise_sample(service, state, peer, model, *, publish=True):
                 deadline=datetime.now(UTC) + timedelta(seconds=30),
             )
         )
-        with pytest.raises(ArtifactAPIError, match="allocation_write_fenced"):
-            await saved_write("builder", "check_report", "report.json", "application/json")
         await service.release(
             ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
         )
@@ -280,7 +280,7 @@ class Commands:
     async def run(self, identity, command, cwd, *, deadline, revoked=None):
         from contractor_runtime.sandbox.podman.command import CommandCapture
 
-        root = self.fixture.backend.entry.root
+        root = next(iter(self.fixture.backend.entries.values())).root
         assert command == COMMAND and cwd == "" and deadline > time.monotonic()
         assert (root / "calculator.py").read_text() == "def add(a, b):\n    return a + b\n"
         assert (

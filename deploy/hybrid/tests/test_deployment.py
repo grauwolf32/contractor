@@ -12,6 +12,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from typing import ClassVar
 from unittest.mock import patch
 
@@ -23,6 +24,7 @@ import common  # noqa: E402
 import egress  # noqa: E402
 import ingress  # noqa: E402
 import mesh  # noqa: E402
+import server as hybrid_server  # noqa: E402
 
 
 class Files(unittest.TestCase):
@@ -252,6 +254,50 @@ class Vault(unittest.TestCase):
             self.assertNotIn("fixture-secret-value", encrypted.read_text())
             self.assertEqual(common.secret(restored / "secrets/key"), "fixture-secret-value")
             self.assertEqual(encrypted.stat().st_mode & 0o777, 0o600)
+
+
+class ServerRestartCapacity(unittest.TestCase):
+    def test_partial_or_fenced_capacity_rejects_restart_before_process_changes(self):
+        args = SimpleNamespace(server_url="http://localhost", token_file=Path("unused"))
+        for state in ("busy", "reserved", "draining", "fenced"):
+            with (
+                self.subTest(state=state),
+                patch.object(hybrid_server.socket, "socket"),
+                patch.object(hybrid_server, "API") as api,
+                patch.object(hybrid_server.os, "kill") as kill,
+            ):
+                api.return_value.pages.side_effect = [
+                    [],
+                    [{"state": state, "allocationSlots": 4, "availableSlots": 3}],
+                ]
+                with self.assertRaisesRegex(RuntimeError, "queued or active work"):
+                    hybrid_server.restart(args, Path("unused"), {"controller_address": "127.0.0.1"})
+                kill.assert_not_called()
+
+    def test_idle_capacity_reaches_the_existing_process_identity_guard(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            pid = root / "server.pid"
+            pid.write_text("12345")
+            args = SimpleNamespace(
+                server_url="http://localhost",
+                token_file=root / "token",
+                pid_file=pid,
+                contractor=root / "contractor",
+            )
+            with (
+                patch.object(hybrid_server.socket, "socket"),
+                patch.object(hybrid_server, "API") as api,
+                patch.object(hybrid_server, "run", return_value="unrelated-process"),
+                patch.object(hybrid_server.os, "kill") as kill,
+            ):
+                api.return_value.pages.side_effect = [
+                    [],
+                    [{"state": "idle", "allocationSlots": 4, "availableSlots": 4}],
+                ]
+                with self.assertRaisesRegex(RuntimeError, "pid file"):
+                    hybrid_server.restart(args, root, {"controller_address": "127.0.0.1"})
+                kill.assert_not_called()
 
 
 if __name__ == "__main__":

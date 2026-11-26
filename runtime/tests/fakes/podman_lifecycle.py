@@ -70,8 +70,14 @@ class Owner:
         health, child_health = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         for channel in (control, child_control, health, child_health):
             channel.setblocking(False)
-        self.task = asyncio.create_task(serve_owner(child_control, child_health, self.backend))
-        self.client = OwnerClient(control, health, self)
+        pairs = [socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM) for _ in range(4)]
+        lanes, child_lanes = tuple(zip(*pairs, strict=True))
+        for channel in (*lanes, *child_lanes):
+            channel.setblocking(False)
+        self.task = asyncio.create_task(
+            serve_owner(child_control, child_health, self.backend, child_lanes)
+        )
+        self.client = OwnerClient(control, health, self, lanes)
         return self.client
 
     def poll(self):

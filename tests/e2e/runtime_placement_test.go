@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -133,7 +134,7 @@ func TestRuntimePlacementAcrossProductionProcesses(t *testing.T) {
 		// for the ordinary retirement boundary before testing an unrestricted
 		// launch against the sole remaining live process.
 		waitForObservedRuntimeAgents(t, h.ctx, h.server, []*childProcess{undeclared}, h.operations.client, h.operations.baseURL, func(agents []observedRuntimeAgent) bool {
-			return len(agents) == 1 && agents[0].ConfirmedLeaseUntil != nil && agents[0].SlotState == "idle"
+			return len(agents) == 1 && agents[0].ConfirmedLeaseUntil != nil && agents[0].State == "idle"
 		})
 		h.complete(t, h.create(t, map[string]string{"team": "appsec"}, ""), "")
 	})
@@ -147,6 +148,7 @@ type placementProcessHarness struct {
 	controlClient                                                                *http.Client
 	server                                                                       *childProcess
 	runtimes                                                                     map[string]*childProcess
+	runtimePath                                                                  string
 	identities                                                                   map[string]localpki.Paths
 	operations                                                                   *runtimeOperations
 	store                                                                        *runstore.PostgresStore
@@ -231,6 +233,10 @@ func startPlacementStackWithConfiguration(t *testing.T, configure func(string)) 
 }
 
 func (h *placementProcessHarness) startRuntime(name, placement string, capable bool) *childProcess {
+	return h.startRuntimeSlots(name, placement, capable, 1)
+}
+
+func (h *placementProcessHarness) startRuntimeSlots(name, placement string, capable bool, slots int, extraArgs ...string) *childProcess {
 	t := h.operations.t
 	t.Helper()
 	identity, exists := h.identities[name]
@@ -244,7 +250,7 @@ func (h *placementProcessHarness) startRuntime(name, placement string, capable b
 	}
 	address := freeAddress(t)
 	baseURL := "https://" + address
-	args := []string{"-m", "contractor_runtime", "--control-plane-url", h.privateURL,
+	args := []string{"-m", "contractor_runtime", "--allocation-slots", strconv.Itoa(slots), "--control-plane-url", h.privateURL,
 		"--advertised-control-url", baseURL, "--advertised-a2a-url", baseURL,
 		"--ca-file", h.caFile, "--certificate-file", identity.Certificate, "--private-key-file", identity.PrivateKey,
 		"--listen", address, "--work-root", filepath.Join(h.temporary, name), "--request-timeout-seconds", "10", "--shutdown-grace-seconds", "5", "--allowed-target-network", "127.0.0.0/8"}
@@ -255,6 +261,10 @@ func (h *placementProcessHarness) startRuntime(name, placement string, capable b
 	if capable {
 		path = h.scannerBin
 	}
+	if h.runtimePath != "" {
+		path += string(os.PathListSeparator) + h.runtimePath
+	}
+	args = append(args, extraArgs...)
 	process := startProcess(t, name, filepath.Join(h.root, "runtime"), map[string]string{"PATH": path, "PYTHONUNBUFFERED": "1", "NUCLEI_TEMPLATES_DIR": h.templates, "CONTRACTOR_PLACEMENT_LABELS": ""}, h.python, args...)
 	h.runtimes[name] = process
 	waitForHTTP(t, h.ctx, process, h.controlClient, baseURL+"/healthz", http.StatusOK)

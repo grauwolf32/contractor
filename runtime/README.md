@@ -1,10 +1,14 @@
 # Contractor Runtime Agent
 
-The Runtime Agent is the Python, single-slot execution process for Contractor
+The Runtime Agent is the Python execution process for Contractor
 v2. It registers a fresh process identity with the Go Control Plane, maintains
 confirmed sequenced heartbeats, and exposes one private mTLS listener. Worker,
 Google ADK, A2A 1.0 JSON-RPC, and artifact tools run together in that process;
-each Runtime Agent has exactly one allocation slot.
+each Runtime Agent declares 1..4 allocation slots with `--allocation-slots`
+(default 4). Capacity is immutable until restart; different processes may use
+different values. HTTP and Podman owners and the immutable archive cache are
+shared, while sessions, containers, credentials and mutable workspaces remain
+allocation-local.
 
 Install with the committed uv lock. The supported ADK 2.15.0 closure uses
 OpenTelemetry API/SDK 1.45.1 within upstream dependency metadata, without
@@ -25,7 +29,7 @@ CONTRACTOR_ADVERTISED_A2A_URL=https://localhost:9443 \
 CONTRACTOR_CA_FILE=../.local/pki/ca.crt \
 CONTRACTOR_CERTIFICATE_FILE=../.local/pki/agents/agent-local.crt \
 CONTRACTOR_PRIVATE_KEY_FILE=../.local/pki/agents/agent-local.key \
-uv run contractor-runtime --listen 127.0.0.1:9443
+uv run contractor-runtime --allocation-slots 4 --listen 127.0.0.1:9443
 ```
 
 Project filesystem Toolsets are disabled unless the process has an explicit

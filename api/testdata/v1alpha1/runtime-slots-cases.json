@@ -1,0 +1,554 @@
+[
+  {
+    "name": "capacity-1",
+    "type": "AgentRegistration",
+    "patch": {
+      "allocationSlots": 1
+    },
+    "valid": true
+  },
+  {
+    "name": "capacity-2",
+    "type": "AgentRegistration",
+    "patch": {
+      "allocationSlots": 2
+    },
+    "valid": true
+  },
+  {
+    "name": "capacity-3",
+    "type": "AgentRegistration",
+    "patch": {
+      "allocationSlots": 3
+    },
+    "valid": true
+  },
+  {
+    "name": "capacity-4",
+    "type": "AgentRegistration",
+    "patch": {
+      "allocationSlots": 4
+    },
+    "valid": true
+  },
+  {
+    "name": "capacity-0",
+    "type": "AgentRegistration",
+    "patch": {
+      "allocationSlots": 0
+    },
+    "valid": false
+  },
+  {
+    "name": "capacity--1",
+    "type": "AgentRegistration",
+    "patch": {
+      "allocationSlots": -1
+    },
+    "valid": false
+  },
+  {
+    "name": "capacity-5",
+    "type": "AgentRegistration",
+    "patch": {
+      "allocationSlots": 5
+    },
+    "valid": false
+  },
+  {
+    "name": "capacity-1.5",
+    "type": "AgentRegistration",
+    "patch": {
+      "allocationSlots": 1.5
+    },
+    "valid": false
+  },
+  {
+    "name": "capacity-\"4\"",
+    "type": "AgentRegistration",
+    "patch": {
+      "allocationSlots": "4"
+    },
+    "valid": false
+  },
+  {
+    "name": "capacity-true",
+    "type": "AgentRegistration",
+    "patch": {
+      "allocationSlots": true
+    },
+    "valid": false
+  },
+  {
+    "name": "capacity-null",
+    "type": "AgentRegistration",
+    "patch": {
+      "allocationSlots": null
+    },
+    "valid": false
+  },
+  {
+    "name": "idle-0",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "idle",
+      "allocations": []
+    },
+    "valid": true
+  },
+  {
+    "name": "idle-1",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "idle",
+      "allocations": [
+        {
+          "allocationId": "allocation-0",
+          "observedState": "allocated"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "idle-4",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "idle",
+      "allocations": [
+        {
+          "allocationId": "allocation-0",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-1",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-2",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-3",
+          "observedState": "allocated"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "idle-5",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "idle",
+      "allocations": [
+        {
+          "allocationId": "allocation-0",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-1",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-2",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-3",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-4",
+          "observedState": "allocated"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "allocated-0",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "allocated",
+      "allocations": []
+    },
+    "valid": false
+  },
+  {
+    "name": "allocated-1",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "allocated",
+      "allocations": [
+        {
+          "allocationId": "allocation-0",
+          "observedState": "allocated"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "allocated-4",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "allocated",
+      "allocations": [
+        {
+          "allocationId": "allocation-0",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-1",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-2",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-3",
+          "observedState": "allocated"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "allocated-5",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "allocated",
+      "allocations": [
+        {
+          "allocationId": "allocation-0",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-1",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-2",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-3",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-4",
+          "observedState": "allocated"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "draining-0",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "draining",
+      "allocations": []
+    },
+    "valid": false
+  },
+  {
+    "name": "draining-1",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "draining",
+      "allocations": [
+        {
+          "allocationId": "allocation-0",
+          "observedState": "allocated"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "draining-4",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "draining",
+      "allocations": [
+        {
+          "allocationId": "allocation-0",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-1",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-2",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-3",
+          "observedState": "allocated"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "draining-5",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "draining",
+      "allocations": [
+        {
+          "allocationId": "allocation-0",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-1",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-2",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-3",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-4",
+          "observedState": "allocated"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "fenced-0",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "fenced",
+      "allocations": []
+    },
+    "valid": true
+  },
+  {
+    "name": "fenced-1",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "fenced",
+      "allocations": [
+        {
+          "allocationId": "allocation-0",
+          "observedState": "allocated"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "fenced-4",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "fenced",
+      "allocations": [
+        {
+          "allocationId": "allocation-0",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-1",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-2",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-3",
+          "observedState": "allocated"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "fenced-5",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "fenced",
+      "allocations": [
+        {
+          "allocationId": "allocation-0",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-1",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-2",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-3",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-4",
+          "observedState": "allocated"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "duplicate-id-different-state",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "allocated",
+      "allocations": [
+        {
+          "allocationId": "allocation-1",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-1",
+          "observedState": "fenced"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "idle-allocation",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "observedState": "allocated",
+      "allocations": [
+        {
+          "allocationId": "allocation-1",
+          "observedState": "idle"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "observations-exceed-capacity",
+    "type": "AgentRegistration",
+    "patch": {
+      "allocationSlots": 1,
+      "observedState": "allocated",
+      "allocations": [
+        {
+          "allocationId": "allocation-0",
+          "observedState": "allocated"
+        },
+        {
+          "allocationId": "allocation-1",
+          "observedState": "allocated"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "addressed-release",
+    "type": "HeartbeatResponse",
+    "patch": {
+      "allocationActions": [
+        {
+          "allocationId": "allocation-1",
+          "action": "release"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "duplicate-action-id",
+    "type": "HeartbeatResponse",
+    "patch": {
+      "allocationActions": [
+        {
+          "allocationId": "allocation-1",
+          "action": "release"
+        },
+        {
+          "allocationId": "allocation-1",
+          "action": "drain"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "process-reregister-with-action",
+    "type": "HeartbeatResponse",
+    "patch": {
+      "action": "reregister",
+      "allocationActions": [
+        {
+          "allocationId": "allocation-1",
+          "action": "release"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "too-many-actions",
+    "type": "HeartbeatResponse",
+    "patch": {
+      "allocationActions": [
+        {
+          "allocationId": "allocation-0",
+          "action": "drain"
+        },
+        {
+          "allocationId": "allocation-1",
+          "action": "drain"
+        },
+        {
+          "allocationId": "allocation-2",
+          "action": "drain"
+        },
+        {
+          "allocationId": "allocation-3",
+          "action": "drain"
+        },
+        {
+          "allocationId": "allocation-4",
+          "action": "drain"
+        },
+        {
+          "allocationId": "allocation-5",
+          "action": "drain"
+        },
+        {
+          "allocationId": "allocation-6",
+          "action": "drain"
+        },
+        {
+          "allocationId": "allocation-7",
+          "action": "drain"
+        },
+        {
+          "allocationId": "allocation-8",
+          "action": "drain"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "old-singular-field",
+    "type": "AgentHeartbeat",
+    "patch": {
+      "allocationId": "allocation-1"
+    },
+    "valid": false
+  }
+]

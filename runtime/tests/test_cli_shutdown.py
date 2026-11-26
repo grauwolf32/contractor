@@ -95,10 +95,10 @@ class ShutdownRuntime:
                     await owner.step("watchdog")
 
         class Allocation(runtime_cli.AllocationService):
-            async def expire_control_lease(self, remaining):
+            async def close(self, remaining):
                 owner.budgets.append(remaining)
                 await owner.step("allocation")
-                await super().expire_control_lease(remaining)
+                await super().close(remaining)
 
         class Server(FakeServer):
             async def serve(self):

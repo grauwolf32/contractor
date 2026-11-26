@@ -5,11 +5,11 @@
     "source-review": "sha256:fd34e2cfe7b920874b8bbf64fd770ee0cda19d2ad0b202895d985380e0f1ae1e"
   },
   "catalogFiles": {
-    "catalog/agent-templates/context-eval-controlled-compact.yaml": "sha256:35ded4a628a7caa65b216d361d3cf4e566752e0433b7eeb6242ceecbb0a0121f",
-    "catalog/agent-templates/context-eval-masking.yaml": "sha256:d34abbfc5a015f4406ffda607448b30c864c39bc2441724b2f1d3df7f0b6ab3d",
-    "catalog/agent-templates/context-eval-terminal-off.yaml": "sha256:d3837a5c8825b63d513c624ac892ff6d1b5df21209ce14ff4b13659b3c9bb825",
-    "catalog/agent-templates/context-eval-terminal-on.yaml": "sha256:2ade8aa5d253ac3076f5348f386272497ffecd6c33fca5a3a3bc09c0957e0a7a",
-    "catalog/agent-templates/context-eval-worker.yaml": "sha256:55e50961fa514ab6f87ae87b53086c03ad863fc98156e95701ec8060a9c2155b",
+    "catalog/agent-templates/context-eval-controlled-compact.yaml": "sha256:bab8b85ea6d014d11b097670dce91a22aeda0d31abee172c30f41a8d6f989959",
+    "catalog/agent-templates/context-eval-masking.yaml": "sha256:7917690a5e1a9460307afd2246aa8d7d003b85b1c97a5105421e7834885e616c",
+    "catalog/agent-templates/context-eval-terminal-off.yaml": "sha256:cffc7e1a48c3099b0652e1ed0dcca6834bc10657e0e1f541889d84f2fde52d7e",
+    "catalog/agent-templates/context-eval-terminal-on.yaml": "sha256:b9a4701b2904c7a213dcf057cae32219c7d8aa5a7dba902f30942b10d2c40df9",
+    "catalog/agent-templates/context-eval-worker.yaml": "sha256:367ab937492856aba57b3936e8b62ef0f620ef49b9fdf185d1f3910f26d697bf",
     "catalog/instructions/context-eval-task.md": "sha256:d6a667f7e2d714060923a982521fe961f7ee653dbbf42af411ef9c84d755111d",
     "catalog/instructions/context-eval-worker.md": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
     "catalog/workflows/context-eval-compact-off.yaml": "sha256:415b390ddb5a465eda912ee6a3af5e7cfc00227e78b38537effcc55bd032ce6a",
@@ -44,7 +44,7 @@
   },
   "repetitions": 5,
   "schemaVersion": "context-compaction-variants/v1",
-  "scorerSha256": "sha256:9af3551e652f0b3819c319e2df52d47592389ddbf7705e10de9801c6e452025f",
+  "scorerSha256": "sha256:989fac9ade1ff2f3e4d6a6f61b08628a0efd69d606a3be4c0b6675edbfce3623",
   "thresholds": {
     "maxQualityDrop": 0,
     "maxTokenRatio": 1.0,

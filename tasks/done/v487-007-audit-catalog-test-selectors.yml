@@ -1,0 +1,76 @@
+schema_version: '1.0'
+id: V487-007
+title: Follow the shipped AuditProfile identities in catalog acceptance tests
+milestone: runtime-allocation-slots-2026-11
+epic: execution-core
+kind: chore
+introduced_by: V480-001
+priority: P2
+status: completed
+depends_on: []
+languages:
+- go
+- python
+- typescript
+goal: Existing catalog acceptance tests resolve the shipped immutable identities and can exercise their
+  domain assertions.
+context:
+  authority: User request 2026-11-25 authorizes completing multi-slot execution groups 2 and 3. The full
+    Go gate exposed stale test selectors before integrated acceptance.
+  finding: tests/eval/audit_programs/common_catalog_test.go:21 and http_engagement_test.go:40 request
+    absent source-checklist@4 and WSTG HTTP @4 objects. Current manifests expose source-checklist@3 and
+    both HTTP profiles at @1.
+  specification: docs/spec/configuration/catalog.md
+  bootstrap_finding: The corrected HTTP profile requires skills/auth; the fixture initialized standards
+    but omitted ordinary Skill bundle initialization. Reuse agentskills.Catalog.Initialize before admission.
+  history: V480-001 reset supplied catalog identities and required updating consumers; Git history is
+    squashed at 14dddad611a579c7a8611ecdb5727ec3647b58ad. No publication or catalog content changes are
+    needed.
+  sibling_finding: 'Release UI-stack verification exposed the same stale exact identity in tests/ui-stack/evals_producer.py:368
+    and its standard-library fixture: audit-source-check@1 instead of the current source-checklist profile
+    pinned audit-source-check@3. Reopen the task to fix both strict expectations; do not relax result
+    or evidence validation. The real Operations browser journey also pins absent owasp-top10-2025-source-risk@1
+    in ui/e2e/support/finding-duplicates.ts:101; the current shipped profile is @3. Follow that exact
+    pin as well.'
+scope:
+  in:
+  - Correct every absent sibling exact selector and the matching HTTP draft selector in the existing catalog
+    tests.
+  - Seed the current required Skill bundles through the existing catalog initializer before HTTP Audit
+    admission.
+  - Follow the current audit-source-check@3 pin in the managed Eval producer and its standard-library
+    evidence fixture.
+  - Correct the exact top10 source-risk profile in the browser finding-correlation fixture.
+  out:
+  - Catalog manifests and lock
+  - domain expectations
+  - live evaluation data.
+acceptance_criteria:
+- id: A1
+  text: Common assertion and trusted HTTP engagement tests resolve the exact shipped profiles and retain
+    all domain assertions.
+- id: A2
+  text: The full audit_programs package passes with real PostgreSQL.
+tests:
+- command: go test ./tests/eval/audit_programs
+  covers:
+  - A1
+  - A2
+- command: make test-release-ui-stack-a test-release-ui-stack-b
+  covers:
+  - A1
+  - A2
+implementation_commit: 77c195d3cba24592835d1c2ce50d06964ba64022
+verification:
+  result: passed
+  commands:
+  - command: make test-release-ui-stack-a
+    result: all 12 root cases passed; actual Operations journey verifies 117 browser cases, scanner widget
+      1, native Eval 1, plus exact staged configuration/tool contracts. No skipped, unexpected or flaky
+      selected browser cases.
+  - command: make test-release-ui-stack-b
+    result: external managed Workflow/Audit journey passed, 89.704 seconds, with one executed browser
+      case and owner-boundary assertions.
+  - command: go test ./tests/eval/audit_programs
+    result: passed against disposable PostgreSQL; selectors remain exact and ordinary required Skill initialization
+      is preserved.

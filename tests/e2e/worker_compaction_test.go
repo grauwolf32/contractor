@@ -206,7 +206,7 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 	runtimeProcess := startProcess(
 		t, "Worker compaction Python Runtime", filepath.Join(repositoryRoot, "runtime"),
 		map[string]string{"PYTHONUNBUFFERED": "1"},
-		python, "-m", "contractor_runtime",
+		python, "-m", "contractor_runtime", "--allocation-slots", "1",
 		"--control-plane-url", privateBaseURL,
 		"--advertised-control-url", runtimeBaseURL,
 		"--advertised-a2a-url", runtimeBaseURL,
@@ -233,7 +233,7 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 		observerURL = "https://" + address
 		observerWork = filepath.Join(temporaryRoot, "observer-work")
 		observerProcess = startProcess(t, "Router observer Python Runtime", filepath.Join(repositoryRoot, "runtime"), map[string]string{"PYTHONUNBUFFERED": "1"},
-			python, "-m", "contractor_runtime", "--control-plane-url", privateBaseURL,
+			python, "-m", "contractor_runtime", "--allocation-slots", "1", "--control-plane-url", privateBaseURL,
 			"--advertised-control-url", observerURL, "--advertised-a2a-url", observerURL,
 			"--ca-file", caPaths.Certificate, "--certificate-file", paths.Certificate,
 			"--private-key-file", paths.PrivateKey, "--listen", address, "--work-root", observerWork,

@@ -1,0 +1,256 @@
+schema_version: '1.0'
+id: V487-005
+title: Verify isolation cleanup and memory benefit of the multi-slot Runtime
+milestone: runtime-allocation-slots-2026-11
+epic: execution-core
+kind: chore
+priority: P2
+status: completed
+depends_on:
+- V487-002
+- V487-003
+- V487-004
+languages:
+- python
+- go
+- markdown
+goal: Accept the integrated outcome with reproducible real-component evidence, resource isolation/cleanup,
+  a memory comparison and an explicit review of production complexity.
+demonstration: Run four mixed allocations in one Runtime through real Server/PostgreSQL, exercise replacement
+  and failure cleanup, then compare four capacity-1 processes to one capacity-4 process on the same build
+  and workload.
+context:
+  proposal: docs/proposals/0057-runtime-allocation-slots.md
+  specification:
+  - docs/spec/execution/control-plane.md
+  - docs/spec/execution/runtime-agent.md
+  - docs/spec/tools/http-caido.md
+  - docs/spec/tools/code-execution.md
+  - docs/spec/platform/observability.md
+  - docs/testing/README.md
+  authority: 'User decisions 2026-11-25 authorize this planning package: first verify session isolation
+    in one shared mitmproxy engine, then multiple allocations in one Runtime with per-Runtime startup
+    capacity, Runtime-owned HTTP and Podman resources, mandatory cleanup and a shared Artifact cache.
+    User additionally requires minimizing code growth and reducing code where possible. Agent proposals
+    are --allocation-slots, range 1..4, default 4, and the implementation decomposition below. The initial
+    planning package left implementation pending until the explicit assignment below. User follow-up 2026-11-25
+    requests grouping and execution in the minimum number of passes. Execution groups are isolation assessment,
+    coordinated resource/capacity implementation, and integrated acceptance. User instruction 2026-11-25
+    explicitly authorizes completing execution groups 2 and 3 end to end, simplifying and reducing code
+    and reusing existing mechanisms wherever possible.'
+  test_command_contract: Introduce the memory experiment command with actual process startup/teardown
+    and redacted reproducible evidence. It must fail unavailable prerequisites rather than substitute
+    synthetic measurements. Deterministic scenarios are required in the release graph.
+  execution_group: 3
+  verification_execution: Complete the existing 12 release stages, reusing the already executed integrated-build
+    reports and retrying failed targets after their prerequisites are repaired. Record original failures
+    and subsequent passing evidence without claiming a failed top-level invocation succeeded. Keep the
+    full release exit requirement, real Linux rootless Podman, real PostgreSQL, memory comparison, complexity
+    review and final owned-resource cleanup. Family targets skipped by RELEASE_CONSOLIDATED and disabled
+    optional heavy-I/O cases are not passing coverage.
+  measurement_design: Use the existing real Server/Runtime/PostgreSQL placement process harness and its
+    registered four-slot test root through an explicit opt-in measurement branch. Compile one test binary,
+    alternate 4x1 and 1x4 across three repetitions, and run four identical model-free external scanner
+    Workers behind warmup/load/release barriers. Enable the same local-workspace capability and process-owned
+    archive cache in both layouts. Sample Runtime and descendant RSS/PSS/private memory on Linux; exclude
+    the identical fixture Server/driver. Report CPU-work throughput/latency and authoritative heartbeat
+    progress, bounds and uncertainty. This measures registered process overhead under the stated scanner
+    workload; separate real HTTP/Podman/cache acceptance covers their isolation, without treating these
+    numbers as their peak-load memory budget. Use the same pinned rootless Podman capability in both layouts
+    so the process-tree measurements include each Runtime-owned backend, alongside scanner children; the
+    external scanner workload creates no workload containers.
+scope:
+  in:
+  - Integrated acceptance matrix and persistent redacted evidence covering V487-001 through V487-004 through
+    normal entry points.
+  - Register required deterministic scenarios in the existing release verification graph/report checks
+    and fail empty selections.
+  - Same-build Linux memory measurements including child processes and a review of removed/added production
+    code.
+  out:
+  - Live-model quality evaluation and demo deployment.
+  - Any new feature needed by a failed acceptance case must be recorded in a separate prerequisite task
+    before fixing it.
+requirements:
+- id: R1
+  text: Use testdata fixtures and deterministic barriers/injected clocks. Regression cases observe the
+    real boundary and detect cross-owner misrouting. Count executed cases, fail empty selection, and report
+    skips explicitly. Ordinary database regressions require real PostgreSQL. Heavy-I/O stays opt-in.
+- id: R2
+  text: Run the original shared-engine isolation matrix after production integration, using same-origin
+    conflicting credentials/cookies/trust, invalid/old scanner tokens, concurrent HTTP/2 and cleanup during
+    TLS callbacks.
+- id: R3
+  text: Exercise mixed capacities, four-active/fifth-waits, multi-Worker Stage placement, cache leader/waiter
+    cancellation, prepare rollback, lost lifecycle replies, principal replacement, lease expiry, process
+    shutdown and owner failure. Observe resources and authoritative Server outcomes.
+- id: R4
+  text: Use real Linux rootless Podman and one disposable PostgreSQL database for the lane. Stop processes
+    before dropping the owned database and remove only owned test containers/volumes/networks.
+- id: R5
+  text: Compare four capacity-1 Runtime processes with one capacity-4 Runtime on the same revision, capabilities,
+    exact inputs and warmup/load phases. Report aggregate PSS/private memory/RSS including helper processes,
+    throughput/latency and heartbeat progress, with methodology and uncertainty. No fixed savings threshold
+    is assumed.
+- id: R6
+  text: Review production diff separately from test/generated/docs changes, enumerate removed old mechanisms
+    and justify added abstractions by real callers. Simplification must preserve demonstrated ownership
+    and failure contracts. Passing infrastructure checks alone does not close the user outcome.
+- id: R7
+  text: Record what is merged, unmerged and unverified. An unavailable ordinary PostgreSQL/Podman case
+    leaves acceptance incomplete. Optional heavy-I/O skips are recorded separately.
+failure_outcomes:
+- operation: Acceptance run and resource measurement
+  permanent: Failed invariant records a reproducible blocker and the task stays in_progress until remedied
+    and rerun.
+  retryable: Retry an infrastructure setup failure after diagnosing it, with bounded setup and separate
+    reporting.
+  ambiguous: Inspect existing fixture ownership and persisted outcomes before recreating resources.
+  cancelled: Harness joins all owned processes and inventories its resources.
+  timeout: Existing test/operation bounds identify the failing phase, cleanup remains owned and recorded.
+cardinality:
+- collection: Acceptance topology
+  expected: One capacity-4 Runtime or four capacity-1 Runtime processes
+  maximum: Mixed 1/2/4 fleet for placement cases, explicit bounded workload per case
+  bound: Record case counts and limits, use barriers for correctness and observations for performance,
+    keep cache stress within existing quotas.
+lifecycle:
+- entity: Acceptance resources and evidence
+  delete: Lane owner stops pools/processes before dropping its disposable database and deleting its containers.
+  cascade: Only owned test resources.
+  retention: Redacted reports, exact commands, revisions and aggregate measurements in tasks/evidence.
+acceptance_criteria:
+- id: A1
+  given: Integrated implementation
+  when: Required real-component and shared isolation scenarios run
+  then: Each scenario executes nonzero cases and proves correct allocation ownership, cleanup and Server
+    state, including failure paths.
+- id: A2
+  given: Identical warmed workloads on Linux
+  when: Memory and progress are measured for both process layouts
+  then: Evidence shows aggregate memory, child costs, throughput and latency without inferring per-allocation
+    memory from overlapping process samples.
+- id: A3
+  given: All implementation diffs
+  when: Complexity and contract review executes
+  then: Removed mechanisms and justified growth are documented, required old paths are gone and specifications/API/fixtures
+    agree.
+- id: A4
+  given: Completed acceptance lane
+  when: Resources are inventoried and delivery recorded
+  then: Owned database and Podman resources are removed, mandatory checks are complete, skips and branch/merge
+    status are explicit.
+tests:
+- command: make release-verify-lint
+  covers:
+  - A1
+  - A3
+- command: make release-verify-unit
+  covers:
+  - A1
+  - A3
+- command: make release-verify-ui
+  covers:
+  - A1
+  - A3
+- command: make release-verify-families
+  covers:
+  - A1
+  - A3
+- command: make release-verify-browser-a
+  covers:
+  - A1
+  - A3
+- command: make release-verify-browser-b
+  covers:
+  - A1
+  - A3
+- command: make release-verify-race
+  covers:
+  - A1
+  - A3
+- command: make release-verify-race-discovered
+  covers:
+  - A1
+  - A3
+- command: make release-verify-integration
+  covers:
+  - A1
+  - A3
+- command: make release-verify-process-a
+  covers:
+  - A1
+  - A3
+- command: make release-verify-process-b
+  covers:
+  - A1
+  - A3
+- command: make release-verify-process-c
+  covers:
+  - A1
+  - A3
+- command: make test-podman-release
+  covers:
+  - A1
+  - A4
+- command: cd runtime && uv run python ../scripts/experiments/runtime_multislot_memory.py --output ../tasks/evidence/v487-005-runtime-memory.json
+  covers:
+  - A2
+  - A4
+- command: make lint
+  covers:
+  - A3
+  - A4
+implementation_commit: e55041876c7d970d0c9fc94081303f1bdd1ddf90
+verification:
+  result: passed
+  evidence: tasks/evidence/v487-005-runtime-acceptance.json
+  complexity: tasks/evidence/v487-004-implementation-review.json
+  memory: tasks/evidence/v487-005-runtime-memory.json
+  commands:
+  - command: make release-verify-lint
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-unit
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-ui
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-families
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-browser-a
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-browser-b
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-race
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-race-discovered
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-integration
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-process-a
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-process-b
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make release-verify-process-c
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make test-podman-release
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: cd runtime && uv run python ../scripts/experiments/runtime_multislot_memory.py --output ../tasks/evidence/v487-005-runtime-memory.json
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  - command: make lint
+    result: passed; see exact report provenance, case counts and declared skips in the acceptance evidence
+  linux_runtime: 'Additional whole make test-runtime passed: 6777 tests, 56 declared skips, verify-runtime
+    and 587 selected compaction cases passed. Corrected real scanner preflight passed 58 tests.'
+  memory_result: 'Three alternating pairs of the same four-Worker scanner workload: median total process-tree
+    PSS 762.78 MiB for four capacity-1 Runtimes versus 262.42 MiB for one capacity-4 Runtime, paired median
+    savings 65.62%. Runtime-owned Podman backends and scanner descendants included; per-case processes/slots/containers
+    cleaned.'
+  complexity_result: Production +623 text lines at the pinned source snapshot; superseded ownership paths
+    removed. Existing Artifact cache, lifecycle, receipt and lease mechanisms reused; no database migration
+    or new table.
+  cleanup: 'Passed: all lane applications stopped, fixture databases and anchor database dropped, isolated
+    PostgreSQL cluster stopped and owned directories removed, dedicated Linux user/rootless storage/setup/tag
+    removed. All 13 shared rootful container IDs preserved; shared image content preserved.'
+  optional_heavy_io: Not enabled; disabled skips are not passing coverage. No ordinary PostgreSQL/Podman
+    case remains unavailable.
+  delivery: codex/runtime-multislot-proposal is unmerged. The primary checkout and its unrelated user
+    work are untouched. No deployment or live-model evaluation.

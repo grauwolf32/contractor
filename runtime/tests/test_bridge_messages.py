@@ -9,12 +9,12 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fakes.engagement_socket import SocketTarget, preflight, tls_contexts
+from fakes.http_transport import HTTPTransport
 from fakes.native_http import NativeTarget
 from test_http_proxy_bridge import Owner
 
 from contractor_runtime.adapters.bridge import HTTPProxyBridge
 from contractor_runtime.adapters.http_session import PrivateResponse
-from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.core.target_policy import TargetPolicyConfig
 
 
@@ -86,7 +86,9 @@ def test_native_ipv6_components_pass_equality_before_connect(monkeypatch, port):
     from fakes.engagement_socket import socket_spec
     from mitmproxy.net.http import http1
 
-    from contractor_runtime.adapters.bridge.mitmproxy import MitmproxyEngine
+    from contractor_runtime.adapters.bridge.mitmproxy.engine import (
+        MitmproxySession as MitmproxyEngine,
+    )
 
     origin = "http://[fd00::1]" + (f":{port}" if port != 80 else "")
     spec = socket_spec(SimpleNamespace(origin=origin, address="10.20.0.8"))
@@ -144,7 +146,7 @@ def test_scanner_response_keeps_bodyless_framing(status, method, length):
                 assert response.headers.get("content-length") == length
         finally:
             if owner.engine:
-                await owner.engine.close()
+                await owner.runtime_engine.close()
 
     run(scenario)
 
@@ -171,13 +173,15 @@ def test_scanner_gzip_response_is_decoded_once():
                 assert int(response.headers["content-length"]) == len(body)
         finally:
             if owner.engine:
-                await owner.engine.close()
+                await owner.runtime_engine.close()
 
     run(scenario)
 
 
 def test_native_component_tampering_is_denied_before_target_bytes(monkeypatch):
-    from contractor_runtime.adapters.bridge.mitmproxy import MitmproxyEngine
+    from contractor_runtime.adapters.bridge.mitmproxy.engine import (
+        MitmproxySession as MitmproxyEngine,
+    )
 
     original = MitmproxyEngine.handle_hook
 
@@ -224,6 +228,6 @@ def test_ingress_preserves_absolute_empty_query_and_rejects_http10():
                 assert owner.calls[0][0] == "http://nonresolving.invalid/allowed;p?"
         finally:
             if owner.engine:
-                await owner.engine.close()
+                await owner.runtime_engine.close()
 
     run(scenario)

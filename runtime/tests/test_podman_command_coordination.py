@@ -7,6 +7,7 @@ import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fakes.allocation import allocation_context
 from fakes.podman_lifecycle import owner
 from platform_markers import linux_podman
 from test_podman_allocation import finalization, release, service_for
@@ -43,10 +44,12 @@ def test_commands_serialize_with_disk_reads_and_edits_until_completion_check(tmp
         async with owner(tmp_path) as fixture:
             service, _state, spec, _events, _exits = await service_for(tmp_path, fixture)
             await service.prepare(spec)
-            context = service._context
+            context = allocation_context(service)
             commands = Commands()
             fixture.backend.commands = commands
-            commands.edit = lambda: (fixture.backend.entry.root / "src/main.py").write_text("new")
+            commands.edit = lambda: (
+                next(iter(fixture.backend.entries.values())).root / "src/main.py"
+            ).write_text("new")
             executing = asyncio.create_task(
                 context.execution.executor.execute(
                     ExecutionRequest("exact; shell syntax", "src"), deadline=deadline()
@@ -60,7 +63,9 @@ def test_commands_serialize_with_disk_reads_and_edits_until_completion_check(tmp
             result = await executing
             assert result.exit_code == 0 and await read == "new"
             await context.project_workspace.write_text("src/main.py", "edited")
-            assert (fixture.backend.entry.root / "src/main.py").read_text() == "edited"
+            assert (
+                next(iter(fixture.backend.entries.values())).root / "src/main.py"
+            ).read_text() == "edited"
             assert commands.calls[0][1:3] == ("exact; shell syntax", "src")
             assert [op for op, *_ in fixture.guardians[0].requests].count("check") >= 3
             await service.finalize(finalization(spec))
@@ -74,7 +79,7 @@ def test_command_remains_available_after_confirmed_noop_write_failure(tmp_path, 
         async with owner(tmp_path) as fixture:
             service, _state, spec, _events, _exits = await service_for(tmp_path, fixture)
             await service.prepare(spec)
-            context = service._context
+            context = allocation_context(service)
             project = context.project_workspace
             original = os.write
 
@@ -109,7 +114,7 @@ def test_renewed_lease_window_does_not_cap_the_command_deadline(tmp_path):
             fixture.lease_seconds = 1.0
             service, _, spec, _, _ = await service_for(tmp_path, fixture)
             await service.prepare(spec)
-            context = service._context
+            context = allocation_context(service)
             commands = Commands()
             commands.resume.set()
             fixture.backend.commands = commands
@@ -133,7 +138,7 @@ def test_operator_maximum_still_bounds_the_command_deadline(tmp_path):
         async with owner(tmp_path) as fixture:
             service, _, spec, _, _ = await service_for(tmp_path, fixture)
             await service.prepare(spec)
-            context = service._context
+            context = allocation_context(service)
             commands = Commands()
             commands.resume.set()
             fixture.backend.commands = commands
@@ -164,7 +169,7 @@ def test_lease_loss_during_command_revokes_it_promptly(tmp_path):
         async with owner(tmp_path) as fixture:
             service, _, spec, _, _ = await service_for(tmp_path, fixture)
             await service.prepare(spec)
-            context = service._context
+            context = allocation_context(service)
             commands = RevocableCommands()
             fixture.backend.commands = commands
             executing = asyncio.create_task(
@@ -192,10 +197,12 @@ def test_symlink_cwd_is_nonfatal_and_launches_nothing(tmp_path):
         async with owner(tmp_path) as fixture:
             service, _, spec, _, _ = await service_for(tmp_path, fixture)
             await service.prepare(spec)
-            context = service._context
+            context = allocation_context(service)
             commands = Commands()
             fixture.backend.commands = commands
-            (fixture.backend.entry.root / "link").symlink_to("src", target_is_directory=True)
+            (next(iter(fixture.backend.entries.values())).root / "link").symlink_to(
+                "src", target_is_directory=True
+            )
             result = await context.execution.executor.execute(
                 ExecutionRequest("true", "link"), deadline=deadline()
             )
@@ -213,7 +220,7 @@ def test_waiter_timeout_or_cancel_never_releases_running_writer(tmp_path, cancel
         async with owner(tmp_path) as fixture:
             service, _, spec, _, _ = await service_for(tmp_path, fixture)
             await service.prepare(spec)
-            context = service._context
+            context = allocation_context(service)
             guard = context.project_workspace.execution_guard
             commands = Commands()
             fixture.backend.commands = commands
@@ -252,7 +259,7 @@ def test_failed_transport_stops_entire_container_before_return(tmp_path, code):
         async with owner(tmp_path) as fixture:
             service, _, spec, _, _ = await service_for(tmp_path, fixture)
             await service.prepare(spec)
-            context = service._context
+            context = allocation_context(service)
             commands = Commands()
             commands.result = CommandCapture(None, b"partial", b"", 7, 0, code)
             commands.resume.set()
@@ -275,7 +282,7 @@ def test_deadline_waiting_for_guard_launches_nothing_and_cannot_revive(tmp_path)
         async with owner(tmp_path) as fixture:
             service, _, spec, _, _ = await service_for(tmp_path, fixture)
             await service.prepare(spec)
-            context = service._context
+            context = allocation_context(service)
             commands = Commands()
             fixture.backend.commands = commands
             guard = context.project_workspace.execution_guard
@@ -304,7 +311,6 @@ def test_deadline_waiting_for_guard_launches_nothing_and_cannot_revive(tmp_path)
 
 
 def test_selected_execution_changes_analysis_and_explicit_artifact_publication(tmp_path):
-    import base64
     from dataclasses import replace
 
     from test_code_analysis_shallow import _tools as analysis_tools
@@ -345,13 +351,13 @@ def test_selected_execution_changes_analysis_and_explicit_artifact_publication(t
             ]
             spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
             await service.prepare(spec)
-            context = service._context
+            context = allocation_context(service)
             assert context.tools["exec_command"]._executor is context.execution.executor
             commands = Commands()
             commands.resume.set()
-            commands.edit = lambda: (fixture.backend.entry.root / "src/main.py").write_text(
-                "def generated():\n    return 42\n"
-            )
+            commands.edit = lambda: (
+                next(iter(fixture.backend.entries.values())).root / "src/main.py"
+            ).write_text("def generated():\n    return 42\n")
             fixture.backend.commands = commands
             analyses, _ = await analysis_tools(context.project_workspace.reader_view(), tmp_path)
             try:
@@ -359,17 +365,19 @@ def test_selected_execution_changes_analysis_and_explicit_artifact_publication(t
                 assert (await context.tools["exec_command"]("generate"))["exitCode"] == 0
                 found = await analyses["search_def"]("generated")
                 assert [row["name"] for row in found["items"]] == ["generated"]
-                content = await context.project_workspace.read_text("src/main.py")
+                assert (
+                    await context.project_workspace.read_text("src/main.py")
+                    == "def generated():\n    return 42\n"
+                )
                 written = await context.tools["write_artifact"](
-                    "builder", "report", "text/plain", base64.b64encode(content.encode()).decode()
+                    "builder", "report", "src/main.py", "text/plain"
                 )
                 assert written["artifact"]["revision"]
                 # The existing client, not the sandbox, owns the write fence.
                 write_artifact = context.tools["write_artifact"]
                 client.write_error = ArtifactAPIError(409, "allocation_write_fenced", False)
-                await service.finalize(finalization(spec))
                 with pytest.raises(ArtifactAPIError, match="allocation_write_fenced"):
-                    await write_artifact("builder", "report", "text/plain", "eA==")
+                    await write_artifact("builder", "report", "src/main.py", "text/plain")
             finally:
                 for tool in analyses.values():
                     await tool.close()

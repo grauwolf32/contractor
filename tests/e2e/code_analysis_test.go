@@ -131,7 +131,7 @@ func TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	initialAgents, initialSnapshot := waitForObservedRuntimeAgents(
 		t, ctx, server, []*childProcess{memoryRuntime}, publicClient, publicBaseURL,
 		func(items []observedRuntimeAgent) bool {
-			return len(items) == 1 && items[0].SlotState == "idle" &&
+			return len(items) == 1 && items[0].State == "idle" &&
 				items[0].ConfirmedLeaseUntil != nil
 		},
 	)
@@ -273,8 +273,8 @@ func TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 				return false
 			}
 			for _, item := range items {
-				if item.SlotState != "idle" || item.ObservedState != "idle" || item.ConfirmedLeaseUntil == nil ||
-					item.CurrentAllocationID != nil || item.AuthoritativeAllocationID != nil {
+				if item.State != "idle" || item.ObservedState != "idle" || item.ConfirmedLeaseUntil == nil ||
+					len(item.ObservedAllocations) != 0 || len(item.AuthoritativeAllocationIDs) != 0 {
 					return false
 				}
 			}
@@ -305,8 +305,8 @@ func TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 				return false
 			}
 			for _, item := range items {
-				if item.SlotState != "idle" || item.ObservedState != "idle" || item.ConfirmedLeaseUntil == nil ||
-					item.CurrentAllocationID != nil || item.AuthoritativeAllocationID != nil {
+				if item.State != "idle" || item.ObservedState != "idle" || item.ConfirmedLeaseUntil == nil ||
+					len(item.ObservedAllocations) != 0 || len(item.AuthoritativeAllocationIDs) != 0 {
 					return false
 				}
 			}
@@ -351,7 +351,7 @@ func startCodeAnalysisRuntime(
 ) *childProcess {
 	t.Helper()
 	args := []string{
-		"-m", "contractor_runtime",
+		"-m", "contractor_runtime", "--allocation-slots", "1",
 		"--control-plane-url", controlPlaneURL,
 		"--advertised-control-url", advertisedURL,
 		"--advertised-a2a-url", advertisedURL,

@@ -57,8 +57,8 @@ async def allocation(tmp_path, *, sandbox_profile=PODMAN_PROFILE, **limits):
             await handle.prepare(deadline=deadline())
             yield handle, session, root
         finally:
-            if lifecycle._entry is not None:
-                await lifecycle._entry.remove(deadline=deadline())
+            if lifecycle._entries:
+                await next(iter(lifecycle._entries.values())).remove(deadline=deadline())
             await lifecycle.close(deadline=time.monotonic() + 30)
 
 
@@ -196,5 +196,93 @@ def test_real_cancelled_command_stops_writers_in_both_profiles(tmp_path, sandbox
             assert not (root / "survived").exists()
             await handle.remove(deadline=deadline())
             assert handle.stopped.is_set()
+
+    asyncio.run(scenario())
+
+
+def test_real_four_allocations_share_one_owner_and_cleanup_preserves_neighbors(tmp_path):
+    from contextlib import AsyncExitStack
+
+    from contractor_runtime.sandbox.contracts import SandboxContractError
+
+    async def scenario():
+        image = os.environ.get("CONTRACTOR_TEST_PODMAN_IMAGE")
+        assert image
+        policy = PodmanSettings(enabled=True, image=image, owner="slots-gate-" + uuid.uuid4().hex)
+        lifecycle = PodmanLifecycle(policy)
+        lifecycle.bind_health(lambda: time.monotonic() + 60, lambda: None)
+        jobs = []
+        async with AsyncExitStack() as stack:
+            try:
+                await lifecycle.recover(deadline=time.monotonic() + 30)
+                process = lifecycle._client.process
+                handles = []
+                roots = []
+                for index in range(4):
+                    session, root = await stack.enter_async_context(
+                        workspace(tmp_path / str(index))
+                    )
+                    handles.append(lifecycle.allocate(f"allocation-{index}", session))
+                    roots.append(root)
+                await asyncio.gather(*(handle.prepare(deadline=deadline()) for handle in handles))
+                for index, handle in enumerate(handles):
+                    jobs.append(
+                        asyncio.create_task(
+                            handle.executor.execute(
+                                ExecutionRequest(
+                                    "printf started > started; "
+                                    "while [ ! -f release ]; do sleep 0.05; done; "
+                                    f"printf allocation-{index}",
+                                    "",
+                                ),
+                                deadline=deadline(),
+                            )
+                        )
+                    )
+                async with asyncio.timeout(10):
+                    while not all((root / "started").exists() for root in roots):
+                        assert all(not job.done() for job in jobs)
+                        await asyncio.sleep(0.02)
+                assert len(lifecycle._entries) == 4 and lifecycle._client.process is process
+                await handles[0].remove(deadline=deadline())
+                result = await asyncio.gather(jobs[0], return_exceptions=True)
+                assert (
+                    isinstance(result[0], SandboxContractError) or result[0].error_code is not None
+                )
+                assert len(lifecycle._entries) == 3 and process.poll() is None
+                for root in roots[1:]:
+                    (root / "release").touch()
+                results = await asyncio.gather(*jobs[1:])
+                assert [result.stdout for result in results] == [
+                    f"allocation-{i}" for i in range(1, 4)
+                ]
+                assert all(result.exit_code == 0 for result in results)
+                stale = await handles[0].executor.execute(
+                    ExecutionRequest("printf stale > stale.txt", ""), deadline=deadline()
+                )
+                assert stale.error_code == SandboxErrorCode.UNAVAILABLE
+                assert not (roots[0] / "stale.txt").exists()
+                session, root = await stack.enter_async_context(workspace(tmp_path / "fifth"))
+                fifth = lifecycle.allocate("allocation-fifth", session)
+                await fifth.prepare(deadline=deadline())
+                result = await fifth.executor.execute(
+                    ExecutionRequest("printf fifth", ""), deadline=deadline()
+                )
+                assert result.stdout == "fifth" and result.exit_code == 0
+                assert lifecycle._client.process is process and len(lifecycle._entries) == 4
+            finally:
+                for root in locals().get("roots", []):
+                    (root / "release").touch()
+                await lifecycle.close(deadline=time.monotonic() + 30)
+                await asyncio.gather(*jobs, return_exceptions=True)
+        assert process.poll() == 0 and not lifecycle._entries
+        inspector = __import__(
+            "contractor_runtime.sandbox.podman.engine", fromlist=["PodmanEngine"]
+        ).PodmanEngine(policy)
+        await inspector.open(deadline=time.monotonic() + 10)
+        try:
+            assert await inspector.discover(deadline=time.monotonic() + 10) == ()
+        finally:
+            await inspector.close(deadline=time.monotonic() + 10)
 
     asyncio.run(scenario())

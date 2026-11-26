@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock
 
 import psutil
 import pytest
+from fakes.allocation import allocation_context
 from fakes.model import scripted_model, tool_call
 from fakes.process_markers import atomic_marker_source
 from fakes.spec import allocation_spec
@@ -99,7 +100,7 @@ def test_source_abort_and_release_join_file_work_before_reusing_slot(
         ]
         spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
         await service.prepare(spec)
-        context = service._context
+        context = allocation_context(service)
         assert context is not None and context.worker is not None
         assert context.execution is None  # Ordinary local-workdir has no process supervisor.
         workspace = context.workspace.path

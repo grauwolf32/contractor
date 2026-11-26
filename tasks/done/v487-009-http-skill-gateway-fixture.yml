@@ -1,0 +1,82 @@
+schema_version: '1.0'
+id: V487-009
+title: Follow configured native Skills in process Gateway fixtures
+milestone: runtime-allocation-slots-2026-11
+epic: http-tools
+kind: chore
+introduced_by: V485-002
+priority: P2
+status: completed
+depends_on: []
+languages:
+- go
+goal: HTTP and Audit generation process gates accept the exact native Skill tools of their configured
+  Workers.
+context:
+  authority: User request 2026-11-25 authorizes completing multi-slot groups 2 and 3. Integrated HTTP
+    verification exposed this independent fixture prerequisite.
+  finding: tests/e2e/http_caido_gateway_test.go:35 omits list_skills, load_skill and load_skill_resource
+    after V485-002 added the vulns Skill to http_explorer@1. Strict Gateway validation stops before the
+    first HTTP request.
+  siblings: HTTP/Caido and sitemap HTTP collection share the HTTP stage helper; Audit hypothesis continuation
+    and browser research share generationProposalStage. Caido already includes native Skill tools. Passive
+    source templates already selected trace before V485-001, so their native tool set did not change.
+  specification: docs/spec/tools/skills.md
+  sibling_finding: V485-003 also added stride to audit_hypothesis_generator@1; generationProposalStage
+    omits its three native Skill tools. Ordinary continuation and the browser research gate share that
+    helper.
+  additional_sibling_finding: A second exact tool-set fixture in tests/e2e/material_set_process_test.go:23
+    stages audit_hypothesis_generator@1 but omits the same three native Skill tools. Reopen to correct
+    that sibling; the real material-set consumer/proposal scenario failed before model response dispatch.
+scope:
+  in:
+  - Include the three native Skill tools in the exact expected HTTP and hypothesis generator tool sets.
+  - Include the same native Skill tools in the material-set hypothesis-generator Gateway expectation.
+  out:
+  - Runtime tool exports
+  - configured Skills
+  - prompts
+  - models and production contracts.
+acceptance_criteria:
+- id: A1
+  text: Both real-component process scenarios complete with unchanged target, proxy, credential, pinning,
+    recovery and collection assertions.
+- id: A2
+  text: Unexpected tool names still fail the strict Gateway fixture; no actual request is used to derive
+    the expectation.
+tests:
+- command: go test ./tests/e2e
+  covers:
+  - A2
+- command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses)$'
+  covers:
+  - A1
+  - A2
+- command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^TestAuditHypothesisContinuationAcrossProductionProcesses$'
+  covers:
+  - A1
+  - A2
+- command: make test-audit-research-ui
+  covers:
+  - A1
+  - A2
+- command: go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestWorkflowMaterialSetsAcrossProductionProcesses$'
+  covers:
+  - A1
+  - A2
+implementation_commit: 0140f4c474c35faa34839782f9cb4e730e176b43
+verification:
+  result: passed
+  commands:
+  - command: go test ./tests/e2e
+    result: passed
+  - command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses)$'
+    result: both real-component scenarios passed, 147.566 seconds
+  - command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^TestAuditHypothesisContinuationAcrossProductionProcesses$'
+    result: both continuation subcases passed, 168.788 seconds
+  - command: make test-audit-research-ui (release-verify-browser-a)
+    result: continuation and interrupted real browser/process cases passed, 126.97 seconds
+  - command: go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestWorkflowMaterialSetsAcrossProductionProcesses$'
+    result: passed, 35.803 seconds; exact material-set reads and accepted proposal preserved
+  - command: go test ./tests/e2e
+    result: passed

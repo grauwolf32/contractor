@@ -59,16 +59,16 @@ func (p RuntimeAgentPrincipalProjection) Validate() error {
 			return errors.New("Runtime Agent adapter mismatch has no missing adapter")
 		}
 	case PrincipalAvailable:
-		if len(p.MissingRuntimeAdapters) != 0 || p.Live.SlotState != SlotIdle {
+		if len(p.MissingRuntimeAdapters) != 0 || p.Live.AvailableSlots == 0 {
 			return errors.New("available Runtime Agent principal has incompatible live facts")
 		}
 	case PrincipalBusy:
 		if len(p.MissingRuntimeAdapters) != 0 ||
-			(p.Live.SlotState != SlotReserved && p.Live.SlotState != SlotBusy && p.Live.SlotState != SlotDraining) {
+			(p.Live.AvailableSlots != 0 || (p.Live.State != SlotReserved && p.Live.State != SlotBusy && p.Live.State != SlotDraining)) {
 			return errors.New("busy Runtime Agent principal has incompatible live facts")
 		}
 	case PrincipalSlotUnavailable:
-		if len(p.MissingRuntimeAdapters) != 0 || p.Live.SlotState != SlotFenced {
+		if len(p.MissingRuntimeAdapters) != 0 || p.Live.State != SlotFenced {
 			return errors.New("unavailable Runtime Agent principal has incompatible live facts")
 		}
 	default:
@@ -222,10 +222,10 @@ func (s *PrincipalOperations) projectWithRequired(
 	if len(result.MissingRuntimeAdapters) != 0 {
 		result.Availability = PrincipalAdapterCapabilityMismatch
 	} else {
-		switch live.SlotState {
-		case SlotIdle:
+		switch {
+		case live.AvailableSlots > 0:
 			result.Availability = PrincipalAvailable
-		case SlotReserved, SlotBusy, SlotDraining:
+		case live.State == SlotReserved || live.State == SlotBusy || live.State == SlotDraining:
 			result.Availability = PrincipalBusy
 		default:
 			result.Availability = PrincipalSlotUnavailable

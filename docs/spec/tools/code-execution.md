@@ -910,3 +910,20 @@ spec:
   writable outputs directed to `/workspace` or `/tmp`, is reserved; selection
   and pinning continue to belong to [Skills](skills.md). No global skill
   directory or mutable catalog is mounted.
+
+**EXE-R127.** One Runtime-owned lifecycle and surviving Podman owner manage
+at most four live allocation resources. Containers remain allocation-owned;
+there is no warm pool or container reuse across allocations. Each resource
+uses an independent inherited framed stream and the existing retained
+operation lock, with one shared control stream and health/lease authority.
+No request-ID dispatcher or persistent RPC receipt is required. Commands,
+creation reconciliation, guardian checks, stop and removal address exact
+allocation/container identity. One allocation's slow operation does not hold
+another allocation's stream or engine lock. Rejected or uncertain resources
+remain owned until exact cleanup confirms; shutdown first revokes and joins
+all channels before closing the engine and releasing its ownership lock.
+The close RPC remains owned through health EOF. An error or cancellation
+joins every started allocation removal before cleanup is retried.
+Resource limits remain per container, so four active resources may consume
+four times those configured bounds. Discovery and cleanup select exact owner
+and allocation identities and preserve live neighboring resources.

@@ -9,10 +9,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -158,11 +160,16 @@ func stageManagedEvalConfiguration(t *testing.T, root, target string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value := strings.Replace(string(raw), "  skills:\n    - namespace: skills\n      name: trace", "  skills: []", 1)
-	if string(raw) == value {
-		t.Fatal("Audit fixture skill block changed")
+	var document map[string]any
+	if err := yaml.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
 	}
-	if err = os.WriteFile(path, []byte(value), 0600); err != nil {
+	document["spec"].(map[string]any)["skills"] = []any{}
+	encoded, err := yaml.Marshal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(path, encoded, 0600); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -215,6 +222,26 @@ func TestUIStackConfigurationClosure(t *testing.T) {
 			snapshot, _, err := configload.LoadUnionReadOnly(target, filepath.Join(t.TempDir(), "managed"))
 			if err != nil {
 				t.Fatal(err)
+			}
+			stages := append(openAPIGatewayStages(), correlationProducerStage())
+			for index, selector := range []string{"workspace_source_graph_analyst@1", "workspace_source_graph_analyst@1", "workspace_openapi_builder@1", "workspace_openapi_validator@1", "source_findings_reviewer@1"} {
+				template, err := configloadtest.AgentTemplate(snapshot, selector)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var tools []string
+				for _, selection := range template.Toolsets {
+					tools = append(tools, selection.Tools...)
+				}
+				if len(template.Skills) != 0 {
+					tools = append(tools, "list_skills", "load_skill", "load_skill_resource")
+				}
+				want := slices.Clone(stages[index].tools)
+				slices.Sort(tools)
+				slices.Sort(want)
+				if !slices.Equal(tools, want) {
+					t.Fatalf("%s Gateway tools %v, staged template exposes %v", selector, want, tools)
+				}
 			}
 			stagedWorker, err := snapshot.ModelPolicy("ui-worker@1")
 			expectedWorker := worker

@@ -234,6 +234,39 @@ focused target in addition to its standard integration selection. The full
 `test-git-artifacts` gate also includes it. It remains an opt-in exception of
 the local aggregate release gate, whose prerequisites do not include Podman.
 
+## Multi-slot Runtime memory comparison
+
+The opt-in `scripts/experiments/runtime_multislot_memory.py` runs the existing
+real Server/Runtime/PostgreSQL placement harness on Linux. Provision a rootless
+Podman engine and an exact sandbox image as described in
+[Podman verification](../../deploy/podman/README.md), then set
+`CONTRACTOR_TEST_DATABASE_URL` to the lane's disposable database and
+`CONTRACTOR_TEST_PODMAN_IMAGE` to its pinned image. Run:
+
+```shell
+cd runtime
+uv run --locked python ../scripts/experiments/runtime_multislot_memory.py \
+  --output ../tasks/evidence/v487-005-runtime-memory.json
+```
+
+One compiled process-test binary compares four capacity-1 Runtime processes
+with one capacity-4 process across three alternating-order repetitions. Both
+layouts advertise identical capabilities, including Podman and local workspace
+storage. Four ordinary model-free scanner Workers fetch identical 64 KiB input,
+warm up, then execute fixed SHA256 work behind explicit phase barriers. The
+report includes aggregate Runtime-tree PSS, private memory and RSS, separate
+Podman backend/scanner costs, CPU-work throughput/latency, heartbeat progress
+and confirmed process/container cleanup. The fixture Server/origin/driver and
+existing engine infrastructure are excluded. No workload containers, live model
+or retained HTTP-body load are measured; the archive cache is enabled but empty.
+These numbers measure the stated process overhead, not an allocation memory limit.
+
+Missing prerequisites fail. No fixed savings or throughput threshold is assumed;
+min/median/max and load averages retain sampling and shared-machine uncertainty.
+An exported source tree requires `CONTRACTOR_SOURCE_REVISION` with its full commit
+hash; `CONTRACTOR_RUNTIME_SOURCE_SHA256` can additionally verify the exported
+measurement sources against the originating checkout.
+
 ## Runtime suite on macOS
 
 The ordinary Runtime targets Linux and macOS, while the allocation-scoped

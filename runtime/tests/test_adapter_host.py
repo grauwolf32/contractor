@@ -9,6 +9,7 @@ from types import MappingProxyType
 from typing import Any
 
 import pytest
+from fakes.allocation import allocation_context, allocation_snapshot
 from fakes.spec import allocation_spec
 from fakes.telemetry import SERVER_EXPORT
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory, StubWorkerRuntime
@@ -81,8 +82,8 @@ def test_shared_invalid_last_adapter_is_rejected_and_closed_before_sandbox(
         if with_proxy:
             expected = ["create:http-proxy@1", *expected, "close:http-proxy@1"]
         assert events == expected
-        assert await service.snapshot() is None
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert await allocation_snapshot(service) is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
 
@@ -120,8 +121,8 @@ def test_shared_second_adapter_prepare_failure_rolls_back_first_before_sandbox(
             "create:otlp-http@1",
             "close:http-proxy@1",
         ]
-        assert await service.snapshot() is None
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert await allocation_snapshot(service) is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
     assert TELEMETRY_SECRET not in repr(telemetry)
@@ -158,7 +159,7 @@ def test_shared_hanging_flush_is_metrics_only_and_replayed_lifecycle_is_idempote
         }
         with pytest.raises(TypeError):
             telemetry.contexts[0].run_metadata_labels["eval.id"] = "changed"  # type: ignore[index]
-        snapshot = await service.snapshot()
+        snapshot = await allocation_snapshot(service)
         assert snapshot is not None
         assert snapshot.runtime_adapter_refs == ("otlp-http@1",)
 
@@ -191,7 +192,7 @@ def test_shared_hanging_flush_is_metrics_only_and_replayed_lifecycle_is_idempote
         await service.confirm_release(spec.allocation_id)
         assert events.count("flush:otlp-http@1") == 1
         assert events.count("close:otlp-http@1") == 1
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
         next_spec = configured_spec(telemetry=True).model_copy(
             update={"allocation_id": "allocation-next", "run_id": "run-next"}
@@ -258,13 +259,13 @@ def test_shared_handles_are_injected_explicitly_and_erased_on_confirmed_lease_lo
 
         await service.expire_control_lease(1)
         assert events[-1] == "close:http-proxy@1"
-        snapshot = await service.snapshot()
+        snapshot = await allocation_snapshot(service)
         assert snapshot is not None
         assert not snapshot.has_worker
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
-        assert service._context is not None
-        assert service._context.adapter_host.closed
-        assert service._context.adapter_host.handles.enabled_channels == ()
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
+        assert allocation_context(service) is not None
+        assert allocation_context(service).adapter_host.closed
+        assert allocation_context(service).adapter_host.handles.enabled_channels == ()
 
     asyncio.run(scenario())
 
@@ -355,7 +356,7 @@ def test_shared_caido_handle_is_injected_only_into_selected_toolset_and_erased(
             ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
         )
         await service.confirm_release(spec.allocation_id)
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
 
@@ -377,8 +378,8 @@ def test_shared_caido_channel_without_private_configuration_fails_before_resourc
         with pytest.raises(AllocationError) as failure:
             await service.prepare(configured_spec())
         assert failure.value.code == "caido_not_configured"
-        assert await service.snapshot() is None
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert await allocation_snapshot(service) is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
 
@@ -415,8 +416,8 @@ def test_shared_unconfirmed_adapter_close_fences_slot_and_requests_process_exit(
         assert failure.value.code == "runtime_adapter_close_unconfirmed"
         assert TELEMETRY_SECRET not in str(failure.value)
         assert exits == [70]
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
-        snapshot = await service.snapshot()
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
+        snapshot = await allocation_snapshot(service)
         assert snapshot is not None
         assert snapshot.has_runtime_settings
 
@@ -450,8 +451,8 @@ def test_shared_adapter_secret_in_worker_handle_is_rejected_and_every_resource_r
             "sandbox:cleanup",
             "close:otlp-http@1",
         ]
-        assert await service.snapshot() is None
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert await allocation_snapshot(service) is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
 
@@ -958,7 +959,7 @@ def test_shared_interactsh_channel_without_private_configuration_fails_before_re
         with pytest.raises(AllocationError) as failure:
             await service.prepare(configured_spec())
         assert failure.value.code == "interactsh_not_configured"
-        assert await service.snapshot() is None
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert await allocation_snapshot(service) is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())

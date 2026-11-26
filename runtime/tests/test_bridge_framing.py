@@ -125,6 +125,6 @@ def test_scanner_request_chunk_framing_is_bounded(monkeypatch, name, payload):
                 assert sizes and max(sizes) <= MAX_CONTROLLED_HEADER_BYTES + 65536
         finally:
             if owner.engine:
-                await owner.engine.close()
+                await owner.runtime_engine.close()
 
     run(scenario)

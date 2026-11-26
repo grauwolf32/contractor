@@ -4,7 +4,7 @@ project:
   name: contractor-v2
   objective: >-
     Deliver a single-VM workflow runtime whose Control Plane and public server
-    are implemented in Go and whose single-slot Runtime Agent is implemented in
+    are implemented in Go and whose bounded multi-slot Runtime Agent is implemented in
     Python.
 
 execution_policy:
@@ -374,6 +374,15 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: runtime-allocation-slots-2026-11
+    exit_task: V487-005
+    outcome: >-
+      After proving shared mitmproxy session isolation, one Runtime serves up
+      to four concurrent allocations with startup-configured per-process
+      capacity, Runtime-owned HTTP and Podman services, a shared immutable
+      Artifact archive cache and independently verified allocation cleanup.
+      Real-component acceptance reports memory benefit and production code
+      simplification while preserving session authority and bounded lifecycle.
   - id: skills-vuln-finding-2026-11
     exit_task: V485-003
     outcome: >-

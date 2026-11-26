@@ -16,6 +16,7 @@ import {
   SafeReason,
 } from "../common";
 import { agentDisplayName, availabilityCopy } from "./identity";
+import { observationsAgree } from "./capacity";
 import { AgentLabelsDialog } from "./labels-dialog";
 
 function CapabilityRefs({ values }: { values: string[] }) {
@@ -50,21 +51,16 @@ function AgentLabelChips({ labels }: { labels: readonly string[] }) {
 }
 
 function SlotValue({
-  slotState,
+  live,
 }: {
-  slotState: NonNullable<RuntimeAgentPrincipal["live"]>["slotState"];
+  live: NonNullable<RuntimeAgentPrincipal["live"]>;
 }) {
-  if (slotState === "idle") {
-    return (
-      <>
-        0 / 1 <small>occupied</small>
-      </>
-    );
-  }
-  if (slotState === "fenced") return <>Fenced</>;
   return (
     <>
-      1 / 1 <small>{slotState}</small>
+      {live.allocationSlots - live.availableSlots} / {live.allocationSlots}{" "}
+      <small>
+        occupied · {live.availableSlots} free · {live.fencedSlots} fenced
+      </small>
     </>
   );
 }
@@ -80,7 +76,7 @@ function liveFacts(live: NonNullable<RuntimeAgentPrincipal["live"]>) {
       value: (
         <span className="ops-chips">
           <OperationsState state={live.observedState} />
-          <OperationsState state={live.slotState} />
+          <OperationsState state={live.state} />
         </span>
       ),
     },
@@ -115,12 +111,20 @@ function liveFacts(live: NonNullable<RuntimeAgentPrincipal["live"]>) {
       ),
     },
     {
-      term: "Agent-reported allocation",
-      value: <code>{live.currentAllocationId ?? "None"}</code>,
+      term: "Agent-reported allocations",
+      value: (
+        <code>
+          {live.observedAllocations
+            .map((item) => `${item.allocationId} (${item.observedState})`)
+            .join(", ") || "None"}
+        </code>
+      ),
     },
     {
-      term: "Control Plane allocation",
-      value: <code>{live.authoritativeAllocationId ?? "None"}</code>,
+      term: "Control Plane allocations",
+      value: (
+        <code>{live.authoritativeAllocationIds.join(", ") || "None"}</code>
+      ),
     },
     {
       term: "Reconciliation reason",
@@ -164,18 +168,15 @@ export function AgentCard({
   const [editing, setEditing] = useState(false);
   const live = principal.live;
   const availability = availabilityCopy[principal.availability];
-  const allocation =
+  const assigned =
     live === undefined
-      ? undefined
-      : allocations.find(
+      ? []
+      : allocations.filter(
           (value) =>
-            value.allocationId === live.authoritativeAllocationId &&
+            live.authoritativeAllocationIds.includes(value.allocationId) &&
             value.runtimeAgentInstanceId === live.instanceId,
         );
-  const reconciling =
-    live !== undefined &&
-    (live.currentAllocationId !== live.authoritativeAllocationId ||
-      live.reconciliationReason !== undefined);
+  const reconciling = live !== undefined && !observationsAgree(live);
   return (
     <article
       className="ops-agent-card runtime-principal-card"
@@ -215,7 +216,7 @@ export function AgentCard({
               <p>
                 {live === undefined
                   ? "No current slot observation."
-                  : `Process: ${live.observedState}. Server slot: ${live.slotState}.`}
+                  : `Process: ${live.observedState}. Server slot: ${live.state}.`}
               </p>
               {live?.reconciliationReason === undefined ? null : (
                 <SafeReason reason={live.reconciliationReason} />
@@ -248,7 +249,7 @@ export function AgentCard({
                 : [
                     {
                       term: "Slot occupancy",
-                      value: <SlotValue slotState={live.slotState} />,
+                      value: <SlotValue live={live} />,
                     },
                     {
                       term: "Heartbeat age",
@@ -282,18 +283,22 @@ export function AgentCard({
             >
               Edit labels
             </Button>
-            {allocation === undefined ? null : (
-              <Link to={`/runs/${encodeURIComponent(allocation.runId)}`}>
+            {assigned.map((allocation) => (
+              <Link
+                key={allocation.allocationId}
+                to={`/runs/${encodeURIComponent(allocation.runId)}`}
+              >
                 {allocation.logicalWorker} · Open Run
               </Link>
-            )}
-            {live?.authoritativeAllocationId === undefined ? null : (
+            ))}
+            {live?.authoritativeAllocationIds.map((id) => (
               <Link
-                to={`/operations/allocations#${encodeURIComponent(live.authoritativeAllocationId)}`}
+                key={id}
+                to={`/operations/allocations#${encodeURIComponent(id)}`}
               >
-                Inspect allocation →
+                Inspect allocation {id} →
               </Link>
-            )}
+            ))}
           </div>
         </div>
       </details>

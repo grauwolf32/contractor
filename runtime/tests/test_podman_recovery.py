@@ -6,6 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from fakes.allocation import allocation_context
 from fakes.podman_lifecycle import Owner, owner
 from platform_markers import linux_podman
 from test_cli import make_settings
@@ -83,7 +84,7 @@ def test_live_owner_and_uncertain_create_block_successor_until_removal(tmp_path)
             lock.acquire()
             lock.release()
             # Closed IPC cannot turn a failed Runtime's release into success.
-            assert service._context is not None and "files" not in events
+            assert allocation_context(service) is not None and "files" not in events
             # Fixture close has no live owner left to RPC; mark it reaped.
             fixture.lifecycle._client = None
 
@@ -109,7 +110,9 @@ def test_guardian_lease_never_extends_itself_after_runtime_pulses_stop(tmp_path)
             fixture.backend.pulse(time.monotonic() + 60)
             with pytest.raises(SandboxContractError):
                 await fixture.backend.prepare(
-                    spec.allocation_id, fixture.backend.entry.root, deadline=deadline()
+                    spec.allocation_id,
+                    next(iter(fixture.backend.entries.values())).root,
+                    deadline=deadline(),
                 )
             await service.expire_control_lease(5)
 
@@ -335,8 +338,8 @@ def test_cli_shutdown_drains_active_allocation_before_owner_close(tmp_path, monk
             try:
                 await asyncio.wait_for(transport.heartbeat_started.wait(), 5)
                 await service.prepare(spec)
-                worker = service._context.worker
-                root = Path(service._context.project_workspace.storage.root)
+                worker = allocation_context(service).worker
+                root = Path(allocation_context(service).project_workspace.storage.root)
                 assert fixture.cli.containers and root.exists()
                 stop.set()
                 await asyncio.wait_for(serving, 5)

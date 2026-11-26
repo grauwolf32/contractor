@@ -1,7 +1,7 @@
 # Runtime Agent hosts with Ansible
 
 `runtime.yml` and the `contractor_runtime` role provision Linux hosts with one
-or more Runtime Agents (one allocation slot each) and every prerequisite of the
+or more Runtime Agents (1..4 allocation slots each) and every prerequisite of the
 capabilities you choose per host or per process. The Server, PostgreSQL, the
 UI and the LLM Gateway are out of scope; see [deployment](../../docs/deployment.md).
 

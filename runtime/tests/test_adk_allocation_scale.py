@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fakes.allocation import allocation_context
 from fakes.model import scripted_model, text_result, tool_call
 from pydantic import SecretStr
 from test_adk_runtime import stage_request
@@ -93,8 +94,11 @@ def test_1025_real_allocations_release_every_declared_closure_graph(
             )
             await service.prepare(spec)
             pending.append(allocation_references(service))
-            assert service._context is not None and service._context.worker is not None
-            result = await service._context.worker.invoke(stage_request())
+            assert (
+                allocation_context(service) is not None
+                and allocation_context(service).worker is not None
+            )
+            result = await allocation_context(service).worker.invoke(stage_request())
             assert result.failure is None and result.result is not None
             assert result.result.result == f"Completed {spec.allocation_id}"
             del result
@@ -107,7 +111,7 @@ def test_1025_real_allocations_release_every_declared_closure_graph(
             )
             await service.confirm_release(spec.allocation_id)
             assert (await state.snapshot()).process_state is ProcessState.IDLE
-            assert service._context is None
+            assert allocation_context(service) is None
             # At most 32 weak-reference groups exist between collection checks;
             # there is no growing strong owner and no test-side cache_clear.
             if (index + 1) % 32 == 0 or index + 1 == FIXTURE["allocation_cycles"]:

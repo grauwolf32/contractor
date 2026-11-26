@@ -23,7 +23,11 @@ func (a *PlacementAllocator) candidateEdges(
 	attempt *placementAttemptCache,
 ) ([]CandidateEdge, map[string]runtimeconfig.ResolvedRuntimeConfig, error) {
 	candidates = matchingLocationCandidates(request.RequiredPlacementLabels, candidates)
-	if len(request.Bindings) > len(candidates) {
+	capacity := 0
+	for _, candidate := range candidates {
+		capacity += candidate.Registration.AllocationSlots
+	}
+	if len(request.Bindings) > capacity {
 		return []CandidateEdge{}, nil, nil
 	}
 	toolCapabilities := make([]toolCapabilityIndex, len(candidates))

@@ -30,11 +30,11 @@ func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(
 
 	reserved := registry.SnapshotOperations()
 	if len(reserved.RuntimeAgents) != 1 || len(reserved.Allocations) != 1 ||
-		reserved.RuntimeAgents[0].SlotState != SlotReserved ||
+		reserved.RuntimeAgents[0].State != SlotReserved ||
 		reserved.RuntimeAgents[0].ObservedState != control.AgentIdle ||
-		reserved.RuntimeAgents[0].AuthoritativeAllocationID == nil ||
-		*reserved.RuntimeAgents[0].AuthoritativeAllocationID != allocationID ||
-		reserved.RuntimeAgents[0].CurrentAllocationID != nil ||
+		len(reserved.RuntimeAgents[0].AuthoritativeAllocationIDs) == 0 ||
+		reserved.RuntimeAgents[0].AuthoritativeAllocationIDs[0] != allocationID ||
+		len(reserved.RuntimeAgents[0].ObservedAllocations) != 0 ||
 		reserved.Allocations[0].AuthoritativePhase != AllocationPreparing ||
 		reserved.Allocations[0].ObservedPhase != AllocationObservedAbsent ||
 		reserved.Allocations[0].Metrics.ReportsComplete {
@@ -48,15 +48,14 @@ func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(
 	if err := registry.SetAllocationPhase(allocationID, AllocationActive, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := registry.Heartbeat(control.AgentHeartbeat{
+	if _, err := registry.Heartbeat(control.AgentHeartbeat{Allocations: []control.ObservedAllocation{{AllocationID: allocationID, ObservedState: control.AgentAllocated}},
 		APIVersion: contracts.APIVersion, InstanceID: "agent-operations",
 		HeartbeatSeq: 3, EchoedAckSeq: 2, ObservedState: control.AgentAllocated,
-		AllocationID: &allocationID,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	active := registry.SnapshotOperations()
-	if active.RuntimeAgents[0].SlotState != SlotBusy ||
+	if active.RuntimeAgents[0].State != SlotBusy ||
 		active.Allocations[0].AuthoritativePhase != AllocationActive ||
 		active.Allocations[0].ObservedPhase != AllocationObservedPrepared {
 		t.Fatalf("active Operations snapshot = %+v", active)
@@ -69,19 +68,18 @@ func TestOperationsSnapshotKeepsObservedAndAuthoritativeAllocationFactsDistinct(
 	if err := registry.SetAllocationPhase(allocationID, AllocationAborting, &reason); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := registry.Heartbeat(control.AgentHeartbeat{
+	if _, err := registry.Heartbeat(control.AgentHeartbeat{Allocations: []control.ObservedAllocation{{AllocationID: allocationID, ObservedState: control.AgentFenced}},
 		APIVersion: contracts.APIVersion, InstanceID: "agent-operations",
 		HeartbeatSeq: 4, EchoedAckSeq: 3, ObservedState: control.AgentFenced,
-		AllocationID: &allocationID,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	fenced := registry.SnapshotOperations()
 	agent := fenced.RuntimeAgents[0]
 	allocation := fenced.Allocations[0]
-	if agent.ObservedState != control.AgentFenced || agent.SlotState != SlotFenced ||
-		agent.CurrentAllocationID == nil || *agent.CurrentAllocationID != allocationID ||
-		agent.AuthoritativeAllocationID == nil || *agent.AuthoritativeAllocationID != allocationID ||
+	if agent.ObservedState != control.AgentFenced || agent.State != SlotFenced ||
+		len(agent.ObservedAllocations) == 0 || agent.ObservedAllocations[0].AllocationID != allocationID ||
+		len(agent.AuthoritativeAllocationIDs) == 0 || agent.AuthoritativeAllocationIDs[0] != allocationID ||
 		agent.ReconciliationReason == nil ||
 		allocation.AuthoritativePhase != AllocationAborting ||
 		allocation.ObservedPhase != AllocationObservedFenced || allocation.Reason == nil ||
@@ -122,7 +120,7 @@ func TestOperationsSnapshotReflectsCompleteHeterogeneousAssignment(t *testing.T)
 		assigned[reservation.Grant.LogicalAgentName] = reservation.Grant.RuntimeInstanceID
 	}
 	for _, observation := range snapshot.RuntimeAgents {
-		if observation.SlotState != SlotReserved || observation.AuthoritativeAllocationID == nil {
+		if observation.State != SlotReserved || len(observation.AuthoritativeAllocationIDs) == 0 {
 			t.Fatalf("heterogeneous reserved agent observation = %+v", observation)
 		}
 	}
@@ -311,7 +309,7 @@ func TestRuntimeAgentCapabilityValidationFailsClosed(t *testing.T) {
 					MaxManagedTextBytes: 1024, MaxFileBytes: 1024,
 				},
 			},
-			ObservedState: control.AgentIdle, SlotState: SlotIdle,
+			ObservedState: control.AgentIdle, State: SlotIdle, AllocationSlots: 1, AvailableSlots: 1, ObservedAllocations: []control.ObservedAllocation{}, AuthoritativeAllocationIDs: []string{}, PendingReleaseAllocationIDs: []string{},
 		}
 	}
 	tests := []struct {

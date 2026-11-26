@@ -29,12 +29,12 @@ type ToolsetCapability struct {
 }
 
 type AgentHeartbeat struct {
-	APIVersion    string             `json:"apiVersion" strictjson:"required"`
-	InstanceID    string             `json:"instanceId" strictjson:"required"`
-	HeartbeatSeq  uint64             `json:"heartbeatSeq" strictjson:"required"`
-	EchoedAckSeq  uint64             `json:"echoedAckSeq" strictjson:"required"`
-	ObservedState AgentObservedState `json:"observedState" strictjson:"required"`
-	AllocationID  *string            `json:"allocationId,omitempty"`
+	APIVersion    string               `json:"apiVersion" strictjson:"required"`
+	InstanceID    string               `json:"instanceId" strictjson:"required"`
+	HeartbeatSeq  uint64               `json:"heartbeatSeq" strictjson:"required"`
+	EchoedAckSeq  uint64               `json:"echoedAckSeq" strictjson:"required"`
+	ObservedState AgentObservedState   `json:"observedState" strictjson:"required"`
+	Allocations   []ObservedAllocation `json:"allocations" strictjson:"required"`
 }
 
 func (h AgentHeartbeat) Validate() error {
@@ -47,35 +47,51 @@ func (h AgentHeartbeat) Validate() error {
 	if h.HeartbeatSeq == 0 {
 		return contracts.Invalidf("heartbeatSeq must be positive")
 	}
-	return validateObservedAllocation(h.ObservedState, h.AllocationID)
+	return validateObservedAllocations(h.ObservedState, h.Allocations, MaxAllocationSlots)
+}
+
+const MaxAllocationSlots = 4
+
+type ObservedAllocation struct {
+	AllocationID  string             `json:"allocationId" strictjson:"required"`
+	ObservedState AgentObservedState `json:"observedState" strictjson:"required"`
+}
+
+type AllocationAction struct {
+	AllocationID string               `json:"allocationId" strictjson:"required"`
+	Action       ReconciliationAction `json:"action" strictjson:"required"`
 }
 
 type HeartbeatResponse struct {
-	APIVersion   string               `json:"apiVersion" strictjson:"required"`
-	AckSeq       uint64               `json:"ackSeq" strictjson:"required"`
-	Action       ReconciliationAction `json:"action" strictjson:"required"`
-	AllocationID *string              `json:"allocationId,omitempty"`
+	APIVersion        string               `json:"apiVersion" strictjson:"required"`
+	AckSeq            uint64               `json:"ackSeq" strictjson:"required"`
+	Action            ReconciliationAction `json:"action" strictjson:"required"`
+	AllocationActions []AllocationAction   `json:"allocationActions" strictjson:"required"`
 }
 
 func (r HeartbeatResponse) Validate() error {
 	if err := contracts.ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
-	if r.AckSeq == 0 {
-		return contracts.Invalidf("ackSeq must be positive")
+	if r.AckSeq == 0 || (r.Action != ActionContinue && r.Action != ActionReregister) {
+		return contracts.Invalidf("invalid Runtime heartbeat acknowledgement")
 	}
-	switch r.Action {
-	case ActionContinue, ActionReregister:
-	case ActionDrain:
-		if r.AllocationID == nil {
-			return contracts.Invalidf("allocationId is required for action %s", r.Action)
+	if r.AllocationActions == nil || len(r.AllocationActions) > 2*MaxAllocationSlots ||
+		(r.Action == ActionReregister && len(r.AllocationActions) != 0) {
+		return contracts.Invalidf("invalid allocation actions")
+	}
+	seen := make(map[string]struct{}, len(r.AllocationActions))
+	for _, item := range r.AllocationActions {
+		if err := contracts.ValidateResourceID("allocationId", item.AllocationID); err != nil {
+			return err
 		}
-	case ActionRelease:
-	default:
-		return contracts.Invalidf("unknown heartbeat action %q", r.Action)
-	}
-	if r.AllocationID != nil {
-		return contracts.ValidateOpaqueID("allocationId", *r.AllocationID)
+		if item.Action != ActionDrain && item.Action != ActionRelease {
+			return contracts.Invalidf("invalid allocation action")
+		}
+		if _, duplicate := seen[item.AllocationID]; duplicate {
+			return contracts.Invalidf("duplicate allocation action")
+		}
+		seen[item.AllocationID] = struct{}{}
 	}
 	return nil
 }
@@ -164,24 +180,35 @@ func validateCapabilityRefs(field, kind string, values []string) error {
 	return nil
 }
 
-func validateObservedAllocation(state AgentObservedState, allocationID *string) error {
+func validateObservedAllocations(state AgentObservedState, allocations []ObservedAllocation, capacity int) error {
+	if capacity < 1 || capacity > MaxAllocationSlots || allocations == nil || len(allocations) > capacity {
+		return contracts.Invalidf("invalid Runtime allocation capacity or observations")
+	}
 	switch state {
 	case AgentIdle:
-		if allocationID != nil {
-			return contracts.Invalidf("idle agent must not report allocationId")
+		if len(allocations) != 0 {
+			return contracts.Invalidf("idle Runtime must not report allocations")
 		}
-		return nil
-	case AgentFenced:
-		if allocationID == nil {
-			return nil
-		}
-		return contracts.ValidateResourceID("allocationId", *allocationID)
 	case AgentAllocated, AgentDraining:
-		if allocationID == nil {
-			return contracts.Invalidf("%s agent must report allocationId", state)
+		if len(allocations) == 0 {
+			return contracts.Invalidf("allocated Runtime must report allocations")
 		}
-		return contracts.ValidateResourceID("allocationId", *allocationID)
+	case AgentFenced:
 	default:
 		return contracts.Invalidf("unknown observedState %q", state)
 	}
+	seen := make(map[string]struct{}, len(allocations))
+	for _, item := range allocations {
+		if err := contracts.ValidateResourceID("allocationId", item.AllocationID); err != nil {
+			return err
+		}
+		if item.ObservedState != AgentAllocated && item.ObservedState != AgentDraining && item.ObservedState != AgentFenced {
+			return contracts.Invalidf("invalid allocation observed state")
+		}
+		if _, duplicate := seen[item.AllocationID]; duplicate {
+			return contracts.Invalidf("duplicate allocation observation")
+		}
+		seen[item.AllocationID] = struct{}{}
+	}
+	return nil
 }

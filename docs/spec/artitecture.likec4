@@ -761,7 +761,7 @@ model {
     workspaceLifecycle.runDeletion -> artifactPlane.artifactPurger 'Purge complete RunScope inside the locked terminal delete'
     workspaceLifecycle.runDeletion -> auditCoordination.auditStore 'Lock affected Audits; require exact collection receipt for Audit child deletion; retain tombstone provenance, dispose ordinary proposal pins and advance Audit revisions'
 
-    runtimeOperations.controlPlane -> runtimeOperations.runtimeRegistry 'Track live instances / reserve free single slots'
+    runtimeOperations.controlPlane -> runtimeOperations.runtimeRegistry 'Track live instances / reserve up to four allocation slots'
     runtimeOperations.controlPlane -> identityConfiguration.executionConfigService 'Resolve pinned Worker credentials for RuntimeSettings'
     runtimeOperations.controlPlane -> identityConfiguration.runtimeConfigService 'Overlay pinned Run config with candidate Agent labels; resolve adapters + secrets'
     runtimeOperations.controlPlane -> runtimeOperations.telemetry 'Bind allocation final reports and Run metadata labels to trusted execution identity'
@@ -796,7 +796,7 @@ model {
     performanceMonitoring.allocationResources -> runtimeOperations.telemetry 'Preserve valid reports and 30-day retention; no second report store or changed Stage outcome'
   }
 
-  runtimeAgent = system 'Runtime Agent — N environment-specific single-slot processes' {
+  runtimeAgent = system 'Runtime Agent — N environment-specific processes with 1..4 allocation slots' {
     #contractor
 
     agentControl = component 'Agent Control — registration, capability truth and exclusive allocation ownership' {
@@ -1526,7 +1526,7 @@ views {
 
   view runtimeOverview {
     title '04 / Runtime Agent Subsystems'
-    description 'One process owns one slot. Agent Control owns allocation resources and Worker lifecycle.'
+    description 'One process owns 1..4 allocation slots and shared HTTP/Podman/cache services. Agent Control owns per-allocation resources and Worker lifecycle.'
 
     include server with {
       title 'Contractor Server'
@@ -2097,7 +2097,7 @@ views {
       title 'Prepare / finalize / abort / release'
     }
     include runtimeAgent.agentControl.controlEndpoint -> runtimeAgent.agentControl.slotManager with {
-      title 'Own the single slot'
+      title 'Own bounded allocation slots'
     }
     include runtimeAgent.agentControl.slotManager -> runtimeAgent.workerExecution.workerRuntime with {
       title 'Create / destroy Worker'
@@ -3238,7 +3238,7 @@ views {
 
   view schedulerConcurrency {
     title '28 / Execution / Global Concurrency and Audit Backpressure'
-    description 'Scheduler spec / V27 implemented. One active Server; maxConcurrentRuns 1..32 (default 1) bounds model Run lanes and maxConcurrentToolRuns 1..32 (default 2) bounds lanes of Stages without a model. Decreases drain; owner pause and compatible single-slot Runtime capacity constrain admission separately.'
+    description 'Scheduler spec / V27 implemented. One active Server; maxConcurrentRuns 1..32 (default 1) bounds model Run lanes and maxConcurrentToolRuns 1..32 (default 2) bounds lanes of Stages without a model. Decreases drain; owner pause and compatible Runtime allocation capacity constrain admission separately.'
 
     include browser with {
       title 'Operations / Settings UI'

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fakes.allocation import allocation_context
 from shared_config_defaults import MAX_AGENT_STATE_SNAPSHOT_BYTES
 from test_allocation import NOW, TrackedMetricsState, make_service, make_spec
 
@@ -639,8 +640,8 @@ def test_released_allocation_retains_no_worker_state_projection(
         _, service = await make_service(tmp_path, runtime_capabilities)
         spec = make_spec()
         await service.prepare(spec)
-        assert service._context is not None
-        worker_state = service._context.worker_state
+        assert allocation_context(service) is not None
+        worker_state = allocation_context(service).worker_state
         assert worker_state is not None
         assert type(worker_state.metrics) is TrackedMetricsState
         worker_state.metrics.record_tool_call(

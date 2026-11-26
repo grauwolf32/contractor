@@ -3,6 +3,7 @@ package controlplane
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -131,21 +132,28 @@ func (c OperationsCursor) MarshalJSON() ([]byte, error) {
 }
 
 type RuntimeAgentObservation struct {
-	PlacementLabels           []string                         `json:"placementLabels,omitempty"`
-	InstanceID                string                           `json:"instanceId"`
-	SoftwareVersion           string                           `json:"softwareVersion"`
-	SupportedRuntimes         []string                         `json:"supportedRuntimes"`
-	SupportedToolsets         []RuntimeToolsetCapability       `json:"supportedToolsets"`
-	SupportedSandboxProfiles  []string                         `json:"supportedSandboxProfiles"`
-	SupportedRuntimeAdapters  []string                         `json:"supportedRuntimeAdapters"`
-	WorkspaceCapabilities     *contracts.WorkspaceCapabilities `json:"workspaceCapabilities,omitempty"`
-	ObservedState             control.AgentObservedState       `json:"observedState"`
-	SlotState                 SlotState                        `json:"slotState"`
-	LastAcceptedHeartbeat     *time.Time                       `json:"lastAcceptedHeartbeat,omitempty"`
-	ConfirmedLeaseUntil       *time.Time                       `json:"confirmedLeaseUntil,omitempty"`
-	CurrentAllocationID       *string                          `json:"currentAllocationId,omitempty"`
-	AuthoritativeAllocationID *string                          `json:"authoritativeAllocationId,omitempty"`
-	ReconciliationReason      *SafeReason                      `json:"reconciliationReason,omitempty"`
+	PlacementLabels             []string                         `json:"placementLabels,omitempty"`
+	InstanceID                  string                           `json:"instanceId"`
+	SoftwareVersion             string                           `json:"softwareVersion"`
+	SupportedRuntimes           []string                         `json:"supportedRuntimes"`
+	SupportedToolsets           []RuntimeToolsetCapability       `json:"supportedToolsets"`
+	SupportedSandboxProfiles    []string                         `json:"supportedSandboxProfiles"`
+	SupportedRuntimeAdapters    []string                         `json:"supportedRuntimeAdapters"`
+	WorkspaceCapabilities       *contracts.WorkspaceCapabilities `json:"workspaceCapabilities,omitempty"`
+	ObservedState               control.AgentObservedState       `json:"observedState"`
+	State                       SlotState                        `json:"state"`
+	AllocationSlots             int                              `json:"allocationSlots"`
+	AvailableSlots              int                              `json:"availableSlots"`
+	BusySlots                   int                              `json:"busySlots"`
+	ReservedSlots               int                              `json:"reservedSlots"`
+	DrainingSlots               int                              `json:"drainingSlots"`
+	FencedSlots                 int                              `json:"fencedSlots"`
+	ObservedAllocations         []control.ObservedAllocation     `json:"observedAllocations"`
+	AuthoritativeAllocationIDs  []string                         `json:"authoritativeAllocationIds"`
+	PendingReleaseAllocationIDs []string                         `json:"pendingReleaseAllocationIds"`
+	LastAcceptedHeartbeat       *time.Time                       `json:"lastAcceptedHeartbeat,omitempty"`
+	ConfirmedLeaseUntil         *time.Time                       `json:"confirmedLeaseUntil,omitempty"`
+	ReconciliationReason        *SafeReason                      `json:"reconciliationReason,omitempty"`
 }
 
 type RuntimeToolsetCapability struct {
@@ -219,15 +227,34 @@ func (o RuntimeAgentObservation) Validate() error {
 	default:
 		return fmt.Errorf("invalid Runtime Agent observed state")
 	}
-	switch o.SlotState {
+	switch o.State {
 	case SlotIdle, SlotReserved, SlotBusy, SlotDraining, SlotFenced:
 	default:
 		return fmt.Errorf("invalid Runtime Agent slot state")
 	}
-	for _, value := range []*string{o.CurrentAllocationID, o.AuthoritativeAllocationID} {
-		if value != nil && !contracts.ValidResourceID(*value) {
-			return fmt.Errorf("invalid Runtime Agent allocation identity")
+	if o.AllocationSlots < 1 || o.AllocationSlots > control.MaxAllocationSlots || o.AvailableSlots < 0 || o.AvailableSlots > o.AllocationSlots || len(o.ObservedAllocations) > o.AllocationSlots {
+		return fmt.Errorf("invalid Runtime capacity")
+	}
+	if o.BusySlots < 0 || o.ReservedSlots < 0 || o.DrainingSlots < 0 || o.FencedSlots < 0 || o.AvailableSlots+o.BusySlots+o.ReservedSlots+o.DrainingSlots+o.FencedSlots != o.AllocationSlots {
+		return fmt.Errorf("inconsistent Runtime capacity counts")
+	}
+	for _, ids := range [][]string{o.AuthoritativeAllocationIDs, o.PendingReleaseAllocationIDs} {
+		if ids == nil || len(ids) > o.AllocationSlots {
+			return fmt.Errorf("invalid allocation identities")
 		}
+		seen := make(map[string]struct{}, len(ids))
+		for _, id := range ids {
+			if !contracts.ValidResourceID(id) {
+				return fmt.Errorf("invalid allocation identity")
+			}
+			if _, duplicate := seen[id]; duplicate {
+				return fmt.Errorf("duplicate allocation identity")
+			}
+			seen[id] = struct{}{}
+		}
+	}
+	if err := (control.AgentHeartbeat{APIVersion: contracts.APIVersion, InstanceID: o.InstanceID, HeartbeatSeq: 1, ObservedState: o.ObservedState, Allocations: o.ObservedAllocations}).Validate(); err != nil {
+		return err
 	}
 	if o.ReconciliationReason != nil && !validSafeReason(*o.ReconciliationReason) {
 		return fmt.Errorf("invalid Runtime Agent reconciliation reason")
@@ -302,6 +329,7 @@ func (o AllocationObservation) Validate() error {
 
 type storedReservation struct {
 	reservation        Reservation
+	activated          bool
 	writeGate          *sync.RWMutex
 	loss               *AllocationLoss
 	phase              AllocationAuthoritativePhase
@@ -322,10 +350,10 @@ func (r *InMemoryRegistry) SnapshotOperations() OperationsSnapshot {
 		Allocations:   make([]AllocationObservation, 0, len(r.allocations)),
 	}
 	for _, entry := range r.agents {
-		if entry.superseded && entry.authoritativeAllocationID == nil {
+		if entry.superseded && len(entry.allocationIDs) == 0 {
 			continue
 		}
-		result.RuntimeAgents = append(result.RuntimeAgents, runtimeObservation(entry))
+		result.RuntimeAgents = append(result.RuntimeAgents, r.runtimeObservation(entry))
 	}
 	sort.Slice(result.RuntimeAgents, func(left, right int) bool {
 		return result.RuntimeAgents[left].InstanceID < result.RuntimeAgents[right].InstanceID
@@ -534,21 +562,61 @@ func (r *InMemoryRegistry) RecordAllocationReport(
 	return nil
 }
 
-func runtimeObservation(entry *agentEntry) RuntimeAgentObservation {
+func (r *InMemoryRegistry) runtimeObservation(entry *agentEntry) RuntimeAgentObservation {
 	result := RuntimeAgentObservation{
-		PlacementLabels:           append([]string{}, entry.registration.PlacementLabels...),
-		InstanceID:                entry.registration.InstanceID,
-		SoftwareVersion:           entry.registration.SoftwareVersion,
-		SupportedRuntimes:         append([]string{}, entry.registration.SupportedRuntimes...),
-		SupportedToolsets:         make([]RuntimeToolsetCapability, len(entry.registration.SupportedToolsets)),
-		SupportedSandboxProfiles:  append([]string{}, entry.registration.SupportedSandboxProfiles...),
-		SupportedRuntimeAdapters:  control.RuntimeAdapterCapabilityProjection(entry.registration),
-		WorkspaceCapabilities:     cloneWorkspaceCapabilities(entry.registration.WorkspaceCapabilities),
-		ObservedState:             entry.registration.ObservedState,
-		SlotState:                 slotState(entry),
-		CurrentAllocationID:       clone.Pointer(entry.registration.AllocationID),
-		AuthoritativeAllocationID: clone.Pointer(entry.authoritativeAllocationID),
+		PlacementLabels:          append([]string{}, entry.registration.PlacementLabels...),
+		InstanceID:               entry.registration.InstanceID,
+		SoftwareVersion:          entry.registration.SoftwareVersion,
+		SupportedRuntimes:        append([]string{}, entry.registration.SupportedRuntimes...),
+		SupportedToolsets:        make([]RuntimeToolsetCapability, len(entry.registration.SupportedToolsets)),
+		SupportedSandboxProfiles: append([]string{}, entry.registration.SupportedSandboxProfiles...),
+		SupportedRuntimeAdapters: control.RuntimeAdapterCapabilityProjection(entry.registration),
+		WorkspaceCapabilities:    cloneWorkspaceCapabilities(entry.registration.WorkspaceCapabilities),
+		ObservedState:            entry.registration.ObservedState,
+		State:                    slotState(entry),
+		AllocationSlots:          entry.registration.AllocationSlots, AvailableSlots: entry.availableSlots(),
+		ObservedAllocations:        append([]control.ObservedAllocation{}, entry.registration.Allocations...),
+		AuthoritativeAllocationIDs: entry.authoritativeIDs(), PendingReleaseAllocationIDs: make([]string, 0, len(entry.releaseAcks)),
 	}
+	if result.State == SlotFenced {
+		result.FencedSlots = result.AllocationSlots
+	} else {
+		occupied := make(map[string]struct{}, result.AllocationSlots)
+		for id := range entry.allocationIDs {
+			occupied[id] = struct{}{}
+			stored := r.allocations[id]
+			state, present := entry.registration.ObservedAllocation(id)
+			switch {
+			case stored.loss != nil || stored.reservation.Grant.WriteFenced || state == control.AgentFenced:
+				result.FencedSlots++
+			case state == control.AgentDraining:
+				result.DrainingSlots++
+			case present && state == control.AgentAllocated:
+				result.BusySlots++
+			default:
+				result.ReservedSlots++
+			}
+		}
+		for id := range entry.releaseAcks {
+			if _, exists := occupied[id]; !exists && len(occupied) < result.AllocationSlots {
+				occupied[id] = struct{}{}
+				result.DrainingSlots++
+			}
+		}
+		for _, item := range entry.registration.Allocations {
+			if _, exists := occupied[item.AllocationID]; !exists && len(occupied) < result.AllocationSlots {
+				occupied[item.AllocationID] = struct{}{}
+				result.DrainingSlots++
+			}
+		}
+		if result.AvailableSlots == 0 && len(occupied) < result.AllocationSlots {
+			result.FencedSlots += result.AllocationSlots - len(occupied)
+		}
+	}
+	for id := range entry.releaseAcks {
+		result.PendingReleaseAllocationIDs = append(result.PendingReleaseAllocationIDs, id)
+	}
+	slices.Sort(result.PendingReleaseAllocationIDs)
 	for index, capability := range entry.registration.SupportedToolsets {
 		result.SupportedToolsets[index] = RuntimeToolsetCapability{
 			Ref: capability.Ref, Tools: append([]string{}, capability.Tools...),
@@ -621,43 +689,38 @@ func allocationObservation(
 }
 
 func slotState(entry *agentEntry) SlotState {
-	if entry.leaseExpired || entry.allocationLost || entry.registration.ObservedState == control.AgentFenced {
+	if entry.leaseExpired || entry.superseded || entry.principalMissing || entry.blockedByInstanceID != nil || entry.registration.ObservedState == control.AgentFenced {
 		return SlotFenced
 	}
-	if entry.registration.ObservedState == control.AgentDraining {
+	for _, item := range entry.registration.Allocations {
+		if entry.owns(item.AllocationID) && item.ObservedState == control.AgentAllocated {
+			return SlotBusy
+		}
+	}
+	if len(entry.releaseAcks) != 0 || entry.reconciliationRequired || entry.registration.ObservedState == control.AgentDraining {
 		return SlotDraining
 	}
-	if entry.reconciliationRequired {
-		if entry.registration.ObservedState == control.AgentAllocated {
-			return SlotDraining
-		}
-		return SlotFenced
-	}
-	if entry.authoritativeAllocationID == nil {
-		return SlotIdle
-	}
-	if !entry.allocationActivated && entry.registration.ObservedState == control.AgentIdle {
+	if len(entry.allocationIDs) != 0 {
 		return SlotReserved
 	}
-	if entry.registration.ObservedState == control.AgentAllocated && entry.registration.AllocationID != nil &&
-		*entry.registration.AllocationID == *entry.authoritativeAllocationID {
-		return SlotBusy
-	}
-	return SlotFenced
+	return SlotIdle
 }
 
 func observedAllocationPhase(entry *agentEntry, allocationID string) AllocationObservedPhase {
 	if entry.registration.ObservedState == control.AgentFenced {
 		return AllocationObservedFenced
 	}
-	if entry.registration.AllocationID == nil || *entry.registration.AllocationID != allocationID {
+	state, present := entry.registration.ObservedAllocation(allocationID)
+	if !present {
 		return AllocationObservedAbsent
 	}
-	switch entry.registration.ObservedState {
+	switch state {
 	case control.AgentAllocated:
 		return AllocationObservedPrepared
 	case control.AgentDraining:
 		return AllocationObservedDraining
+	case control.AgentFenced:
+		return AllocationObservedFenced
 	default:
 		return AllocationObservedAbsent
 	}

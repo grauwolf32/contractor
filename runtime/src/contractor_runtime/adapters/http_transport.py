@@ -8,6 +8,7 @@ import time
 from collections.abc import Callable
 from contextlib import nullcontext
 from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
 from urllib.parse import quote, quote_plus, urlsplit
 
 from contractor_runtime.adapters.bridge import BridgeFailure
@@ -23,6 +24,9 @@ from contractor_runtime.core.target_policy import Resolver, TargetDenied, Target
 from contractor_runtime.core.tool_errors import ToolExecutionError
 from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.threads import to_thread_until_done
+
+if TYPE_CHECKING:
+    from contractor_runtime.adapters.bridge.mitmproxy import MitmproxyEngine
 
 TARGET_ADAPTER = "http-target@1"
 REDIRECT_STATUSES = {301, 302, 303, 307, 308}
@@ -49,16 +53,30 @@ class HTTPTransportFactory:
     ) -> None:
         self._protected_urls = protected_urls
         self._resolver = resolver
+        self._engine = None
 
     async def probe(self) -> bool:
+        self._native_engine()
         return True
+
+    def _native_engine(self):
+        if self._engine is None:
+            from contractor_runtime.adapters.bridge.mitmproxy import MitmproxyEngine
+
+            self._engine = MitmproxyEngine()
+        return self._engine
 
     def create(self, spec: AllocationSpec) -> HTTPTransport:
         return HTTPTransport(
             spec,
+            native_engine=self._native_engine(),
             protected_urls=self._protected_urls,
             resolver=self._resolver,
         )
+
+    async def close(self) -> None:
+        if self._engine is not None:
+            await self._engine.close()
 
 
 class HTTPTransport:
@@ -68,6 +86,7 @@ class HTTPTransport:
         *,
         protected_urls: tuple[str, ...] = (),
         resolver: Resolver | None = None,
+        native_engine: MitmproxyEngine,
         ssl_context: ssl.SSLContext | None = None,
         monotonic=time.monotonic,
         sleep=asyncio.sleep,
@@ -82,6 +101,7 @@ class HTTPTransport:
             self._assignment, protected_urls=protected_urls, resolver=resolver
         )
         self._clock, self._sleep = monotonic, sleep
+        self._runtime_engine = native_engine
         self._engine = None
         self._ssl = ssl_context
         self._tasks: set[asyncio.Task] = set()
@@ -220,12 +240,10 @@ class HTTPTransport:
             except (TimeoutError, OSError, TargetUnresolved):
                 raise BridgeInfrastructureError() from None
             if self._engine is None:
-                from contractor_runtime.adapters.bridge.mitmproxy import MitmproxyEngine
-
-                self._engine = MitmproxyEngine(
-                    require_authority=self._require_authority, ssl_context=self._ssl
-                )
                 try:
+                    self._engine = self._runtime_engine.create_session(
+                        require_authority=self._require_authority, ssl_context=self._ssl
+                    )
                     await self._engine.start()
                 except asyncio.CancelledError:
                     await self._close_transport()

@@ -50,7 +50,7 @@ func TestOperationsSnapshotAndPagesAreCoherentStableAndObserved(t *testing.T) {
 					Ref: "run-artifacts@1", Tools: []string{"write_artifact", "read_artifact"},
 				}},
 				SupportedSandboxProfiles: []string{"local-workdir@1"},
-				ObservedState:            "idle", SlotState: controlplane.SlotIdle,
+				ObservedState:            "idle", State: controlplane.SlotIdle, AllocationSlots: 1, AvailableSlots: 1, ObservedAllocations: []control.ObservedAllocation{}, AuthoritativeAllocationIDs: []string{}, PendingReleaseAllocationIDs: []string{},
 				LastAcceptedHeartbeat: &now, ConfirmedLeaseUntil: &lease,
 			},
 			{
@@ -60,9 +60,9 @@ func TestOperationsSnapshotAndPagesAreCoherentStableAndObserved(t *testing.T) {
 					Ref: "run-artifacts@1", Tools: []string{"read_artifact"},
 				}},
 				SupportedSandboxProfiles: []string{"local-workdir@1"},
-				ObservedState:            "fenced", SlotState: controlplane.SlotFenced,
+				ObservedState:            "fenced", State: controlplane.SlotFenced, AllocationSlots: 1, FencedSlots: 1, PendingReleaseAllocationIDs: []string{},
 				LastAcceptedHeartbeat: &now, ConfirmedLeaseUntil: &lease,
-				CurrentAllocationID: &allocationID, AuthoritativeAllocationID: &allocationID,
+				ObservedAllocations: []control.ObservedAllocation{{AllocationID: allocationID, ObservedState: control.AgentAllocated}}, AuthoritativeAllocationIDs: []string{allocationID},
 				ReconciliationReason: &controlplane.SafeReason{
 					Code: "reconciliation_required", Retryable: true,
 				},
@@ -99,8 +99,8 @@ func TestOperationsSnapshotAndPagesAreCoherentStableAndObserved(t *testing.T) {
 		full.RuntimeAgents[0].ObservedState != "fenced" ||
 		len(full.RuntimeAgents[0].SupportedToolsets) != 1 ||
 		len(full.RuntimeAgents[0].SupportedToolsets[0].Tools) != 1 ||
-		full.RuntimeAgents[0].AuthoritativeAllocationID == nil ||
-		full.RuntimeAgents[0].CurrentAllocationID == nil ||
+		len(full.RuntimeAgents[0].AuthoritativeAllocationIDs) == 0 ||
+		len(full.RuntimeAgents[0].ObservedAllocations) == 0 ||
 		len(full.Allocations) != 1 ||
 		full.Allocations[0].ObservedPhase != controlplane.AllocationObservedFenced {
 		t.Fatalf("Operations response collapsed or reordered facts: %+v", full)
@@ -211,7 +211,7 @@ func TestOperationsLivePagesContinueAcrossRegistryHeartbeats(t *testing.T) {
 	}
 	heartbeat := func(principal, instance string, seq uint64) {
 		t.Helper()
-		_, err := registry.HeartbeatAuthenticated(principal, control.AgentHeartbeat{
+		_, err := registry.HeartbeatAuthenticated(principal, control.AgentHeartbeat{Allocations: []control.ObservedAllocation{},
 			APIVersion: contracts.APIVersion, InstanceID: instance,
 			HeartbeatSeq: seq, EchoedAckSeq: seq - 1, ObservedState: control.AgentIdle,
 		})
@@ -224,7 +224,7 @@ func TestOperationsLivePagesContinueAcrossRegistryHeartbeats(t *testing.T) {
 		instance, principal := "runtime-"+suffix, strings.Repeat(suffix, 64)
 		_, err := registry.RegisterAuthenticated(controlplane.AuthenticatedPrincipal{
 			RuntimeAgentID: principal, LabelRevision: 1, Labels: []string{},
-		}, control.AgentRegistration{
+		}, control.AgentRegistration{AllocationSlots: 1, Allocations: []control.ObservedAllocation{},
 			APIVersion: contracts.APIVersion, InstanceID: instance, SoftwareVersion: "0.1.0",
 			StartedAt:  time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC),
 			ControlURL: "https://" + instance + ".example:9443", A2AURL: "https://" + instance + ".example:9444",

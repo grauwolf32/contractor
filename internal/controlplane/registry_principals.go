@@ -42,7 +42,7 @@ func (r *InMemoryRegistry) BeginPrincipalDeletion(runtimeAgentID string) (func()
 			continue
 		}
 		r.expireEntry(entry, monotonicNow)
-		if entry.authoritativeAllocationID != nil || principalInstanceIsLive(entry, monotonicNow) {
+		if len(entry.allocationIDs) != 0 || principalInstanceIsLive(entry, monotonicNow) {
 			r.mu.Unlock()
 			return nil, ErrRegistrationConflict
 		}
@@ -121,7 +121,7 @@ func (r *InMemoryRegistry) PrincipalRuntimeObservation(
 			continue
 		}
 		r.expireEntry(entry, monotonicNow)
-		if entry.authoritativeAllocationID == nil && !principalInstanceIsLive(entry, monotonicNow) {
+		if len(entry.allocationIDs) == 0 && !principalInstanceIsLive(entry, monotonicNow) {
 			continue
 		}
 		if selected == nil || selected.lastSeenAt.Before(entry.lastSeenAt) {
@@ -131,6 +131,6 @@ func (r *InMemoryRegistry) PrincipalRuntimeObservation(
 	if selected == nil {
 		return nil, false
 	}
-	result := runtimeObservation(selected)
+	result := r.runtimeObservation(selected)
 	return &result, true
 }

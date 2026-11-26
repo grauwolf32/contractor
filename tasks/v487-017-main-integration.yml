@@ -1,0 +1,51 @@
+schema_version: '1.0'
+milestone: runtime-allocation-slots-2026-11
+epic: quality
+kind: chore
+priority: P1
+status: in_progress
+languages:
+- python
+id: V487-017
+title: Merge the reviewed multi-slot Runtime and race fixes into main
+depends_on:
+- V487-014
+- V487-015
+- V487-016
+goal: Main contains the verified multi-slot Runtime and all three review fixes while primary user changes
+  remain intact.
+context:
+  authority: User explicitly requested fixes and merge into main on 2026-11-26.
+  specification:
+  - docs/testing/README.md
+  delivery: Use a two-parent --no-ff merge; preserve primary portable-kit files and their generated-backlog
+    delta.
+  verification: 'Reuse the passing combined source checks: full Runtime, lint with real PostgreSQL, wire
+    fixtures, actual four-slot Server/Runtime process scenario and 65 Linux lifecycle modules. Only task/evidence/generated
+    metadata changes follow.'
+scope:
+  in:
+  - Combined Runtime/lint, wire and real-process multi-slot verification; merge and preservation evidence.
+  out:
+  - Deployment and live Gateway/model calls.
+acceptance_criteria:
+- id: A1
+  text: The corrected branch passes Runtime/lint and the real PostgreSQL Server/Runtime four-slot scenario
+    plus wire fixtures.
+- id: A2
+  text: Main contains the branch through a two-parent merge; original primary user files/index state are
+    preserved and owned test resources removed.
+tests:
+- command: make test-runtime
+  covers:
+  - A1
+- command: make lint
+  covers:
+  - A1
+- command: make test-wire-cross-language
+  covers:
+  - A1
+- command: go test -tags=e2e -count=1 -timeout=10m ./tests/e2e -run '^TestRuntimeAllocationSlotsAcrossProductionProcesses$'
+  covers:
+  - A1
+  - A2

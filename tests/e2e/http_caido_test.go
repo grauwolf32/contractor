@@ -176,7 +176,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	caidoRuntime := startProcess(
 		t, "Python Runtime Agent Caido", filepath.Join(repositoryRoot, "runtime"),
 		map[string]string{"PYTHONUNBUFFERED": "1"},
-		python, "-m", "contractor_runtime",
+		python, "-m", "contractor_runtime", "--allocation-slots", "1",
 		"--control-plane-url", privateBaseURL,
 		"--advertised-control-url", caidoAdvertisedBaseURL,
 		"--advertised-a2a-url", caidoAdvertisedBaseURL,
@@ -223,7 +223,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 			}
 			foundHTTP, foundCaido := false, false
 			for _, item := range items {
-				if item.SlotState != "idle" || item.ConfirmedLeaseUntil == nil {
+				if item.State != "idle" || item.ConfirmedLeaseUntil == nil {
 					return false
 				}
 				switch {
@@ -395,8 +395,8 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 				return false
 			}
 			for _, item := range items {
-				if item.SlotState != "idle" || item.ObservedState != "idle" ||
-					item.CurrentAllocationID != nil || item.AuthoritativeAllocationID != nil {
+				if item.State != "idle" || item.ObservedState != "idle" ||
+					len(item.ObservedAllocations) != 0 || len(item.AuthoritativeAllocationIDs) != 0 {
 					return false
 				}
 			}
@@ -438,8 +438,8 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 				return false
 			}
 			for _, item := range items {
-				if item.SlotState != "idle" || item.ObservedState != "idle" ||
-					item.CurrentAllocationID != nil || item.AuthoritativeAllocationID != nil {
+				if item.State != "idle" || item.ObservedState != "idle" ||
+					len(item.ObservedAllocations) != 0 || len(item.AuthoritativeAllocationIDs) != 0 {
 					return false
 				}
 			}

@@ -165,7 +165,7 @@ def restart(args, state, doc):
     api = API(args.server_url, args.token_file)
     queue = list(api.pages("/v1/queue"))
     agents = list(api.pages("/v1/operations/runtime-agents"))
-    if queue or any(agent["slotState"] != "idle" for agent in agents):
+    if queue or any(agent["state"] != "idle" for agent in agents):
         raise RuntimeError("Server has queued or active work; drain it before restarting")
     pid = int(args.pid_file.read_text())
     command = run(["ps", "-p", str(pid), "-o", "command="]).strip()

@@ -192,7 +192,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 			}
 			foundProxyOnly, foundTelemetry := false, false
 			for _, item := range items {
-				if item.SlotState != "idle" || item.ConfirmedLeaseUntil == nil {
+				if item.State != "idle" || item.ConfirmedLeaseUntil == nil {
 					return false
 				}
 				switch {
@@ -423,8 +423,8 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 				return false
 			}
 			for _, item := range items {
-				if item.SlotState != "idle" || item.ObservedState != "idle" ||
-					item.CurrentAllocationID != nil || item.AuthoritativeAllocationID != nil {
+				if item.State != "idle" || item.ObservedState != "idle" ||
+					len(item.ObservedAllocations) != 0 || len(item.AuthoritativeAllocationIDs) != 0 {
 					return false
 				}
 			}
@@ -451,7 +451,7 @@ func startRuntimeWithAdapters(
 	t.Helper()
 	runtimeBaseURL := "https://" + runtimeAddress
 	args := []string{
-		"-m", "contractor_runtime",
+		"-m", "contractor_runtime", "--allocation-slots", "1",
 		"--control-plane-url", controlPlaneURL,
 		"--advertised-control-url", runtimeBaseURL,
 		"--advertised-a2a-url", runtimeBaseURL,
@@ -494,7 +494,7 @@ func assertDuplicatePrincipalRegistrationRejected(
 	for index, adapter := range principal.Live.SupportedRuntimeAdapters {
 		adapters[index] = runtimesettings.RuntimeAdapterRef(adapter)
 	}
-	registration := control.AgentRegistration{
+	registration := control.AgentRegistration{AllocationSlots: 1, Allocations: []control.ObservedAllocation{},
 		APIVersion: contracts.APIVersion, InstanceID: "duplicate-runtime-" + randomHex(t, 8), SoftwareVersion: "0.1.0",
 		StartedAt: time.Now().UTC(), ControlURL: "https://127.0.0.1:1", A2AURL: "https://127.0.0.1:1",
 		SupportedRuntimes:        append([]string(nil), principal.Live.SupportedRuntimes...),

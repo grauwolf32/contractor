@@ -645,7 +645,7 @@ func newProductionGrantHandler(
 		principal := controlplane.AuthenticatedPrincipal{
 			RuntimeAgentID: principalID, Labels: []string{}, LabelRevision: 1,
 		}
-		registration := control.AgentRegistration{
+		registration := control.AgentRegistration{AllocationSlots: 1, Allocations: []control.ObservedAllocation{},
 			APIVersion: contracts.APIVersion, InstanceID: identity.instanceID, SoftwareVersion: "0.1.0",
 			StartedAt:         time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC),
 			ControlURL:        "https://" + identity.instanceID + ".example:9443",
@@ -661,7 +661,7 @@ func newProductionGrantHandler(
 			t.Fatal(err)
 		}
 		for heartbeatIndex, echoed := range []uint64{0, 1} {
-			if _, err := registry.HeartbeatAuthenticated(principalID, control.AgentHeartbeat{
+			if _, err := registry.HeartbeatAuthenticated(principalID, control.AgentHeartbeat{Allocations: []control.ObservedAllocation{},
 				APIVersion: contracts.APIVersion, InstanceID: identity.instanceID,
 				HeartbeatSeq: uint64(heartbeatIndex + 1), EchoedAckSeq: echoed, ObservedState: control.AgentIdle,
 			}); err != nil {
@@ -723,9 +723,12 @@ func assertProductionFaultSlotsReusable(
 	if _, err := registry.GetGrant(allocationID); !errors.Is(err, controlplane.ErrAllocationNotFound) {
 		t.Fatalf("released fault allocation lookup = %v", err)
 	}
-	if _, err := registry.HeartbeatAuthenticated(principalID, control.AgentHeartbeat{
+	if _, err := registry.HeartbeatAuthenticated(principalID, control.AgentHeartbeat{APIVersion: contracts.APIVersion, InstanceID: "runtime-1", HeartbeatSeq: 3, EchoedAckSeq: 2, ObservedState: control.AgentIdle, Allocations: []control.ObservedAllocation{}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.HeartbeatAuthenticated(principalID, control.AgentHeartbeat{Allocations: []control.ObservedAllocation{},
 		APIVersion: contracts.APIVersion, InstanceID: "runtime-1",
-		HeartbeatSeq: 3, EchoedAckSeq: 2, ObservedState: control.AgentIdle,
+		HeartbeatSeq: 4, EchoedAckSeq: 3, ObservedState: control.AgentIdle,
 	}); err != nil {
 		t.Fatal(err)
 	}

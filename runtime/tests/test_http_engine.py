@@ -190,7 +190,7 @@ def test_native_startup_failure_restores_context_and_allows_clean_next_allocatio
     from mitmproxy import ctx
     from mitmproxy.addons.tlsconfig import TlsConfig
 
-    from contractor_runtime.adapters.bridge.mitmproxy import engine as mitmproxy_engine
+    from contractor_runtime.adapters.bridge.mitmproxy import runtime as mitmproxy_engine
 
     original = TlsConfig.configure
     previous = {key: getattr(ctx, key, None) for key in ("master", "options", "log")}
@@ -208,13 +208,15 @@ def test_native_startup_failure_restores_context_and_allows_clean_next_allocatio
             monkeypatch.setattr(TlsConfig, "configure", refuse)
             with pytest.raises(RuntimeError, match="http_bridge_failed"):
                 await owner.request(target.origin + "/allowed")
-            assert mitmproxy_engine._active is None and owner._engine is None
-            assert all(not directory.exists() for directory in directories)
-            assert all(getattr(ctx, key, None) is value for key, value in previous.items())
+            assert mitmproxy_engine._active is owner.runtime_engine and owner._engine is None
             assert target.written == b""
-            monkeypatch.setattr(TlsConfig, "configure", original)
-            assert (await owner.request(target.origin + "/allowed"))[0].kind == "completed"
         assert mitmproxy_engine._active is None
+        assert all(not directory.exists() for directory in directories)
+        assert all(getattr(ctx, key, None) is value for key, value in previous.items())
+        monkeypatch.setattr(TlsConfig, "configure", original)
+        async with SocketTarget() as target, preflight(target) as (owner, _):
+            owner.configure(authority_deadline=lambda: time.monotonic() + 60)
+            assert (await owner.request(target.origin + "/allowed"))[0].kind == "completed"
 
     asyncio.run(scenario())
 
@@ -311,7 +313,9 @@ def test_native_http2_applies_common_body_and_header_bounds(tmp_path, case):
 
 
 def test_native_callback_bug_fails_closed_without_logging_content(monkeypatch, caplog):
-    from contractor_runtime.adapters.bridge.mitmproxy.engine import MitmproxyEngine
+    from contractor_runtime.adapters.bridge.mitmproxy.engine import (
+        MitmproxySession as MitmproxyEngine,
+    )
 
     original = MitmproxyEngine.handle_hook
 

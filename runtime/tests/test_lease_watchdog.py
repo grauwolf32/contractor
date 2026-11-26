@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fakes.allocation import allocation_snapshot
 from fakes.spec import allocation_spec
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory, StubWorkerRuntime
 
@@ -49,12 +50,12 @@ def test_response_partition_expires_worker_and_late_ack_cannot_revive(
         clock.advance(0.1)
         assert await watchdog.expire_if_due()
 
-        snapshot = await state.snapshot()
+        snapshot = await state.snapshot("allocation-1")
         assert snapshot.process_state is ProcessState.FENCED
         assert snapshot.allocation_id == spec.allocation_id
-        assert not (await service.snapshot()).has_worker  # type: ignore[union-attr]
+        assert not (await allocation_snapshot(service)).has_worker  # type: ignore[union-attr]
         assert not await watchdog.acknowledge(2, 60)
-        with pytest.raises(AllocationError, match="already owns another allocation"):
+        with pytest.raises(AllocationError, match="capacity is unavailable"):
             await service.prepare(allocation_spec(allocation_id="allocation-2"))
 
         # The Scheduler can bind the report produced by local self-termination
@@ -76,9 +77,11 @@ def test_response_partition_expires_worker_and_late_ack_cannot_revive(
         await service.release(
             ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
         )
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
         await service.confirm_release(spec.allocation_id)
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        if (await state.snapshot()).process_state is ProcessState.FENCED:
+            await state.confirm_release(None)
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
 
@@ -96,8 +99,8 @@ def test_idle_lease_loss_fences_until_new_registration_generation() -> None:
         await watchdog.arm(60)
         clock.advance(60)
         assert await watchdog.expire_if_due()
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
-        assert (await state.snapshot()).allocation_id is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).allocation_id is None
         assert not await watchdog.acknowledge(1, 60)
 
         # A successful re-registration is a new authority generation.
@@ -105,7 +108,7 @@ def test_idle_lease_loss_fences_until_new_registration_generation() -> None:
         await watchdog.arm(60)
         assert await watchdog.acknowledge(2, 60)
         assert not watchdog.expired
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
 
     asyncio.run(scenario())
 
@@ -154,8 +157,10 @@ def test_released_allocation_stays_fenced_until_watchdog_is_rearmed(
                 {
                     "apiVersion": API_VERSION,
                     "ackSeq": 1,
-                    "action": "release",
-                    "allocationId": spec.allocation_id,
+                    "action": "continue",
+                    "allocationActions": [
+                        {"allocationId": spec.allocation_id, "action": "release"}
+                    ],
                 },
                 {
                     "apiVersion": API_VERSION,
@@ -173,15 +178,15 @@ def test_released_allocation_stays_fenced_until_watchdog_is_rearmed(
         )
         await client.heartbeat_once()
         await asyncio.wait_for(registration_started.wait(), 1)
-        snapshot = await state.snapshot()
+        snapshot = await state.snapshot("allocation-1")
         assert snapshot.process_state is ProcessState.FENCED
         assert snapshot.allocation_id is None
-        assert await service.snapshot() is None
+        assert await allocation_snapshot(service) is None
         assert watchdog.expired and watchdog.confirmed_deadline is None
 
         allow_registration.set()
         await client.wait_for_reconciliation()
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
         assert watchdog.confirmed_deadline == 120.0
         await service.prepare(allocation_spec(allocation_id="allocation-after-rearm"))
 
@@ -213,8 +218,10 @@ def test_lost_release_response_keeps_slot_fenced_until_repeated_action(
                 {
                     "apiVersion": API_VERSION,
                     "ackSeq": 2,
-                    "action": "release",
-                    "allocationId": spec.allocation_id,
+                    "action": "continue",
+                    "allocationActions": [
+                        {"allocationId": spec.allocation_id, "action": "release"}
+                    ],
                 },
             ]
         )
@@ -222,13 +229,13 @@ def test_lost_release_response_keeps_slot_fenced_until_repeated_action(
 
         with pytest.raises(TimeoutError):
             await client.heartbeat_once()
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
-        assert await service.snapshot() is not None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
+        assert await allocation_snapshot(service) is not None
 
         await client.heartbeat_once()
         await client.wait_for_reconciliation()
-        assert (await state.snapshot()).process_state is ProcessState.IDLE
-        assert await service.snapshot() is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
+        assert await allocation_snapshot(service) is None
 
     asyncio.run(scenario())
 
@@ -265,16 +272,23 @@ def test_reconciliation_during_slow_prepare_does_not_stop_heartbeats(
                 {
                     "apiVersion": API_VERSION,
                     "ackSeq": 1,
-                    "action": "drain",
-                    "allocationId": spec.allocation_id,
+                    "action": "continue",
+                    "allocationActions": [{"allocationId": spec.allocation_id, "action": "drain"}],
                 },
                 {
                     "apiVersion": API_VERSION,
                     "ackSeq": 2,
-                    "action": "release",
-                    "allocationId": spec.allocation_id,
+                    "action": "continue",
+                    "allocationActions": [
+                        {"allocationId": spec.allocation_id, "action": "release"}
+                    ],
                 },
-                {"apiVersion": API_VERSION, "ackSeq": 3, "action": "continue"},
+                {
+                    "allocationActions": [],
+                    "apiVersion": API_VERSION,
+                    "ackSeq": 3,
+                    "action": "continue",
+                },
             ]
         )
         client = ControlClient(
@@ -326,14 +340,14 @@ def test_local_lease_expiry_fences_without_waiting_for_slow_prepare(
         expiry = asyncio.create_task(service.expire_control_lease(1))
         for _ in range(10):
             await asyncio.sleep(0)
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
 
         factory.release.set()
         with pytest.raises(AllocationError):
             await prepare
         await expiry
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
-        assert await service.snapshot() is None
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
+        assert await allocation_snapshot(service) is None
 
     asyncio.run(scenario())
 
@@ -391,7 +405,7 @@ def test_unconfirmed_worker_stop_requests_process_exit(
             await watchdog.expire_if_due()
         assert error.value.code == "worker_stop_unconfirmed"
         assert exits == [70]
-        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
 
     asyncio.run(scenario())
 

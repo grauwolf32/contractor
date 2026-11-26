@@ -1,4 +1,4 @@
-"""Contractor single-slot Runtime Agent."""
+"""Contractor multi-slot Runtime Agent."""
 
 __all__ = ["__version__"]
 

@@ -8,7 +8,6 @@ package controlplane
 import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
-	"github.com/grauwolf32/contractor/internal/helpers/clone"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
@@ -20,7 +19,7 @@ func clonePrincipal(source AuthenticatedPrincipal) AuthenticatedPrincipal {
 
 func cloneHeartbeatResponse(source control.HeartbeatResponse) control.HeartbeatResponse {
 	result := source
-	result.AllocationID = clone.Pointer(source.AllocationID)
+	result.AllocationActions = append([]control.AllocationAction{}, source.AllocationActions...)
 	return result
 }
 

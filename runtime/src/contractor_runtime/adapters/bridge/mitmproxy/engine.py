@@ -5,22 +5,21 @@ from __future__ import annotations
 import asyncio
 import collections
 import contextvars
-import importlib.metadata
+import copy
 import ipaddress
 import logging
 import ssl
 import sys
 import tempfile
-from collections.abc import Callable, Coroutine
+from collections.abc import Coroutine
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
-from mitmproxy import ctx, http, master, options
-from mitmproxy.addons import next_layer, proxyserver, tlsconfig
+from mitmproxy import http
+from mitmproxy.addons import tlsconfig
 from mitmproxy.connection import Client, ConnectionState, Server
-from mitmproxy.net import tls as native_tls
 from mitmproxy.proxy import commands, events, server
 from mitmproxy.proxy.context import Context
 from mitmproxy.proxy.layers.http import HttpErrorHook, HttpResponseHook
@@ -35,6 +34,7 @@ from contractor_runtime.adapters.bridge.mitmproxy.protocol import (
     RoutedHttpLayer,
     Submit,
 )
+from contractor_runtime.adapters.bridge.mitmproxy.runtime import native_options
 from contractor_runtime.adapters.bridge.mitmproxy.state import Exchange
 from contractor_runtime.adapters.http_session import PrivateRequest, PrivateResponse
 from contractor_runtime.adapters.http_stream import RequestBoundary
@@ -45,61 +45,7 @@ from contractor_runtime.core.target_policy import TargetDenied
 from contractor_runtime.threads import to_thread_until_done
 
 if TYPE_CHECKING:
-    from contractor_runtime.adapters.bridge import HTTPProxyBridge
     from contractor_runtime.adapters.http_policy import _RequestPolicy
-
-VERSION = "12.3.1"
-_active: MitmproxyEngine | None = None
-_MISSING = object()
-
-
-class _ProcessState:
-    """Exclusive process state, restored only after joined resource erasure."""
-
-    def __init__(self):
-        self.owned = False
-        self.previous: dict[str, object] = {}
-        self.logger = logging.getLogger("mitmproxy")
-        self.handlers: list[logging.Handler] = []
-        self.propagate = True
-        self.keylog: native_tls.MasterSecretLogger | None = None
-
-    @staticmethod
-    def erase_tls_contexts():
-        native_tls.create_proxy_server_context.cache_clear()
-        native_tls.create_client_proxy_context.cache_clear()
-
-    def capture(self, owner: MitmproxyEngine):
-        global _active
-        if _active is not None:
-            raise RuntimeError("native HTTP engine already belongs to an allocation")
-        _active = owner
-        self.owned = True
-        self.previous = {key: getattr(ctx, key, _MISSING) for key in ("master", "log", "options")}
-        self.handlers, self.propagate = self.logger.handlers[:], self.logger.propagate
-        self.keylog = native_tls.log_master_secret
-        native_tls.log_master_secret = None
-        self.logger.handlers, self.logger.propagate = [logging.NullHandler()], False
-        self.erase_tls_contexts()
-
-    def restore(self):
-        global _active
-        if not self.owned:
-            return
-        self.erase_tls_contexts()
-        for key, previous in self.previous.items():
-            if previous is _MISSING:
-                ctx.__dict__.pop(key, None)
-            else:
-                setattr(ctx, key, previous)
-        self.logger.handlers, self.logger.propagate = self.handlers, self.propagate
-        native_tls.log_master_secret = self.keylog
-        self.previous.clear()
-        self.handlers = []
-        self.keylog = None
-        self.owned = False
-        _active = None
-
 
 _dial: contextvars.ContextVar[Exchange] = contextvars.ContextVar("bridge_mitmproxy_dial")
 
@@ -164,7 +110,7 @@ class _Writer:
 class _Pool(OwnedHandler, server.ConnectionHandler):
     """A native HTTP layer shared only within one identity and exact origin."""
 
-    def __init__(self, engine: MitmproxyEngine, url: str):
+    def __init__(self, engine: MitmproxySession, url: str):
         self.engine = engine
         parsed = urlsplit(url)
         self.host, self.port = (
@@ -407,87 +353,70 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
         self.verified.clear()
 
 
-class MitmproxyEngine:
-    """Native engine resource; HTTPTransport remains the sole domain owner."""
+class MitmproxySession:
+    """Allocation-owned native exchanges and TLS state on the Runtime engine."""
 
-    def __init__(
-        self, *, require_authority: Callable[[], object], ssl_context: ssl.SSLContext | None = None
-    ):
-        self.require_authority = require_authority
+    def __init__(self, runtime, *, require_authority, ssl_context=None):
+        self.runtime = runtime
+        self._require_authority = require_authority
         self.ssl_context = ssl_context
-        self.master: master.Master | None = None
-        self.options: options.Options | None = None
-        self.tls: tlsconfig.TlsConfig | None = None
-        self.next_layer: next_layer.NextLayer | None = None
-        self.directory: tempfile.TemporaryDirectory[str] | None = None
-        self.close_task: asyncio.Task[None] | None = None
-        self.pools: dict[tuple[str, str], _Pool] = {}
-        self.flows: dict[str, Exchange] = {}
-        self.ingresses: set[HTTPProxyBridge] = set()
+        self.options = self.tls = self.next_layer = None
+        self.directory = None
+        self.close_task = None
+        self.pools = {}
+        self.flows = {}
+        self.ingresses = set()
         self.closed = False
-        self._process = _ProcessState()
-        self.started = self.starting = False
+        self._lifecycle = asyncio.Lock()
+
+    def require_authority(self):
+        self.runtime.require_available()
+        if self.closed:
+            raise HTTPTransportError("http_allocation_closed")
+        return self._require_authority()
 
     async def start(self):
-        if self.started or self.starting or self.closed:
-            raise RuntimeError("native HTTP engine cannot be restarted")
-        self.starting = True
-        if importlib.metadata.version("mitmproxy") != VERSION:
-            raise RuntimeError("unsupported native HTTP engine")
-        self._process.capture(self)
-        self.directory = await to_thread_until_done(
-            lambda: tempfile.TemporaryDirectory(prefix="contractor-http-engine-"),
-            name="http-engine-directory",
-        )
-        trusted = None
-        if self.ssl_context is not None:
-            if (
-                self.ssl_context.verify_mode != ssl.CERT_REQUIRED
-                or not self.ssl_context.check_hostname
-            ):
-                raise ValueError("controlled HTTP requires verified TLS")
-
-            def trust_bundle():
-                path = Path(self.directory.name) / "trusted.pem"
-                path.write_text(
+        async with self._lifecycle:
+            await self.runtime.start()
+            self.directory = await to_thread_until_done(
+                lambda: tempfile.TemporaryDirectory(prefix="contractor-http-session-"),
+                name="http-session-directory",
+            )
+            self.options = copy.deepcopy(self.runtime.options)
+            trusted = None
+            if self.ssl_context is not None:
+                if (
+                    self.ssl_context.verify_mode != ssl.CERT_REQUIRED
+                    or not self.ssl_context.check_hostname
+                ):
+                    raise ValueError("controlled HTTP requires verified TLS")
+                trusted = str(Path(self.directory.name) / "trusted.pem")
+                await to_thread_until_done(
+                    Path(trusted).write_text,
                     "".join(
                         ssl.DER_cert_to_PEM_cert(cert)
                         for cert in self.ssl_context.get_ca_certs(binary_form=True)
-                    )
+                    ),
+                    name="http-session-trust",
                 )
-                return str(path)
-
-            trusted = await to_thread_until_done(trust_bundle, name="http-engine-trust")
-        self.options = options.Options(
-            confdir=self.directory.name,
-            listen_host="127.0.0.1",
-            listen_port=0,
-            upstream_cert=False,
-            rawtcp=False,
-            http2=True,
-            ssl_verify_upstream_trusted_ca=trusted,
-        )
-        self.master = master.Master(self.options, with_termlog=False)
-        self.tls = tlsconfig.TlsConfig()
-        self.next_layer = next_layer.NextLayer()
-        self.master.addons.add(proxyserver.Proxyserver(), self.next_layer, self.tls)
-        self.options.update(server=False, connection_strategy="lazy", store_streamed_bodies=False)
-        await to_thread_until_done(
-            self.tls.configure, set(self.options.keys()), name="http-engine-tls-config"
-        )
-        # Embedding must not install Master.run's process-wide task factory or
-        # event-loop exception handler. Native resources are owned here.
-        self.next_layer.configure(set(self.options.keys()))
-        self.started = True
-        self.starting = False
+            self.options.update(confdir=self.directory.name, ssl_verify_upstream_trusted_ca=trusted)
+            self.tls = tlsconfig.TlsConfig()
+            self.next_layer = self.runtime.next_layer
+            await self.runtime.configure_tls(self.tls, self.options)
 
     def create_ingress(self, bridge, reader, writer):
         """Construct this implementation's local scanner protocol handler."""
         from contractor_runtime.adapters.bridge.mitmproxy.ingress import Ingress
 
-        return Ingress(bridge, reader, writer, self)
+        with native_options(self.options):
+            return Ingress(bridge, reader, writer, self)
 
-    async def request(
+    async def request(self, *args):
+        self.require_authority()
+        with native_options(self.options):
+            return await self._request(*args)
+
+    async def _request(
         self,
         url: str,
         boundary: RequestBoundary,
@@ -576,6 +505,10 @@ class MitmproxyEngine:
         exchange.clear()
 
     async def handle_hook(self, pool, hook):
+        with native_options(self.options):
+            await self._handle_hook(pool, hook)
+
+    async def _handle_hook(self, pool, hook):
         data = hook.args()[0]
         if hook.name == "server_connect":
             exchange = pool.connecting[data.server]
@@ -644,22 +577,18 @@ class MitmproxyEngine:
             raise asyncio.CancelledError
 
     async def _close(self):
-        for ingress in tuple(self.ingresses):
-            await ingress.__aexit__()
-        for pool in self.pools.values():
-            await pool.close()
-        self.pools.clear()
-        self.flows.clear()
-        if self.master is not None:
-            await self.master.done()
-            self.master = None
-        if self._process.owned:
-            self._process.erase_tls_contexts()
-        self.options = self.tls = self.next_layer = self.ssl_context = None
-        if self.directory is not None:
-            await to_thread_until_done(self.directory.cleanup, name="http-engine-files-close")
-            self.directory = None
-        # A failed writer join or file deletion keeps exclusive process ownership
-        # and its exact cleanup handles until a later close succeeds.
-        self._process.restore()
-        self.closed = True
+        async with self._lifecycle:
+            for ingress in tuple(self.ingresses):
+                await ingress.__aexit__()
+            for pool in self.pools.values():
+                await pool.close()
+            self.pools.clear()
+            self.flows.clear()
+            self.runtime.erase_tls_contexts()
+            self.options = self.tls = self.next_layer = self.ssl_context = None
+            if self.directory is not None:
+                await to_thread_until_done(self.directory.cleanup, name="http-session-files-close")
+                self.directory = None
+            self._require_authority = None
+            self.runtime.sessions.discard(self)
+            self.closed = True

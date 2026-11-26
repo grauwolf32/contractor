@@ -1,4 +1,4 @@
-"""Strict process settings for the single-slot Runtime Agent."""
+"""Strict process settings for the Runtime Agent."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 
 from contractor_runtime.contracts import WorkspaceStorage
 from contractor_runtime.contracts.placement import validate_placement_labels
+from contractor_runtime.contracts.registration import MAX_ALLOCATION_SLOTS
 from contractor_runtime.core.target_policy import IPNetwork, parse_allowed_networks
 from contractor_runtime.projectfs.config import (
     DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS,
@@ -38,6 +39,7 @@ class Settings:
     ca_file: Path
     certificate_file: Path
     private_key_file: Path = field(repr=False)
+    allocation_slots: int = MAX_ALLOCATION_SLOTS
     placement_labels: tuple[str, ...] = ()
     enabled_runtime_adapters: tuple[str, ...] | None = None
     workspace: WorkspaceSettings | None = None
@@ -71,6 +73,12 @@ def parse_settings(
         "--cert-expiry-warning-days",
         type=float,
         default=values.get("CONTRACTOR_CERT_EXPIRY_WARNING_DAYS", "30"),
+    )
+    parser.add_argument(
+        "--allocation-slots",
+        type=int,
+        choices=range(1, MAX_ALLOCATION_SLOTS + 1),
+        default=MAX_ALLOCATION_SLOTS,
     )
     parser.add_argument("--placement-label", action="append", default=None)
     parser.add_argument("--runtime-adapter", action="append", default=None)
@@ -188,6 +196,7 @@ def parse_settings(
         ca_file=ca_file,
         certificate_file=certificate_file,
         private_key_file=private_key_file,
+        allocation_slots=args.allocation_slots,
         placement_labels=placement_labels,
         enabled_runtime_adapters=enabled_runtime_adapters,
         workspace=workspace,

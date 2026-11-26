@@ -13,6 +13,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from contractor_runtime.contracts.registration import MAX_ALLOCATION_SLOTS
+from contractor_runtime.core.async_tasks import join_owned_tasks
 from contractor_runtime.sandbox.contracts import (
     ExecutionRequest,
     ExecutionResult,
@@ -58,7 +60,7 @@ class LifecycleBackend:
         self.engine = engine if engine is not None else PodmanEngine(settings)
         self.attach = attach or self._attach
         self.commands = commands if commands is not None else PodmanCommand(settings)
-        self.entry: Entry | None = None
+        self.entries: dict[str, Entry] = {}
         self.opened = False
         self.recovered = False
         self.closed = False
@@ -71,8 +73,9 @@ class LifecycleBackend:
         # This deadline belongs to the Runtime, not this surviving process.
         # The owner may not manufacture liveness by renewing itself forever.
         self.lease = min(lease, time.monotonic() + 3) if lease is not None else 0.0
-        if self.entry is not None and self.lease <= time.monotonic():
-            self.reject(self.entry.allocation_id)
+        if self.lease <= time.monotonic():
+            for allocation_id in self.entries:
+                self.reject(allocation_id)
 
     def reject(self, allocation_id: str) -> None:
         # One serialized lifecycle RPC can be in flight. Keep recent preflight
@@ -80,33 +83,33 @@ class LifecycleBackend:
         self._rejected[allocation_id] = None
         if len(self._rejected) > 1024:
             del self._rejected[next(iter(self._rejected))]
-        if self.entry is not None and self.entry.allocation_id == allocation_id:
-            self.entry.rejected = True
-            self.entry.revoked.set()
-            if self.entry.guardian is not None:
-                self.entry.guardian.disconnect()
+        entry = self.entries.get(allocation_id)
+        if entry is not None:
+            entry.rejected = True
+            entry.revoked.set()
+            if entry.guardian is not None:
+                entry.guardian.disconnect()
 
     def disconnect(self) -> None:
         self.lost = True
         if self.probe_test is not None:
             for guardian in self.probe_test.guardians:
                 guardian.disconnect()
-        if self.entry is not None:
-            self.entry.rejected = True
-            self.entry.revoked.set()
-            if self.entry.guardian is not None:
-                self.entry.guardian.disconnect()
+        for allocation_id in self.entries:
+            self.reject(allocation_id)
 
     async def renew(self) -> None:
-        entry = self.entry
-        if entry is None or entry.rejected or entry.guardian is None:
-            return
-        try:
-            await entry.guardian.request(
-                "renew", lease=self.lease, deadline=min(self.lease, time.monotonic() + 1)
-            )
-        except (Exception, asyncio.CancelledError):
-            self.reject(entry.allocation_id)
+        async def renew_entry(entry):
+            if entry.rejected or entry.guardian is None:
+                return
+            try:
+                await entry.guardian.request(
+                    "renew", lease=self.lease, deadline=min(self.lease, time.monotonic() + 1)
+                )
+            except (Exception, asyncio.CancelledError):
+                self.reject(entry.allocation_id)
+
+        await asyncio.gather(*(renew_entry(entry) for entry in tuple(self.entries.values())))
 
     async def recover(self, *, deadline: float) -> None:
         if self.recovered:
@@ -118,7 +121,7 @@ class LifecycleBackend:
         self.recovered = True
 
     async def probe(self, root: Path, *, deadline: float, network: str = "none") -> dict:
-        if not self.recovered or self.closed or self.lost or self.entry is not None:
+        if not self.recovered or self.closed or self.lost or self.entries:
             raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
         if self.probe_test is not None:
             raise SandboxContractError(SandboxErrorCode.CLEANUP_FAILED)
@@ -138,12 +141,14 @@ class LifecycleBackend:
         if not self.recovered or self.closed or self.probe_test is not None:
             raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
         self.settings.validate_network(network)
-        entry = self.entry
+        entry = self.entries.get(allocation_id)
         if entry is None:
+            if len(self.entries) >= MAX_ALLOCATION_SLOTS:
+                raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
             entry = Entry(
                 allocation_id, root, network=network, rejected=allocation_id in self._rejected
             )
-            self.entry = entry  # own even an uncertain create before invoking CLI
+            self.entries[allocation_id] = entry  # own even an uncertain create before invoking CLI
         if entry.allocation_id != allocation_id or entry.root != root or entry.network != network:
             raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
         self._live(entry)
@@ -187,7 +192,7 @@ class LifecycleBackend:
     async def execute(
         self, allocation_id: str, request: ExecutionRequest, *, deadline: float
     ) -> ExecutionResult:
-        entry = self.entry
+        entry = self.entries.get(allocation_id)
         if entry is None or entry.allocation_id != allocation_id or not entry.prepared:
             raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
         self._live(entry)
@@ -267,7 +272,7 @@ class LifecycleBackend:
 
     async def stop(self, allocation_id: str, *, deadline: float) -> None:
         self.reject(allocation_id)
-        entry = self.entry
+        entry = self.entries.get(allocation_id)
         if entry is None or entry.allocation_id != allocation_id:
             raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
         if entry.stopped:
@@ -276,7 +281,7 @@ class LifecycleBackend:
             await self.engine.stop(entry.identity, deadline=deadline)
         # Discovery serializes after an uncertain engine operation, including
         # late create. An absent uncertain attempt still fences engine.close().
-        identities = await self.engine.discover(deadline=deadline)
+        identities = await self.engine.discover(deadline=deadline, allocation_id=allocation_id)
         for identity in identities:
             if identity.allocation_id == allocation_id:
                 await self.engine.stop(identity, deadline=deadline)
@@ -287,13 +292,13 @@ class LifecycleBackend:
         entry.stopped = True
 
     async def remove(self, allocation_id: str, *, deadline: float) -> None:
-        entry = self.entry
+        entry = self.entries.get(allocation_id)
         if entry is None:
             return
         await self.stop(allocation_id, deadline=deadline)
         if entry.identity is not None:
             await self.engine.remove(entry.identity, deadline=deadline)
-        identities = await self.engine.discover(deadline=deadline)
+        identities = await self.engine.discover(deadline=deadline, allocation_id=allocation_id)
         for identity in identities:
             if identity.allocation_id == allocation_id:
                 await self.engine.remove(identity, deadline=deadline)
@@ -305,14 +310,18 @@ class LifecycleBackend:
         if entry.fence is not None:
             os.close(entry.fence.directory)
             os.close(entry.fence.pidfd)
-        self.entry = None
+        del self.entries[allocation_id]
 
     async def close(self, *, deadline: float) -> None:
         if self.closed:
             return
         self.disconnect()
-        if self.entry is not None:
-            await self.remove(self.entry.allocation_id, deadline=deadline)
+        await join_owned_tasks(
+            *(
+                self.remove(allocation_id, deadline=deadline)
+                for allocation_id in tuple(self.entries)
+            )
+        )
         for identity in await self.engine.discover(deadline=deadline):
             await self.engine.remove(identity, deadline=deadline)
         if self.probe_test is not None:

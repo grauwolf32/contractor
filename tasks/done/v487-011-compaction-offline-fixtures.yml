@@ -1,0 +1,65 @@
+schema_version: '1.0'
+id: V487-011
+title: Align offline compaction fixtures with native callbacks and dependency pins
+milestone: runtime-allocation-slots-2026-11
+epic: evals
+kind: chore
+priority: P2
+status: completed
+depends_on: []
+languages:
+- python
+- json
+goal: The required offline compaction gate verifies the current native Worker and exact existing scorer
+  dependency closure without changing scoring or running live Evals.
+context:
+  authority: User request 2026-11-25 authorizes completing multi-slot groups 2 and 3. The release gate
+    exposed this independent offline verification prerequisite on 2026-11-26.
+  finding: tests/eval/context_compaction/test_controlled_runtime.py:263 expects no native before_model_callback
+    although the ordinary Worker installs _prepare_model_request; variants.json also pins a scorer closure
+    that no longer matches the repository's existing Go dependency files.
+  environment_finding: The local validator deliberately disables automatic Go toolchain switching. PATH
+    must point at the actual required Go 1.26.10 SDK rather than the 1.26.9 bootstrap binary. This needs
+    a lane environment correction, not a harness fallback.
+  history: Affected code and dependency files resolve to the squashed 14dddad611a579c7a8611ecdb5727ec3647b58ad
+    baseline; the original introducing task cannot be established. V466-019 documents the existing strict
+    closure refresh mechanism.
+  specification: docs/spec/evals/managed-evals.md
+  decision: Agent proposal is to verify the retained native callback and record a fresh exact offline
+    dependency closure. Skipping these checks would leave release acceptance incomplete. Published/live
+    Eval pins and old measurement evidence remain exact and are not rewritten or registered again.
+  sibling_finding: Advancing the strict scorer check exposed five already-changed catalog AgentTemplates
+    whose recorded digests were stale as well. Freeze their existing bytes in the same offline manifest;
+    change no authored catalog content or scoring input.
+scope:
+  in:
+  - Assert the existing ordinary native callback is preserved.
+  - Refresh only the scorerSha256 value from unchanged harness/validator code plus the current locked
+    Go dependencies.
+  - Refresh the five stale catalog digest values to the existing fixture bytes; retain strict catalog-set
+    and digest validation.
+  out:
+  - Scoring algorithms, visible inputs, private truth, thresholds, authored catalog content, production
+    behavior, live Eval execution and live/published registrations.
+acceptance_criteria:
+- id: A1
+  text: Ordinary Workers retain their native callback and session policy; controlled projection still
+    preserves native safety and cleanup.
+- id: A2
+  text: All offline fixtures and recorded scorer cases pass with strict closure validation; drift still
+    fails and no network/model call occurs.
+tests:
+- command: make test-context-compaction-eval-fixtures
+  covers:
+  - A1
+  - A2
+implementation_commit: 7a8a998284e815742fd08ed21bc088f1696693ee
+verification:
+  result: passed
+  commands:
+  - command: make test-context-compaction-eval-fixtures
+    result: 43 tests, 7 variants, 3 classes, 105 scored samples and both Go packages passed; no Gateway
+      calls.
+  pins: 'Updated only six stale digest values in the existing offline fixture manifest: scorer closure
+    and five already-present catalog templates. Scorer/validator algorithms, authored catalog bytes, visible
+    inputs, truth, thresholds, live registrations and saved measurement evidence were unchanged.'

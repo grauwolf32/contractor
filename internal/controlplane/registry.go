@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -34,16 +35,16 @@ type RegistryOptions struct {
 }
 
 type AgentSnapshot struct {
-	Principal                 AuthenticatedPrincipal
-	Registration              control.AgentRegistration
-	LastSeenAt                time.Time
-	LastHeartbeatSeq          uint64
-	LastIssuedAckSeq          uint64
-	LastConfirmedAckSeq       uint64
-	ConfirmedLeaseExpiresAt   time.Time
-	AuthoritativeAllocationID *string
-	ReconciliationRequired    bool
-	LeaseExpired              bool
+	Principal                  AuthenticatedPrincipal
+	Registration               control.AgentRegistration
+	LastSeenAt                 time.Time
+	LastHeartbeatSeq           uint64
+	LastIssuedAckSeq           uint64
+	LastConfirmedAckSeq        uint64
+	ConfirmedLeaseExpiresAt    time.Time
+	AuthoritativeAllocationIDs []string
+	ReconciliationRequired     bool
+	LeaseExpired               bool
 }
 
 type InMemoryRegistry struct {
@@ -69,39 +70,32 @@ type InMemoryRegistry struct {
 	nextOperationsWatcher      uint64
 }
 
-// agentEntry keeps independent sources of truth: registration is the frozen
-// declaration plus the latest observed slot state; authoritativeAllocationID is
-// Server ownership. allocationActivated remembers whether that owner was ever
-// observed prepared, so a pre-prepare idle heartbeat is valid. Lease expiry and
-// allocation loss are irreversible until the documented re-registration/release
-// boundary; write fencing lives on the stored grant. reconciliationRequired is
-// their derived dispatch signal, not an alternative lifecycle state.
-// All mutable entry state is protected by Registry.mu.
+// agentEntry owns process liveness and bounded allocation membership. Per-allocation
+// activation, loss and write fencing live on storedReservation under Registry.mu.
 type agentEntry struct {
-	toolCapabilities          toolCapabilityIndex
-	principal                 AuthenticatedPrincipal
-	principalMissing          bool
-	registration              control.AgentRegistration
-	identity                  string
-	orderKey                  string
-	lastSeenAt                time.Time
-	lastAcceptedHeartbeatAt   time.Time
-	lastHeartbeatSeq          uint64
-	lastIssuedAckSeq          uint64
-	lastConfirmedAckSeq       uint64
-	confirmedLeaseExpiresAt   time.Time
-	authoritativeAllocationID *string
-	reconciliationRequired    bool
-	confirmedLeaseDeadline    time.Duration
-	principalClaimDeadline    time.Duration
-	leaseExpired              bool
-	allocationLost            bool
-	allocationActivated       bool
-	superseded                bool
-	blockedByInstanceID       *string
-	issuedAcks                map[uint64]struct{}
-	heartbeatResponses        map[uint64]control.HeartbeatResponse
-	heartbeatOrder            []uint64
+	toolCapabilities        toolCapabilityIndex
+	principal               AuthenticatedPrincipal
+	principalMissing        bool
+	registration            control.AgentRegistration
+	identity                string
+	orderKey                string
+	lastSeenAt              time.Time
+	lastAcceptedHeartbeatAt time.Time
+	lastHeartbeatSeq        uint64
+	lastIssuedAckSeq        uint64
+	lastConfirmedAckSeq     uint64
+	confirmedLeaseExpiresAt time.Time
+	allocationIDs           map[string]struct{}
+	releaseAcks             map[string]uint64
+	reconciliationRequired  bool
+	confirmedLeaseDeadline  time.Duration
+	principalClaimDeadline  time.Duration
+	leaseExpired            bool
+	superseded              bool
+	blockedByInstanceID     *string
+	issuedAcks              map[uint64]struct{}
+	heartbeatResponses      map[uint64]control.HeartbeatResponse
+	heartbeatOrder          []uint64
 	// modelStageHeldUntil is the monotonic instant until which model-free
 	// placement must not select this Agent (CTL-R155).
 	modelStageHeldUntil time.Duration
@@ -176,3 +170,35 @@ func (r *InMemoryRegistry) nextID(prefix string) (string, error) {
 }
 
 var _ Registry = (*InMemoryRegistry)(nil)
+
+func (entry *agentEntry) owns(allocationID string) bool {
+	_, present := entry.allocationIDs[allocationID]
+	return present
+}
+
+func (entry *agentEntry) authoritativeIDs() []string {
+	result := make([]string, 0, len(entry.allocationIDs))
+	for identity := range entry.allocationIDs {
+		result = append(result, identity)
+	}
+	slices.Sort(result)
+	return result
+}
+
+func (entry *agentEntry) availableSlots() int {
+	if entry.leaseExpired || entry.superseded || entry.principalMissing || entry.blockedByInstanceID != nil ||
+		entry.registration.ObservedState == control.AgentFenced || entry.registration.ObservedState == control.AgentDraining {
+		return 0
+	}
+	occupied := make(map[string]struct{}, 2*control.MaxAllocationSlots)
+	for id := range entry.allocationIDs {
+		occupied[id] = struct{}{}
+	}
+	for id := range entry.releaseAcks {
+		occupied[id] = struct{}{}
+	}
+	for _, item := range entry.registration.Allocations {
+		occupied[item.AllocationID] = struct{}{}
+	}
+	return max(0, entry.registration.AllocationSlots-len(occupied))
+}

@@ -13,6 +13,7 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from contractor_runtime.contracts.registration import MAX_ALLOCATION_SLOTS
 from contractor_runtime.projectfs import DirectWorkspaceSession
 from contractor_runtime.projectfs.operation_guard import WorkspaceOperationGuard
 from contractor_runtime.sandbox.contracts import (
@@ -40,17 +41,33 @@ _OWNERS: list[subprocess.Popen] = []
 
 
 class OwnerClient:
-    def __init__(self, control: socket.socket, health: socket.socket, process: subprocess.Popen):
+    def __init__(
+        self,
+        control: socket.socket,
+        health: socket.socket,
+        process: subprocess.Popen,
+        lanes: tuple[socket.socket, ...],
+    ):
         self.control = control
         self.health = health
         self.process = process
         self.operations = OwnedOperations()
+        self.lanes = lanes
+        self._free_lanes = list(lanes)
+        self._allocation_lanes: dict[str, tuple[socket.socket, OwnedOperations]] = {}
         self.disconnected = asyncio.Event()
 
     @classmethod
     async def start(cls, settings: PodmanSettings) -> OwnerClient:
         control, child_control = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
         health, child_health = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        pairs = [
+            socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+            for _ in range(MAX_ALLOCATION_SLOTS)
+        ]
+        lanes, child_lanes = tuple(zip(*pairs, strict=True))
+        for channel in (*lanes, *child_lanes):
+            channel.setblocking(False)
         control.setblocking(False)
         health.setblocking(False)
 
@@ -65,8 +82,13 @@ class OwnerClient:
                         "contractor_runtime.sandbox.podman.owner",
                         str(child_control.fileno()),
                         str(child_health.fileno()),
+                        *(str(channel.fileno()) for channel in child_lanes),
                     ],
-                    pass_fds=(child_control.fileno(), child_health.fileno()),
+                    pass_fds=(
+                        child_control.fileno(),
+                        child_health.fileno(),
+                        *(channel.fileno() for channel in child_lanes),
+                    ),
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
@@ -80,14 +102,18 @@ class OwnerClient:
             finally:
                 child_control.close()
                 child_health.close()
+                for channel in child_lanes:
+                    channel.close()
 
         try:
             process = await asyncio.to_thread(spawn)
             await send_rpc(control, {"settings": asdict(settings)})
-            return cls(control, health, process)
+            return cls(control, health, process, lanes)
         except BaseException:
             control.close()
             health.close()
+            for channel in (*lanes, *child_lanes):
+                channel.close()
             raise
 
     def signal(self, message: dict) -> None:
@@ -103,11 +129,24 @@ class OwnerClient:
         self.disconnected.set()
         self.health.close()
         self.control.close()
+        for channel in self.lanes:
+            channel.close()
 
     async def request(self, op: str, *, deadline: float, **fields):
+        channel, operations = self.control, self.operations
+        allocation_id = fields.get("allocation")
+        if allocation_id is not None:
+            lane = self._allocation_lanes.get(allocation_id)
+            if lane is None:
+                if not self._free_lanes:
+                    raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
+                lane = self._free_lanes.pop(), OwnedOperations()
+                self._allocation_lanes[allocation_id] = lane
+            channel, operations = lane
+
         async def exchange():
-            await send_rpc(self.control, {"op": op, "deadline": deadline, **fields})
-            return await receive_rpc(self.control)
+            await send_rpc(channel, {"op": op, "deadline": deadline, **fields})
+            return await receive_rpc(channel)
 
         async def operation():
             if self.disconnected.is_set():
@@ -138,7 +177,11 @@ class OwnerClient:
                 disconnected.cancel()
                 await asyncio.gather(response_task, disconnected, return_exceptions=True)
 
-        return await self.operations.run(operation, deadline)
+        result = await operations.run(operation, deadline)
+        if op == "remove" and allocation_id is not None:
+            self._allocation_lanes.pop(allocation_id)
+            self._free_lanes.append(channel)
+        return result
 
 
 class PodmanLifecycle:
@@ -150,7 +193,7 @@ class PodmanLifecycle:
         self._heartbeat: asyncio.Task | None = None
         self._lease_source: Callable[[], float | None] = lambda: None
         self._failure: Callable[[], None] = lambda: None
-        self._entry: PodmanAllocation | None = None
+        self._entries: dict[str, PodmanAllocation] = {}
         self._recovered = False
         self._closed = False
         self._close_confirmed = False
@@ -198,7 +241,7 @@ class PodmanLifecycle:
 
     async def probe(self, root: Path, *, deadline: float) -> dict:
         async def operation():
-            if self._closed or self._failed or not self._recovered or self._entry is not None:
+            if self._closed or self._failed or not self._recovered or self._entries:
                 raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
             if (
                 self._probe_storage_root is not None
@@ -255,8 +298,8 @@ class PodmanLifecycle:
                 await asyncio.sleep(0.25)
         except Exception:
             self._failed = True
-            if self._entry is not None:
-                self._entry.reject()
+            for entry in self._entries.values():
+                entry.reject()
             self._failure()
 
     async def recover(self, *, deadline: float) -> None:
@@ -296,17 +339,17 @@ class PodmanLifecycle:
         else:
             raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
         root = Path(workspace.storage.root) / "run_workdir"
-        if self._entry is None:
-            self._entry = PodmanAllocation(
+        entry = self._entries.get(allocation_id)
+        if entry is None:
+            if len(self._entries) >= MAX_ALLOCATION_SLOTS:
+                raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
+            entry = PodmanAllocation(
                 self, allocation_id, root, workspace.execution_guard, network=network
             )
-        elif (
-            self._entry.allocation_id != allocation_id
-            or self._entry.root != root
-            or self._entry.network != network
-        ):
+            self._entries[allocation_id] = entry
+        elif entry.root != root or entry.network != network:
             raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
-        return self._entry
+        return entry
 
     async def prepare_root(self, root: Path) -> None:
         await self.recover(deadline=time.monotonic() + self.settings.prepare_max_seconds)
@@ -316,8 +359,8 @@ class PodmanLifecycle:
         if self._close_confirmed:
             return
         self._closed = True
-        if self._entry is not None:
-            self._entry.reject()
+        for entry in self._entries.values():
+            entry.reject()
         # A successful owner close also closes its health socket. Join pulses
         # before requesting close so that EOF cannot make a concurrent pulse
         # disconnect the control socket before its close receipt is read.
@@ -335,12 +378,10 @@ class PodmanLifecycle:
 
             await self._operations.run(operation, deadline)
             self._close_confirmed = True
-            if self._entry is not None:
-                # Owner close proves exact removal too, including a command
-                # whose caller already lost its individual stop receipt.
-                self._entry.removed = True
-                self._entry.stopped.set()
-                self._entry = None
+            for entry in self._entries.values():
+                entry.removed = True
+                entry.stopped.set()
+            self._entries.clear()
         finally:
             if self._heartbeat is not None:
                 self._heartbeat.cancel()
@@ -429,8 +470,8 @@ class PodmanAllocation:
             )
             self.removed = True
             self.stopped.set()
-            if self.owner._entry is self:
-                self.owner._entry = None
+            if self.owner._entries.get(self.allocation_id) is self:
+                del self.owner._entries[self.allocation_id]
 
 
 def _monotonic(deadline: datetime) -> float:

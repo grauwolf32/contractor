@@ -6,23 +6,145 @@
       "title": "AgentHeartbeat",
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "instanceId", "heartbeatSeq", "echoedAckSeq", "observedState"],
+      "required": [
+        "apiVersion",
+        "instanceId",
+        "heartbeatSeq",
+        "echoedAckSeq",
+        "observedState",
+        "allocations"
+      ],
       "properties": {
-        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
-        "instanceId": {"$ref": "common.schema.json#/$defs/resourceId"},
-        "heartbeatSeq": {"type": "integer", "minimum": 1},
-        "echoedAckSeq": {"type": "integer", "minimum": 0},
-        "observedState": {"enum": ["idle", "allocated", "draining", "fenced"]},
-        "allocationId": {"$ref": "common.schema.json#/$defs/resourceId"}
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "instanceId": {
+          "$ref": "common.schema.json#/$defs/resourceId"
+        },
+        "heartbeatSeq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "echoedAckSeq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observedState": {
+          "enum": [
+            "idle",
+            "allocated",
+            "draining",
+            "fenced"
+          ]
+        },
+        "allocations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "allocationId",
+              "observedState"
+            ],
+            "properties": {
+              "allocationId": {
+                "$ref": "common.schema.json#/$defs/resourceId"
+              },
+              "observedState": {
+                "enum": [
+                  "allocated",
+                  "draining",
+                  "fenced"
+                ]
+              }
+            }
+          },
+          "maxItems": 4
+        }
       },
       "allOf": [
         {
-          "if": {"properties": {"observedState": {"enum": ["allocated", "draining"]}}},
-          "then": {"required": ["allocationId"]}
+          "if": {
+            "properties": {
+              "observedState": {
+                "const": "idle"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "allocations": {
+                "maxItems": 0
+              }
+            }
+          }
         },
         {
-          "if": {"properties": {"observedState": {"const": "idle"}}},
-          "then": {"not": {"required": ["allocationId"]}}
+          "if": {
+            "properties": {
+              "observedState": {
+                "enum": [
+                  "allocated",
+                  "draining"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "allocations": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "allocationSlots": {
+                "const": 1
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "allocations": {
+                "maxItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "allocationSlots": {
+                "const": 2
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "allocations": {
+                "maxItems": 2
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "allocationSlots": {
+                "const": 3
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "allocations": {
+                "maxItems": 3
+              }
+            }
+          }
         }
       ]
     },
@@ -30,13 +152,68 @@
       "title": "HeartbeatResponse",
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "ackSeq", "action"],
+      "required": [
+        "apiVersion",
+        "ackSeq",
+        "action",
+        "allocationActions"
+      ],
       "properties": {
-        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
-        "ackSeq": {"type": "integer", "minimum": 1},
-        "action": {"enum": ["continue", "drain", "release", "reregister"]},
-        "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"}
-      }
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "ackSeq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "action": {
+          "enum": [
+            "continue",
+            "reregister"
+          ]
+        },
+        "allocationActions": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "allocationId",
+              "action"
+            ],
+            "properties": {
+              "allocationId": {
+                "$ref": "common.schema.json#/$defs/resourceId"
+              },
+              "action": {
+                "enum": [
+                  "drain",
+                  "release"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "reregister"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "allocationActions": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
     }
   ]
 }

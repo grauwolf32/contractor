@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fakes.allocation import allocation_context
 from test_projectfs_local_direct import workspace
 from test_projectfs_zip import REVISION, archive
 from test_workspace_auto_export import MemoryArtifactClient, StoredArtifact
@@ -181,7 +182,7 @@ def test_owned_mutation_blocks_allocation_release_and_slot_reuse(
         spec = direct_workspace_spec("owned-io")
         spec.runtime_settings.request_timeout_seconds = 1
         await service.prepare(spec)
-        context = service._context
+        context = allocation_context(service)
         assert context is not None and context.project_workspace is not None
         project = context.project_workspace
         assert project._local is not None and project._local._filesystem is not None
@@ -230,7 +231,7 @@ def test_owned_mutation_blocks_allocation_release_and_slot_reuse(
             while context.release_cleanup_task is None:
                 await asyncio.sleep(0)
             heartbeat = await asyncio.wait_for(state.heartbeat(1, 0), timeout=0.2)
-            assert heartbeat.allocation_id == spec.allocation_id
+            assert [item.allocation_id for item in heartbeat.allocations] == [spec.allocation_id]
             if cancel_release:
                 releasing.cancel()
                 with pytest.raises(asyncio.CancelledError):
@@ -238,7 +239,7 @@ def test_owned_mutation_blocks_allocation_release_and_slot_reuse(
             else:
                 with pytest.raises(AllocationError, match="allocation cleanup failed"):
                     await releasing
-            assert (await state.snapshot()).process_state is ProcessState.FENCED
+            assert (await state.snapshot(spec.allocation_id)).process_state is ProcessState.FENCED
             # The bounded release attempt may finish on its deadline. Physical
             # disposal still belongs to the original guard task until I/O settles.
             retained = project._local.guard._cleanup
@@ -258,9 +259,9 @@ def test_owned_mutation_blocks_allocation_release_and_slot_reuse(
             await asyncio.wait_for(retry, timeout=2)
             await service.release(request)
             assert cleanup_calls == 1 and not root.exists()
-            assert (await state.snapshot()).process_state is ProcessState.FENCED
+            assert (await state.snapshot(spec.allocation_id)).process_state is ProcessState.FENCED
             await service.confirm_release(spec.allocation_id)
-            assert (await state.snapshot()).process_state is ProcessState.IDLE
+            assert (await state.snapshot(spec.allocation_id)).process_state is ProcessState.IDLE
         finally:
             finish.set()
             await asyncio.gather(

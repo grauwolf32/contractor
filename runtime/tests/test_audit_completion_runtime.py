@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 from audit_fixtures import arguments
+from fakes.allocation import allocation_context
 from fakes.audit_judgments import JudgmentTransport
 from fakes.model import scripted_model, text_result, thought_result, tool_call
 from google.genai import types
@@ -649,7 +650,7 @@ def test_allocation_preparation_and_registration_require_positive_completion_sup
         response = await service.prepare(spec)
         assert response.worker_handle.allocation_id == spec.allocation_id
         assert (await service.prepare(spec)) == response
-        worker = service._context.worker
+        worker = allocation_context(service).worker
         assert worker._context.completion_contract == contract()
         assert (await worker.invoke(stage_request())).result is not None
         await worker.abort(datetime.now(UTC) + timedelta(seconds=2))
@@ -670,8 +671,9 @@ def test_allocation_preparation_and_registration_require_positive_completion_sup
             disabled,
             a2a_base_url="https://runtime.example",
         )
+        await unsupported._state.mark_registered()
         with pytest.raises(AllocationError):
-            unsupported._validate_spec(spec)
+            await unsupported.prepare(spec)
         missing_transport = built_in_factories(tmp_path)
         assert not await missing_transport.toolsets["audit-results@2"].probe()
 

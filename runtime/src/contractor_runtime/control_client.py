@@ -23,6 +23,7 @@ from contractor_runtime.contracts import (
     SharedConfig,
     decode_private,
 )
+from contractor_runtime.contracts.registration import MAX_ALLOCATION_SLOTS
 from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.settings import Settings
 from contractor_runtime.shared_config import install_shared_config
@@ -223,9 +224,9 @@ class ControlClient:
         self._jitter = jitter
         self._heartbeat_lock = asyncio.Lock()
         # Reconciliation may wait for a long allocation operation. It runs in
-        # one serialized background task so heartbeats keep renewing the lease.
+        # a serialized background task per allocation so heartbeats keep renewing the lease.
         self._pending_reconciliation: deque[tuple[ReconciliationAction, str | None]] = deque()
-        self._reconciliation_task: asyncio.Task[None] | None = None
+        self._reconciliation_tasks: dict[str | None, asyncio.Task[None]] = {}
         self._sequence = 0
         self._echoed_ack = 0
         # Registration replaces these protocol defaults before the production
@@ -311,7 +312,7 @@ class ControlClient:
         snapshot = await self._state.snapshot()
         if snapshot.process_state is ProcessState.STARTING:
             await self._state.mark_registered()
-        elif snapshot.process_state is ProcessState.FENCED and snapshot.allocation_id is None:
+        elif snapshot.process_state is ProcessState.FENCED and not snapshot.allocations:
             # Registration has established that the Control Plane owns no
             # allocation for this identity, so an idle lease loss may clear.
             await self._state.confirm_release(None)
@@ -378,35 +379,46 @@ class ControlClient:
         return response
 
     async def _apply_reconciliation(self, response: HeartbeatResponse) -> None:
-        if response.action is ReconciliationAction.DRAIN:
-            if self._reconciliation is None or response.allocation_id is None:
-                raise ControlClientError("heartbeat drain action cannot be applied")
-            self._schedule_reconciliation(response.action, response.allocation_id)
-        elif response.action is ReconciliationAction.RELEASE:
-            if self._reconciliation is None:
-                raise ControlClientError("heartbeat release action cannot be applied")
-            self._schedule_reconciliation(response.action, response.allocation_id)
-        elif response.action is ReconciliationAction.REREGISTER:
+        if response.action is ReconciliationAction.REREGISTER:
             await self.register()
+            return
+        if response.allocation_actions and self._reconciliation is None:
+            raise ControlClientError("heartbeat allocation actions cannot be applied")
+        for item in response.allocation_actions:
+            self._schedule_reconciliation(item.action, item.allocation_id)
 
     def _schedule_reconciliation(
         self, action: ReconciliationAction, allocation_id: str | None
     ) -> None:
         # Repeated heartbeats re-send the same authoritative action. Queue it
         # once so a long-running allocation operation cannot grow the backlog.
+        if (
+            allocation_id not in self._reconciliation_tasks
+            and len(self._reconciliation_tasks) >= 2 * MAX_ALLOCATION_SLOTS
+        ):
+            raise ControlClientError("too many concurrent reconciliation owners")
         if (action, allocation_id) not in self._pending_reconciliation:
             self._pending_reconciliation.append((action, allocation_id))
-        if self._reconciliation_task is None or self._reconciliation_task.done():
-            self._reconciliation_task = asyncio.create_task(
-                self._run_reconciliation(), name="runtime-control-reconciliation"
+        task = self._reconciliation_tasks.get(allocation_id)
+        if task is None or task.done():
+            task = asyncio.create_task(
+                self._run_reconciliation(allocation_id), name="runtime-control-reconciliation"
             )
-            self._reconciliation_task.add_done_callback(consume_task_exception)
+            self._reconciliation_tasks[allocation_id] = task
 
-    async def _run_reconciliation(self) -> None:
+            def finished(completed, identity=allocation_id):
+                consume_task_exception(completed)
+                if self._reconciliation_tasks.get(identity) is completed:
+                    self._reconciliation_tasks.pop(identity)
+
+            task.add_done_callback(finished)
+
+    async def _run_reconciliation(self, owner_id: str | None) -> None:
         if not (self._reconciliation is not None):
             raise RuntimeError("Expected self._reconciliation is not None")
-        while self._pending_reconciliation:
-            action, allocation_id = self._pending_reconciliation.popleft()
+        while items := [item for item in self._pending_reconciliation if item[1] == owner_id]:
+            action, allocation_id = items[0]
+            self._pending_reconciliation.remove(items[0])
             try:
                 if action is ReconciliationAction.DRAIN:
                     if not (allocation_id is not None):
@@ -421,7 +433,7 @@ class ControlClient:
                         # Local expiry may arrive while release cleanup runs.
                         await self._state.fence_control_lease()
                         expired = True
-                    if expired:
+                    if expired and not (await self._state.snapshot()).allocations:
                         # A release is not a new lease generation. Keep the
                         # slot fenced while the Server establishes one.
                         async with self._heartbeat_lock:
@@ -432,19 +444,22 @@ class ControlClient:
                 logger.warning("Control Plane reconciliation failed (%s)", type(error).__name__)
 
     async def wait_for_reconciliation(self) -> None:
-        """Wait until every reconciliation action received so far was attempted."""
-
-        while self._reconciliation_task is not None and not self._reconciliation_task.done():
-            await asyncio.wait({self._reconciliation_task})
+        """Join actions admitted so far, including queued per-allocation work."""
+        while tasks := tuple(self._reconciliation_tasks.values()):
+            await asyncio.gather(*tasks)
+            for identity, task in tuple(self._reconciliation_tasks.items()):
+                if task.done() and self._reconciliation_tasks.get(identity) is task:
+                    self._reconciliation_tasks.pop(identity)
 
     async def close(self) -> None:
         """Cancel queued and in-flight reconciliation on shutdown."""
 
         self._pending_reconciliation.clear()
-        task = self._reconciliation_task
-        if task is not None and not task.done():
+        tasks = tuple(self._reconciliation_tasks.values())
+        for task in tasks:
             task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self._reconciliation_tasks.clear()
 
     async def run_heartbeats(self, stop: asyncio.Event) -> None:
         failures = 0

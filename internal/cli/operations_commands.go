@@ -61,13 +61,13 @@ func (c *CLI) runOperations(ctx context.Context, client *publicclient.Client, pr
 		page := response.JSON200
 		return List(printer, page, page.Items,
 			func(item publicapi.RuntimeAgentObservation) string { return item.InstanceId },
-			[]string{"INSTANCE", "STATE", "SLOT", "VERSION", "LAST HEARTBEAT"},
+			[]string{"INSTANCE", "OBSERVED", "STATE", "FREE/CAPACITY", "BUSY", "FENCED", "VERSION", "LAST HEARTBEAT"},
 			func(item publicapi.RuntimeAgentObservation) []string {
 				last := "-"
 				if item.LastAcceptedHeartbeat != nil {
 					last = item.LastAcceptedHeartbeat.Format(time.RFC3339)
 				}
-				return []string{item.InstanceId, stringValue(item.ObservedState), stringValue(item.SlotState), item.SoftwareVersion, last}
+				return []string{item.InstanceId, stringValue(item.ObservedState), stringValue(item.State), fmt.Sprintf("%d/%d", item.AvailableSlots, item.AllocationSlots), fmt.Sprint(item.BusySlots), fmt.Sprint(item.FencedSlots), item.SoftwareVersion, last}
 			},
 		)
 	case "principals":

@@ -1,3 +1,4 @@
+import { observationsAgree } from "./runtime-agents/capacity";
 import { Link, useLocation } from "react-router";
 import type { RuntimeAgentObservation } from "../../api/operations";
 import type { StatusTone } from "../../app/status-tone";
@@ -10,7 +11,7 @@ import { ProcessRow } from "./runtime-agents/process-inventory";
 import { AllocationEntry } from "./allocations";
 
 const SLOT_STATES: readonly {
-  state: RuntimeAgentObservation["slotState"];
+  state: RuntimeAgentObservation["state"];
   label: string;
   tone: StatusTone;
 }[] = [
@@ -25,15 +26,26 @@ export function OperationsOverviewRoute() {
   const { snapshot } = useOperationsSnapshot();
   const { hash } = useLocation();
   const agents = snapshot.runtimeAgents;
-  const mismatches = agents.filter(
-    (agent) =>
-      agent.reconciliationReason !== undefined ||
-      agent.currentAllocationId !== agent.authoritativeAllocationId,
-  );
+  const mismatches = agents.filter((agent) => !observationsAgree(agent));
   const counts = SLOT_STATES.map((slot) => ({
     ...slot,
-    count: agents.filter((agent) => agent.slotState === slot.state).length,
+    count: agents.reduce(
+      (sum, agent) =>
+        sum +
+        {
+          idle: agent.availableSlots,
+          busy: agent.busySlots,
+          reserved: agent.reservedSlots,
+          draining: agent.drainingSlots,
+          fenced: agent.fencedSlots,
+        }[slot.state],
+      0,
+    ),
   }));
+  const capacity = agents.reduce(
+    (sum, agent) => sum + agent.allocationSlots,
+    0,
+  );
   const draining = counts.find((slot) => slot.state === "draining")!.count;
   const summary = counts
     .filter((slot) => slot.count > 0)
@@ -50,7 +62,7 @@ export function OperationsOverviewRoute() {
             <span className="ops-tile-value">
               <strong>{agents.length}</strong>
             </span>
-            <span className="ui-caption">One slot per deployed process</span>
+            <span className="ui-caption">1–4 slots per deployed process</span>
           </Link>
         </li>
         <li>
@@ -90,7 +102,7 @@ export function OperationsOverviewRoute() {
           className="ops-readiness-panel"
           id="operations-readiness-heading"
           title="Execution slots"
-          aside={plural(agents.length, "slot", "slots")}
+          aside={plural(capacity, "slot", "slots")}
         >
           {agents.length === 0 ? (
             <p className="ops-empty">
@@ -101,7 +113,7 @@ export function OperationsOverviewRoute() {
             <div
               className="ops-slot-track"
               role="img"
-              aria-label={`${plural(agents.length, "Runtime Agent slot", "Runtime Agent slots")}: ${summary}`}
+              aria-label={`${plural(capacity, "Runtime Agent slot", "Runtime Agent slots")}: ${summary}`}
             >
               {counts
                 .filter((slot) => slot.count > 0)
@@ -149,7 +161,7 @@ export function OperationsOverviewRoute() {
                   </Link>
                   <p>
                     {agent.reconciliationReason?.code.replaceAll("_", " ") ??
-                      (agent.slotState === "reserved"
+                      (agent.state === "reserved"
                         ? "Reserved — awaiting a Runtime allocation observation."
                         : "Observed allocation differs from its assignment.")}
                   </p>

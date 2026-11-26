@@ -56,7 +56,7 @@ func registerTerminalReleaseGrant(
 	if err != nil {
 		t.Fatal(err)
 	}
-	registration := control.AgentRegistration{
+	registration := control.AgentRegistration{AllocationSlots: 1, Allocations: []control.ObservedAllocation{},
 		APIVersion: contracts.APIVersion, InstanceID: "unreachable-runtime", SoftwareVersion: "0.1.0",
 		StartedAt: options.Now(), ControlURL: "https://unreachable.example:9443", A2AURL: "https://unreachable.example:9444",
 		SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{},
@@ -74,7 +74,7 @@ func registerTerminalReleaseGrant(
 		t.Fatal(err)
 	}
 	for sequence := uint64(1); sequence <= 2; sequence++ {
-		if _, err := registry.HeartbeatAuthenticated(principal.RuntimeAgentID, control.AgentHeartbeat{
+		if _, err := registry.HeartbeatAuthenticated(principal.RuntimeAgentID, control.AgentHeartbeat{Allocations: []control.ObservedAllocation{},
 			APIVersion: contracts.APIVersion, InstanceID: registration.InstanceID,
 			HeartbeatSeq: sequence, EchoedAckSeq: sequence - 1, ObservedState: control.AgentIdle,
 		}); err != nil {

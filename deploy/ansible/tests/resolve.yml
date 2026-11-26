@@ -41,6 +41,7 @@
               '--advertised-control-url', 'https://127.0.0.1:9443',
               '--advertised-a2a-url', 'https://127.0.0.1:9443', '--listen', '127.0.0.1:9443']
           - "'--initial-label' not in _args and '--runtime-adapter' not in _args"
+          - _args[_args.index('--allocation-slots') + 1] == '4'
           - _args[_args.index('--workspace-storage') + 1] == 'local'
           - _args[_args.index('--workspace-work-root') + 1] == '/var/lib/contractor-runtime/instances/localhost-1/workspaces'
           - _args[_args.index('--work-root') + 1] == '/var/lib/contractor-runtime/instances/localhost-1/work'
@@ -67,6 +68,7 @@
     contractor_runtime_instances:
       - name: scan-1
         port: 9443
+        allocation_slots: 2
         placement_labels: [cloud/hetzner]
         adapters: [http-proxy@1]
         allowed_target_networks: [127.0.0.0/8]
@@ -101,6 +103,7 @@
           - not _scan.podman
           - _scan.probe_refs | sort == ['code-analysis@1', 'edit-files@1', 'filesystem@1', 'scan@1',
               'taint-annotations@1', 'workspace-changes@1', 'workspace-storage'] | sort
+          - _scan.args[_scan.args.index('--allocation-slots') + 1] == '2'
           - _scan.args[_scan.args.index('--listen') + 1] == '0.0.0.0:9443'
           - _scan.args[_scan.args.index('--workspace-storage') + 1] == 'memory'
           - "'--workspace-work-root' not in _scan.args"

@@ -47,6 +47,7 @@ class RuntimePlacement(unittest.TestCase):
                     "ssh": "cloud-fixture",
                     "address": "10.77.0.11",
                     "slots": 2,
+                    "allocation_slots": 2,
                     "placement_labels": ["cloud", "cloud/aws"],
                 },
                 {
@@ -102,6 +103,21 @@ class RuntimePlacement(unittest.TestCase):
                             source["placement_labels"],
                         )
                         self.assertEqual(len(host["contractor_runtime_instances"]), source["slots"])
+                        self.assertEqual(
+                            host["contractor_runtime_allocation_slots"],
+                            source.get("allocation_slots", 4),
+                        )
+
+    def test_invalid_capacity_preserves_existing_inventory(self):
+        path = self.inventory()
+        original = path.read_bytes()
+        for value in (0, 5, True, "4", None):
+            with self.subTest(value=value):
+                source = copy.deepcopy(self.document)
+                source["hosts"][0]["allocation_slots"] = value
+                with self.assertRaisesRegex(ValueError, "allocation_slots"):
+                    self.inventory(source)
+                self.assertEqual(path.read_bytes(), original)
 
     def test_shared_grammar_rejects_invalid_sources_before_replacing_inventory(self):
         path = self.inventory()

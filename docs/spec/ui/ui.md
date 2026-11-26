@@ -1214,7 +1214,7 @@ change (FAIL-UI-5).
 ### Language
 
 **UI-R167.** UI labels must preserve the execution vocabulary: a Runtime Agent
-is the long-running single-slot process, while Worker is its temporary
+is the long-running multi-slot process, while Worker is its temporary
 allocation-scoped role. The UI must not present them as two independently
 deployed services.
 

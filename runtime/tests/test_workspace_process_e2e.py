@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fakes.allocation import allocation_context, allocation_snapshot
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
 from test_projectfs_zip import REVISION, archive, settings
@@ -61,7 +62,7 @@ def test_external_process_changes_reach_direct_worker_and_observations(tmp_path:
         state, service = await make_service(tmp_path, "local", artifacts, model, "external-writer")
         spec = direct_workspace_spec("external-writer")
         await service.prepare(spec)
-        context = service._context
+        context = allocation_context(service)
         assert (
             context is not None
             and context.project_workspace is not None
@@ -123,8 +124,11 @@ os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
         assert artifacts.binding("source").data == original
         fresh = direct_workspace_spec("fresh-after-external")
         await service.prepare(fresh)
-        assert service._context is not None and service._context.project_workspace is not None
-        snapshot = await service._context.project_workspace.snapshot()
+        assert (
+            allocation_context(service) is not None
+            and allocation_context(service).project_workspace is not None
+        )
+        snapshot = await allocation_context(service).project_workspace.snapshot()
         assert {file.path for file in snapshot.files} == {"source.txt", "nested/readme.txt"}
         await terminate_and_release(service, fresh.allocation_id)
 
@@ -178,7 +182,7 @@ def test_exact_source_edit_export_import_and_slot_reuse(tmp_path: Path, storage:
         )
         await terminate_and_release(service, first_spec.allocation_id)
         assert (await state.snapshot()).process_state is ProcessState.IDLE
-        assert await service.snapshot() is None
+        assert await allocation_snapshot(service) is None
 
         # A later allocation consumes only the exact exported state revision.
         second_model = edit_model("source.txt", "after", "after again", "second")
@@ -232,16 +236,28 @@ def test_router_siblings_with_multiple_sources_are_isolated_until_exact_state_im
         )
         await left.prepare(left_spec)
         await right.prepare(right_spec)
-        assert left._context is not None and right._context is not None
-        assert await left._context.project_workspace.read_text("backend/app.py") == "before\n"  # type: ignore[union-attr]
-        assert await right._context.project_workspace.read_text("backend/app.py") == "before\n"  # type: ignore[union-attr]
+        assert allocation_context(left) is not None and allocation_context(right) is not None
+        assert (
+            await allocation_context(left).project_workspace.read_text("backend/app.py")
+            == "before\n"
+        )  # type: ignore[union-attr]
+        assert (
+            await allocation_context(right).project_workspace.read_text("backend/app.py")
+            == "before\n"
+        )  # type: ignore[union-attr]
 
-        left_result = await left._context.worker.invoke(stage_request())  # type: ignore[union-attr]
+        left_result = await allocation_context(left).worker.invoke(stage_request())  # type: ignore[union-attr]
         assert left_result.result is not None
-        assert await left._context.project_workspace.read_text("backend/app.py") == "left-only\n"  # type: ignore[union-attr]
-        assert await right._context.project_workspace.read_text("backend/app.py") == "before\n"  # type: ignore[union-attr]
+        assert (
+            await allocation_context(left).project_workspace.read_text("backend/app.py")
+            == "left-only\n"
+        )  # type: ignore[union-attr]
+        assert (
+            await allocation_context(right).project_workspace.read_text("backend/app.py")
+            == "before\n"
+        )  # type: ignore[union-attr]
 
-        right_result = await right._context.worker.invoke(stage_request())  # type: ignore[union-attr]
+        right_result = await allocation_context(right).worker.invoke(stage_request())  # type: ignore[union-attr]
         assert right_result.result is not None
         assert right_result.result.artifacts["workspace_state"].revision is not None
         await terminate_and_release(left, left_spec.allocation_id)
@@ -304,7 +320,7 @@ async def make_service(
         sandbox_profiles=factories.sandbox_profiles,
         workspace=provider.capability,
     )
-    state = RuntimeState(instance_id=instance_id)
+    state = RuntimeState(instance_id=instance_id, allocation_slots=1)
     await state.mark_registered()
     return state, AllocationService(
         state,
@@ -420,8 +436,10 @@ def stage_request() -> StageContentRequest:
 
 async def invoke(service: AllocationService, spec: Any) -> Any:
     await service.prepare(spec)
-    assert service._context is not None and service._context.worker is not None
-    return await service._context.worker.invoke(stage_request())
+    assert (
+        allocation_context(service) is not None and allocation_context(service).worker is not None
+    )
+    return await allocation_context(service).worker.invoke(stage_request())
 
 
 async def terminate_and_release(service: AllocationService, allocation_id: str) -> None:

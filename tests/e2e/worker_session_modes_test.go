@@ -113,7 +113,7 @@ func TestWorkerSessionModesAcrossProductionProcesses(t *testing.T) {
 		process := startProcess(
 			t, fmt.Sprintf("Python Runtime Agent %d", index+1), filepath.Join(repositoryRoot, "runtime"),
 			map[string]string{"PYTHONUNBUFFERED": "1"},
-			python, "-m", "contractor_runtime",
+			python, "-m", "contractor_runtime", "--allocation-slots", "1",
 			"--control-plane-url", privateBaseURL,
 			"--advertised-control-url", runtimeBaseURL,
 			"--advertised-a2a-url", runtimeBaseURL,

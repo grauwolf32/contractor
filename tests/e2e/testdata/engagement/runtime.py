@@ -85,6 +85,7 @@ class VerifiedFixtureTargetFactory(HTTPTransportFactory):
         )
         return ObservedHTTPTransport(
             spec,
+            native_engine=self._native_engine(),
             protected_urls=self._protected_urls,
             resolver=self._resolver,
             ssl_context=context,

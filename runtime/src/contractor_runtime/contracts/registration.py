@@ -24,7 +24,6 @@ from contractor_runtime.contracts.base import (
     _require_capability_ref,
     _require_resource_id,
     _require_sorted_unique,
-    _require_text,
     _require_url,
 )
 from contractor_runtime.contracts.placement import validate_placement_labels
@@ -50,14 +49,39 @@ class ToolsetCapability(WireModel):
         return self
 
 
-def _validate_observed_allocation(state: AgentObservedState, allocation_id: str | None) -> None:
-    if state is AgentObservedState.IDLE:
-        if allocation_id is not None:
-            raise ValueError("idle agent must not report allocationId")
-        return
-    if state is AgentObservedState.FENCED and allocation_id is None:
-        return
-    _require_resource_id("allocationId", allocation_id or "")
+MAX_ALLOCATION_SLOTS = 4
+
+
+class ObservedAllocation(WireModel):
+    allocation_id: str
+    observed_state: Literal[
+        AgentObservedState.ALLOCATED, AgentObservedState.DRAINING, AgentObservedState.FENCED
+    ]
+
+    @model_validator(mode="after")
+    def validate_identity(self) -> Self:
+        _require_resource_id("allocationId", self.allocation_id)
+        return self
+
+
+def _validate_observed_allocations(state, allocations):
+    ids = [item.allocation_id for item in allocations]
+    if len(ids) != len(set(ids)):
+        raise ValueError("duplicate allocation observation")
+    if state is AgentObservedState.IDLE and allocations:
+        raise ValueError("idle Runtime must not report allocations")
+    if state in {AgentObservedState.ALLOCATED, AgentObservedState.DRAINING} and not allocations:
+        raise ValueError("allocated Runtime must report allocations")
+
+
+class AllocationAction(WireModel):
+    allocation_id: str
+    action: Literal[ReconciliationAction.DRAIN, ReconciliationAction.RELEASE]
+
+    @model_validator(mode="after")
+    def validate_identity(self) -> Self:
+        _require_resource_id("allocationId", self.allocation_id)
+        return self
 
 
 class AgentRegistrationResponse(VersionedWireModel):
@@ -73,15 +97,16 @@ class AgentRegistrationResponse(VersionedWireModel):
 
 class HeartbeatResponse(VersionedWireModel):
     ack_seq: int = Field(gt=0)
-    action: ReconciliationAction
-    allocation_id: str | None = None
+    action: Literal[ReconciliationAction.CONTINUE, ReconciliationAction.REREGISTER]
+    allocation_actions: list[AllocationAction] = Field(max_length=2 * MAX_ALLOCATION_SLOTS)
 
     @model_validator(mode="after")
     def validate_response(self) -> Self:
-        if self.action is ReconciliationAction.DRAIN:
-            _require_text("allocationId", self.allocation_id or "")
-        elif self.allocation_id is not None:
-            _require_text("allocationId", self.allocation_id)
+        ids = [item.allocation_id for item in self.allocation_actions]
+        if len(ids) != len(set(ids)):
+            raise ValueError("duplicate allocation action")
+        if self.action is ReconciliationAction.REREGISTER and self.allocation_actions:
+            raise ValueError("reregister must not include allocation actions")
         return self
 
 
@@ -112,18 +137,19 @@ class AgentHeartbeat(VersionedWireModel):
     heartbeat_seq: int = Field(gt=0)
     echoed_ack_seq: int = Field(ge=0)
     observed_state: AgentObservedState
-    allocation_id: str | None = None
+    allocations: list[ObservedAllocation] = Field(max_length=MAX_ALLOCATION_SLOTS)
 
     @model_validator(mode="after")
     def validate_heartbeat(self) -> Self:
         _require_resource_id("instanceId", self.instance_id)
-        _validate_observed_allocation(self.observed_state, self.allocation_id)
+        _validate_observed_allocations(self.observed_state, self.allocations)
         return self
 
 
 class AgentRegistration(VersionedWireModel):
     nullable_fields = frozenset({"capabilities", "workspace_capabilities"})
 
+    allocation_slots: int = Field(ge=1, le=MAX_ALLOCATION_SLOTS)
     instance_id: str
     software_version: str = Field(min_length=1, max_length=128, pattern=VERSION_PATTERN.pattern)
     started_at: datetime
@@ -133,7 +159,7 @@ class AgentRegistration(VersionedWireModel):
     supported_toolsets: list[ToolsetCapability]
     supported_sandbox_profiles: list[str]
     observed_state: AgentObservedState
-    allocation_id: str | None = None
+    allocations: list[ObservedAllocation] = Field(max_length=MAX_ALLOCATION_SLOTS)
     capabilities: RuntimeCompletionCapabilities | None = None
     placement_labels: list[str] = Field(
         default_factory=list, max_length=32, exclude_if=lambda value: not value
@@ -155,7 +181,9 @@ class AgentRegistration(VersionedWireModel):
             self.supported_toolsets,
             self.supported_sandbox_profiles,
         )
-        _validate_observed_allocation(self.observed_state, self.allocation_id)
+        _validate_observed_allocations(self.observed_state, self.allocations)
+        if len(self.allocations) > self.allocation_slots:
+            raise ValueError("observations exceed Runtime capacity")
         return self
 
     @model_validator(mode="after")

@@ -22,6 +22,7 @@ from a2a.types import (
     TaskStatusUpdateEvent,
 )
 from a2a.utils.constants import TransportProtocol
+from fakes.allocation import allocation_context
 from fakes.model import scripted_model, text_result
 from fakes.spec import allocation_spec
 from google.protobuf.json_format import MessageToDict, MessageToJson, ParseDict
@@ -63,8 +64,11 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
         state, service = await allocation_service(tmp_path, model, runtime_capabilities)
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
-        assert service._context is not None and service._context.worker is not None
-        worker = service._context.worker
+        assert (
+            allocation_context(service) is not None
+            and allocation_context(service).worker is not None
+        )
+        worker = allocation_context(service).worker
         card_dict = prepared.worker_handle.agent_card
         card = ParseDict(card_dict, AgentCard())
         assert len(card.skills) == 1
@@ -174,8 +178,11 @@ def test_concurrent_a2a_message_receives_worker_busy(
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
         card = ParseDict(prepared.worker_handle.agent_card, AgentCard())
-        assert service._context is not None and service._context.worker is not None
-        worker = service._context.worker
+        assert (
+            allocation_context(service) is not None
+            and allocation_context(service).worker is not None
+        )
+        worker = allocation_context(service).worker
         application = create_app(state, allocation_service=service, require_verified_peer=False)
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=application),

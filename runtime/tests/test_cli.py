@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fakes.allocation import allocation_context
 
 import contractor_runtime.cli as runtime_cli
 from contractor_runtime._https import decode_private_error
@@ -305,6 +306,7 @@ def test_process_sigterm_during_real_mtls_heartbeat_exits_cleanly(tmp_path: Path
                 heartbeat_started.set()
                 release_heartbeat.wait(timeout=10)
                 response = {
+                    "allocationActions": [],
                     "apiVersion": "contractor/v1alpha1",
                     "ackSeq": payload["heartbeatSeq"],
                     "action": "continue",
@@ -551,7 +553,8 @@ def test_shutdown_joins_real_ordinary_worker_before_closing_dependencies(
         spec = make_spec(tools=[])
         spec.lease_expires_at = datetime.now(UTC) + timedelta(seconds=60)
         await allocation.prepare(spec)
-        worker = allocation._context.worker
+        context = allocation_context(allocation)
+        worker = context.worker
         invocation = asyncio.create_task(worker.invoke(stage_request()))
         await asyncio.wait_for(model.started.wait(), 5)
         stop.set()
@@ -560,8 +563,9 @@ def test_shutdown_joins_real_ordinary_worker_before_closing_dependencies(
         with pytest.raises(asyncio.CancelledError):
             await invocation
         assert not worker._accepting
-        assert allocation._context.worker is None
-        assert allocation._context.adapter_host.closed
+        assert context.worker is None
+        assert not allocation._allocations
+        assert context.adapter_host.closed
         assert server.stopped
 
     asyncio.run(scenario())
