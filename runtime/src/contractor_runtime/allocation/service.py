@@ -41,7 +41,7 @@ from contractor_runtime.contracts import (
     ReleaseAllocationRequest,
     TerminationError,
 )
-from contractor_runtime.core.async_tasks import join_owned_task
+from contractor_runtime.core.async_tasks import join_owned_task, join_owned_tasks
 from contractor_runtime.factories import (
     FactoryRegistry,
     SandboxFactory,
@@ -1047,7 +1047,7 @@ class AllocationService:
     async def expire_control_lease(self, shutdown_grace_seconds):
         await self._state.fence_control_lease()
         owners = tuple(self._allocations.values())
-        await asyncio.gather(
+        await join_owned_tasks(
             *(owner.expire_control_lease(shutdown_grace_seconds) for owner in owners)
         )
 
@@ -1065,7 +1065,7 @@ class AllocationService:
                 )
                 await self.confirm_release(owner._allocation_id, keep_fenced=True)
 
-        await asyncio.gather(*(close_owner(owner) for owner in tuple(self._allocations.values())))
+        await join_owned_tasks(*(close_owner(owner) for owner in tuple(self._allocations.values())))
 
     async def reconcile_drain(self, allocation_id, shutdown_grace_seconds):
         owner = self._allocations.get(allocation_id)

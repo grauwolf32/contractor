@@ -3,7 +3,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: execution-core
 kind: defect
 priority: P1
-status: pending
+status: in_progress
 languages:
 - python
 id: V487-015
@@ -37,8 +37,8 @@ acceptance_criteria:
   text: Regressions fail against the original code; listed module suites and final full Runtime/lint verification
     pass.
 tests:
-- command: cd runtime && uv run pytest -W error tests/test_threads.py tests/test_runtime_slots.py tests/test_cli_shutdown.py
-    tests/test_lease_watchdog.py
+- command: cd runtime && uv run pytest -W error tests/test_threads.py tests/test_runtime_shutdown.py tests/test_runtime_slots.py
+    tests/test_cli_shutdown.py tests/test_lease_watchdog.py
   covers:
   - A1
   - A2

@@ -1329,6 +1329,8 @@ lifecycle/owner and the existing immutable archive cache. Allocation owners
 retain private HTTP sessions, TLS trust, pools, cookies, credentials, workspaces,
 Workers, metrics and Podman resources. Ordinary release closes only its users;
 process shutdown joins every allocation before closing shared services and
-cache files. Cache eligibility, per-reader authenticated metadata and all
+cache files. Teardown errors and caller cancellation propagate only after all
+started allocation teardowns settle; the existing shutdown deadline and process
+exit policy bound unconfirmed work. Cache eligibility, per-reader authenticated metadata and all
 process-wide quotas remain RTA-R119 through RTA-R124. No cache or container
 is shared as mutable allocation state.
