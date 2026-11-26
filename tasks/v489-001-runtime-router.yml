@@ -1,0 +1,162 @@
+schema_version: '1.0'
+id: V489-001
+title: Execute Router through the shared Runtime Planner loop
+milestone: runtime-planner-p3-2026-11
+epic: planner-worker
+kind: feature
+priority: P1
+status: pending
+depends_on: [V488-004]
+languages: [go, python, yaml, markdown]
+goal: >-
+  Router executes its model and compactor in Runtime, selects the same immutable
+  logical Workers and preserves confirmed results, budgets and cancellation.
+  Streamline and Router share one Python execution loop, enabling removal of
+  their replaced Go model execution without requiring Runtime recovery.
+demonstration: >-
+  Real Server, PostgreSQL and Runtime processes with a controlled Gateway run
+  a Router Stage with two logical Workers. The first subtask reaches Worker A,
+  the second reaches Worker B on another Runtime; each is invoked once, the
+  canonical plan and exact result refs are accepted, and the Planner model is
+  observed in its separately accounted Runtime allocation. A1 proves this
+  vertical slice before broader acceptance of the task and milestone.
+context:
+  authority: >-
+    User decision 2026-11-27 explicitly defers P2 and requests planning P3:
+    move Router into Runtime and delete replaced Go code, keeping headless
+    possible and reducing total code. P3 has no dependency on P2. Earlier user
+    decision 2026-11-26 assigns Planner its own allocation and keeps one engine
+    behind replaceable host interactions. This planning change starts no code
+    implementation. Proposal: retain the existing WorkerInvoker and domain
+    owners, finish Router relocation before V489-002 removes the remaining Go
+    SDK bridge. No new recovery guarantees or local production backend.
+  proposal: docs/proposals/0058-runtime-planner-and-recovery.md
+  specification:
+    - docs/spec/execution/planners.md#PLN-R9
+    - docs/spec/execution/planners.md#PLN-R131
+    - docs/spec/execution/planners.md#PLN-R135
+    - docs/spec/execution/planners.md#PLN-R136
+    - docs/spec/execution/planners.md#PLN-R137
+    - docs/spec/execution/scheduler.md#SCH-R103
+    - docs/spec/execution/control-plane.md
+    - docs/spec/execution/runtime-agent.md
+    - docs/spec/platform/limits.md
+  boundary: >-
+    Server keeps canonical plan, session, budget, result/Artifact validation,
+    Memory/State and WorkerInvoker; Runtime owns model calls and conversation.
+    Extend the existing synthetic allocation and host registration. Registry
+    currently routes callbacks only to Streamline, and runtime.go dispatch and
+    history use workers[0]; all three assumptions must change together. Select
+    the host from trusted Stage/allocation identity, never a Runtime-supplied
+    strategy or fallback across handlers. Reuse the generic Python PlannerLoop.
+  verification_environment: >-
+    PostgreSQL acceptance requires a disposable database and a nonempty
+    CONTRACTOR_TEST_DATABASE_URL; an unavailable configured database fails.
+    Reuse one database for the lane, drop it after pools/processes stop and
+    remove owned processes/resources. Do not enable heavy I/O implicitly.
+scope:
+  in:
+    - Entire current Router surface, including none/compact@1, roster, Worker selection, Memory, State, scoped history, deterministic finish and reports.
+    - Existing allocation placement/preparation and private Planner callbacks for both modeled strategies; capacity and cancellation regressions.
+    - Delete replaced Go runner, model/compactor execution, Planner Gateway adapter and local-engine composition/test paths once unused.
+    - Update owning specifications and architecture with implementation; extend existing shared fixtures and process gate coverage.
+  out:
+    - P2 replacement/resume, allocation history changes, Server recovery, headless production backend, new stores/leases/queues and direct peer dispatch.
+    - Dynamic Workers, parallel plan dispatch, changing configured models or extending Streamline-only summary continuation to Router.
+    - Remaining SDK-only tool/event bridge cleanup and final milestone acceptance, owned by V489-002.
+requirements:
+  - id: R1
+    text: >-
+      Router uses one separate planner@1 allocation and the same Python loop as
+      Streamline. N logical Workers require N+1 fleet slots; the 1..4 process
+      capacity does not cap the fleet Worker count. Planner is excluded from
+      Worker roster, immutable Stage snapshot, namespace bindings and tools.
+  - id: R2
+    text: >-
+      Preserve exact tool shapes: Streamline dispatch takes subtask_id; Router
+      adds worker_name constrained to its immutable bindings. Apply Router
+      selection to dispatch, history, Memory and State, with each operation's
+      eligible Worker subset and existing error contract. Unknown/foreign
+      names cause no dispatch, data leak or mutation. Reuse existing decoders
+      and selection helpers rather than copying domain operations.
+  - id: R3
+    text: >-
+      Keep none and compact@1, exact main/compactor policy and credentials,
+      main Gateway recovery, compactor one-shot policy, cumulative usage/cost,
+      original deadlines, material provenance and ordinary interruption/retry.
+      P1 strict JSON/usage/content_filter and ineffective-compaction fixes
+      apply to Router through the same execution path.
+  - id: R4
+    text: >-
+      The private route continues using current principal/process/grant,
+      exact Planner allocation, Stage host and Run claim. Identical ordered
+      replay returns the same result without repeating side effects. No new
+      endpoint, durable receipt, polling service or strategy authority field.
+  - id: R5
+    text: >-
+      Keep PlannerHost and injected models deployment-neutral. Prove the actual
+      Router Python loop with two Worker names and compaction through a local
+      test host, without Server/A2A/bootstrap imports or a second local engine.
+      Remove the replaced Go execution rather than retaining it for tests or
+      compatibility. V489-002 owns only the still-used SDK bridge.
+failure_outcomes:
+  - operation: Planner placement and A2A invocation
+    permanent: Existing invalid configuration/authority errors stop before model or Worker calls; never downgrade to the Go engine.
+    retryable: Existing capacity wait and classified preparation/transport policies retain their attempt and deadline bounds.
+    ambiguous: Reconcile the same allocation/invocation through existing owners; do not create another dispatch to replace an unknown result.
+    cancelled: Original Run context fences and joins Planner, admitted callbacks and Workers before ordinary release.
+    timeout: Preserve distinct Planner wall, model request, Worker request and cleanup budgets.
+  - operation: Model reply, host operation and required session append
+    permanent: Private malformed requests retain HTTP 400 invalid_request; stale allocation retains HTTP 409 allocation_unavailable; operation rejection retains its existing mapping. Domain errors remain model-visible tool results where specified.
+    retryable: Use current storage/Gateway classification and bounded retries under the original deadline; ErrInvalid is never an endless retry.
+    ambiguous: One identical transport replay reuses the live host reply. A required append with unconfirmed outcome cannot be reissued as a fresh event or allow a dependent effect.
+    cancelled: Disconnect does not cancel admitted work; Run cancellation owns and joins it, preserving known usage and cancellation precedence.
+    timeout: No new per-callback timeout replaces the owning Stage/Planner deadline or existing completion-write budget.
+cardinality:
+  - collection: Router allocations, tools and immutable Worker roster
+    expected: One Planner and two Workers in the first demonstration; one Planner and three Workers in the capacity-four case.
+    maximum: Fixed nonempty Worker map under existing configuration and byte limits; N+1 fleet allocations, 1..4 slots per process, 64 tool declarations, 512 KiB Planner envelope.
+    bound: Test 1/2/3 Workers, 64 small bindings and exact envelope-byte boundaries; no new arbitrary Worker-count cap, no whole-Run callback scans.
+  - collection: Plan, operations, exact result history and retained context
+    expected: Two sequential subtasks; a multi-Worker compaction fixture reads both histories.
+    maximum: 1000 subtasks, one active dispatch, 2 MiB session state, 5001 operations, 4 MiB operation/reply; existing compaction retained/peak bounds.
+    bound: History pages remain at most 8 fragments/32 KiB, 16 KiB per fragment and 8 live Worker-bound cursors; preserve byte accounting and off-event-loop parsing.
+lifecycle:
+  - entity: Router Planner allocation and invocation
+    delete: Existing Run/Stage owners cancel and drain; Project/Run deletion remains governed by current contracts.
+    cascade: Join all model/callback/Worker work before release of private resources and credentials; unrelated allocations remain usable.
+    retention: Existing canonical session/facts/reports and Artifacts only; no persisted raw conversation, checkpoint or new retention policy.
+acceptance_criteria:
+  - id: A1
+    given: Real Server/PostgreSQL, separate Planner allocation and two prepared Workers with a controlled Gateway.
+    when: Router dispatches successive stored subtasks to A and B across Runtime processes.
+    then: Exactly the chosen Workers run once, plan commits precede dependent work, exact refs survive finish and no Server Go model client is constructed.
+  - id: A2
+    given: Router uses none or compact@1 with Memory/State and Worker-specific history.
+    when: Valid and invalid Worker selections, foreign/stale cursors, rejected model replies and compaction boundaries occur.
+    then: Existing domain outcomes, usage/limits and data isolation hold; Streamline behavior and single-Worker tool shapes remain intact.
+  - id: A3
+    given: Capacity shortage, lost replies, stale authority, required append failure or an admitted Worker call.
+    when: Placement waits, the same operation retries, cancellation/lease loss/deadline occurs or an old allocation calls back.
+    then: No duplicate dispatch/charge/mutation, no unauthorized progress, no Go fallback and bounded joined cleanup with ordinary interruption/retry.
+  - id: A4
+    given: The same Python PlannerLoop is constructed with injected model/compactor and a local test host.
+    when: It routes work to two named Workers and compacts without Server bootstrap.
+    then: The loop completes through the existing protocol, with no new local production engine or Server dependency in core.
+  - id: A5
+    text: Owning specs, fixtures, gates and deleted execution paths agree; full touched-package tests pass and evidence distinguishes passes/skips. Final P3 acceptance remains V489-002.
+tests:
+  - command: go test -race -tags=integration -count=1 ./internal/planner/... ./internal/scheduler ./internal/controlplane ./internal/runstore ./internal/httpapi/privateartifacts ./internal/app
+    covers: [A1, A2, A3, A5]
+  - command: make test-runtime
+    covers: [A2, A3, A4, A5]
+  - command: make test-wire-cross-language
+    covers: [A2, A3, A5]
+  - command: make test-e2e
+    covers: [A1, A2, A3, A5]
+  - command: make test-config
+    covers: [A2, A5]
+  - command: make lint
+    covers: [A4, A5]
+  - command: make verify-architecture
+    covers: [A5]

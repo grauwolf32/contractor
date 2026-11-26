@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 10 in progress, 42 pending, 13 deferred. 1719 finished: 1701 completed, 18 archived.
+67 open tasks: 10 in progress, 44 pending, 13 deferred. 1719 finished: 1701 completed, 18 archived.
 
 ## In progress
 
@@ -38,6 +38,8 @@ the epics are in [epics.yml](epics.yml).
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
+| [V489-001](v489-001-runtime-router.yml) | feature | P1 | — | Execute Router through the shared Runtime Planner loop |
+| [V489-002](v489-002-runtime-planner-go-removal.yml) | chore | P1 | V489-001 | Remove the remaining Go Planner SDK bridge and accept P3 |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -157,7 +159,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 52 | 76 | 44 | 111 |
-| Planners and the Worker model boundary (`planner-worker`) | 5 | 50 | 61 | 50 | 101 |
+| Planners and the Worker model boundary (`planner-worker`) | 7 | 51 | 61 | 51 | 102 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 14 | 4 | 2 | 6 |
