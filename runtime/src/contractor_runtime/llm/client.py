@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import uuid
 from asyncio import sleep
 from collections.abc import Callable, Mapping
@@ -30,6 +29,7 @@ from contractor_runtime.llm.recovery import (
     GatewayRecoveryClient,
     RecoveryStoppedError,
 )
+from contractor_runtime.strict_json import strict_json_loads
 from contractor_runtime.threads import consume_task_exception, to_thread_until_done
 
 if TYPE_CHECKING:
@@ -67,9 +67,11 @@ class GatewayRequestError(RuntimeError):
         retryable: bool,
         failure: GatewayFailure | None = None,
         retry_after_seconds: float = 0,
+        response_received: bool = False,
     ) -> None:
         self.provider_error_type = provider_error_type
         self.retryable = retryable
+        self.response_received = response_received
         self.transport_retry_allowed = True
         # The Gateway received the request but did not answer in time; see
         # _abandoned_request_error.
@@ -180,10 +182,12 @@ class GatewayClientHandle:
                     elif response.is_success:
                         try:
                             return await to_thread_until_done(
-                                json.loads, body, name="gateway-response-json"
+                                strict_json_loads, body, name="gateway-response-json"
                             )
                         except (ValueError, RecursionError):
-                            error = GatewayRequestError("InvalidGatewayResponse", retryable=False)
+                            error = GatewayRequestError(
+                                "InvalidGatewayResponse", retryable=False, response_received=True
+                            )
                         should_retry = False
                     else:
                         failure = await to_thread_until_done(

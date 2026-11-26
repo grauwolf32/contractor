@@ -21,6 +21,7 @@ from contractor_runtime.llm.client import GatewayClientHandle, GatewayRequestErr
 from contractor_runtime.llm.errors import GatewayModelError, _AdapterFailure
 from contractor_runtime.llm.request import completion_request
 from contractor_runtime.llm.response import empty_stop_response
+from contractor_runtime.strict_json import strict_json_loads
 from contractor_runtime.threads import to_thread_until_done
 
 _SAFE_ERROR_TYPE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
@@ -140,6 +141,8 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
             retryable = _retryable_gateway_error(error)
             request_invalid = isinstance(error, _AdapterFailure) and not received
             failure = error.failure if isinstance(error, GatewayRequestError) else None
+            if isinstance(error, GatewayRequestError):
+                received |= error.response_received
             if received:
                 usage = _rejected_response_usage(completion)
                 if provider_error_type == "EmptyGatewayResponse":
@@ -336,8 +339,8 @@ def _tool_arguments(value: Any) -> dict[str, Any]:
     if not isinstance(value, str):
         raise _AdapterFailure("InvalidGatewayToolArguments")
     try:
-        result = json.loads(value)
-    except json.JSONDecodeError:
+        result = strict_json_loads(value)
+    except (ValueError, RecursionError):
         raise _AdapterFailure("InvalidGatewayToolArguments") from None
     if not isinstance(result, dict):
         raise _AdapterFailure("InvalidGatewayToolArguments")

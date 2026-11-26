@@ -81,7 +81,8 @@ def test_stream_overflow_is_terminal_before_json_parsing(monkeypatch, status, en
         def forbidden_parse(*args):
             raise AssertionError("oversized body reached JSON parsing")
 
-        monkeypatch.setattr(gateway.json, "loads", forbidden_parse)
+        monkeypatch.setattr(gateway, "strict_json_loads", forbidden_parse)
+        monkeypatch.setattr(json, "loads", forbidden_parse)
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
             handle = client(http)
             handle.max_retries = 3
@@ -124,7 +125,13 @@ def test_response_cpu_work_runs_off_loop_and_joins_repeated_cancellation(monkeyp
         started = asyncio.Event()
         release = threading.Event()
         finished = threading.Event()
-        original = adapter._to_llm_response if phase == "adk-projection" else json.loads
+        original = (
+            adapter._to_llm_response
+            if phase == "adk-projection"
+            else gateway.strict_json_loads
+            if phase == "success-json"
+            else json.loads
+        )
 
         def blocked(*args):
             assert threading.get_ident() != loop_thread
@@ -138,7 +145,10 @@ def test_response_cpu_work_runs_off_loop_and_joins_repeated_cancellation(monkeyp
         if phase == "adk-projection":
             monkeypatch.setattr(adapter, "_to_llm_response", blocked)
         else:
-            monkeypatch.setattr(gateway.json, "loads", blocked)
+            if phase == "success-json":
+                monkeypatch.setattr(gateway, "strict_json_loads", blocked)
+            else:
+                monkeypatch.setattr(json, "loads", blocked)
         stream = Stream(b'{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}')
         status = 400 if phase == "error-json" else 200
         async with httpx.AsyncClient(

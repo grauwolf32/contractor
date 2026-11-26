@@ -21,7 +21,12 @@ from contractor_runtime.contracts.planner import (
 )
 from contractor_runtime.contracts.settings import ResolvedModelPolicy
 from contractor_runtime.llm.errors import GatewayModelError
-from contractor_runtime.llm.response import empty_stop_response, output_limit_reached
+from contractor_runtime.llm.response import (
+    empty_stop_response,
+    model_response_failed,
+    output_limit_reached,
+)
+from contractor_runtime.llm.usage import valid_token_usage
 from contractor_runtime.planner.compaction import CheckpointRequested, Conversation
 from contractor_runtime.planner.host import PlannerHost, PlannerStoppedError
 from contractor_runtime.threads import to_thread_until_done
@@ -87,6 +92,8 @@ class PlannerLoop:
             *, usage=None, kind="invalid_response", code="", empty=False, limited=False
         ):
             nonlocal recovery_requested
+            if not valid_token_usage(usage):
+                usage = None
             reply = await self.operation(
                 "model_failed",
                 {
@@ -148,9 +155,10 @@ class PlannerLoop:
         async def after_model(callback_context, llm_response):
             usage = llm_response.usage_metadata
             if (
-                usage is None
+                not valid_token_usage(usage)
                 or output_limit_reached(llm_response)
                 or empty_stop_response(llm_response)
+                or model_response_failed(llm_response)
             ):
                 return await model_failed(
                     usage=usage,
@@ -173,6 +181,8 @@ class PlannerLoop:
                 if content is not None:
                     arguments["content"] = content
             reply = await self.operation("after_model", arguments)
+            if conversation is not None:
+                conversation.observe_main(usage)
             if reply.result.get("rejected"):
                 return LlmResponse(
                     content=types.Content(
@@ -181,8 +191,6 @@ class PlannerLoop:
                     ),
                     usage_metadata=usage,
                 )
-            if conversation is not None:
-                conversation.observe_main(usage)
             for part in (llm_response.content.parts if llm_response.content else []) or []:
                 if part.function_call is not None and not part.function_call.id:
                     part.function_call.id = uuid.uuid4().hex

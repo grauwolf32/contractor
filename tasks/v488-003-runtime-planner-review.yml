@@ -1,0 +1,54 @@
+schema_version: '1.0'
+id: V488-003
+title: Preserve Planner Gateway validation and compaction guards in Runtime
+milestone: runtime-planner-p1-2026-11
+epic: planner-worker
+kind: defect
+introduced_by: V488-002
+priority: P1
+status: in_progress
+depends_on: [V488-002]
+languages: [python, go, yaml, markdown]
+goal: Runtime Streamline rejects ambiguous Gateway replies and invalid usage before tool effects, and preserves filtered-response and ineffective-compaction failure outcomes.
+context:
+  authority: User request 2026-11-27 fixes all four P1 review findings, adds regressions through the new Runtime path and restores merge readiness while retaining headless boundaries and limiting code growth.
+  specification: [docs/spec/execution/planners.md]
+  proposal: docs/proposals/0058-runtime-planner-and-recovery.md
+  severity: high
+  finding: >-
+    runtime/src/contractor_runtime/planner/loop.py:150 accepts empty/inconsistent
+    usage and filtered responses; line 176 returns before measuring a rejected
+    selection after a checkpoint. planner/runtime.py:48 now selects the Python
+    Gateway client, whose llm/client.py:183 and llm/openai.py:339 discard duplicate
+    JSON members. Review reproductions reached finish with zero token charge,
+    last-key-wins arguments and a filtered response, or bypassed ineffective.
+  siblings: >-
+    Main and compactor envelopes share the Gateway client and strict JSON decoder;
+    tool argument strings use that same decoder. Main and compactor usage share
+    validation; existing Go Planner validation already enforces PLN-R86. Worker
+    callers of the shared adapter retain valid replies and classified errors.
+    Provider extensions remain allowed. No new host, execution engine or wire DTO.
+scope:
+  in:
+  - Shared strict Gateway JSON decoding, trusted usage validation, filtered main response failure and post-checkpoint measurement before rejected-tool replacement.
+  - Runtime ADK/Gateway regressions for main and compactor plus a real Server/PostgreSQL/Runtime process regression; negative control against the reviewed revision.
+  - Full Runtime, affected Go process/package checks, wire and lint, evidence and proposal status.
+  out: [Headless backend, Runtime replacement recovery, Router relocation, live model runs, merge and deployment]
+acceptance_criteria:
+- id: A1
+  text: Empty, missing, negative or inconsistent usage never authorizes tools/checkpoints; valid rejected-response usage is charged once and ambiguous envelope usage is untrusted.
+- id: A2
+  text: Duplicate keys at any nesting level or trailing JSON in main/compactor envelopes and tool arguments fail without tool effects or inference retry; extensions remain valid.
+- id: A3
+  text: Filtered main responses end with planner_gateway_invalid_response; first post-checkpoint response over threshold ends with planner_compaction_failed (ineffective) even if its tool selection is rejected.
+- id: A4
+  text: Regressions execute the Runtime path, fail against the reviewed source, and pass with the correction; complete affected suites, lint and process acceptance pass with skips reported and owned resources removed.
+tests:
+- command: make test-runtime
+  covers: [A1, A2, A3, A4]
+- command: go test -race -count=1 ./internal/planner/... ./internal/httpapi/privateartifacts
+  covers: [A1, A2, A3, A4]
+- command: make -j3 test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
+  covers: [A1, A2, A3, A4]
+- command: make test-wire-cross-language lint
+  covers: [A1, A2, A4]

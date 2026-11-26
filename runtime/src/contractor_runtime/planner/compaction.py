@@ -14,6 +14,7 @@ from contractor_runtime.contracts.planner import PlannerCompaction
 from contractor_runtime.llm.cost import model_cost_phase
 from contractor_runtime.llm.one_shot import OneShotModel, generation_config, one_shot_session
 from contractor_runtime.llm.request import completion_request
+from contractor_runtime.llm.usage import valid_token_usage
 from contractor_runtime.planner.host import PlannerStoppedError
 from contractor_runtime.threads import to_thread_until_done
 
@@ -257,8 +258,8 @@ class Conversation:
                 except Exception as caught:
                     error = caught
         response = one_shot.response
-        if response is None or response.usage_metadata is None:
-            if error is not None:
+        if response is None or not valid_token_usage(response.usage_metadata):
+            if response is None and error is not None:
                 raise error
             await operation(
                 "model_failed",

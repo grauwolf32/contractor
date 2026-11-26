@@ -21,6 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/stageresult"
@@ -244,6 +245,49 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 		t, ctx, pool, store, telemetryReports, gateway, server, runtimes, controlClient,
 		publicClient, publicBaseURL, runtimeURLs, runtimeInstanceIDs, workRoots, workspaceRoots,
 	)
+	for _, scenario := range []string{"empty-usage", "inconsistent-usage", "duplicate-envelope", "duplicate-arguments", "filtered"} {
+		t.Run("runtime-planner-"+scenario, func(t *testing.T) {
+			body := `{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"review-call","function":{"name":"add_subtask","arguments":"{\"objective\":\"Inspect input\",\"instructions\":\"Return evidence\"}"}}]}}],"usage":{"prompt_tokens":13,"completion_tokens":5,"total_tokens":18}}`
+			wantTokens := int64(0)
+			switch scenario {
+			case "empty-usage":
+				body = strings.Replace(body, `{"prompt_tokens":13,"completion_tokens":5,"total_tokens":18}`, `{}`, 1)
+			case "inconsistent-usage":
+				body = strings.Replace(body, `"total_tokens":18`, `"total_tokens":1`, 1)
+			case "duplicate-envelope":
+				body = strings.Replace(body, `"total_tokens":18`, `"total_tokens":99,"total_tokens":18`, 1)
+			case "duplicate-arguments":
+				body = strings.Replace(body, `\"objective\":\"Inspect input\"`, `\"objective\":\"Other input\",\"objective\":\"Inspect input\"`, 1)
+				wantTokens = 18
+			case "filtered":
+				body = `{"choices":[{"finish_reason":"content_filter","message":{"content":""}}],"usage":{"prompt_tokens":13,"completion_tokens":5,"total_tokens":18}}`
+				wantTokens = 18
+			}
+			before, workerBefore := gateway.ModelCalls("planner-model"), gateway.ModelCalls("worker-model")
+			gateway.mu.Lock()
+			gateway.plannerReply = []byte(body)
+			gateway.mu.Unlock()
+			defer func() { gateway.mu.Lock(); gateway.plannerReply = nil; gateway.mu.Unlock() }()
+			runID := createWorkflowRunWithParameters(t, publicClient, publicBaseURL, "streamline-copy@1", "runtime-review-"+scenario, uploaded, map[string]string{"mode": scenario})
+			waitForRunState(t, ctx, server, runtimes[0], gateway, publicClient, publicBaseURL, runID, "failed")
+			execution := requireExecutions(t, ctx, store, runID, 1)[0]
+			if execution.Termination == nil || execution.Termination.Code != "planner_gateway_invalid_response" || !execution.Termination.Retryable {
+				t.Fatalf("invalid Gateway reply classification = %+v", execution.Termination)
+			}
+			var raw []byte
+			if err := pool.QueryRow(ctx, `SELECT report FROM planner_execution_reports WHERE stage_execution_id = $1`, execution.StageExecutionID).Scan(&raw); err != nil {
+				t.Fatal(err)
+			}
+			var report reporting.ExecutionReport
+			if err := json.Unmarshal(raw, &report); err != nil {
+				t.Fatal(err)
+			}
+			if report.Metrics.TotalTokens == nil || *report.Metrics.TotalTokens != wantTokens || len(report.ToolCalls) != 0 || gateway.ModelCalls("planner-model") != before+1 || gateway.ModelCalls("worker-model") != workerBefore {
+				t.Fatalf("invalid reply was retried, charged untrusted usage or authorized tools: %+v", report)
+			}
+			assertCompleteAllocations(t, ctx, store, telemetryReports, execution, 1, "builder")
+		})
+	}
 	started, disconnected := gateway.blockPlanner()
 	cancelRunID := createWorkflowRunWithParameters(t, publicClient, publicBaseURL, "streamline-copy@1", "runtime-planner-cancel", uploaded, map[string]string{"mode": "cancel"})
 	select {

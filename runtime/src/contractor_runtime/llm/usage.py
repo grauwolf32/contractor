@@ -44,6 +44,15 @@ def project_token_usage(usage: Any | None) -> TokenUsageProjection:
     )
 
 
+def valid_token_usage(usage: Any | None) -> bool:
+    """Require every counter used by the Planner's cumulative budget (PLN-R86)."""
+    projected = project_token_usage(usage)
+    return all(
+        value is not None
+        for value in (projected.prompt_tokens, projected.output_tokens, projected.total_tokens)
+    )
+
+
 def _counter(usage: Any | None, name: str, *, positive: bool) -> int | None:
     value = getattr(usage, name, None) if usage is not None else None
     if type(value) is not int or value < (1 if positive else 0):

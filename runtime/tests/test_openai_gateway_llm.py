@@ -603,7 +603,7 @@ def test_gateway_http_failures_preserve_safe_retryability(status, code, retryabl
 @pytest.mark.parametrize(
     "payload,error_type,received",
     [
-        ("not JSON", "InvalidGatewayResponse", False),
+        ("not JSON", "InvalidGatewayResponse", True),
         ("null", "InvalidGatewayResponse", True),
         ('{"choices":[]}', "InvalidGatewayResponse", True),
         ('{"choices":[{"message":"invalid"}]}', "InvalidGatewayResponse", True),

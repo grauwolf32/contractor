@@ -41,6 +41,7 @@ type routingGateway struct {
 	failures                  []string
 	blockedPlanner            chan struct{}
 	plannerDisconnected       chan struct{}
+	plannerReply              []byte
 	blockOnce, disconnectOnce sync.Once
 }
 
@@ -133,6 +134,14 @@ func (g *routingGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	g.mu.Lock()
 	blocked, disconnected := g.blockedPlanner, g.plannerDisconnected
+	if request["model"] == "planner-model" && g.plannerReply != nil {
+		body := append([]byte(nil), g.plannerReply...)
+		g.modelCalls["planner-model"]++
+		g.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+		return
+	}
 	g.mu.Unlock()
 	if blocked != nil && request["model"] == "planner-model" {
 		g.blockOnce.Do(func() { close(blocked) })

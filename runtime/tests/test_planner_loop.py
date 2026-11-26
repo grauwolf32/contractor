@@ -158,7 +158,36 @@ def test_planner_cancellation_joins_model_before_returning():
     asyncio.run(scenario())
 
 
-def test_planner_compacts_with_local_host_and_injected_models_without_server():
+def compaction_input():
+    invocation = planner_input()
+    invocation.tools.append(invocation.tools[0].model_copy(update={"name": "step"}))
+    invocation.compaction = PlannerCompaction.model_validate(
+        {
+            "instructions": "Keep evidence and remaining work.",
+            "threshold": 50,
+            "keepRecentGroups": 1,
+            "maxCompactions": 2,
+            "policy": {
+                "ref": {
+                    "policyId": "compactor",
+                    "version": "1",
+                    "digest": "sha256:" + "b" * 64,
+                },
+                "model": "compactor-test-model",
+                "contextWindowTokens": 100000,
+                "maxOutputTokens": 1024,
+                "maxModelCalls": 1,
+                "maxTotalTokens": 100000,
+            },
+        }
+    )
+    return invocation
+
+
+@pytest.mark.parametrize("rejected_after_checkpoint", [False, True])
+def test_planner_compacts_with_local_host_and_injected_models_without_server(
+    rejected_after_checkpoint,
+):
     async def scenario():
         calls = []
 
@@ -171,6 +200,8 @@ def test_planner_compacts_with_local_host_and_injected_models_without_server():
                 }
                 if name == "after_compactor":
                     result = {"summary": "Two earlier steps are complete."}
+                if name == "after_model":
+                    result = {"rejected": arguments["calls"] == ["unknown"]}
                 return PlannerOperationResult(
                     apiVersion=API_VERSION,
                     result=result,
@@ -178,36 +209,30 @@ def test_planner_compacts_with_local_host_and_injected_models_without_server():
                     escalate=name == "finish",
                 )
 
-        invocation = planner_input()
-        invocation.tools.append(invocation.tools[0].model_copy(update={"name": "step"}))
-        invocation.compaction = PlannerCompaction.model_validate(
-            {
-                "instructions": "Keep evidence and remaining work.",
-                "threshold": 50,
-                "keepRecentGroups": 1,
-                "maxCompactions": 2,
-                "policy": {
-                    "ref": {
-                        "policyId": "compactor",
-                        "version": "1",
-                        "digest": "sha256:" + "b" * 64,
-                    },
-                    "model": "compactor-test-model",
-                    "contextWindowTokens": 100000,
-                    "maxOutputTokens": 1024,
-                    "maxModelCalls": 1,
-                    "maxTotalTokens": 100000,
-                },
-            }
-        )
+        invocation = compaction_input()
         steps = [tool_call("step", {}, call_id=f"step-{i}") for i in range(2)]
         for response in steps:
             response.usage_metadata.prompt_token_count = 100
+            response.usage_metadata.total_token_count = 103
+        if rejected_after_checkpoint:
+            rejected = tool_call("unknown", {}, call_id="rejected")
+            rejected.usage_metadata.prompt_token_count = 100
+            rejected.usage_metadata.total_token_count = 103
+            steps.append(rejected)
         model = scripted_model([*steps, tool_call("finish", {}, call_id="finish")])
         summary = json_result({"summary": "Two earlier steps are complete."})
         summary.finish_reason = types.FinishReason.STOP
         compactor = scripted_model([summary], model="compactor-test-model")
         loop = PlannerLoop(model, Host(), planner_policy(), compactor=compactor)
+        if rejected_after_checkpoint:
+            with pytest.raises(PlannerStoppedError, match="ineffective") as error:
+                await loop.run(invocation, "Inspect and finish")
+            assert error.value.code == "planner_compaction_failed"
+            assert not error.value.retryable
+            assert calls.count("checkpoint") == 1
+            assert len(model.requests) == 3
+            assert "finish" not in calls
+            return
         await loop.run(invocation, "Inspect and finish")
         assert loop.stopped
         assert calls.count("before_model") == 3
