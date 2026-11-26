@@ -1,0 +1,54 @@
+schema_version: '1.0'
+milestone: runtime-allocation-slots-2026-11
+epic: execution-core
+kind: defect
+priority: P1
+status: in_progress
+languages:
+- python
+id: V487-014
+title: Retire rolled-back allocation owners before waiting prepare resumes
+introduced_by: V487-004
+depends_on: []
+goal: Retire rolled-back allocation owners before waiting prepare resumes.
+context:
+  authority: 'User instruction 2026-11-26: fix the three Astra review defects and merge into main, reusing
+    existing mechanisms and limiting code growth.'
+  finding: "runtime/src/contractor_runtime/allocation/service.py:1000 \u2014 Overlapping prepare requests\
+    \ can resume on a removed owner, build an orphan Worker and consume another attempt's reservation."
+  siblings: Prepare retries, prepare cancellation, release-confirmed retirement and allocation routing.
+  specification:
+  - docs/spec/execution/runtime-agent.md#RTA-R127
+scope:
+  in:
+  - Prepare retries, prepare cancellation, release-confirmed retirement and allocation routing.
+  - Deterministic regressions using production lifecycle objects and event barriers; test failures on
+    original code.
+  out:
+  - Public/wire contract changes, new durable state and live-model evaluation.
+acceptance_criteria:
+- id: A1
+  text: The reported interleaving preserves exact ownership and joins every started operation before returning.
+- id: A2
+  text: Sibling failure/cancellation paths retain ownership and surface classified errors after joined
+    cleanup.
+- id: A3
+  text: Regressions fail against the original code; listed module suites and final full Runtime/lint verification
+    pass.
+tests:
+- command: cd runtime && uv run pytest -W error tests/test_allocation.py tests/test_runtime_slots.py tests/test_allocation_stop.py
+    tests/test_abort.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3

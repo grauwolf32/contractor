@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 10 in progress, 42 pending, 13 deferred. 1711 finished: 1693 completed, 18 archived.
+69 open tasks: 11 in progress, 45 pending, 13 deferred. 1711 finished: 1693 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V487-014](v487-014-prepare-owner-retirement.yml) | execution-core | defect | P1 | Retire rolled-back allocation owners before waiting prepare resumes |
 
 ## Pending
 
@@ -30,6 +31,8 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
 | [V469-002](v469-002-opencode-audit-runtime.yml) | feature | P1 | V469-001 | Run OpenCode in one retained Audit environment through existing A2A |
+| [V487-015](v487-015-join-allocation-shutdown.yml) | defect | P1 | — | Join every allocation shutdown before propagating failure or cancellation |
+| [V487-016](v487-016-join-podman-owner-close.yml) | defect | P1 | — | Join the Podman close RPC before EOF cleanup retries |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -130,6 +133,7 @@ the epics are in [epics.yml](epics.yml).
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 | [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | — | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
 | [V469-005](v469-005-opencode-audit-release.yml) | chore | P1 | V469-004 | Accept the minimal OpenCode Audit environment through real release gates |
+| [V487-017](v487-017-main-integration.yml) | chore | P1 | V487-014, V487-015, V487-016 | Merge the reviewed multi-slot Runtime and race fixes into main |
 
 ## Deferred
 
@@ -156,7 +160,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 52 | 73 | 44 | 109 |
+| Run execution core (`execution-core`) | 6 | 52 | 76 | 44 | 111 |
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 100 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
@@ -170,9 +174,9 @@ tasks in `introduced_by`.
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 78 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 23 | 55 |
-| Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 6 |
+| Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
 | Web UI (`ui`) | 1 | 56 | 83 | 34 | 80 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 20 |
-| Quality, CI and process (`quality`) | 11 | 1 | 38 | 156 | 32 |
+| Quality, CI and process (`quality`) | 12 | 1 | 38 | 157 | 32 |

@@ -1,0 +1,60 @@
+schema_version: '1.0'
+milestone: runtime-allocation-slots-2026-11
+epic: execution-core
+kind: defect
+priority: P1
+status: pending
+languages:
+- python
+id: V487-016
+title: Join the Podman close RPC before EOF cleanup retries
+introduced_by: V487-003
+depends_on: []
+goal: Join the Podman close RPC before EOF cleanup retries.
+context:
+  authority: 'User instruction 2026-11-26: fix the three Astra review defects and merge into main, reusing
+    existing mechanisms and limiting code growth.'
+  finding: "runtime/src/contractor_runtime/sandbox/podman/owner.py:176 \u2014 close is shielded but excluded\
+    \ from in_flight; health EOF starts a second backend.close while the first still removes the same\
+    \ entry."
+  siblings: All owner channels and health EOF; LifecycleBackend.close must settle every allocation removal
+    before retry, including failures/cancellation.
+  specification:
+  - docs/spec/execution/runtime-agent.md#RTA-R127
+  - docs/spec/tools/code-execution.md#EXE-R127
+  execution: 'Coordinated review-fix batch: use the common joining helper implemented in V487-015; shared
+    full Runtime/lint acceptance follows all three source corrections.'
+scope:
+  in:
+  - All owner channels and health EOF; LifecycleBackend.close must settle every allocation removal before
+    retry, including failures/cancellation.
+  - Deterministic regressions using production lifecycle objects and event barriers; test failures on
+    original code.
+  out:
+  - Public/wire contract changes, new durable state and live-model evaluation.
+acceptance_criteria:
+- id: A1
+  text: The reported interleaving preserves exact ownership and joins every started operation before returning.
+- id: A2
+  text: Sibling failure/cancellation paths retain ownership and surface classified errors after joined
+    cleanup.
+- id: A3
+  text: Regressions fail against the original code; listed module suites and final full Runtime/lint verification
+    pass.
+tests:
+- command: cd runtime && uv run pytest -W error tests/test_podman_owner_cleanup.py tests/test_podman_recovery.py
+    tests/test_podman_allocation.py tests/test_podman_command_coordination.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
