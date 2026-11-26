@@ -40,7 +40,8 @@
   },
   "delivery": {
     "branch": "codex/runtime-planner-p1",
-    "merged": false
+    "merged": false,
+    "implementation_commit": "383a7aea0aeb8cdb82ac10a6e71736573b37cd5a"
   },
   "cleanup": "Owned contractor_test_v488 database explicitly dropped and owned port-55489 cluster stopped; primary checkout user files untouched"
 }

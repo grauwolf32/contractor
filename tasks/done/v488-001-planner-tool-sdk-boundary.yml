@@ -5,7 +5,7 @@ milestone: runtime-planner-p1-2026-11
 epic: planner-worker
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V487-017
 languages: [go, markdown]
@@ -73,3 +73,13 @@ tests:
   covers: [A3]
 - command: python3 scripts/check_spec.py
   covers: [A3]
+implementation_commit: 383a7aea0aeb8cdb82ac10a6e71736573b37cd5a
+verification:
+  result: passed
+  evidence: tasks/evidence/v488-001-planner-tool-boundary.json
+  planner_suites: 122 root tests and 526 total test/subtest records passed with race detection and real PostgreSQL; no skips.
+  new_cases: Four ordinary-context PostgreSQL cases and eight real-ADK Runner action cases passed.
+  negative_control: Removing accepted finish escalation failed both strategy cases; original source restored and both boundary roots passed again.
+  checks: Architecture suite, go vet, task consistency and spec consistency passed; no production export or new execution path.
+  delivery: Separate codex/runtime-planner-p1 branch, not merged. Remote model execution remains pending in V488-002.
+  cleanup: Owned disposable database dropped and owned PostgreSQL cluster stopped and removed.
