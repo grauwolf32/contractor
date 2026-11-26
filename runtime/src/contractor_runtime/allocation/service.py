@@ -1003,6 +1003,9 @@ class AllocationService:
                     and not owner._lock.locked()
                     and self._allocations.get(spec.allocation_id) is owner
                 ):
+                    # Requests already holding this owner must not resume on a
+                    # reservation admitted later for the same allocation ID.
+                    owner._released = True
                     self._allocations.pop(spec.allocation_id)
                     await self._state.discard_preparation(spec.allocation_id)
             raise

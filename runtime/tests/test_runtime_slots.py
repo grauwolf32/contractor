@@ -13,6 +13,80 @@ from contractor_runtime.archive_cache import read_archive
 from contractor_runtime.state import ProcessState
 
 
+@pytest.mark.parametrize("cancel_first", [False, True])
+def test_retired_prepare_cannot_consume_a_replacements_reservation(
+    tmp_path, runtime_capabilities, monkeypatch, cancel_first
+):
+    from contractor_runtime.allocation.service import Allocation
+
+    async def scenario():
+        state, service = await make_service(tmp_path, runtime_capabilities, allocation_slots=4)
+        sandbox = service._factories.sandbox_profiles["local-workdir@1"]
+        prepare_sandbox, prepare_owner = sandbox.prepare, Allocation.prepare
+        first_entered, retry_entered, replacement_entered = [asyncio.Event() for _ in range(3)]
+        first_resume, retry_resume, replacement_resume = [asyncio.Event() for _ in range(3)]
+        owners, jobs = [], []
+        builds = 0
+
+        async def admitted(owner, spec):
+            owners.append(owner)
+            if len(owners) == 2:
+                retry_entered.set()
+                await retry_resume.wait()
+            return await prepare_owner(owner, spec)
+
+        async def build():
+            nonlocal builds
+            builds += 1
+            if builds == 1:
+                first_entered.set()
+                await first_resume.wait()
+                raise OSError("temporary preparation failure")
+            if builds == 2:
+                replacement_entered.set()
+                await replacement_resume.wait()
+            return await prepare_sandbox()
+
+        monkeypatch.setattr(Allocation, "prepare", admitted)
+        monkeypatch.setattr(sandbox, "prepare", build)
+        try:
+            jobs.append(asyncio.create_task(service.prepare(make_spec())))
+            await first_entered.wait()
+            jobs.append(asyncio.create_task(service.prepare(make_spec())))
+            await retry_entered.wait()
+            if cancel_first:
+                jobs[0].cancel()
+            else:
+                first_resume.set()
+            await asyncio.gather(jobs[0], return_exceptions=True)
+            jobs.append(asyncio.create_task(service.prepare(make_spec())))
+            await replacement_entered.wait()
+            retry_resume.set()
+            retry = (await asyncio.gather(jobs[1], return_exceptions=True))[0]
+            replacement_resume.set()
+            replacement = (await asyncio.gather(jobs[2], return_exceptions=True))[0]
+            assert isinstance(retry, AllocationError) and retry.code == "allocation_conflict"
+            assert not isinstance(replacement, BaseException)
+            assert owners[0] is owners[1] and owners[2] is not owners[0]
+            assert owners[0]._context is None
+            assert service._allocations == {"allocation-1": owners[2]}
+            assert (await state.snapshot()).allocations == ("allocation-1",)
+            assert await service.active_a2a_application("allocation-1") is not None
+        finally:
+            first_resume.set()
+            retry_resume.set()
+            replacement_resume.set()
+            await asyncio.gather(*jobs, return_exceptions=True)
+            # The negative control can orphan an owner; retain it for test cleanup.
+            for owner in owners:
+                if owner._context is not None:
+                    service._allocations[owner._allocation_id] = owner
+            await service.close(30)
+        assert not (await state.snapshot()).allocations
+
+    asyncio.run(scenario())
+
+
 def test_four_allocations_count_prepare_and_cleanup_without_blocking_neighbors(
     tmp_path, runtime_capabilities, monkeypatch
 ):
