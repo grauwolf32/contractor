@@ -1,7 +1,7 @@
-# Planner в Runtime: P1 завершён, P3 — следующий этап
+# Planner в Runtime: P3 — единый модельный движок
 
-Обновлено 27 ноября 2026. Документ разделяет принятые возможности и план
-следующего изменения. P3 пока не реализован.
+Обновлено 27 ноября 2026. P1 принят в main; P3 реализован в отдельной ветке
+`codex/runtime-planner-p3-plan`. Приёмка P3 и статус слияния фиксируются в V489-001.
 
 ## Решения пользователя
 
@@ -10,33 +10,17 @@
 | 2026-11-26 | Planner занимает отдельную allocation; Streamline требует Planner + Worker. Весь Streamline, включая compaction, входит в P1; Router переносится следующим этапом. |
 | 2026-11-26 | Сохранить возможность headless через интерфейсы выполнения; не создавать второй движок и сокращать общее количество кода. |
 | 2026-11-27 | При обсуждении P2 выбран узкий охват: та же StageExecution, замена Planner при живом Server и сохранении здоровых Workers. |
-| 2026-11-27, последующее решение | **P2 отложить. Спланировать P3: перенос Router в Runtime и удаление заменённого Go-кода.** P3 не зависит от восстановления. Это разрешение на планирование, не начало реализации. |
+| 2026-11-27, последующее решение | **P2 отложить. Спланировать P3: перенос Router в Runtime и удаление заменённого Go-кода.** P3 не зависит от восстановления. Первоначально разрешено планирование. |
+| 2026-11-27, начало реализации | Реализовать P3 по плану и довести до готовности к слиянию, сохранив headless-границу и сокращение кода. |
 
 ## Текущее состояние
 
-Multi-allocation и P1 уже в main. Runtime имеет 1–4 allocation slots; каждый
-исполнитель имеет приватное состояние, общие сервисы принадлежат Runtime.
-Streamline использует Python `PlannerLoop`, включая `compact@1`, document
-recovery, Memory и State. Router пока использует общий Go ADK-движок.
+Multi-allocation и P1 уже в main. В ветке P3 Streamline и Router используют
+один Python `PlannerLoop`, включая `compact@1`, Memory и State. Runtime имеет
+1–4 allocation slots на процесс; Planner занимает отдельную allocation.
 Server владеет планом, бюджетами, подтверждением результатов, Artifact refs,
 WorkerInvoker, Scheduler и Control Plane. Один план допускает один active dispatch.
-
-```mermaid
-flowchart LR
-  subgraph Server["Server после P1"]
-    Router["Router: Go модельный цикл"]
-    Host["План, host operations, budgets, sessions"]
-    Invoker["WorkerInvoker"]
-    Router --> Host
-    Host --> Invoker
-  end
-  subgraph Runtime["Runtime процессы"]
-    Streamline["Streamline: Python PlannerLoop"]
-    Workers["Worker allocations"]
-  end
-  Streamline <-->|"PlannerHost / Server adapter"| Host
-  Invoker <-->|"A2A"| Workers
-```
+Go model runner, compactor, Gateway client и SDK tool/session bridge удалены.
 
 Потеря Runtime по-прежнему прерывает попытку; retry по Workflow создаёт новую
 StageExecution. Completed Stages сохраняются, план подзадач прерванной попытки
@@ -60,7 +44,7 @@ Gateway adapter и SDK-обвязка удаляются, без fallback на �
 
 ```mermaid
 flowchart LR
-  subgraph Runtime["Runtime процессы — целевой P3"]
+  subgraph Runtime["Runtime процессы — P3"]
     Loop["Один Python PlannerLoop: Streamline / Router"]
     A["Worker A allocation"]
     B["Worker B allocation"]
@@ -170,30 +154,24 @@ compaction через внедрённые model/host, без Server, БД и A2
 на Go Server, по-прежнему требует отдельного решения для полного headless.
 Удаление Go ADK упрощает эту границу, но само по себе не создаёт автономный Runtime.
 
-## Две задачи, одна приёмка этапа
+## Одна атомарная задача и приёмка этапа
 
 ```mermaid
 flowchart LR
-  P1["P1 принят в main"] --> T1["V489-001: Router через общий Runtime path"]
-  T1 --> T2["V489-002: убрать Go SDK-обвязку и принять P3"]
+  P1["P1 принят в main"] --> T1["V489-001: Router + удаление Go движка + приёмка P3"]
   P2["P2 отложен пользователем"]
 ```
 
-1. [V489-001](../../tasks/v489-001-runtime-router.yml): первая end-to-end
-   демонстрация, полный перенос Router с его текущими возможностями и удаление
-   заменённого Go model/compactor execution. Временная ADK-обвязка reduced facts
-   может оставаться только до V489-002; серверного fallback нет.
-2. [V489-002](../../tasks/done/v489-002-runtime-planner-go-removal.yml): заменить
-   оставшуюся SDK-обвязку обычными tool declarations и session facts, удалить
-   ненужные зависимости/тестовые пути и выполнить общую приёмку. Это exit task;
-   один успешный демонстратор не означает готовности P3 к слиянию.
+[V489-001](../../tasks/v489-001-runtime-router.yml) объединяет перенос Router,
+прямые tool declarations/session facts и удаление Go SDK. Первоначальная
+[V489-002](../../tasks/done/v489-002-runtime-planner-go-removal.yml) архивирована:
+production runner, SDK bridge и regression callers пришлось менять атомарно,
+чтобы не сохранять второй движок ради тестов и пройти lint. Её объём и все
+критерии приёмки перенесены в V489-001; это exit task этапа.
 
-Задачи pending и ссылаются на текущие owning specs. Исполнитель меняет spec
-вместе с реализацией (Planner, Scheduler/Control Plane, Runtime, architecture,
-limits/observability при изменении их границы). Заявлять P3 в normative spec
-до реализации нельзя. Public event/fact fields не переименовывать только
-ради удаления SDK. Если public shape действительно меняется — OpenAPI, оба
-generated clients и UI меняются и проверяются вместе, без legacy reader.
+Owning specs и architecture обновлены вместе с реализацией. Public event/fact
+fields сохранены: старое имя `adk_event` не требует SDK и не меняется ради
+косметической очистки. Никакого fallback на Go исполнение не осталось.
 
 Приёмка переносит важные regression assertions на настоящий Runtime path:
 Worker selection, Memory/State scope, cursor isolation, result revisions,
@@ -256,9 +234,3 @@ P1 слит через `9d84161b076edd05d64a521c6be8187ba239ee22`; metadata HEAD
 [V488-004](../../tasks/done/v488-004-runtime-planner-main-integration.yml)
 подтверждает идентичность принятого кода и сохранность локальной работы.
 Эта приёмка относится к P1, не доказывает будущий перенос Router.
-
-
-Реализация 27 ноября: V489-002 объединена с V489-001. Go runner, SDK tool/event
-bridge и их regression callers мигрируют атомарно для прохождения lint без
-сохранения второго движка ради тестов. Объём/приёмка обеих задач сохранены в
-V489-001; exit task теперь V489-001. Схема двух задач выше — история планирования.

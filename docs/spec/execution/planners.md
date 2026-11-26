@@ -742,7 +742,7 @@ secret boundary ([SEC-R28](../platform/security.md)) and never inherits a
 Worker's token, Gateway or policy merely because both participate in the same
 Stage.
 
-**PLN-R89.** A modeled Server-side Planner retries a transient
+**PLN-R89.** A modeled Runtime Planner retries a transient
 Gateway failure inside its invocation, under model-availability recovery
 ([RUN-R31](runs.md), [Scheduler](scheduler.md#model-availability-recovery));
 any other failed model request ends with the retryable

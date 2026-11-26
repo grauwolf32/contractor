@@ -265,7 +265,7 @@ func (s *executionState) report(
 			Calls: &calls, Succeeded: &succeeded, Failed: &failed,
 		}
 	}
-	cost := new(reporting.LLMCostCollector).Snapshot(modelCalls)
+	cost := &reporting.LLMCost{Currency: "USD", Calls: modelCalls, Groups: []reporting.LLMCostGroup{}}
 	if s.runtimeCost != nil {
 		value := *s.runtimeCost
 		value.Calls = max(value.Calls, modelCalls)

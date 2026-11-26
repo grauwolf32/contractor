@@ -424,7 +424,7 @@ non-retryable even when the status would otherwise allow retry. Provider
 bodies and headers are not retained in errors (FAIL-WRK-1).
 
 Gateway-specific `failureSignatures`, and the shared fixture that keeps the
-Server-side Planner and Runtime Worker classifiers identical, are owned by the
+Runtime Planner and Worker behavior identical through their common classifier, are owned by the
 [failure model](../platform/failure-model.md).
 
 **WRK-R19.** The ordinary Worker and the result finalizer preserve

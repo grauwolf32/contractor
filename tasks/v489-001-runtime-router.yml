@@ -26,7 +26,8 @@ context:
     move Router into Runtime and delete replaced Go code, keeping headless
     possible and reducing total code. P3 has no dependency on P2. Earlier user
     decision 2026-11-26 assigns Planner its own allocation and keeps one engine
-    behind replaceable host interactions. User instruction 2026-11-27 starts implementation through merge readiness. Proposal: retain the existing WorkerInvoker and domain
+    behind replaceable host interactions. User instruction 2026-11-27 starts implementation through merge readiness.
+    Proposal: retain the existing WorkerInvoker and domain
     owners and delete the Go execution/SDK bridge atomically; V489-002 is
     consolidated into this task under implementation_replan below. No new recovery guarantees or local production backend.
   proposal: docs/proposals/0058-runtime-planner-and-recovery.md
@@ -43,9 +44,8 @@ context:
   boundary: >-
     Server keeps canonical plan, session, budget, result/Artifact validation,
     Memory/State and WorkerInvoker; Runtime owns model calls and conversation.
-    Extend the existing synthetic allocation and host registration. Registry
-    currently routes callbacks only to Streamline, and runtime.go dispatch and
-    history use workers[0]; all three assumptions must change together. Select
+    Extend the existing synthetic allocation and host registration. Both factory descriptors share the existing host registry; Router
+    dispatch/history/Memory/State resolve their exact logical Worker. Select
     the host from trusted Stage/allocation identity, never a Runtime-supplied
     strategy or fallback across handlers. Reuse the generic Python PlannerLoop.
   verification_environment: >-
