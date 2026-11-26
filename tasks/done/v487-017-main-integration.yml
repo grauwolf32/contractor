@@ -3,7 +3,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: quality
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 languages:
 - python
 id: V487-017
@@ -49,3 +49,15 @@ tests:
   covers:
   - A1
   - A2
+implementation_commit: 57ba7a21675559fc4b86eebba0bb596252cac770
+verification:
+  result: passed
+  evidence: tasks/evidence/v487-014-017-review-fixes.json
+  commands: 'All listed commands passed on the combined source tree. Full Runtime 6707 passed/135 declared
+    skips; lint with real PostgreSQL; wire 416 fixtures/470 Go/297 Python; actual four-slot Server/Runtime
+    process 130.434 seconds. Supplemental Linux lifecycle suites: 65 passed, no skips.'
+  delivery: Merged with --no-ff into main. The two-parent merge tree equals the tested feature tree. Primary
+    .portable files and portable task hashes/modes preserved; the generated backlog retains exactly their
+    uncommitted task delta.
+  cleanup: Owned PostgreSQL cluster/database and Linux test container/cache/venv removed; 13 shared rootful
+    container IDs preserved. Optional heavy I/O not enabled.

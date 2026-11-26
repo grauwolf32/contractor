@@ -269,5 +269,9 @@ private memory и память дочерних процессов, latency и h
 описанной scanner-нагрузки; проверки HTTP/Podman/cache имеют отдельные реальные
 сценарии. Прирост production-кода составляет 623 текстовые строки, без новых
 таблиц, leases или receipts. Optional heavy-I/O не включались. Созданное тестовое
-окружение удалено; изменения находятся в `codex/runtime-multislot-proposal`,
-ветка не слита в main.
+окружение удалено; `codex/runtime-multislot-proposal` слита в main 2026-11-26.
+
+Ревью выявило три гонки prepare/shutdown/Podman close. Они исправлены и
+проверены девятью регрессиями, которые падали на исходном коде. Итоги
+повторных Runtime/Linux, wire и process-проверок и сохранения рабочих файлов
+при merge находятся в [отчёте исправлений](../../tasks/evidence/v487-014-017-review-fixes.json).
