@@ -256,10 +256,6 @@
     "stage-content-planner-request.json": {
       "schema": "stage-content.schema.json",
       "type": "StageContentRequest"
-    },
-    "allocation-spec-planner-null-adapters.json": {
-      "type": "AllocationSpec",
-      "schema": "allocation.schema.json"
     }
   },
   "invalid": {

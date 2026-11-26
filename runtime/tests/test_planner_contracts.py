@@ -57,3 +57,18 @@ def test_shared_planner_execution_bounds_and_utf8_envelope():
         payload[member]["text"] += "x"
         with pytest.raises(ValidationError):
             model.model_validate(payload)
+
+
+def test_shared_planner_allocation_null_settings():
+    from private_schemas import private_validator
+
+    from contractor_runtime.contracts import AllocationSpec, decode_private
+
+    root = Path(__file__).parents[2] / "api/testdata/v1alpha1"
+    value = json.loads((root / "valid/allocation-spec-planner.json").read_text())
+    patch = json.loads((root / "planner-allocation-settings.json").read_text())
+    value["runtimeSettings"].update(patch)
+    private_validator("allocation.schema.json").validate(value)
+    allocation = decode_private(AllocationSpec, json.dumps(value))
+    settings = allocation.runtime_settings.model_dump(by_alias=True)
+    assert all(settings[name] is None for name in patch)
