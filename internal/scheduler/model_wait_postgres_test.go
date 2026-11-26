@@ -145,7 +145,7 @@ func TestPostgresModelOutcomeDoesNotWaitForRunProjection(t *testing.T) {
 				code  string
 			}{{route, "model_unavailable"}, {other, "gateway_timeout"}} {
 				id := "allocation-" + item.route.Model
-				if err := service.Bind(ctx, id, "run-1", f.executionID, item.route); err != nil {
+				if err := service.Bind(ctx, id, "run-1", f.executionID, item.route, false); err != nil {
 					t.Fatal(err)
 				}
 				if _, err := service.Update(ctx, id, gatewayrecovery.Request{Model: item.route.Model, RequestID: "failure", Action: "failed", Code: item.code}); err != nil {

@@ -55,3 +55,35 @@ func TestPlacementPostgresToolWorkerWithoutModel(t *testing.T) {
 		t.Fatalf("model route persisted for scanner: %+v", got)
 	}
 }
+
+// Planner consumes the Stage's pinned route, independently of Worker settings
+// and the selected process's mutable Agent-label configuration.
+func TestPlacementPostgresPlannerExcludesWorkerConfiguration(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedPlacementPool(t, ctx)
+	f := newPlacementFixture(t, ctx, pool, []string{"debug"})
+	request := f.request()
+	binding := request.Bindings[0]
+	binding.AgentTemplate.Runtime = contracts.WorkerRuntimeRef{RuntimeID: "planner", Version: "1"}
+	binding.AgentTemplate.Toolsets = nil
+	binding.AgentTemplate.Skills = nil
+	got, err := f.allocator.resolveCandidate(ctx, pool, request, binding, AuthenticatedPrincipal{
+		Labels: []string{"unbound-worker-only-label"}, LabelRevision: 1,
+	}, placementCredentialLookups{llm: f.allocator.llmCredentials, runtime: f.allocator.runtimeCredentials})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.LLMGateway.Ref != f.selection.LLMGateway.Ref || got.ModelPolicy.Ref != f.selection.ModelPolicy.Ref ||
+		got.LLMCredential == nil || *got.LLMCredential != *f.selection.Credential || got.WorkerTelemetry != nil ||
+		got.HTTPProxy != nil || got.Caido != nil || got.Interactsh != nil || len(got.RequiredRuntimeAdapters) != 0 ||
+		len(got.Provenance.AgentLabels) != 0 || len(got.Provenance.RuntimeCredentialRefs) != 0 {
+		t.Fatalf("Planner inherited Worker configuration: %+v", got)
+	}
+	// Resolution must not mutate the cached Run-label snapshot used by Workers.
+	worker, err := f.allocator.resolveCandidate(ctx, pool, request, request.Bindings[0], AuthenticatedPrincipal{
+		Labels: []string{}, LabelRevision: 1,
+	}, placementCredentialLookups{llm: f.allocator.llmCredentials, runtime: f.allocator.runtimeCredentials})
+	if err != nil || worker.WorkerTelemetry == nil {
+		t.Fatalf("Planner projection altered Worker settings: %+v, %v", worker, err)
+	}
+}

@@ -24,10 +24,10 @@ const (
 const (
 	DefaultPlannerContextWindowRatio = 0.75
 	DefaultPlannerKeepRecentGroups   = 4
-	MaxPlannerKeepRecentGroups       = 16
+	MaxPlannerKeepRecentGroups       = contracts.MaxPlannerKeepRecentGroups
 	DefaultPlannerMaxCompactions     = 8
-	MaxPlannerCompactions            = 16
-	maxPlannerCompactorInstructions  = 8000
+	MaxPlannerCompactions            = contracts.MaxPlannerCompactions
+	maxPlannerCompactorInstructions  = contracts.MaxPlannerCompactorInstructions
 )
 
 // PlannerContextManagement is the resolved compact@1 branch of a Stage's

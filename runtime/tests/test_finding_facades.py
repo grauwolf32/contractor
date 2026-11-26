@@ -22,7 +22,7 @@ from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, HTTPOriginTargetSettings, RuntimeSettings
 from contractor_runtime.core.http_limits import MAX_HISTORY, MAX_REQUEST_HEADER_BYTES
 from contractor_runtime.core.input_errors import ToolInputError
-from contractor_runtime.llm.openai import _tools
+from contractor_runtime.llm.request import _tools
 from contractor_runtime.toolsets.audit_results.collector import AuditCollectionError
 from contractor_runtime.toolsets.common.cwe import CWEReferenceError
 from contractor_runtime.toolsets.common.finding_locations import (

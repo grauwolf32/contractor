@@ -32,19 +32,20 @@ type AllocationRegistry interface {
 }
 
 type Dependencies struct {
-	Transfers       artifacttransfer.Admission
-	GatewayRecovery *gatewayrecovery.Service
-	Registry        AllocationRegistry
-	Artifacts       *artifacts.Service
-	Findings        FindingIntake
-	AuditEvidence   AuditEvidenceIntake
-	AuditJudgments  AuditJudgmentIntake
-	ProjectFindings *findingintake.CollectionPublisher
-	NewRequestID    func() (string, error)
-	Logger          *slog.Logger
-	Sitemap         *projectsitemap.Service
-	RunProjects     RunProjectReader
-	Projects        ProjectReader
+	PlannerOperations PlannerOperations
+	Transfers         artifacttransfer.Admission
+	GatewayRecovery   *gatewayrecovery.Service
+	Registry          AllocationRegistry
+	Artifacts         *artifacts.Service
+	Findings          FindingIntake
+	AuditEvidence     AuditEvidenceIntake
+	AuditJudgments    AuditJudgmentIntake
+	ProjectFindings   *findingintake.CollectionPublisher
+	NewRequestID      func() (string, error)
+	Logger            *slog.Logger
+	Sitemap           *projectsitemap.Service
+	RunProjects       RunProjectReader
+	Projects          ProjectReader
 }
 
 type RunProjectReader interface {
@@ -102,6 +103,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 func (h *handler) routes() []httpx.Route {
 	const allocation = "/private/v1/allocations/{allocationID}"
 	return []httpx.Route{
+		{Method: http.MethodPost, Path: allocation + "/planner-operations", Handler: h.plannerOperation},
 		{Method: http.MethodPost, Path: allocation + "/gateway-recovery", Handler: h.gatewayRecovery},
 		{Method: http.MethodGet, Path: allocation + "/artifacts", Handler: h.listArtifacts},
 		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}", Handler: h.getArtifact},

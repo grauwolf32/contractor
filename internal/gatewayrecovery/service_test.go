@@ -171,7 +171,7 @@ func TestMemoryRecoveryReleaseLeaseAndManualRetry(t *testing.T) {
 func TestMemoryRecoveryBindingsUseWorkerLeaseAndFenceStage(t *testing.T) {
 	f := memoryFixture(t)
 	p := f.participant(t, "run", f.route)
-	if err := f.s.Bind(t.Context(), "allocation", "run", "stage-run", f.route); err != nil {
+	if err := f.s.Bind(t.Context(), "allocation", "run", "stage-run", f.route, false); err != nil {
 		t.Fatal(err)
 	}
 	call := func(id, action string) (Decision, error) {
@@ -342,11 +342,11 @@ func TestMemoryRecoveryRunAndBindingCapacityIsReleasedByStageCleanup(t *testing.
 		t.Fatalf("membership capacity not released: %v %v", ok, err)
 	}
 	for i := range maximumBindingsPerRun {
-		if err := f.s.Bind(t.Context(), fmt.Sprint("allocation-", i), "replacement", "stage", f.route); err != nil {
+		if err := f.s.Bind(t.Context(), fmt.Sprint("allocation-", i), "replacement", "stage", f.route, false); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := f.s.Bind(t.Context(), "overflow", "replacement", "stage", f.route); !errors.Is(err, errCapacity) {
+	if err := f.s.Bind(t.Context(), "overflow", "replacement", "stage", f.route, false); !errors.Is(err, errCapacity) {
 		t.Fatalf("binding bound: %v", err)
 	}
 	f.s.EndRun("replacement")
@@ -372,5 +372,35 @@ func TestMemoryRecoveryExistingWaiterRefreshesChangedRouteCause(t *testing.T) {
 	}
 	if code, _ := f.s.Waiting("b", "stage-b"); code != "gateway_timeout" {
 		t.Fatal(code)
+	}
+}
+
+func TestMemoryRecoveryPlannerAllocationUsesPlannerLease(t *testing.T) {
+	f := memoryFixture(t)
+	f.s.plannerRequestTimeout = 9 * time.Minute
+	f.participant(t, "run", f.route)
+	if err := f.s.Bind(t.Context(), "planner", "run", "stage-run", f.route, true); err != nil {
+		t.Fatal(err)
+	}
+	call := func(id, action string) Decision {
+		t.Helper()
+		d, err := f.s.Update(t.Context(), "planner", Request{Model: f.route.Model, RequestID: id, Action: action, Code: "model_unavailable"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	call("failure", "failed")
+	f.now = f.now.Add(time.Second)
+	if !call("probe", "acquire").Allowed {
+		t.Fatal("Planner probe denied")
+	}
+	want := f.now.Add(f.s.plannerRequestTimeout + f.s.policy.InitialDelay)
+	if got := f.s.routes[f.route.Key()].probeUntil; !got.Equal(want) {
+		t.Fatalf("Planner allocation lease = %s, want %s", got, want)
+	}
+	f.s.EndStage("run", "stage-run")
+	if _, err := f.s.Update(t.Context(), "planner", Request{Model: f.route.Model, RequestID: "late", Action: "acquire"}); !IsUnavailable(err) {
+		t.Fatal("retired Planner allocation recreated recovery state")
 	}
 }

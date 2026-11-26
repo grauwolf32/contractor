@@ -182,6 +182,7 @@ func bindingRequirements(
 	snapshot []agentskills.RunSkillSnapshot,
 	context runstore.StageContextSnapshot,
 ) ([]controlplane.BindingRequirement, error) {
+	stage = executionStage(stage)
 	workspace, err := projectAllocationWorkspace(stage.Context.Workspace, context)
 	if err != nil {
 		return nil, err
@@ -221,16 +222,22 @@ func bindingRequirements(
 		if err := contracts.ValidateResolvedSkills(binding.Template, resolvedSkills); err != nil {
 			return nil, fmt.Errorf("resolve Skills for Agent %q: %w", name, err)
 		}
+		allocationWorkspace := contracts.CloneAllocationWorkspaceSpec(workspace)
+		sessionMode := stage.Session
+		if binding.Template.Runtime.IsPlanner() {
+			allocationWorkspace = nil
+			sessionMode = contracts.WorkerSessionIsolated
+		}
 		result = append(result, controlplane.BindingRequirement{
 			LogicalAgentName:  name,
 			Namespace:         binding.Namespace,
-			WorkerSessionMode: stage.Session,
+			WorkerSessionMode: sessionMode,
 			ContextManagement: contracts.EffectiveContextManagement(binding.ContextManagement, binding.Template),
 			AgentTemplate:     binding.Template,
 			ResolvedSkills:    resolvedSkills,
 			ExecutionConfig:   allocationExecutionConfig(stage, name),
 			RuntimeSelection:  &selection,
-			Workspace:         contracts.CloneAllocationWorkspaceSpec(workspace),
+			Workspace:         allocationWorkspace,
 		})
 	}
 	return result, nil

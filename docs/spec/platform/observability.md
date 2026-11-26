@@ -1337,6 +1337,20 @@ overwritten. The [operator guide](../../guides/audit-traces.md) defines usage,
 local limits and exit statuses. No new Server API, persistence or retention
 mechanism is introduced.
 
+**OBS-R129.** Runtime Streamline reports model admission, classified outcome,
+known usage and tool execution through its ordered execution host. Server
+retains the canonical Planner report, reduced events and configured Planner
+telemetry exporter; Runtime does not inherit Worker telemetry configuration.
+When the exporter captures content, Runtime supplies optional bounded model
+input/output (OBS-R54–R60) and Server applies its existing projection/masking.
+No raw conversation or summary is added to durable Planner session facts.
+Native Runtime cost snapshots use the existing bounded `LLMCost` contract and
+are included in the Server Planner report. That report owns the one durable
+Planner cost contribution; its executor allocation has no second model-cost
+collector. Lost observations remain unknown, rather than becoming zero cost.
+The Server session span represents opening the reduced-event session; the ADK
+conversation itself remains invocation-local in Runtime.
+
 ## Telemetry rules owned by other documents
 
 | Topic | Owner |

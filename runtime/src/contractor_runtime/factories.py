@@ -34,6 +34,7 @@ from contractor_runtime.contracts.settings import AgentTemplateRef
 from contractor_runtime.contracts.tool_execution import ToolExecutionConfig
 from contractor_runtime.core.target_policy import TargetPolicyConfig
 from contractor_runtime.llm.factory import ModelFactory
+from contractor_runtime.planner.runtime import PlannerRuntimeFactory
 from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
 from contractor_runtime.projectfs.config import WorkspaceSettings
 from contractor_runtime.sandbox.contracts import PODMAN_NETWORK_PROFILE
@@ -118,6 +119,9 @@ class WorkerBuildContext:
     a2a_base_url: str
     runtime_settings: RuntimeSettings = field(repr=False)
     gateway_recovery: GatewayRecoveryClient | None = field(default=None, repr=False)
+    cost_observer: Callable[[str, Mapping[str, str], bytes], None] | None = field(
+        default=None, repr=False
+    )
     execution: ToolExecutionConfig | None = None
     template_ref: AgentTemplateRef | None = None
     summarizer: WorkerSummarizerConfig | None = None
@@ -298,6 +302,7 @@ def built_in_factories(
     return FactoryRegistry(
         worker_runtimes={
             runtime.ref: runtime,
+            "planner@1": PlannerRuntimeFactory(artifact_client_factory, model_factory),
             "tool@1": ToolWorkerRuntimeFactory(artifact_client_factory),
         },
         toolsets={

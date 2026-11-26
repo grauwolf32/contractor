@@ -994,6 +994,17 @@ meaning of `complete` and the process-wide scope of the values are
 [OPS-R174 to OPS-R181](../operations/operations.md); the collection request and
 the persisted decision are [CTL-R132 to CTL-R138](control-plane.md).
 
+**RTA-R128.** `planner@1` owns one invocation-local Streamline ADK loop,
+conversation and optional `compact@1` compactor in a separate allocation. Its
+main model uses the pinned Planner route and existing Gateway recovery; the
+compactor keeps the existing one-shot contract without recovery.
+The per-request timeout and probe lease use the Planner timeout. Cancellation
+joins model and callback work before ordinary allocation cleanup. Registration
+advertises this role only when the production execution host is available.
+The Planner core accepts an injected model and `PlannerHost` operation
+interface; allocation bootstrap and Server transport stay in adapters. A local
+host is a replaceable boundary, not a shipped headless backend or offline mode.
+
 ## Interfaces
 
 Startup configuration:

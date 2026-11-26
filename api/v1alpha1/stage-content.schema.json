@@ -4,32 +4,69 @@
   "title": "StageContentRequest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["apiVersion", "subtaskId", "objective", "instructions", "parameters", "artifacts", "deadline"],
+  "required": [
+    "apiVersion",
+    "subtaskId",
+    "objective",
+    "instructions",
+    "parameters",
+    "artifacts",
+    "deadline"
+  ],
   "properties": {
-    "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+    "apiVersion": {
+      "$ref": "common.schema.json#/$defs/apiVersion"
+    },
     "subtaskId": {
       "type": "string",
       "minLength": 1,
       "maxLength": 128,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
     },
-    "objective": {"type": "string", "minLength": 1},
-    "instructions": {"type": "string", "minLength": 1},
+    "objective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "instructions": {
+      "type": "string",
+      "minLength": 1
+    },
     "deadline": {
       "type": "string",
       "format": "date-time",
       "pattern": "(?:Z|[+-][0-9]{2}:[0-9]{2})$"
     },
-    "parameters": {"type": "object", "additionalProperties": {"type": "string"}},
-    "artifacts": {"type": "object", "additionalProperties": {"$ref": "common.schema.json#/$defs/exactArtifactRef"}},
+    "parameters": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "common.schema.json#/$defs/exactArtifactRef"
+      }
+    },
     "resultArtifacts": {
       "type": "object",
       "additionalProperties": {
         "allOf": [
-          {"$ref": "common.schema.json#/$defs/artifactRef"},
-          {"not": {"required": ["revision"]}}
+          {
+            "$ref": "common.schema.json#/$defs/artifactRef"
+          },
+          {
+            "not": {
+              "required": [
+                "revision"
+              ]
+            }
+          }
         ]
       }
+    },
+    "planner": {
+      "$ref": "planner-execution.schema.json#/$defs/invocation"
     }
   }
 }

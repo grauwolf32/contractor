@@ -696,7 +696,10 @@ def test_actual_summary_gateway_keeps_strict_errors_and_spent_usage(tmp_path, re
     asyncio.run(scenario())
 
 
-def test_actual_gateway_documents_last_duplicate_argument_and_ignores_envelope_extensions(tmp_path):
+@pytest.mark.parametrize("duplicate", [False, True])
+def test_actual_gateway_rejects_duplicate_arguments_and_allows_envelope_extensions(
+    tmp_path, duplicate
+):
     async def scenario():
         calls, sent = [], []
 
@@ -712,7 +715,10 @@ def test_actual_gateway_documents_last_duplicate_argument_and_ignores_envelope_e
                 response = tool_reply()
                 response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] = (
                     '{"required_text":"first","required_text":"last","optional_note":null}'
+                    if duplicate
+                    else '{"required_text":"first","optional_note":null}'
                 )
+                response["provider_extension"] = {"valid": True}
             elif "response_format" in payload:
                 response = structured_reply()
             else:
@@ -723,12 +729,15 @@ def test_actual_gateway_documents_last_duplicate_argument_and_ignores_envelope_e
             state = WorkerState()
             runtime = await create_runtime(tmp_path, state, {"probe": probe}, gateway_model(http))
             try:
+                if duplicate:
+                    completion = await runtime.invoke(stage_request())
+                    assert completion.failure is not None
+                    assert calls == [] and len(sent) == 1
+                    assert state.metrics.counters["total_tokens"] == 18
+                    return
                 completion = await runtime.invoke(stage_request())
                 assert completion.failure is None and completion.result.result == RESULT
-                # The provider envelope/argument JSON parser remains json.loads:
-                # duplicate object keys currently take their last value.
-                # Contractor-owned result/wire validation remains independent.
-                assert calls == ["last"]
+                assert calls == ["first"]
                 assert len(sent) == 3
                 assert state.metrics.counters["total_tokens"] == 54
                 assert (

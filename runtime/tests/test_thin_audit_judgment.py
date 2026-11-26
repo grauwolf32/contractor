@@ -12,7 +12,7 @@ from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from google.genai import types
 
-from contractor_runtime.llm.openai import _tools
+from contractor_runtime.llm.request import _tools
 from contractor_runtime.toolsets.audit_results.collector import InvocationAuditCollector
 from contractor_runtime.toolsets.audit_results.encoding import CanonicalAuditResultEncoder
 from contractor_runtime.toolsets.audit_results.v2 import SubmitResultsTool, SubmitResultTool

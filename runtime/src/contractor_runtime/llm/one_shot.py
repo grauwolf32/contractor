@@ -1,4 +1,4 @@
-"""ADK scaffolding shared by the Worker and its one-shot auxiliary agents."""
+"""ADK scaffolding shared by one-shot Worker and Planner auxiliary agents."""
 
 from __future__ import annotations
 
@@ -57,6 +57,7 @@ class OneShotModel(BaseLlm):
     _delegate: BaseLlm = PrivateAttr()
     _calls: int = PrivateAttr(default=0)
     _output_limited: bool = PrivateAttr(default=False)
+    _response: LlmResponse | None = PrivateAttr(default=None)
 
     def __init__(self, delegate: BaseLlm) -> None:
         super().__init__(model=delegate.model)
@@ -69,6 +70,10 @@ class OneShotModel(BaseLlm):
     @property
     def output_limited(self) -> bool:
         return self._output_limited
+
+    @property
+    def response(self) -> LlmResponse | None:
+        return self._response
 
     def _call_limit_error(self) -> Exception:
         raise NotImplementedError
@@ -84,6 +89,7 @@ class OneShotModel(BaseLlm):
         self._calls = 1
         async for response in self._delegate.generate_content_async(llm_request, stream=stream):
             if not bool(getattr(response, "partial", False)):
+                self._response = response
                 self._record_usage(getattr(response, "usage_metadata", None))
             if output_limit_reached(response):
                 self._output_limited = True

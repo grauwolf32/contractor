@@ -45,7 +45,9 @@ from contractor_runtime.contracts.codec import decode_private_value
 
 STAGE_CONTENT_MEDIA_TYPE = "application/vnd.contractor.stage-content+json"
 WORKER_COMPLETION_MEDIA_TYPE = "application/vnd.contractor.worker-completion+json"
-MAX_A2A_REQUEST_BYTES = 1 << 20
+# Includes JSON-RPC framing and escaping of the bounded Planner input string.
+# Worker and Planner DTOs retain their smaller independent content bounds.
+MAX_A2A_REQUEST_BYTES = 4 << 20
 ALLOCATION_A2A_PATH = re.compile(
     r"^/private/v1/allocations/(?P<allocation>[A-Za-z0-9_-]+)/a2a(?P<suffix>/.*)?$"
 )
@@ -274,7 +276,20 @@ def _stage_request(context: RequestContext) -> StageContentRequest:
     value = MessageToDict(part.data)
     if not isinstance(value, dict):
         raise TypeError("StageContentRequest DataPart must be an object")
-    return decode_private_value(StageContentRequest, value)
+    return decode_private_value(StageContentRequest, _struct_numbers(value))
+
+
+def _struct_numbers(value):
+    # google.protobuf.Struct has only a double for JSON numbers. Restore exact
+    # integral values at this SDK boundary; ordinary private JSON stays strict.
+    # The DTO codec still rejects fractions, non-finite and unsafe integers.
+    if isinstance(value, dict):
+        return {key: _struct_numbers(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_struct_numbers(item) for item in value]
+    if type(value) is float and value.is_integer():
+        return int(value)
+    return value
 
 
 def _result_message(result: WorkerCompletion, context: RequestContext) -> Message:

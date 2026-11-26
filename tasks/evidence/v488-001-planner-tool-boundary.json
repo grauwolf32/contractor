@@ -1,0 +1,47 @@
+{
+  "task": "V488-001",
+  "status": "passed",
+  "scope": "Server-owned operations separated from ADK tool bindings; no remote Planner execution claimed",
+  "planner_suites": {
+    "command": "go test -race -count=1 ./internal/planner/streamline ./internal/planner/router",
+    "postgres": "owned disposable PostgreSQL 17 database contractor_test_v488",
+    "test_records": {
+      "pass": 526
+    },
+    "root_tests": {
+      "pass": 122
+    },
+    "log_sha256": "0cdb40895b81ce1a7134e76120e3403df28bf7497bfc34c82171c82f81f43697"
+  },
+  "new_boundary_cases": {
+    "ordinary_context_postgres": 4,
+    "real_adk_runner_actions": 8
+  },
+  "negative_control": {
+    "mutation": "Remove accepted finish Escalate action in tools_adk.go",
+    "expected_failures": [
+      "streamline/accepted-finish",
+      "router/accepted-finish"
+    ],
+    "source_restored": true,
+    "positive_recheck": "both boundary test roots passed after source restoration"
+  },
+  "checks": [
+    "go test -count=1 ./internal/archtest",
+    "go vet ./internal/planner/streamline ./internal/planner/router",
+    "python3 scripts/check_spec.py",
+    "cd runtime && uv run python ../scripts/check_tasks.py"
+  ],
+  "production_lines": {
+    "before": 1546,
+    "after": 1591,
+    "delta": 45,
+    "reason": "Move existing SDK construction to adapters and return Worker budget stop to the adapter; no new export or execution path"
+  },
+  "delivery": {
+    "branch": "codex/runtime-planner-p1",
+    "merged": false,
+    "implementation_commit": "383a7aea0aeb8cdb82ac10a6e71736573b37cd5a"
+  },
+  "cleanup": "Owned contractor_test_v488 database explicitly dropped and owned port-55489 cluster stopped; primary checkout user files untouched"
+}

@@ -33,6 +33,7 @@ from contractor_runtime.contracts.base import (
     trim_whitespace,
 )
 from contractor_runtime.contracts.compaction import WorkerCompactionProgress, WorkerModelPhases
+from contractor_runtime.contracts.planner import MAX_PLANNER_INVOCATION_BYTES, PlannerInvocation
 from contractor_runtime.contracts.reports import ToolCallOutcome, WorkerCompletionDiagnostics
 from contractor_runtime.contracts.workspace import WorkspaceObservationSummary
 from contractor_runtime.shared_config import get_shared_config
@@ -44,6 +45,7 @@ _WIRE_DEADLINE = re.compile(
 
 
 class StageContentRequest(VersionedWireModel):
+    planner: PlannerInvocation | None = Field(default=None, exclude_if=lambda value: value is None)
     subtask_id: str = Field(pattern=WORKER_SUBTASK_ID_PATTERN.pattern)
     objective: str
     instructions: str
@@ -68,6 +70,12 @@ class StageContentRequest(VersionedWireModel):
 
     @model_validator(mode="after")
     def validate_content(self) -> Self:
+        if (
+            self.planner is not None
+            and json_byte_size(self.model_dump(mode="json", by_alias=True))
+            > MAX_PLANNER_INVOCATION_BYTES
+        ):
+            raise ValueError("Planner invocation exceeds its bound")
         _require_worker_subtask_id(self.subtask_id)
         _require_text("objective", self.objective)
         _require_text("instructions", self.instructions)

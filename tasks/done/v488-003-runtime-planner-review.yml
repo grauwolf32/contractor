@@ -1,0 +1,68 @@
+schema_version: '1.0'
+id: V488-003
+title: Preserve Planner Gateway validation and compaction guards in Runtime
+milestone: runtime-planner-p1-2026-11
+epic: planner-worker
+kind: defect
+introduced_by: V488-002
+priority: P1
+status: completed
+depends_on: [V488-002]
+languages: [python, go, yaml, markdown]
+goal: Runtime Streamline rejects ambiguous Gateway replies and invalid usage before tool effects, and preserves filtered-response and ineffective-compaction failure outcomes.
+context:
+  authority: User request 2026-11-27 fixes all four P1 review findings, adds regressions through the new Runtime path and restores merge readiness while retaining headless boundaries and limiting code growth.
+  specification: [docs/spec/execution/planners.md#PLN-R86, docs/spec/execution/planners.md#PLN-R128, docs/spec/execution/worker.md#WRK-R9]
+  proposal: docs/proposals/0058-runtime-planner-and-recovery.md
+  severity: high
+  finding: >-
+    runtime/src/contractor_runtime/planner/loop.py:150 accepts empty/inconsistent
+    usage and filtered responses; line 176 returns before measuring a rejected
+    selection after a checkpoint. planner/runtime.py:48 now selects the Python
+    Gateway client, whose llm/client.py:183 and llm/openai.py:339 discard duplicate
+    JSON members. Review reproductions reached finish with zero token charge,
+    last-key-wins arguments and a filtered response, or bypassed ineffective.
+  siblings: >-
+    Main and compactor envelopes share the Gateway client and strict JSON decoder;
+    tool argument strings use that same decoder. Main and compactor usage share
+    validation; existing Go Planner validation already enforces PLN-R86. Worker
+    callers of the shared adapter retain valid replies and classified errors.
+    Provider extensions remain allowed. No new host, execution engine or wire DTO.
+scope:
+  in:
+  - Shared strict Gateway JSON decoding, trusted usage validation, filtered main response failure and post-checkpoint measurement before rejected-tool replacement.
+  - Runtime ADK/Gateway regressions for main and compactor plus a real Server/PostgreSQL/Runtime process regression; negative control against the reviewed revision.
+  - Full Runtime, affected Go process/package checks, wire and lint, evidence and proposal status.
+  out: [Headless backend, Runtime replacement recovery, Router relocation, live model runs, merge and deployment]
+acceptance_criteria:
+- id: A1
+  text: Empty, missing, negative or inconsistent usage never authorizes tools/checkpoints; valid rejected-response usage is charged once and ambiguous envelope usage is untrusted.
+- id: A2
+  text: Duplicate keys at any nesting level or trailing JSON in main/compactor envelopes and tool arguments fail without tool effects or inference retry; extensions remain valid.
+- id: A3
+  text: Filtered main responses end with planner_gateway_invalid_response; first post-checkpoint response over threshold ends with planner_compaction_failed (ineffective) even if its tool selection is rejected.
+- id: A4
+  text: Regressions execute the Runtime path, fail against the reviewed source, and pass with the correction; complete affected suites, lint and process acceptance pass with skips reported and owned resources removed.
+tests:
+- command: make test-runtime
+  covers: [A1, A2, A3, A4]
+- command: go test -race -count=1 ./internal/planner/... ./internal/httpapi/privateartifacts
+  covers: [A1, A2, A3, A4]
+- command: make -j3 test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
+  covers: [A1, A2, A3, A4]
+- command: make lint test-wire-cross-language
+  covers: [A1, A2, A4]
+
+implementation_commit: 5f07199fe51c4ffd89ce0d829b57250c841069b5
+verification:
+  result: passed
+  evidence: tasks/evidence/v488-003-runtime-planner-review.json
+  runtime: 6772 passed and 135 declared platform/live/opt-in skips; Runtime and compaction report validators passed, including 610 selected compaction cases. The Planner loop/Gateway suite contains 33 cases; 23 fail against the reviewed source and all pass with the correction.
+  go: All 318 roots and 1051 test/subtest records in eight Planner/private API packages passed with race detection and real PostgreSQL; no skips.
+  processes: All 71 distinct roots passed without skips across the three supported CI shards, with exact selection equality to make test-e2e and all report validators passing. Five new real Server/PostgreSQL/Runtime cases also passed in a separate focused run.
+  wire: 434 fixtures, 472 Go and 300 Python shared tests; one optional disk-heavy test skipped and not counted as passing coverage.
+  lint: make lint passed after regenerating the dependency graph; specification, task, layer, generated-source and release-graph checks passed.
+  failures: An initial Runtime attempt exposed the old last-key-wins Worker characterization and was interrupted; the test was corrected before the complete run. Byte-bound test hooks now observe the strict decoder. Lint setup first lacked the database URL, then exposed stale generated HTML; final invocation passed with both corrected. Superseded attempts are not acceptance.
+  boundary: Reused strict_json and project_token_usage; 25 net production lines, no new engine, host operation, wire DTO, endpoint, store or dependency. PlannerHost and the headless core boundary remain independent of Server transport.
+  cleanup: Zero remaining client connections; the owned contractor_review_v488 database was explicitly dropped and the PostgreSQL 17 cluster on port 55491 was stopped and removed. The negative-control source copy was removed and reproduction logs retained; primary user files were not modified.
+  delivery: codex/runtime-planner-p1 is ready for merge; not merged, pushed or deployed. No live-model or complete release-verify claim.

@@ -1,0 +1,118 @@
+schema_version: '1.0'
+id: V488-002
+title: Execute the Streamline model loop in Runtime with Server-owned progress
+milestone: runtime-planner-p1-2026-11
+epic: planner-worker
+kind: feature
+priority: P1
+status: completed
+depends_on:
+- V488-001
+languages: [go, python, yaml, markdown]
+goal: Every supported Streamline Stage, including compact@1 and document recovery, runs its model loop in Runtime while Server confirms plan changes and dispatches its prepared Worker through the existing invoker.
+demonstration: Real Server, PostgreSQL and Runtime with a controlled Gateway complete a two-subtask Streamline fixture, show committed plan events and stop correctly on cancellation without changing the configured model. A placement case puts Planner and Worker on separate capacity-one Runtime processes, reached through Server WorkerInvoker.
+context:
+  authority: >-
+    User instruction 2026-11-26 starts P1 from proposal 0058. The user explicitly
+    selected a separate accounted Planner allocation on 2026-11-26, accepting that
+    Streamline needs two slots. P1 keeps the proposed Server WorkerInvoker route.
+    User follow-up 2026-11-26 requires Server interactions behind replaceable
+    execution interfaces for a possible future headless Runtime, and asks to reduce
+    total project code and avoid broad growth. This does not assign a local backend,
+    offline mode or recovery, or change configured models.
+    User decision 2026-11-26 makes P1 merge-ready for all Streamline settings,
+    including compact@1; Router remains on Server until a later stage. Its shared
+    Go model engine therefore remains a production dependency in this slice.
+    User follow-up 2026-11-26 distinguishes P1 Server-dependent execution from
+    headless, live-host replay from recovery, requires one plan owner through
+    existing fencing, and excludes a second local execution engine. Record the
+    proposed fresh-Planner recovery scenario for P2 without implementing it here.
+  proposal: docs/proposals/0058-runtime-planner-and-recovery.md
+  specification:
+  - docs/spec/execution/planners.md
+  - docs/spec/execution/control-plane.md
+  - docs/spec/execution/runtime-agent.md
+  - docs/spec/execution/scheduler.md
+  - docs/spec/platform/persistence.md
+  boundary: >-
+    D1 is decided: one accounted Planner allocation in the existing lifecycle,
+    separate from its Worker. D2 retains Server WorkerInvoker. Before starting,
+    use ordinary allocation lifecycle and A2A with a typed Planner invocation.
+    Runtime Planner core depends on a PlannerHost protocol and injected model, not
+    Server transport or registration. Current host adapter uses the existing private
+    allocation transport and Server-owned operations. Support none and compact@1
+    Planner context management, including existing document recovery. Reuse existing
+    session reduced-event writes, per-invocation request ordering and replay, no new
+    durable journal or polling service. Native cost observations travel as bounded
+    cumulative LLMCost snapshots into the existing Server Planner report; the
+    Planner allocation has no duplicate cost contribution. Full process acceptance
+    uses the three supported CI shards (the same 71 roots as make test-e2e).
+    The sequential attempt exposed an obsolete capacity-one compaction fixture;
+    the fixture now accounts for Planner and Worker separately. Keep domain rules in existing owners.
+scope:
+  in:
+  - Entire Streamline execution (Memory, State, compaction, document recovery, telemetry), typed bounded progress protocol, existing Server session and invoker owners, allocation lifecycle, cancellation and budgets.
+  - Same-change owning specification, wire fixtures and architecture updates; exact implementation boundary recorded before start.
+  out:
+  - Runtime replacement resume, Router relocation, direct peer dispatch, dynamic Worker sets, parallel plan dispatch, offline progress and active-active Server.
+requirements:
+- id: R1
+  text: Runtime executes the model loop and deterministic adapters; Server alone accepts durable progress and Stage transitions. No new receipt, lease, queue or checkpoint store is presumed.
+- id: R2
+  text: Validate exact scope, identities, revisions and limits on both sides; rejected operations cause no Worker dispatch. Reconcile lost replies through existing receipts and revisions.
+- id: R3
+  text: Preserve configured model, remaining budgets, Stage deadlines and ordinary interruption/retry recovery. No legacy fallback or silent downgrade of unsupported settings.
+- id: R4
+  text: The demonstrator uses explicit bounded settings; resolve Memory, State, compaction and observability support before assigning a public capability. Delete the replaced execution path or keep the experiment confined to its task until replacement.
+failure_outcomes:
+- operation: Remote Planner operation and lifecycle
+  permanent: Invalid scope/revision/configuration fails with an explicitly registered stable code and no side effect.
+  retryable: Existing transport/storage deadlines bound retries of the identical operation.
+  ambiguous: Reconcile existing operation identity; never repeat an unknown external action blindly.
+  cancelled: Fence and join model, callback and Worker work before releasing owned allocations.
+  timeout: Preserve separate operation, Stage, control-lease and cleanup budgets.
+cardinality:
+- collection: Planner plan and live allocations
+  expected: One Planner and one Worker, two subtasks in the demonstration.
+  maximum: Existing process capacity 1..4, plan limit 1000, one active dispatch, 64 tools, 5001 operations, 4 MiB per operation, 512 KiB Planner envelope.
+  bound: No whole-Run scan per call; paged reads and bounded requests, replies and transactions.
+lifecycle:
+- entity: Remote Planner invocation
+  delete: Existing Stage and allocation owners cancel and drain; Project/Run deletion remains available.
+  cascade: Join invocation work before erasing secrets and private state; no resource survives release.
+  retention: Existing reduced facts and exact Artifact refs; no raw conversation persistence.
+acceptance_criteria:
+- id: A1
+  text: The real-component fixture proves that the Planner model runs in Runtime, committed plan precedes dependent dispatch and the accepted result uses exact refs.
+- id: A2
+  text: Cancellation, capacity waiting, stale identity, lost reply, permanent rejection and budget exhaustion yield their declared bounded outcomes.
+- id: A3
+  text: Full touched-package, Runtime, cross-language, real-store/process and lint checks pass with unsupported cases and skips explicitly reported.
+tests:
+- command: go test -race -count=1 ./internal/planner/... ./internal/scheduler ./internal/controlplane
+  covers: [A1, A2, A3]
+- command: make test-runtime
+  covers: [A1, A2, A3]
+- command: make test-wire-cross-language
+  covers: [A2, A3]
+- command: make -j3 test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A3]
+- command: make verify-architecture
+  covers: [A3]
+
+implementation_commit: 7f7df86645ca730322b9ccb4024c3eaf9fdf0c35
+verification:
+  result: passed
+  evidence: tasks/evidence/v488-002-runtime-streamline-p1.json
+  go: 848 root tests and 3302 test/subtest records in 21 packages passed with race detection and real PostgreSQL; no skips. Additional config, app, RuntimeConfig, Gateway recovery, telemetry and architecture package suites passed, with the optional external OTLP collector test skipped.
+  runtime: 6743 passed and 135 declared platform/live/opt-in skips; Runtime and compaction report verifiers passed, including 610 selected compaction cases.
+  wire: 434 fixtures, 472 Go and 300 Python shared tests; one optional disk-heavy fixture skipped and not counted as passing coverage.
+  processes: All 71 distinct roots selected by the full make test-e2e pattern passed without skips across the three supported CI shards; all shard report verifiers passed. Five focused P1 process roots also passed.
+  failures: The earlier sequential process attempt failed an obsolete single-slot compaction fixture. Its capacity and report expectations were fixed before the complete sharded acceptance; failed or interrupted attempts are not passing coverage.
+  negative_control: Disabling replay through a Go overlay failed both real-store replay cases; both passed with the original implementation. Working tree was not mutated by this control.
+  boundaries: Runtime core accepts injected model and PlannerHost and imports no Server/A2A/bootstrap adapter; local test runs actual ADK loop and compaction. Server remains on the critical path. Sequence is live-host delivery ordering, while existing claims/session/grants fence authority. No LocalHost backend, resume/adoption or second engine was added.
+  checks: make lint, make verify-architecture and make test-config including shipped catalog lock validation passed.
+  delivery: Separate codex/runtime-planner-p1 branch; not merged or deployed. Router and the possible audit assistant remain next-stage/proposal scope.
+  cleanup: All three remaining owned test databases explicitly dropped; owned PostgreSQL 17 cluster on port 55489 stopped and removed; owned Runtime processes joined, recorded interrupted-lane server cache removed. Primary user files unchanged.

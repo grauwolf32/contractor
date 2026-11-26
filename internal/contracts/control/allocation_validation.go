@@ -74,7 +74,16 @@ func (s AllocationSpec) validateWorkerConfiguration() error {
 		if s.RuntimeSettings.LLMGatewayURL == "" {
 			return contracts.Invalidf("modeled allocation requires llmGatewayUrl")
 		}
-		if err := s.ModelPolicy.ValidateForWorker(len(s.AgentTemplate.Toolsets) > 0 || len(s.AgentTemplate.Skills) > 0); err != nil {
+		validate := func() error {
+			return s.ModelPolicy.ValidateForWorker(len(s.AgentTemplate.Toolsets) > 0 || len(s.AgentTemplate.Skills) > 0)
+		}
+		if s.AgentTemplate.Runtime.IsPlanner() {
+			validate = s.ModelPolicy.ValidateForPlanner
+			if len(s.AgentTemplate.Toolsets) != 0 || len(s.AgentTemplate.Skills) != 0 || s.Workspace != nil || s.SummarizerModelPolicy != nil || s.CompactorModelPolicy != nil || s.CompletionContract != nil || s.Engagement != nil || s.RuntimeSettings.Telemetry != nil || s.RuntimeSettings.HTTPProxy != nil || s.RuntimeSettings.Caido != nil || s.RuntimeSettings.Interactsh != nil || s.RuntimeSettings.HTTPOriginTarget != nil || len(s.RuntimeSettings.HTTPIdentities) != 0 || len(s.ResolvedRuntimeConfigProvenance.AgentLabels) != 0 || len(s.ResolvedRuntimeConfigProvenance.RuntimeAdapters) != 0 || len(s.ResolvedRuntimeConfigProvenance.RuntimeCredentialRefs) != 0 {
+				return contracts.Invalidf("Planner allocation forbids Worker tools, workspace and completion configuration")
+			}
+		}
+		if err := validate(); err != nil {
 			return err
 		}
 	}

@@ -236,13 +236,42 @@ class AllocationSpec(VersionedWireModel):
             return self
         if self.model_policy is None or self.runtime_settings.llm_gateway_url is None:
             raise ValueError("modeled allocation requires modelPolicy and llmGatewayUrl")
-        _require_worker_policy(
-            self.model_policy,
-            has_tools=bool(
-                self.agent_template.skills
-                or any(selection.tools for selection in self.agent_template.toolsets)
-            ),
-        )
+        if (
+            self.agent_template.runtime.runtime_id == "planner"
+            and self.agent_template.runtime.version == "1"
+        ):
+            if (
+                not self.model_policy.max_output_tokens
+                or not self.model_policy.max_model_calls
+                or not self.model_policy.max_worker_calls
+                or not self.model_policy.max_total_tokens
+                or self.model_policy.max_tool_calls is not None
+                or self.agent_template.toolsets
+                or self.agent_template.skills
+                or self.workspace is not None
+                or self.summarizer_model_policy is not None
+                or self.compactor_model_policy is not None
+                or self.completion_contract is not None
+                or self.engagement is not None
+                or self.runtime_settings.telemetry is not None
+                or self.runtime_settings.http_proxy is not None
+                or self.runtime_settings.caido is not None
+                or self.runtime_settings.interactsh is not None
+                or self.runtime_settings.http_origin_target is not None
+                or self.runtime_settings.http_identities
+                or self.resolved_runtime_config_provenance.agent_labels
+                or self.resolved_runtime_config_provenance.runtime_adapters
+                or self.resolved_runtime_config_provenance.runtime_credential_refs
+            ):
+                raise ValueError("Planner allocation configuration is invalid")
+        else:
+            _require_worker_policy(
+                self.model_policy,
+                has_tools=bool(
+                    self.agent_template.skills
+                    or any(selection.tools for selection in self.agent_template.toolsets)
+                ),
+            )
         if self.summarizer_model_policy is not None:
             _require_worker_summarizer_policy(self.summarizer_model_policy)
         if isinstance(self.context_management, CompactWorkerContextManagement):

@@ -24,6 +24,7 @@ type StageContext struct {
 // Invocation contains only Stage-local semantic input and already prepared
 // Workers. It deliberately has no capacity or Runtime Agent selection API.
 type Invocation struct {
+	RuntimeExecutor  *contracts.WorkerHandle
 	StageExecutionID string
 	// SchedulerClaimID fences scan job intents against durable Run ownership.
 	SchedulerClaimID string

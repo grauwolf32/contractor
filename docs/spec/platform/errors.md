@@ -557,7 +557,7 @@ Assembled from every document.
 | `planner_compaction_limit_exceeded` | — | no | A `compact@1` Planner reached a frozen bound before more work: its checkpoint count (cycle), source groups (group), retained data (retained), recent tail (tail) or accounted peak (peak); the message names the bound. The invocation ends without a candidate. | [PLN-R126](../execution/planners.md), [PLN-R129](../execution/planners.md) |
 | `planner_context_invalid` | — | no | The Planner context could not be encoded for the model. | [PLN-R121](../execution/planners.md) |
 | `planner_execution_config_unavailable` | — | yes only for a transient cause (an ended context or an unavailable database); otherwise no | The Planner's model execution configuration, including its pinned credential, could not be resolved; interrupted StageTermination. | [SCH-R184](../execution/scheduler.md) |
-| `planner_execution_failed` | — | yes | ADK execution of a model-backed Planner failed. | [PLN-R121](../execution/planners.md) |
+| `planner_execution_failed` | 503 on private host unavailability; otherwise a Planner stop | yes | Model-backed Planner execution or its host transport failed. | [PLN-R121](../execution/planners.md) |
 | `planner_initialization_failed` | — | no | The Planner, or its tools, ADK agent or runner, could not be created. | [PLN-R121](../execution/planners.md) |
 | `planner_model_overlap` | — | no | Error of a Planner model telemetry span that ended because the next model request started before its response was recorded; telemetry only. | [PLN-R122](../execution/planners.md) |
 | `planner_session_invalid` | — | no | The Planner session did not grant this invocation ownership, or its recorded completion is invalid. | [PLN-R121](../execution/planners.md) |
@@ -846,3 +846,5 @@ Assembled from every document.
 callable execution, not a Worker stop or HTTP API error. It remains in ordinary
 history/budget/metrics; another action or a committed checkpoint permits progress
 ([WRK-R202](../execution/worker.md)).
+
+| `planner_operation_invalid` | 409 on private operation rejection; otherwise a Planner stop | no | Runtime Planner operation order, scope, admission or reply violated its closed contract; no new Worker effect is admitted. | [PLN-R137](../execution/planners.md) |

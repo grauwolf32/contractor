@@ -555,3 +555,22 @@ def test_a2a_stage_request_rejects_python_field_aliases(shadow: bool) -> None:
     context.message.parts[0].data.CopyFrom(ParseDict(payload, Value()))
     with pytest.raises(ValueError):
         _stage_request(context)
+
+
+def test_shared_planner_a2a_struct_restores_only_exact_integral_budgets():
+    context = executor_context("planner")
+    payload = json.loads(
+        (
+            Path(__file__).parents[2]
+            / "api/testdata/v1alpha1/valid/stage-content-planner-compaction.json"
+        ).read_text()
+    )
+    context.message.parts[0].data.CopyFrom(ParseDict(payload, Value()))
+    decoded = _stage_request(context)
+    assert decoded.planner.compaction.threshold == 3072
+    assert type(decoded.planner.compaction.policy.max_model_calls) is int
+    for threshold in (1.5, 9007199254740992):
+        payload["planner"]["compaction"]["threshold"] = threshold
+        context.message.parts[0].data.CopyFrom(ParseDict(payload, Value()))
+        with pytest.raises(ValueError):
+            _stage_request(context)

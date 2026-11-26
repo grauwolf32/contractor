@@ -1,0 +1,85 @@
+schema_version: '1.0'
+id: V488-001
+title: Separate Planner operations from ADK tool context before Runtime relocation
+milestone: runtime-planner-p1-2026-11
+epic: planner-worker
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V487-017
+languages: [go, markdown]
+goal: Server-owned plan, Worker dispatch, completion, Memory and State operations can execute with an ordinary context while the current ADK adapter retains its SDK control actions.
+demonstration: Existing Streamline and Router execute through their production ADK tools and real PostgreSQL sessions with unchanged outcomes; direct core calls need no ADK session or action object.
+context:
+  authority: >-
+    User instruction 2026-11-26 authorizes starting proposal 0058 with the narrow P1
+    Streamline relocation. Code inspection identifies ADK-bound Server operations as
+    a prerequisite. Agent implementation choice: first remove SDK control from those
+    operations while keeping their production callers and current persistence owners.
+    This task does not select Planner placement or authorize recovery guarantees.
+  proposal: docs/proposals/0058-runtime-planner-and-recovery.md
+  specification:
+  - docs/spec/execution/planners.md#PLN-R3
+  - docs/spec/execution/planners.md#PLN-R6
+  - docs/spec/execution/planners.md#PLN-R106
+  - docs/spec/execution/scheduler.md#SCH-R2
+scope:
+  in:
+  - Separate ADK tool construction and action flags from existing semantic operations.
+  - Keep shared Streamline/Router operations, Memory, State projections and history adapter behavior.
+  - Verify terminal acceptance, rejection, Worker budget and persistence precedence through the current real execution path.
+  out:
+  - Remote protocol, Planner allocation role, model relocation, recovery, public API and changes to operation semantics.
+requirements:
+- id: R1
+  text: Plan, Worker dispatch and finish implementations accept context.Context and import no ADK packages; SDK action flags live only at the adapter boundary.
+- id: R2
+  text: Memory and State semantic execution accept context.Context; tool schema, routing, validation, metrics and results retain their existing definitions.
+- id: R3
+  text: Accepted finish alone escalates and skips summarization; Worker budget refusal preserves its prior skip action; rejection and normal Worker completion retain their existing actions.
+- id: R4
+  text: No new public API, durable entity, receipt, lease, production export or alternative execution path is introduced. Existing production adapters call the separated operations.
+failure_outcomes:
+- operation: Existing Planner operation and persistence
+  permanent: Existing plan, Worker and candidate rejections keep their classified errors and side-effect rules.
+  retryable: Existing session/store unavailability and Gateway policies retain classification and deadlines.
+  ambiguous: Existing fact receipts and plan revision checks remain the only reconciliation mechanism.
+  cancelled: Propagate the original context to store and Worker; existing invocation cleanup joins work.
+  timeout: Preserve Stage and Worker deadlines without additional clocks or retry loops.
+cardinality:
+- collection: Planner tools and plan
+  expected: Four core tools plus selected Memory/State/history operations; default 32 subtasks.
+  maximum: Existing tool roster, maxSubtasks 1000, one active dispatch and existing 2 MiB durable session ceiling.
+  bound: Refactor preserves current validation and accounting; no extra collection scans or copies.
+lifecycle:
+- entity: Existing Planner invocation
+  delete: Existing Stage finalization/abort and Run deletion retain ownership.
+  cascade: ADK actions remain invocation-local and no new retained resources are created.
+  retention: Existing session facts and reports only; tool operations introduce no state lifetime.
+acceptance_criteria:
+- id: A1
+  text: Core operation files import no ADK packages and can execute with context.Context, with production adapters exercising them.
+- id: A2
+  text: Terminal/rejected finish and budget-refused/ordinary Worker calls preserve ADK actions and operation outcomes for both strategies.
+- id: A3
+  text: Full touched-package suites, including ordinary PostgreSQL regressions, and architecture/task/spec checks pass; skipped tests are reported accurately.
+tests:
+- command: go test -race -count=1 ./internal/planner/streamline ./internal/planner/router
+  covers: [A1, A2, A3]
+- command: go test -count=1 ./internal/archtest
+  covers: [A1, A3]
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers: [A3]
+- command: python3 scripts/check_spec.py
+  covers: [A3]
+implementation_commit: 383a7aea0aeb8cdb82ac10a6e71736573b37cd5a
+verification:
+  result: passed
+  evidence: tasks/evidence/v488-001-planner-tool-boundary.json
+  planner_suites: 122 root tests and 526 total test/subtest records passed with race detection and real PostgreSQL; no skips.
+  new_cases: Four ordinary-context PostgreSQL cases and eight real-ADK Runner action cases passed.
+  negative_control: Removing accepted finish escalation failed both strategy cases; original source restored and both boundary roots passed again.
+  checks: Architecture suite, go vet, task consistency and spec consistency passed; no production export or new execution path.
+  delivery: Separate codex/runtime-planner-p1 branch, not merged. Remote model execution remains pending in V488-002.
+  cleanup: Owned disposable database dropped and owned PostgreSQL cluster stopped and removed.

@@ -1668,6 +1668,14 @@ recovery and cleanup converge at every valid limit. Project deletion's use of
 ordinary cancellation is specified in [DEL-R44,
 DEL-R46](../artifacts/retention-and-deletion.md).
 
+**SCH-R185.** Streamline includes its separate Planner allocation in the same
+all-or-nothing placement batch as its fixed Worker. Scheduler excludes that
+executor from logical Worker handles passed to Planner operations. Planner
+model execution runs in Runtime, while Server retains claim ownership, Stage
+acceptance, canonical plan writes and sequential dispatch through WorkerInvoker.
+Cancel, deadline, allocation loss or Server loss use existing interruption and
+retry rules; this change does not resume a live Planner or adopt an allocation.
+
 ## Interfaces
 
 - Owner queue control: `GET /v1/queue/control` and `PUT /v1/queue/control`
@@ -1892,7 +1900,6 @@ The Scheduler does not provide:
 - user-visible queue positions, priority editing, or fairness guarantees beyond
   the capacity-deferral rotation of SCH-R121 and SCH-R123;
 - automatic scaling or automatic limit changes based on Runtime Agent count;
-- Runtime Agent multi-slot processes;
 - manual force-release, force-run or force-cancel Operations actions;
 - resuming a Planner invocation from its persisted ADK Session or private
   plan;

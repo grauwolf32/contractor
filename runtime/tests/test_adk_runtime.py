@@ -71,8 +71,8 @@ from contractor_runtime.llm.factory import gateway_model
 from contractor_runtime.llm.openai import (
     GatewayModelError,
     OpenAICompatibleGatewayLlm,
-    _completion_request,
 )
+from contractor_runtime.llm.request import completion_request
 from contractor_runtime.reasoning import REASONING_INPUT_INSTRUCTION
 from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
@@ -106,7 +106,7 @@ class CapturingScriptedLlm(ScriptedLlm):
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
     ) -> AsyncGenerator[LlmResponse]:
-        self.payloads.append(_completion_request(self.model, llm_request))
+        self.payloads.append(completion_request(self.model, llm_request))
         async for response in super().generate_content_async(llm_request, stream=stream):
             yield response
 

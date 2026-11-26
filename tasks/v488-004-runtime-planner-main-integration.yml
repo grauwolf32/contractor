@@ -1,0 +1,43 @@
+schema_version: '1.0'
+id: V488-004
+title: Merge the verified Runtime Planner P1 into main
+milestone: runtime-planner-p1-2026-11
+epic: planner-worker
+kind: chore
+priority: P1
+status: in_progress
+depends_on: [V488-003]
+languages: [markdown, yaml]
+goal: Local main contains the verified Runtime Planner P1 through a two-parent merge while primary portable-kit work and the staged delta remain intact.
+context:
+  authority: User request 2026-11-27 explicitly authorizes merging codex/runtime-planner-p1 into main; follow-ups require /.portable/ in .gitignore and permit committing the proposal.
+  source_head: fb66bee8ce5625572cfb09c4a1ccc25fb96578d0
+  main_before: c0ec4fe976c7b0be452ce18ef87c158768cb10eb
+  finding: Main is an ancestor of the accepted source. Fourteen primary modified/untracked files include portable-kit payloads, their task and backlog delta, plus a prior proposal draft. README already equals the incoming version. The user permits the updated proposal to be committed; its older draft has a recoverable backup. Regenerate backlog through its owner to retain the uncommitted portable task delta.
+  boundary: Prepare an isolated no-fast-forward merge, compare all production/test/contract/specification trees with the accepted source, then use guarded ref advance and selective restore excluding protected working files. Keep the original staged delta empty. Portable payloads and task are never staged; the latest committed proposal replaces the backed-up earlier draft, and the generated backlog retains the portable task delta.
+  verification_reuse: V488-003 records full Runtime 6772 passed/135 declared skips, Go/race/PostgreSQL, all 71 process roots, wire and lint. The merge changes no production, tests, contracts or normative specifications relative to that accepted source, so reuse those results and check current metadata plus byte identity.
+scope:
+  in:
+  - No-fast-forward main merge, /.portable/ ignore rule, committed proposal, metadata validation, user-file preservation and integration evidence.
+  out:
+  - New implementation, live Gateway calls, deployment, migrations, remote push and changes to the portable-kit work.
+acceptance_criteria:
+- id: A1
+  text: Main contains the pinned source through a merge whose first parent is original main and second parent is the accepted source; all production/test/contract/specification trees equal that source.
+- id: A2
+  text: All twelve primary source/payload files retain SHA-256 and modes; the prior proposal draft remains backed up and main uses its accepted revision. Generated backlog preserves the portable task delta, /.portable/ is ignored, and no portable files/task or staged delta enter the merge.
+- id: A3
+  text: Task, specification, shared-fixture source and whitespace checks pass; integration evidence identifies the merge and reused test evidence without claiming another full run or deployment.
+tests:
+- command: make tasks-backlog
+  covers: [A3]
+- command: cd runtime && uv run python ../scripts/check_spec.py
+  covers: [A3]
+- command: cd runtime && uv run python ../scripts/shared_fixture_gate.py --sources-only
+  covers: [A1, A3]
+- command: git diff --exit-code fb66bee8ce5625572cfb09c4a1ccc25fb96578d0 HEAD -- api cmd configs internal runtime ui tests tools scripts make Makefile go.mod go.sum docs/spec
+  covers: [A1]
+- command: git check-ignore --no-index .portable/example.zip
+  covers: [A2]
+- command: python3 /private/tmp/contractor-v488-main-merge-20261127-0_tfv9ee/install-main.py --verify-only
+  covers: [A2]

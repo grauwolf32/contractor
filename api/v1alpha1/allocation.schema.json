@@ -719,6 +719,101 @@
               "compactorModelPolicy": false
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "agentTemplate": {
+                "properties": {
+                  "runtime": {
+                    "properties": {
+                      "runtimeId": {
+                        "const": "planner"
+                      },
+                      "version": {
+                        "const": "1"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "modelPolicy": {
+                "required": [
+                  "maxOutputTokens",
+                  "maxModelCalls",
+                  "maxWorkerCalls",
+                  "maxTotalTokens"
+                ],
+                "properties": {
+                  "maxToolCalls": false
+                }
+              },
+              "agentTemplate": {
+                "properties": {
+                  "toolsets": {
+                    "maxItems": 0
+                  },
+                  "skills": {
+                    "maxItems": 0
+                  }
+                }
+              },
+              "resolvedSkills": {
+                "maxItems": 0
+              },
+              "workspace": {
+                "type": "null"
+              },
+              "summarizerModelPolicy": false,
+              "compactorModelPolicy": false,
+              "completionContract": false,
+              "contextManagement": {
+                "properties": {
+                  "strategy": {
+                    "const": "none"
+                  }
+                }
+              },
+              "engagement": false,
+              "runtimeSettings": {
+                "properties": {
+                  "telemetry": {
+                    "type": "null"
+                  },
+                  "httpProxy": {
+                    "type": "null"
+                  },
+                  "caido": {
+                    "type": "null"
+                  },
+                  "interactsh": {
+                    "type": "null"
+                  },
+                  "httpOriginTarget": {
+                    "type": "null"
+                  },
+                  "httpIdentities": false
+                }
+              },
+              "resolvedRuntimeConfigProvenance": {
+                "properties": {
+                  "agentLabels": {
+                    "maxItems": 0
+                  },
+                  "runtimeAdapters": {
+                    "maxItems": 0
+                  },
+                  "runtimeCredentialRefs": {
+                    "maxItems": 0
+                  }
+                }
+              }
+            }
+          }
         }
       ]
     },

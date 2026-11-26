@@ -435,6 +435,7 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 	}
 	harness.scheduler.options.Credentials = provider
 	stage := harness.workflow.Stages[harness.workflow.EntryStage]
+	stage.Planner = resolved.PlannerRef{PlannerID: "streamline", Version: "1"}
 	stage.ExecutionConfig.Planner = &resolved.ResolvedConsumerExecutionConfig{
 		ModelPolicy: plannerPolicy, LLMGateway: &plannerGateway, Credential: &plannerCredential,
 		Origins: resolved.ExecutionConfigOrigins{ModelPolicy: "test", LLMGateway: "test", Credential: "test"},
@@ -444,7 +445,7 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 	workerSelection.Credential = &workerCredential
 	stage.ExecutionConfig.Agents["builder"] = workerSelection
 
-	reservations := schedulerTestReservations(t, stage)
+	reservations := schedulerTestReservations(t, executionStage(stage))
 	workerSettings, err := harness.scheduler.workerExecutionSettingsForRun(t.Context(), harness.store.run, stage, reservations)
 	if err != nil {
 		t.Fatal(err)
@@ -455,6 +456,16 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 		worker.RuntimeSettings.LLMGatewayToken.Reveal() != "worker-secret" ||
 		worker.RuntimeSettings.ArtifactAPIURL != "https://control.test/private/v1" {
 		t.Fatalf("Worker execution settings = %+v", worker)
+	}
+	for name, settings := range workerSettings {
+		if name == "builder" {
+			continue
+		}
+		if settings.ModelPolicy.Ref != plannerPolicy.Ref || settings.RuntimeSettings.LLMGatewayURL != plannerGateway.URL ||
+			settings.RuntimeSettings.LLMGatewayToken.Reveal() != "planner-secret" ||
+			settings.RuntimeSettings.RequestTimeoutSeconds != int(harness.scheduler.options.PlannerTimeout.Seconds()) {
+			t.Fatalf("Planner allocation route/timeout = %+v", settings)
+		}
 	}
 	plannerAccess, err := harness.scheduler.plannerModelAccess(t.Context(), stage)
 	if err != nil {
@@ -3149,19 +3160,25 @@ func (a *memoryAllocator) ReserveAllContext(ctx context.Context, request control
 		if a.pin == nil {
 			return nil, errors.New("test placement must pin durable allocation rows like production")
 		}
-		reservation, err := a.reservationForRequest(request)
-		if err != nil {
-			return nil, err
+		reservations := make([]controlplane.Reservation, 0, len(request.Bindings))
+		for _, binding := range request.Bindings {
+			single := request
+			single.Bindings = []controlplane.BindingRequirement{binding}
+			reservation, err := a.reservationForRequest(single)
+			if err != nil {
+				return nil, err
+			}
+			reservations = append(reservations, reservation)
 		}
 		if request.Admit != nil {
-			if err := request.Admit(ctx, []controlplane.Reservation{reservation}); err != nil {
+			if err := request.Admit(ctx, reservations); err != nil {
 				return nil, err
 			}
 		}
-		if err := a.pin(ctx, []controlplane.Reservation{reservation}); err != nil {
+		if err := a.pin(ctx, reservations); err != nil {
 			return nil, err
 		}
-		a.cached = []controlplane.Reservation{reservation}
+		a.cached = reservations
 		for _, reservation := range a.cached {
 			a.grants[reservation.Grant.AllocationID] = reservation.Grant
 		}

@@ -203,10 +203,14 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 		t.Fatalf("Python Runtime environment is missing at %s; run 'cd runtime && uv sync --locked'", python)
 	}
 	workRoot := filepath.Join(temporaryRoot, "runtime-work")
+	allocationSlots, expectedAllocations := "1", expectedWorkers
+	if layer == "streamline" {
+		allocationSlots, expectedAllocations = "2", expectedWorkers+1
+	}
 	runtimeProcess := startProcess(
 		t, "Worker compaction Python Runtime", filepath.Join(repositoryRoot, "runtime"),
 		map[string]string{"PYTHONUNBUFFERED": "1"},
-		python, "-m", "contractor_runtime", "--allocation-slots", "1",
+		python, "-m", "contractor_runtime", "--allocation-slots", allocationSlots,
 		"--control-plane-url", privateBaseURL,
 		"--advertised-control-url", runtimeBaseURL,
 		"--advertised-a2a-url", runtimeBaseURL,
@@ -297,7 +301,7 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 	}
 	completed := executions[len(executions)-1]
 	reports, err := telemetry.NewRepository(pool).ListAllocationReports(ctx, completed.StageExecutionID)
-	if err != nil || len(reports) != expectedWorkers {
+	if err != nil || len(reports) != expectedAllocations {
 		t.Fatalf("compaction execution reports = (%d, %v)", len(reports), err)
 	}
 	var report telemetry.StoredAllocationReport
@@ -323,7 +327,7 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 		Page   json.RawMessage               `json:"page"`
 	}
 	getAuthenticatedJSON(t, publicClient, publicBaseURL+"/v1/runs/"+runID+"/attempts/"+completed.StageExecutionID+"/runtime-diagnostics", &diagnostics)
-	if diagnostics.Status != "available" || len(diagnostics.Items) != expectedWorkers {
+	if diagnostics.Status != "available" || len(diagnostics.Items) != expectedAllocations {
 		t.Fatalf("public Runtime diagnostics: %+v", diagnostics)
 	}
 	var builder telemetry.RuntimeDiagnostic

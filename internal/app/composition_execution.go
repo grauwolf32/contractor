@@ -48,6 +48,7 @@ type executorServices struct {
 }
 
 type workflowServices struct {
+	plannerOperations  *planner.Registry
 	gatewayRecovery    *gatewayrecovery.Service
 	scheduler          *scheduler.Scheduler
 	telemetryRetention *telemetry.Retention
@@ -145,9 +146,9 @@ func composePlanners(adapters plannerAdapters) (*planner.Registry, error) {
 	if err != nil {
 		return nil, err
 	}
-	streamlineFactory, err := streamline.NewConfiguredFactoryWithMemory(
+	streamlineFactory, err := streamline.NewRuntimeFactoryWithMemory(
 		adapters.planSessions, adapters.adkSessions, adapters.invoker, adapters.inspector,
-		adapters.stateReader, adapters.memory, adapters.model, adapters.limits,
+		adapters.stateReader, adapters.memory, adapters.limits,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("configure Streamline Planner: %w", err)
@@ -286,7 +287,7 @@ func configureWorkflows(
 		return workflowServices{}, fmt.Errorf("configure Project deletion controller: %w", err)
 	}
 	return workflowServices{
-		gatewayRecovery: recovery, scheduler: workflowScheduler, telemetryRetention: telemetryRetention,
+		gatewayRecovery: recovery, scheduler: workflowScheduler, telemetryRetention: telemetryRetention, plannerOperations: planners.registry,
 		projectDeletion: projectDeletionController, settings: schedulerSettings,
 	}, nil
 }

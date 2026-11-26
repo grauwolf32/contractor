@@ -16,9 +16,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
-	"google.golang.org/adk/v2/agent"
-	"google.golang.org/adk/v2/tool"
-	"google.golang.org/adk/v2/tool/functiontool"
 )
 
 const (
@@ -79,101 +76,8 @@ type toolFailure struct {
 	Retryable bool   `json:"retryable"`
 }
 
-func (p *streamlinePlanner) buildTools(
-	state *executionState,
-	identity planner.SessionIdentity,
-) ([]tool.Tool, map[string]struct{}, error) {
-	result := make([]tool.Tool, 0, 8+len(p.workers)*2)
-	allowed := make(map[string]struct{}, 8+len(p.workers)*2)
-	addSubtask, err := functiontool.New(functiontool.Config{
-		Name:        addSubtaskToolName,
-		Description: "Append one bounded immutable subtask to the ordered Stage plan. Objective and instructions are stored once; later Worker dispatches identify this exact work only by subtask_id.",
-	}, func(ctx agent.Context, args addSubtaskArgs) (plannerPlanOutput, error) {
-		return p.addSubtask(ctx, state, identity, args), nil
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("build add_subtask tool: %w", err)
-	}
-	listSubtasks, err := functiontool.New(functiontool.Config{
-		Name:        listSubtasksToolName,
-		Description: "Return the current bounded ordered subtask plan, including adapter-controlled status and the exact current subtask_id.",
-		InputSchema: &jsonschema.Schema{
-			Type: "object", Properties: map[string]*jsonschema.Schema{},
-			AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
-		},
-	}, func(ctx agent.Context, _ listSubtasksArgs) (plannerPlanOutput, error) {
-		return p.listSubtasks(ctx, state), nil
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("build list_subtasks tool: %w", err)
-	}
-	result = append(result, addSubtask, listSubtasks)
-	allowed[addSubtaskToolName] = struct{}{}
-	allowed[listSubtasksToolName] = struct{}{}
-	var executeCurrentSubtask tool.Tool
-	if p.profile.routesWorkers {
-		schema, schemaErr := routerExecuteSchema(p.workers)
-		if schemaErr != nil {
-			return nil, nil, fmt.Errorf("build Router execute schema: %w", schemaErr)
-		}
-		executeCurrentSubtask, err = functiontool.New(functiontool.Config{
-			Name:        executeCurrentSubtaskToolName,
-			Description: "Execute the exact current stored subtask with one selected immutable logical Worker. Server supplies the complete StageContext; subtask_id and worker_name are the only arguments.",
-			InputSchema: schema,
-		}, func(ctx agent.Context, args routerWorkerCallArgs) (workerCallOutput, error) {
-			return p.routeWorker(ctx, state, identity, args), nil
-		})
-	} else {
-		binding := p.workers[0]
-		executeCurrentSubtask, err = functiontool.New(functiontool.Config{
-			Name: executeCurrentSubtaskToolName,
-			Description: fmt.Sprintf(
-				"Execute the exact current stored subtask with the sole prepared logical Worker %q (%s). Server supplies the complete immutable StageContext; subtask_id is the only argument.",
-				binding.logicalName, binding.description,
-			),
-		}, func(ctx agent.Context, args workerCallArgs) (workerCallOutput, error) {
-			return p.callWorker(ctx, state, identity, binding, args.SubtaskID), nil
-		})
-	}
-	if err != nil {
-		return nil, nil, fmt.Errorf("build execute_current_subtask tool: %w", err)
-	}
-	result = append(result, executeCurrentSubtask)
-	allowed[executeCurrentSubtaskToolName] = struct{}{}
-	stateTools, err := p.buildStateTools(state, allowed)
-	if err != nil {
-		return nil, nil, err
-	}
-	result = append(result, stateTools...)
-	memoryTools, err := p.buildMemoryTools(state, allowed)
-	if err != nil {
-		return nil, nil, err
-	}
-	result = append(result, memoryTools...)
-	if p.compaction != nil {
-		history, err := p.buildHistoryTool(state, identity.SessionID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("build %s tool: %w", readContextHistoryToolName, err)
-		}
-		result = append(result, history)
-		allowed[readContextHistoryToolName] = struct{}{}
-	}
-	finish, err := functiontool.New(functiontool.Config{
-		Name:        finishToolName,
-		Description: "Finish the Stage with a succeeded or failed candidate. A failed candidate requires a safe error; a succeeded candidate forbids one. Every artifact names a declared result slot and a namespace/name material from accepted Worker results or trusted Stage inputs. The adapter supplies its exact revision. Workflow Scheduler remains the acceptance and transition owner.",
-	}, func(ctx agent.Context, args finishArgs) (completionToolOutput, error) {
-		return p.finish(ctx, state, identity, args), nil
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("build finish tool: %w", err)
-	}
-	result = append(result, finish)
-	allowed[finishToolName] = struct{}{}
-	return result, allowed, nil
-}
-
 func (p *streamlinePlanner) addSubtask(
-	ctx agent.Context,
+	ctx context.Context,
 	state *executionState,
 	identity planner.SessionIdentity,
 	args addSubtaskArgs,
@@ -217,7 +121,7 @@ func (p *streamlinePlanner) addSubtask(
 }
 
 func (p *streamlinePlanner) listSubtasks(
-	_ agent.Context, state *executionState,
+	_ context.Context, state *executionState,
 ) plannerPlanOutput {
 	started := time.Now()
 	plan := p.plan.Snapshot()
@@ -234,13 +138,15 @@ func (p *streamlinePlanner) listSubtasks(
 	return plannerPlanOutput{OK: true, Plan: &plan}
 }
 
+// callWorker returns whether the Worker budget stopped execution. The SDK
+// adapter owns the corresponding summarization action.
 func (p *streamlinePlanner) callWorker(
-	ctx agent.Context,
+	ctx context.Context,
 	state *executionState,
 	identity planner.SessionIdentity,
 	binding workerBinding,
 	subtaskID string,
-) workerCallOutput {
+) (workerCallOutput, bool) {
 	started := time.Now()
 	safeArguments := map[string]any{
 		"binding": binding.logicalName, "subtaskId": safeSubtaskID(subtaskID),
@@ -250,7 +156,7 @@ func (p *streamlinePlanner) callWorker(
 	if planErr != nil {
 		failure := failureFromPlanError(planErr)
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
-		return workerFailure(failure)
+		return workerFailure(failure), false
 	}
 	claimedPlan := p.plan.Snapshot()
 	// Every failure after the claim settles that dispatch before exposing its
@@ -266,28 +172,27 @@ func (p *streamlinePlanner) callWorker(
 		ctx, state, identity, beforeClaim.Revision, claim, binding.logicalName,
 	); failure != nil {
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
-		return workerFailure(*failure)
+		return workerFailure(*failure), false
 	}
 	if failure := p.persistPlanTransition(
 		ctx, state, identity, beforeClaim, claimedPlan, planner.PlannerEventDispatchStarted,
 	); failure != nil {
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
-		return workerFailure(*failure)
+		return workerFailure(*failure), false
 	}
 	request, failure := p.workerRequest(ctx, claim.Subtask)
 	if failure != nil {
-		return reject(*failure)
+		return reject(*failure), false
 	}
 	deadline := p.deadline
 	if !deadline.After(time.Now()) {
 		failure := &planner.Failure{
 			Code: "worker_deadline_exceeded", Message: "Worker invocation deadline expired", Retryable: true,
 		}
-		return reject(*failure)
+		return reject(*failure), false
 	}
 	if limit := state.reserveWorkerCall(); limit != nil {
-		ctx.Actions().SkipSummarization = true
-		return reject(limit.Failure)
+		return reject(limit.Failure), true
 	}
 	workerContext, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
@@ -304,12 +209,12 @@ func (p *streamlinePlanner) callWorker(
 	if err != nil {
 		failure := planner.FailureFrom(err)
 		workerSpan.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		return reject(failure)
+		return reject(failure), false
 	}
 	if validation := planner.ValidateWorkerCompletion(completion, claim.Subtask.ID); validation != nil {
 		failure := validation.Failure
 		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		return reject(failure)
+		return reject(failure), false
 	}
 	// Live State is advisory. Failure to retain its hidden correlation must not
 	// rewrite an otherwise valid WorkerCompletion or dispatch outcome.
@@ -320,13 +225,13 @@ func (p *streamlinePlanner) callWorker(
 			Retryable: completion.Failure.Retryable,
 		}
 		workerSpan.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		return reject(failure)
+		return reject(failure), false
 	}
 	result := planner.CloneWorkerResult(*completion.Result)
 	if validation := p.validateWorkerResult(workerContext, result); validation != nil {
 		failure := validation.Failure
 		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		return reject(failure)
+		return reject(failure), false
 	}
 	workerSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 	beforeCompletion := p.plan.Snapshot()
@@ -334,18 +239,18 @@ func (p *streamlinePlanner) callWorker(
 	if planErr != nil {
 		failure := failureFromPlanError(planErr)
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
-		return workerFailure(failure)
+		return workerFailure(failure), false
 	}
 	if failure := p.persistPlanTransition(
 		ctx, state, identity, beforeCompletion, completedPlan, planner.PlannerEventDispatchCompleted,
 	); failure != nil {
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
-		return workerFailure(*failure)
+		return workerFailure(*failure), false
 	}
 	if beforeCompletion.CurrentSubtaskID != completedPlan.CurrentSubtaskID {
 		if failure := p.persistCurrentChanged(ctx, state, identity, completedPlan); failure != nil {
 			state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
-			return workerFailure(*failure)
+			return workerFailure(*failure), false
 		}
 	}
 	if p.recoveryArtifacts == nil {
@@ -366,19 +271,19 @@ func (p *streamlinePlanner) callWorker(
 	if !state.selectWorkerArtifacts(binding.logicalName, result.Artifacts) {
 		failure := planner.NewError("finish_rejected", "Selected result material limit exceeded", false, nil)
 		state.setExternalFailure(failure)
-		return workerFailure(failure.Failure)
+		return workerFailure(failure.Failure), false
 	}
 	encoded, _ := json.Marshal(result)
 	state.recordTool(executeCurrentSubtaskToolName, safeArguments, true, time.Since(started), len(encoded), nil)
-	return workerCallOutput{OK: true, Result: &result}
+	return workerCallOutput{OK: true, Result: &result}, false
 }
 
 func (p *streamlinePlanner) routeWorker(
-	ctx agent.Context,
+	ctx context.Context,
 	state *executionState,
 	identity planner.SessionIdentity,
 	args routerWorkerCallArgs,
-) workerCallOutput {
+) (workerCallOutput, bool) {
 	for _, binding := range p.workers {
 		if args.WorkerName == binding.logicalName {
 			return p.callWorker(ctx, state, identity, binding, args.SubtaskID)
@@ -392,7 +297,7 @@ func (p *streamlinePlanner) routeWorker(
 	state.recordTool(executeCurrentSubtaskToolName, map[string]any{
 		"binding": "unknown", "subtaskId": safeSubtaskID(args.SubtaskID),
 	}, false, time.Since(started), 0, &failure)
-	return workerFailure(failure)
+	return workerFailure(failure), false
 }
 
 func routerExecuteSchema(workers []workerBinding) (*jsonschema.Schema, error) {
@@ -474,7 +379,7 @@ func (p *streamlinePlanner) validateWorkerResult(
 }
 
 func (p *streamlinePlanner) finish(
-	ctx agent.Context,
+	ctx context.Context,
 	state *executionState,
 	identity planner.SessionIdentity,
 	args finishArgs,
@@ -543,8 +448,6 @@ func (p *streamlinePlanner) finish(
 		state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, false, time.Since(started), 0, &failure)
 		return completionToolOutput{Error: toolFailureFrom(failure)}
 	}
-	ctx.Actions().SkipSummarization = true
-	ctx.Actions().Escalate = true
 	state.recordTool(finishToolName, map[string]any{"outcome": safeOutcome}, true, time.Since(started), 0, nil)
 	span.End("succeeded", telemetry.PlannerSpanAttributes{PlanRevision: planRevision})
 	return completionToolOutput{Accepted: true}

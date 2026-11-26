@@ -346,6 +346,11 @@ calls, finish reason and provider-reported usage back to ADK. Successful JSON
 responses are projected directly into ADK types without constructing
 general-purpose SDK models.
 
+Successful envelopes and function-call argument strings contain one JSON value
+with no duplicate object keys at any depth or non-standard numeric constants.
+Provider extension fields remain allowed. Invalid envelopes have no trusted
+usage; rejected argument strings retain valid envelope usage but authorize no tool.
+
 Each physical Gateway response, including an error response, is streamed
 under a 4-MiB ceiling for both received and decoded bytes (LIM-WRK-37).
 Admission precedes JSON parsing and applies independently of `max_tokens`,

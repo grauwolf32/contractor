@@ -22,7 +22,7 @@ from google.genai import types
 from pydantic import Field
 
 from contractor_runtime.contracts.base import json_byte_size
-from contractor_runtime.llm.openai import _completion_request
+from contractor_runtime.llm.request import completion_request
 from contractor_runtime.worker import history as history_module
 from contractor_runtime.worker.history import ToolHistory, ToolHistoryError
 
@@ -564,7 +564,7 @@ class CapturingLlm(ScriptedLlm):
     payloads: list[dict[str, Any]] = Field(default_factory=list, exclude=True)
 
     async def generate_content_async(self, llm_request, stream=False):
-        self.payloads.append(_completion_request(self.model, llm_request))
+        self.payloads.append(completion_request(self.model, llm_request))
         async for response in super().generate_content_async(llm_request, stream=stream):
             yield response
 

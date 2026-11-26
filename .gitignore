@@ -17,6 +17,7 @@
 # Agent worktrees and local package stores
 /.claude/
 /.pnpm-store/
+/.portable/
 
 # Go commands and verification output
 /contractor-server
