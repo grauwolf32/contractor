@@ -26,10 +26,15 @@ class ServerPlannerHost:
     async def execute(self, name, arguments) -> PlannerOperationResult:
         async with self._lock:
             self._sequence += 1
-            request = PlannerOperation(
-                apiVersion=API_VERSION, sequence=self._sequence, name=name, arguments=arguments
-            )
-            body = request.model_dump_json(by_alias=True).encode()
+            try:
+                request = PlannerOperation(
+                    apiVersion=API_VERSION, sequence=self._sequence, name=name, arguments=arguments
+                )
+                body = request.model_dump_json(by_alias=True).encode()
+            except ValueError:
+                raise PlannerStoppedError(
+                    "planner_operation_invalid", "Planner operation exceeds its contract", False
+                ) from None
             # One identical retry is safe because the current Server host keeps
             # the last ordered operation and its response until the next request.
             for attempt in range(2):

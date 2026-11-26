@@ -80,3 +80,18 @@ def test_private_transport_operation_deadline_does_not_change_other_requests():
         ]
 
     asyncio.run(scenario())
+
+
+def test_planner_host_rejects_oversized_operation_without_transport_or_retry():
+    async def scenario():
+        transport = Mock(request=AsyncMock())
+        host = ServerPlannerHost(
+            "allocation-1", transport, deadline=datetime.now(UTC) + timedelta(minutes=1)
+        )
+        with pytest.raises(PlannerStoppedError) as error:
+            await host.execute("add_subtask", {"instructions": "x" * (2 << 20)})
+        assert error.value.code == "planner_operation_invalid"
+        assert not error.value.retryable
+        transport.request.assert_not_called()
+
+    asyncio.run(scenario())
