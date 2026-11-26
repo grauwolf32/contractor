@@ -5,7 +5,7 @@ milestone: runtime-planner-p1-2026-11
 epic: planner-worker
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V488-003]
 languages: [markdown, yaml]
 goal: Local main contains the verified Runtime Planner P1 through a two-parent merge while primary portable-kit work and the staged delta remain intact.
@@ -41,3 +41,12 @@ tests:
   covers: [A2]
 - command: python3 /private/tmp/contractor-v488-main-merge-20261127-0_tfv9ee/install-main.py --verify-only
   covers: [A2]
+
+implementation_commit: 9d84161b076edd05d64a521c6be8187ba239ee22
+verification:
+  result: passed
+  evidence: tasks/evidence/v488-004-runtime-planner-main-integration.json
+  delivery: Local main contains the exact two-parent merge of original main and fb66bee8ce5625572cfb09c4a1ccc25fb96578d0. No remote push or deployment.
+  source_identity: Production, tests, wire contracts, normative specifications and build/check inputs match the accepted source byte for byte. Integration adds only ignore and delivery metadata; full V488-003 test evidence is reused, not reported as a new full run.
+  primary_work: Twelve original source/payload files retain exact hashes and modes. The earlier proposal draft is backed up and the accepted proposal is committed. Backlog is regenerated with the uncommitted portable task delta intact. Staged delta remains empty, portable payloads are ignored and neither they nor V486-001 are committed.
+  checks: Task, specification, shared-fixture source, whitespace, source-tree identity and git-ignore checks passed; guarded main installation and preservation verification passed.

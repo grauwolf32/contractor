@@ -1,0 +1,152 @@
+{
+  "task": "V488-004",
+  "date": "2026-11-27",
+  "result": "passed",
+  "merge_commit": "9d84161b076edd05d64a521c6be8187ba239ee22",
+  "parents": [
+    "c0ec4fe976c7b0be452ce18ef87c158768cb10eb",
+    "fb66bee8ce5625572cfb09c4a1ccc25fb96578d0"
+  ],
+  "main_before": "c0ec4fe976c7b0be452ce18ef87c158768cb10eb",
+  "accepted_source": "fb66bee8ce5625572cfb09c4a1ccc25fb96578d0",
+  "verification_reuse": "All production/test/contract/specification/build inputs equal V488-003; its full passing Runtime, Go/race/PostgreSQL, 71 process roots, lint and wire evidence remains applicable. No new full run is claimed.",
+  "accepted_evidence": "tasks/evidence/v488-003-runtime-planner-review.json",
+  "user_followups": [
+    "Ignore /.portable/ without deleting or committing payloads.",
+    "Commit the accepted updated proposal; keep its earlier working draft backed up."
+  ],
+  "primary_before": {
+    "primary": "/Users/ruslan/src/contractor",
+    "main_before": "c0ec4fe976c7b0be452ce18ef87c158768cb10eb",
+    "source_head": "fb66bee8ce5625572cfb09c4a1ccc25fb96578d0",
+    "protected": [
+      {
+        "path": ".portable/README.md",
+        "mode": 420,
+        "kind": "file",
+        "sha256": "5621b0faa43526a1b9333825a4403db2427edaba67adb32a2cc14ffd8bf78e10",
+        "bytes": 4613
+      },
+      {
+        "path": ".portable/install.sh",
+        "mode": 493,
+        "kind": "file",
+        "sha256": "bdc8a9cb046613985fc61c10b75883f7a5f828b662b18496e97355d8c7257b9c",
+        "bytes": 2256
+      },
+      {
+        "path": ".portable/linux-amd64/BUILD.txt",
+        "mode": 420,
+        "kind": "file",
+        "sha256": "520246cfd36eecc43516e414b5e0614a7d8eb04e5de6a00a24d68e073efab5dd",
+        "bytes": 2403
+      },
+      {
+        "path": ".portable/linux-amd64/SHA256SUMS",
+        "mode": 420,
+        "kind": "file",
+        "sha256": "01cb0e061da115a8cfb894a468fe80929d516e78aeffa1373a9ff8a048eac09e",
+        "bytes": 401
+      },
+      {
+        "path": ".portable/linux-amd64/parsers.tar.xz",
+        "mode": 420,
+        "kind": "file",
+        "sha256": "3c84543603e6fef77d47fd14dcae9bf7fd8a48db2fb8c2e17e7dcb415b0d2825",
+        "bytes": 2843220
+      },
+      {
+        "path": ".portable/linux-amd64/python.tar.gz",
+        "mode": 420,
+        "kind": "file",
+        "sha256": "65d5c786e3cbd67533c346537ad0b8826ef158287b3cebaa34b30558cc330f59",
+        "bytes": 35625145
+      },
+      {
+        "path": ".portable/linux-amd64/runtime-wheels.tar",
+        "mode": 420,
+        "kind": "file",
+        "sha256": "23d89a85f3ad4e3a6cf0fffa83387c75944ad0c9e49a4da6f578eb330389307f",
+        "bytes": 65806336
+      },
+      {
+        "path": ".portable/linux-amd64/tools.tar.xz",
+        "mode": 420,
+        "kind": "file",
+        "sha256": "778b278cf66e1acf292e5f58237b44fa6145a4e24c9536e6104cceb73d1c7103",
+        "bytes": 92714380
+      },
+      {
+        "path": ".portable/seed-parser-cache.py",
+        "mode": 420,
+        "kind": "file",
+        "sha256": "f8e7baee7aad2bdd0a1a704eb1b82bc000fbce7bc01477f89d73ec4aeb18f0f8",
+        "bytes": 1249
+      },
+      {
+        "path": ".portable/smoke.sh",
+        "mode": 493,
+        "kind": "file",
+        "sha256": "4bc257cbf20927bdb3703c464bb60bcff37362d0fb99190932907ed2d37f0041",
+        "bytes": 2806
+      },
+      {
+        "path": "docs/README.md",
+        "mode": 420,
+        "kind": "file",
+        "sha256": "8a142b269a630e6121c0403ab1c0e13614e195fa07535dfcc1f210aad594fba7",
+        "bytes": 3082
+      },
+      {
+        "path": "docs/proposals/0058-runtime-planner-and-recovery.md",
+        "mode": 420,
+        "kind": "file",
+        "sha256": "4242ed82fe92dfa47d0da596d45b355be47eb914097ba820ed46eef83f89cdb8",
+        "bytes": 37568
+      },
+      {
+        "path": "tasks/BACKLOG.md",
+        "mode": 420,
+        "kind": "file",
+        "sha256": "fc567b18b35bf0b8e625e9f21813f547265e5590413f908f67e19ecb5eb22723",
+        "bytes": 15782
+      },
+      {
+        "path": "tasks/v486-001-portable-linux-kit.yml",
+        "mode": 420,
+        "kind": "file",
+        "sha256": "fec1a80da187967959302f276030ab3f5b91e601982411de12953071cbe73b94",
+        "bytes": 2796
+      }
+    ],
+    "staged_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "primary_preservation": {
+    "main_head": "9d84161b076edd05d64a521c6be8187ba239ee22",
+    "exact_files_preserved": 12,
+    "proposal_committed_and_current": true,
+    "prior_proposal_backup": "/private/tmp/contractor-v488-main-merge-20261127-0_tfv9ee/backup/docs/proposals/0058-runtime-planner-and-recovery.md",
+    "backlog_generated_with_uncommitted_portable_task": true,
+    "staged_delta_preserved": true,
+    "portable_ignored_and_untracked": true,
+    "production_test_contract_spec_trees_equal_source": true
+  },
+  "checks": [
+    "make tasks-backlog",
+    "cd runtime && uv run python ../scripts/check_tasks.py",
+    "cd runtime && uv run python ../scripts/check_spec.py",
+    "cd runtime && uv run python ../scripts/shared_fixture_gate.py --sources-only",
+    "git diff --exit-code fb66bee8ce5625572cfb09c4a1ccc25fb96578d0 HEAD -- api cmd configs internal runtime ui tests tools scripts make Makefile go.mod go.sum docs/spec",
+    "git check-ignore --no-index .portable/example.zip",
+    "guarded installer --verify-only",
+    "git diff --check"
+  ],
+  "installer_sha256": "8c5d2130763bdd2e8ebde4402ff3ece84c0c62418176af12fe0a2287d599dc58",
+  "not_performed": [
+    "Remote push",
+    "Deployment",
+    "Migrations",
+    "Live models",
+    "Another full test/release run"
+  ]
+}
