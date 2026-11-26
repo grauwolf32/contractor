@@ -1,0 +1,61 @@
+{
+  "status": "in_progress",
+  "source_commits": {
+    "014": "deaac4718594234271bbe050e66a3bce65b63e0a",
+    "015": "9997e93c393c10f37dec8445b09a8af61ed036a9",
+    "016": "7ef06d3ad344cb1ee6b5e4d4d694fd3c521c2c70"
+  },
+  "review_regressions": {
+    "V487-014": {
+      "negative_control": "2 cases failed on original source",
+      "modules": "89 passed"
+    },
+    "V487-015": {
+      "negative_control": "4 cases failed on original source",
+      "modules": "43 passed"
+    },
+    "V487-016": {
+      "negative_control": "3 cases failed on original source",
+      "modules": "11 passed, 33 declared Linux-specific skips on macOS; separate Linux run pending"
+    }
+  },
+  "process": {
+    "command": "go test -tags=e2e -count=1 -timeout=10m ./tests/e2e -run '^TestRuntimeAllocationSlotsAcrossProductionProcesses$'",
+    "result": "passed",
+    "seconds": 130.434
+  },
+  "wire": {
+    "command": "make test-wire-cross-language",
+    "result": "passed",
+    "contracts": 427,
+    "fixtures": 416,
+    "go": 470,
+    "python": 297,
+    "optional_heavy_skip": 1
+  },
+  "pending": [
+    "Linux module validation",
+    "test resource cleanup",
+    "main merge and user-work preservation"
+  ],
+  "lint": {
+    "command": "make lint",
+    "result": "passed",
+    "initial_attempt": "Used the old stopped test-database address; repeated the entire target with the current owned database, without changing source or skipping PostgreSQL tests."
+  },
+  "production_text_delta": 20,
+  "runtime": {
+    "command": "make test-runtime",
+    "result": "passed",
+    "tests": 6842,
+    "passed": 6707,
+    "skipped": 135,
+    "failures": 0,
+    "errors": 0,
+    "compaction_selected_passed": 587
+  },
+  "linux_initial": {
+    "result": "64 passed, 1 fixture prerequisite failure",
+    "cause": "The code-analysis sibling needed a writable parser cache; the source mount is read-only. All new regressions and other selected modules passed. Retry uses an explicitly initialized writable parser cache."
+  }
+}

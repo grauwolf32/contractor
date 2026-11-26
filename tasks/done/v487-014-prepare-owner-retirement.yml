@@ -3,7 +3,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: execution-core
 kind: defect
 priority: P1
-status: in_progress
+status: completed
 languages:
 - python
 id: V487-014
@@ -52,3 +52,13 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: deaac4718594234271bbe050e66a3bce65b63e0a
+verification:
+  result: passed
+  evidence: tasks/evidence/v487-014-017-review-fixes.json
+  negative_control: Both failed-prepare and cancelled-prepare overlap cases failed on original code.
+  modules: 89 passed
+  shared_exit: 'Full Runtime: 6707 passed, 135 declared skips, both report verifiers passed; make lint
+    passed with real PostgreSQL.'
+  boundary: Real Server/PostgreSQL/Runtime four-slot process scenario passed in 130.434 seconds; wire
+    fixtures passed.
