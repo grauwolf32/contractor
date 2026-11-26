@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 12 in progress, 43 pending, 13 deferred. 1712 finished: 1694 completed, 18 archived.
+67 open tasks: 11 in progress, 43 pending, 13 deferred. 1713 finished: 1695 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V487-015](v487-015-join-allocation-shutdown.yml) | execution-core | defect | P1 | Join every allocation shutdown before propagating failure or cancellation |
 | [V487-016](v487-016-join-podman-owner-close.yml) | execution-core | defect | P1 | Join the Podman close RPC before EOF cleanup retries |
 
 ## Pending
@@ -132,7 +131,7 @@ the epics are in [epics.yml](epics.yml).
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 | [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | — | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
 | [V469-005](v469-005-opencode-audit-release.yml) | chore | P1 | V469-004 | Accept the minimal OpenCode Audit environment through real release gates |
-| [V487-017](v487-017-main-integration.yml) | chore | P1 | V487-015, V487-016 | Merge the reviewed multi-slot Runtime and race fixes into main |
+| [V487-017](v487-017-main-integration.yml) | chore | P1 | V487-016 | Merge the reviewed multi-slot Runtime and race fixes into main |
 
 ## Deferred
 
@@ -159,7 +158,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 5 | 52 | 76 | 44 | 111 |
+| Run execution core (`execution-core`) | 4 | 52 | 76 | 44 | 111 |
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 49 | 60 | 48 | 100 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |

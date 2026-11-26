@@ -3,7 +3,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: execution-core
 kind: defect
 priority: P1
-status: in_progress
+status: completed
 languages:
 - python
 id: V487-015
@@ -53,3 +53,12 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 9997e93c393c10f37dec8445b09a8af61ed036a9
+verification:
+  result: passed
+  evidence: tasks/evidence/v487-014-017-review-fixes.json
+  negative_control: All four close/lease-expiry and error/cancellation regressions failed on original
+    code.
+  modules: 43 passed
+  shared_exit: 'Full Runtime: 6707 passed, 135 declared skips, both report verifiers passed; make lint
+    passed with real PostgreSQL.'
