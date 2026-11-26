@@ -3,7 +3,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: quality
 kind: chore
 priority: P1
-status: pending
+status: in_progress
 languages:
 - python
 id: V487-017
@@ -20,6 +20,9 @@ context:
   - docs/testing/README.md
   delivery: Use a two-parent --no-ff merge; preserve primary portable-kit files and their generated-backlog
     delta.
+  verification: 'Reuse the passing combined source checks: full Runtime, lint with real PostgreSQL, wire
+    fixtures, actual four-slot Server/Runtime process scenario and 65 Linux lifecycle modules. Only task/evidence/generated
+    metadata changes follow.'
 scope:
   in:
   - Combined Runtime/lint, wire and real-process multi-slot verification; merge and preservation evidence.

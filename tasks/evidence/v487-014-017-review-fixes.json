@@ -62,13 +62,15 @@
     "tests": 65,
     "seconds": 5.69,
     "skipped": 0,
-    "runtime": "Python 3.13.16, locked dependencies, UID 1000, production lifecycle/backend and native Linux ownership seams",
+    "runtime": "Python 3.13.16, locked dependencies, UID 1000; production lifecycle/backend with scripted CLI, real Unix IPC and Linux-only ownership modules.",
     "parser_cache": "Explicit writable private cache initialized through the pinned language-pack API; source remains read-only.",
     "local_log": "/tmp/contractor-v487-fix-linux-accepted.log"
   },
   "cleanup": {
     "postgres": "Owned review database and exact isolated port-55488 cluster removed after all clients stopped.",
-    "linux": "Only contractor-v487-review-linux stopped and removed with its anonymous volumes/cache/venv; owned wrapper removed. Shared image untouched."
+    "linux": "Only contractor-v487-review-linux stopped and removed with its anonymous volumes/cache/venv; owned wrapper removed. Shared image untouched.",
+    "shared_rootful_container_ids_preserved": true,
+    "shared_rootful_container_count": 13
   },
   "log_sha256": {
     "runtime": "4aa6c03b05be8acb2a1348795923abfd5ac9e5cb3d1ce2390f0f71eb52e19788",
