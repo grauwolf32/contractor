@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from contractor_runtime.contracts.registration import MAX_ALLOCATION_SLOTS
+from contractor_runtime.core.async_tasks import join_owned_tasks
 from contractor_runtime.sandbox.contracts import (
     ExecutionRequest,
     ExecutionResult,
@@ -315,7 +316,7 @@ class LifecycleBackend:
         if self.closed:
             return
         self.disconnect()
-        await asyncio.gather(
+        await join_owned_tasks(
             *(
                 self.remove(allocation_id, deadline=deadline)
                 for allocation_id in tuple(self.entries)

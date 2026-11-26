@@ -3,7 +3,7 @@ milestone: runtime-allocation-slots-2026-11
 epic: execution-core
 kind: defect
 priority: P1
-status: pending
+status: in_progress
 languages:
 - python
 id: V487-016

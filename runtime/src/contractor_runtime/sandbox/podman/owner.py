@@ -156,7 +156,10 @@ async def serve_owner(
             )
         elif op == "close":
             backend.disconnect()
-            await asyncio.gather(*tuple(in_flight), return_exceptions=True)
+            await asyncio.gather(
+                *(task for task in tuple(in_flight) if task is not asyncio.current_task()),
+                return_exceptions=True,
+            )
             await backend.close(deadline=deadline)
         else:
             raise ValueError("invalid owner operation")
@@ -173,9 +176,8 @@ async def serve_owner(
                 message = await reader
                 try:
                     operation = asyncio.create_task(dispatch(message))
-                    if message.get("op") != "close":
-                        in_flight.add(operation)
-                        operation.add_done_callback(in_flight.discard)
+                    in_flight.add(operation)
+                    operation.add_done_callback(in_flight.discard)
                     response = await asyncio.shield(operation)
                 except SandboxContractError as error:
                     response = {"error": error.code.value}

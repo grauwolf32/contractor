@@ -922,6 +922,8 @@ allocation/container identity. One allocation's slow operation does not hold
 another allocation's stream or engine lock. Rejected or uncertain resources
 remain owned until exact cleanup confirms; shutdown first revokes and joins
 all channels before closing the engine and releasing its ownership lock.
+The close RPC remains owned through health EOF. An error or cancellation
+joins every started allocation removal before cleanup is retried.
 Resource limits remain per container, so four active resources may consume
 four times those configured bounds. Discovery and cleanup select exact owner
 and allocation identities and preserve live neighboring resources.
