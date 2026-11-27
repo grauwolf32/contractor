@@ -388,7 +388,7 @@ model {
         #contractor
       }
 
-      stagePlanner = component 'Stage Planner authority — canonical progress, Worker dispatch; Router ADK loop' {
+      stagePlanner = component 'Stage Planner authority — canonical progress, Worker dispatch; Runtime model-loop host' {
         #contractor
       }
 
@@ -826,7 +826,7 @@ model {
     workerExecution = component 'Allocation Execution — Planner/Worker A2A, ADK and trusted observations' {
       #contractor
 
-      plannerLoop = component 'Streamline Planner — injected model/host, private conversation and compactor' {
+      plannerLoop = component 'Streamline/Router Planner — injected model/host, private conversation and compactor' {
         #contractor
       }
 
@@ -1125,9 +1125,9 @@ model {
   runtimeAgent.allocationCapabilities.otlpExporter -> telemetryBackend 'Sequential whole-span batches; default 8 MiB and 2 attempts; final flush deadline caps retries'
   runtimeAgent.allocationCapabilities.adapterHost -> workerHttpProxy 'Selected Worker LLM/tool HTTP only; private Contractor traffic bypasses'
 
-  server.orchestration.stagePlanner -> llmGateway 'Router calls with resolved Planner policy/Gateway/credential'
+
   runtimeAgent.workerExecution.plannerHost -> server.orchestration.stagePlanner 'Confirm plan/budget, dispatch via WorkerInvoker; replay last ordered operation'
-  runtimeAgent.allocationCapabilities.modelClient -> llmGateway 'Worker/finalizer/summarizer and Streamline/compactor calls with pinned URL/token'
+  runtimeAgent.allocationCapabilities.modelClient -> llmGateway 'Worker/finalizer/summarizer and Planner/compactor calls with pinned URL/token'
   server.identityConfiguration.executionConfigService -> llmGateway 'Create/delete LiteLLM virtual keys; Gateway enforces submitted key policy'
   llmGateway -> llmProvider 'Provider requests'
 

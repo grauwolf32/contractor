@@ -5,15 +5,13 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/stageresult"
-	"google.golang.org/adk/v2/model"
-	"google.golang.org/genai"
 )
 
 // LIM-WRK-39; cross-language request-guidance.json pins both consumers.
 const maxGuidanceBytes = 2048
 const guidancePreamble = "Current execution facts (authoritative for this request):\n"
 
-func (p *streamlinePlanner) prepareGuidance(state *executionState, request *model.LLMRequest) error {
+func (p *streamlinePlanner) prepareGuidance(state *executionState) (string, error) {
 	plan := p.plan.Snapshot()
 	view := planView(plan)
 	state.mu.Lock()
@@ -35,20 +33,11 @@ func (p *streamlinePlanner) prepareGuidance(state *executionState, request *mode
 	}
 	encoded, err := json.Marshal(facts)
 	if err != nil {
-		return err
+		return "", err
 	}
 	text := guidancePreamble + string(encoded)
 	if len(text) > maxGuidanceBytes {
-		return fmt.Errorf("Planner guidance exceeds its byte limit")
+		return "", fmt.Errorf("Planner guidance exceeds its byte limit")
 	}
-	// Remove only our own request object, never text supplied by a user/tool.
-	contents := make([]*genai.Content, 0, len(request.Contents)+1)
-	for _, content := range request.Contents {
-		if content != p.guidance {
-			contents = append(contents, content)
-		}
-	}
-	p.guidance = genai.NewContentFromText(text, genai.RoleUser)
-	request.Contents = append(contents, p.guidance)
-	return nil
+	return text, nil
 }

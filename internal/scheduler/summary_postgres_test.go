@@ -5,17 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"iter"
 	"reflect"
 	"testing"
 	"time"
-
-	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -27,8 +25,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgconn"
-	"google.golang.org/adk/v2/model"
-	"google.golang.org/genai"
 )
 
 type summaryLostAcknowledgement struct {
@@ -76,86 +72,73 @@ func (p *summaryProgressionFault) CommitResultProgression(ctx context.Context, v
 	return io.ErrUnexpectedEOF
 }
 
-// summaryScriptModel exercises the actual Streamline tools and PostgreSQL ADK
-// session adapter, while keeping provider judgement deterministic.
-type summaryScriptModel struct {
+// The continuation exercises the actual Runtime host protocol and PostgreSQL
+// domain operations. Python model dispatch is covered by process tests.
+type summaryScript struct {
 	t              *testing.T
 	inputRevision  string
 	report         contracts.ArtifactRef
 	calls          int
 	failBeforeWork bool
 }
+type summaryRuntimeInvoker func(context.Context, string, contracts.WorkerHandle, contracts.StageContentRequest) (contracts.WorkerCompletion, error)
 
-func (*summaryScriptModel) Name() string { return "summary-script-model" }
-func (m *summaryScriptModel) GenerateContent(_ context.Context, request *model.LLMRequest, _ bool) iter.Seq2[*model.LLMResponse, error] {
-	return func(yield func(*model.LLMResponse, error) bool) {
-		var name string
-		var args map[string]any
-		switch m.calls {
-		case 0:
-			var initial struct {
-				Objective    string
-				Instructions string
-				Parameters   map[string]string
-				Artifacts    map[string]*contracts.ArtifactRef
-				Continuation *struct {
-					Summary         string
-					SummaryArtifact contracts.ArtifactRef
-				}
-			}
-			found := false
-			for _, content := range request.Contents {
-				for _, part := range content.Parts {
-					if json.Unmarshal([]byte(part.Text), &initial) == nil && initial.Continuation != nil {
-						found = true
-						break
-					}
-				}
-				if found {
-					break
-				}
-			}
-			if !found || initial.Objective == "" || initial.Instructions == "" || initial.Parameters["objective"] != "copy exactly" ||
-				initial.Artifacts["mutable"] == nil || *initial.Artifacts["mutable"].Revision != m.inputRevision ||
-				initial.Continuation.Summary != summarizedCandidate().Summary || initial.Continuation.SummaryArtifact.Namespace != "builder" {
-				m.t.Errorf("Streamline lost original task or separate summary: %+v", initial)
-				yield(nil, errors.New("invalid summary input"))
-				return
-			}
-			name, args = "read_memory", map[string]any{"name": "progress"}
-		case 1:
-			if m.failBeforeWork {
-				name, args = "finish", map[string]any{"outcome": "failed", "summary": "Temporary blocker", "artifacts": map[string]any{},
-					"error": map[string]any{"code": "blocked", "message": "Requires a manual continuation", "retryable": false}}
-				break
-			}
-			found := false
-			for _, content := range request.Contents {
-				for _, part := range content.Parts {
-					if part.FunctionResponse != nil && part.FunctionResponse.Name == "read_memory" {
-						data, _ := json.Marshal(part.FunctionResponse.Response)
-						found = string(data) != "" && containsSummaryNote(data)
-					}
-				}
-			}
-			if !found {
-				m.t.Error("same-namespace Memory note was not readable")
-				yield(nil, errors.New("Memory note lost"))
-				return
-			}
-			name, args = "add_subtask", map[string]any{"objective": "Publish remaining report", "instructions": "Reuse saved analysis; verify the final artifact."}
-		case 2:
-			name, args = "execute_current_subtask", map[string]any{"subtask_id": "0"}
-		case 3:
-			name, args = "finish", map[string]any{"outcome": "succeeded", "summary": "Report complete", "artifacts": map[string]any{"copied": map[string]any{"namespace": m.report.Namespace, "name": m.report.Name}}}
-		default:
-			yield(nil, errors.New("unexpected continuation model call"))
-			return
+func (f summaryRuntimeInvoker) Invoke(ctx context.Context, n string, h contracts.WorkerHandle, r contracts.StageContentRequest) (contracts.WorkerCompletion, error) {
+	return f(ctx, n, h, r)
+}
+func (m *summaryScript) run(ctx context.Context, f *streamline.Factory, stage string, handle contracts.WorkerHandle, request contracts.StageContentRequest) (contracts.WorkerCompletion, error) {
+	var initial struct {
+		Objective    string
+		Instructions string
+		Parameters   map[string]string
+		Artifacts    map[string]*contracts.ArtifactRef
+		Continuation *struct {
+			Summary         string
+			SummaryArtifact contracts.ArtifactRef
 		}
-		m.calls++
-		yield(&model.LLMResponse{Content: &genai.Content{Role: "model", Parts: []*genai.Part{{FunctionCall: &genai.FunctionCall{Name: name, Args: args}}}}, TurnComplete: true,
-			UsageMetadata: &genai.GenerateContentResponseUsageMetadata{PromptTokenCount: 1, CandidatesTokenCount: 1, TotalTokenCount: 2}}, nil)
 	}
+	if request.Planner == nil || json.Unmarshal([]byte(request.Planner.Input), &initial) != nil || initial.Continuation == nil || initial.Objective == "" || initial.Instructions == "" || initial.Parameters["objective"] != "copy exactly" || initial.Artifacts["mutable"] == nil || *initial.Artifacts["mutable"].Revision != m.inputRevision || initial.Continuation.Summary != summarizedCandidate().Summary || initial.Continuation.SummaryArtifact.Namespace != "builder" {
+		return contracts.WorkerCompletion{}, errors.New("Streamline lost original task or separate summary")
+	}
+	seq := 0
+	op := func(name string, args any) (contracts.PlannerOperationResult, error) {
+		seq++
+		data, _ := json.Marshal(args)
+		r, e := f.ExecuteOperation(ctx, stage, handle.AllocationID, contracts.PlannerOperation{APIVersion: contracts.APIVersion, Sequence: seq, Name: name, Arguments: data})
+		if e == nil && r.Failure != nil {
+			e = errors.New(r.Failure.Code)
+		}
+		return r, e
+	}
+	step := func(name string, args any) (contracts.PlannerOperationResult, error) {
+		m.calls++
+		if _, e := op("before_model", map[string]any{"retainedBytes": 0}); e != nil {
+			return contracts.PlannerOperationResult{}, e
+		}
+		if _, e := op("after_model", map[string]any{"inputTokens": 1, "outputTokens": 1, "cachedTokens": 0, "calls": []string{name}}); e != nil {
+			return contracts.PlannerOperationResult{}, e
+		}
+		return op(name, args)
+	}
+	note, e := step("read_memory", map[string]any{"name": "progress"})
+	if e != nil {
+		return contracts.WorkerCompletion{}, e
+	}
+	if !m.failBeforeWork && !containsSummaryNote(note.Result) {
+		return contracts.WorkerCompletion{}, errors.New("same-namespace Memory note lost")
+	}
+	if m.failBeforeWork {
+		_, e = step("finish", map[string]any{"outcome": "failed", "summary": "Temporary blocker", "artifacts": map[string]any{}, "error": map[string]any{"code": "blocked", "message": "Requires a manual continuation", "retryable": false}})
+	} else {
+		if _, e = step("add_subtask", map[string]any{"objective": "Publish remaining report", "instructions": "Reuse saved analysis; verify the final artifact."}); e != nil {
+			return contracts.WorkerCompletion{}, e
+		}
+		if _, e = step("execute_current_subtask", map[string]any{"subtask_id": "0"}); e != nil {
+			return contracts.WorkerCompletion{}, e
+		}
+		_, e = step("finish", map[string]any{"outcome": "succeeded", "summary": "Report complete", "artifacts": map[string]any{"copied": map[string]any{"namespace": m.report.Namespace, "name": m.report.Name}}})
+	}
+	return contracts.WorkerCompletion{}, e
 }
 
 func containsSummaryNote(data []byte) bool {
@@ -235,10 +218,20 @@ func TestPostgresSummaryContinuationReconcilesAndRetainsArtifactsAndMemory(t *te
 					t.Fatal(err)
 				}
 				report := h.invoker.result.Clone()
-				script := &summaryScriptModel{t: t, inputRevision: *material.Ref.Revision, report: report.Artifacts["copied"]}
+				script := &summaryScript{t: t, inputRevision: *material.Ref.Revision, report: report.Artifacts["copied"]}
 				script.failBeforeWork = fault == "manual-resume"
-				continuation, err := streamline.NewConfiguredFactoryWithMemory(sessions, sessions, h.invoker, inspector, summaryUnavailableState{}, memory,
-					func(planner.ModelAccess) (model.LLM, error) { return script, nil }, streamline.Limits{})
+				var continuation *streamline.Factory
+				runtimeInvoker := summaryRuntimeInvoker(func(call context.Context, n string, handle contracts.WorkerHandle, request contracts.StageContentRequest) (contracts.WorkerCompletion, error) {
+					if request.Planner == nil {
+						return h.invoker.Invoke(call, n, handle, request)
+					}
+					active, err := h.store.GetActiveStageExecution(call, "run-1")
+					if err != nil {
+						return contracts.WorkerCompletion{}, err
+					}
+					return script.run(call, continuation, active.StageExecutionID, handle, request)
+				})
+				continuation, err = streamline.NewRuntimeFactoryWithMemory(sessions, runtimeInvoker, inspector, summaryUnavailableState{}, memory, streamline.Limits{})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -382,7 +375,7 @@ func TestPostgresSummaryContinuationReconcilesAndRetainsArtifactsAndMemory(t *te
 					if err != nil || replayed.StageExecutionID != resumed.StageExecutionID {
 						t.Fatalf("manual receipt failed: %v", err)
 					}
-					script = &summaryScriptModel{t: t, inputRevision: *material.Ref.Revision, report: report.Artifacts["copied"]}
+					script = &summaryScript{t: t, inputRevision: *material.Ref.Revision, report: report.Artifacts["copied"]}
 					next, err := h.store.GetStageExecution(ctx, resumed.StageExecutionID)
 					if err != nil || next.AdmittedAt != nil ||
 						next.ExecutionConfigVariant != runstore.StageExecutionConfigSummaryEscalation || !reflect.DeepEqual(next.StageContext, executions[1].StageContext) {

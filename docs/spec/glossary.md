@@ -604,7 +604,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Model Stage hold** — A process-local mark that keeps model-free placement off a live Runtime Agent for the hold window after a model Stage that could use it failed placement. Owner: [Control Plane](execution/control-plane.md).
 
-**Model-backed Planner** — A streamline@1 or router@1 Planner, which runs one Google ADK Go LlmAgent inside Server. Owner: [Planners](execution/planners.md).
+**Model-backed Planner** — A streamline@1 or router@1 Planner, which runs one Google ADK Python LlmAgent in a separate Runtime allocation, using Server-owned plan operations. Owner: [Planners](execution/planners.md).
 
 **Model-visible error vocabulary** — The set of error codes a toolset returns to the model. Owner: [Error and stop codes](platform/errors.md).
 
@@ -991,7 +991,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Shallow surface** — The search_def and list_symbols operations of code-analysis@1, implemented with Tree-sitter directly on the workspace snapshot and portable across both workspace providers. Owner: [Code analysis](tools/code-analysis.md).
 
-**Shared classification fixture** — The test fixture api/testdata/v1alpha1/gateway-failure-classification-cases.json on which the Server-side Planner and Runtime Worker Gateway failure classifiers must agree. Owner: [Failure model](platform/failure-model.md).
+**Shared classification fixture** — The test fixture api/testdata/v1alpha1/gateway-failure-classification-cases.json that pins the common Runtime Planner and Worker Gateway classifier. Owner: [Failure model](platform/failure-model.md).
 
 **Shipped catalog** — The operator-root manifests and instruction resources that the repository ships under `configs/`; until the first release they may change in place without a new version (CAT-R74). Owner: [Configuration catalog](configuration/catalog.md).
 

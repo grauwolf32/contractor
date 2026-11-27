@@ -10,6 +10,7 @@ depends_on:
 - V420-002
 languages:
 - go
+- python
 - typescript
 - markdown
 goal: Make Planner compaction progress, cost and failure inspectable through existing safe telemetry and technical
@@ -19,10 +20,16 @@ context:
     User removed captureContent and allocation-wide content suppression. Configured
     debug telemetry uses bounded content with exact known credential replacement;
     durable/public facts stay content-free. This does not assign compaction work.
-  authority: 'User request on 2026-10-25: create detailed tasks for Go ADK v2.6.0 and Planner compaction, including
-    compatibility, tests and mutual exclusion with terminal summarization; keep Scheduler substantially unchanged.
-    These pending records authorize planning only, do not start implementation and do not change the current
-    delivery focus.'
+  authority: >-
+    User request on 2026-10-25: create detailed tasks for Go ADK v2.6.0 and Planner compaction,
+    including compatibility, tests and mutual exclusion with terminal summarization; keep Scheduler
+    substantially unchanged. These pending records authorize planning only, do not start
+    implementation and do not change the current delivery focus. User decision 2026-11-27 defers P2
+    and plans P3 (V489-001/V489-002): Router and Streamline will share the Runtime Planner loop, and
+    replaced Go ADK code will be deleted. This task retains its outcome, status and dependencies;
+    validate the production path present at execution, move engine-specific regressions to Runtime
+    as P3 lands, and do not retain or restore the Go engine to satisfy historical test instructions.
+    This reconciliation does not start or complete this task.
   review: tasks/evidence/v419-go-adk-26-review.json
   specification:
   - docs/spec/execution/planners.md#PLN-R1
@@ -114,7 +121,7 @@ cardinality:
 - collection: Authoritative plan, validated results and existing durable session state
   expected: Default 32 subtasks, one current subtask/active dispatch and exact refs from completed Workers.
   maximum: 'Existing independent ceilings: 1000 subtasks, objective 64 KiB, subtask objective 8 KiB/instructions
-    32 KiB, Worker result text 64 KiB/payload 256 KiB/128 refs, session JSON 2 MiB and 256 recorded fact digests.'
+    32 KiB, Worker result text 64 KiB/payload 256 KiB/128 refs, session JSON 2 MiB and 3 x effective maxSubtasks + 1 fact digests (at most 3001, LIM-PLN-19).'
   bound: Do not inject the full plan/result index into each prompt or assume all independent maxima fit. Preserve
     exact full authority in its existing owner and expose bounded current projections/pages; enclosing overflow
     produces a classified failure before further effects.
@@ -147,6 +154,8 @@ acceptance_criteria:
   when: Contract/generation and full affected suites run
   then: Every reader/writer agrees and existing storage/report/export bounds and retention hold.
 tests:
+- command: make test-runtime
+  covers: [A1, A2, A4]
 - command: go test -race -count=1 ./internal/planner/... ./internal/telemetry ./internal/httpapi/public
   covers:
   - A1
@@ -173,13 +182,13 @@ tests:
   - A4
 test_prerequisites:
 - Commands are future implementation acceptance, not checks completed by this planning change. Record exact
-  revision, Go/ADK versions, module graph/checksums, commands, executed case counts, skips and outcomes. Required
+  revision, Go/Runtime and Python ADK versions, module graph/checksums, commands, executed case counts, skips and outcomes. Required
   cases cannot be skipped or match zero tests.
 - Use disposable real PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set for persistence acceptance; an unreachable
   configured database fails. Canonicalize TMPDIR as Makefile does. Full package suites accompany focused regressions.
   make test-streamline does not cover Router, so run all internal/planner packages too.
-- Use actual pinned ADK Runner/tool dispatch and controlled Gateway responses. tests/integration/streamline
-  uses a fake WorkerInvoker and does not prove a real Server/Runtime process. Register new process cases in
+- Use actual production Runner/tool dispatch and controlled Gateway responses; after P3 this is Python ADK in Runtime. Runtime host unit tests
+  use a fake WorkerInvoker and do not prove a real Server/Runtime process. Register new process cases in
   the release graph and provide their fixtures/prerequisites.
 - Use testdata and test-only pseudo-Skills rather than reading live configs. Use injected clocks, synchronization
   barriers and work/byte/row counters, not wall-clock assertions. Live Gateway benchmarks are outside deterministic

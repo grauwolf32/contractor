@@ -1,0 +1,93 @@
+schema_version: '1.0'
+id: V489-003
+title: Preserve modeled Planner outcomes and compaction across Runtime execution
+milestone: runtime-planner-p3-2026-11
+epic: planner-worker
+kind: defect
+introduced_by: V489-001
+priority: P1
+status: completed
+depends_on: [V489-001]
+languages: [go, python, markdown]
+goal: >-
+  Router and Streamline preserve confirmed terminal outcomes, finish rejected
+  sessions, account rejected model calls and compact only the intended context.
+context:
+  authority: User instruction 2026-11-27 fixes all five Astra P3 review findings, preserving headless and reducing code.
+  specification:
+    - docs/spec/execution/planners.md#PLN-R41
+    - docs/spec/execution/planners.md#PLN-R106
+    - docs/spec/execution/planners.md#PLN-R122
+    - docs/spec/execution/planners.md#PLN-R128
+    - docs/spec/execution/planners.md#PLN-R136
+    - docs/spec/platform/persistence.md
+  severity: high
+  finding: >-
+    Astra review of d3f179e3e: runtime.go:343/359 replaces confirmed finish
+    with late cancellation/A2A failure; runtime.go:317 leaves the begun session
+    running after oversized initial context; compaction.py:277 loses provider
+    finish reason and lets SDK repair tool/empty compactor replies; loop.py:248
+    sends the entire Stage input as compactor objective; runtime.go:124 rejects
+    65 calls before usage accounting. Reproductions cover actual host operations
+    and the Python loop with its real HTTP Gateway adapter. The common Runtime
+    path originated in V488-002; V489-001 exposes it to Router and removes the
+    former correct Go paths.
+  siblings: >-
+    Both modeled strategies use the same host and loop and are covered here.
+    Required append failures must still block a candidate, preserving permanent
+    rejection and final failed-candidate retryability. Passthrough owns its
+    existing completion path. Worker one-shot summarizers share the Gateway
+    adapter but keep their ordinary response/tool policy; provider adaptation
+    stays at the LLM boundary, and PlannerHost remains deployment-neutral.
+scope:
+  in:
+    - Preserve a terminal candidate after confirmed required writes before late transport/cancellation; retain required-write precedence.
+    - Persist permanent initial context/envelope rejection and preserve classified invocation failures.
+    - Preserve bounded provider compactor outcomes, suppress SDK repair/dispatch, charge known usage once and reject invalid checkpoint replies correctly.
+    - Obtain only the canonical Stage objective for compactor input through the existing host operation.
+    - Bound multi-call selection metadata without discarding known model usage or allowing effects.
+    - Real PostgreSQL and actual Python loop/HTTP regressions, headless regression, owning spec and updated P3 evidence.
+  out:
+    - P2 recovery, a production LocalHost, new endpoints/tables/leases/receipts, configured model changes or deployment.
+acceptance_criteria:
+  - id: A1
+    text: Both strategies persist and recover confirmed succeeded or final failed candidates despite late cancellation/transport failure; failed required appends still prevent completion with correct retryability.
+  - id: A2
+    text: Oversized initial context or execution envelope leaves a completed permanent session outcome, no model/Worker effects and no invocation-in-progress session on reload.
+  - id: A3
+    text: Actual HTTP compactor stop/tool_calls/function_call/empty/filter/length/invalid replies preserve classification and usage, make at most one provider/admission call and never publish a rejected checkpoint or invoke a tool.
+  - id: A4
+    text: A large legal Stage parameter remains in the protected main context but does not inflate the compactor objective; the same loop runs with an injected local host.
+  - id: A5
+    text: Rejected parallel choices including 65 calls are charged exactly once, dispatch nothing and allow a corrected next choice within existing budgets; wire metadata remains bounded.
+  - id: A6
+    text: Each new regression fails against the pre-fix behavior; full touched packages, Runtime, wire, lint and relevant process scenarios pass with skips stated. Evidence and P3 readiness are updated without merging.
+tests:
+  - command: go test -race -tags=integration -count=1 ./internal/planner/... ./internal/scheduler ./internal/controlplane ./internal/httpapi/privateartifacts ./internal/app
+    covers: [A1, A2, A3, A5, A6]
+  - command: make test-runtime
+    covers: [A3, A4, A5, A6]
+  - command: make test-wire-cross-language
+    covers: [A4, A5, A6]
+  - command: make test-release-process-e2e-a
+    covers: [A1, A3, A4, A5, A6]
+  - command: make test-release-process-e2e-c
+    covers: [A1, A3, A4, A5, A6]
+  - command: make test-release-process-e2e-b
+    covers: [A1, A3, A4, A5, A6]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5, A6]
+
+implementation_commit: 1a1d659ce5c2b7c120fc7ce874cd38b76900ea4a
+verification:
+  result: passed
+  evidence: tasks/evidence/v489-003-runtime-planner-review-fixes.json
+  go: 791 root tests in 11 packages passed with race detection and real PostgreSQL; complete gate uses GOFLAGS=-p=1 and canonical TMPDIR. Router wrapper is covered through the common host and real process path.
+  runtime: 6795 cases passed, 136 declared skips; full Runtime and 610-case compaction report validators passed after the final received-response correction. Skips are not passing coverage.
+  processes: All 71 distinct process roots passed without skips, matching test-e2e; A/B/C and the focused distributed Router scenario have passing report validators.
+  wire: 434 fixtures, 465 Go and 300 Python shared tests passed; 450 Python contract and 1642 selected shared cases passed. One optional heavy-I/O skip is not coverage.
+  lint: Full make docs-dependencies lint passed with exit zero; final task/spec/backlog and generated dependency graph are checked after closing this task.
+  negative_controls: New Go regressions fail with pre-fix source overlays; Python actual-loop/HTTP regressions fail with pre-fix modules. Temporary overlays are removed; source contains only corrected behavior.
+  boundary: One injected Python loop and PlannerHost remain; no new dependency, store, endpoint, lease or receipt. P3 production source delta is -2684 lines versus main, excluding tests/generated/docs. Go ADK and GenAI remain absent.
+  cleanup: All test connections joined before explicit database removal; exclusive PostgreSQL cluster on port 55494 was stopped and removed. Primary main and the user's portable-kit task/backlog are preserved.
+  delivery: Ready on codex/runtime-planner-p3-plan; not merged, pushed or deployed. P2 recovery and production LocalHost stay deferred/out of scope. No live model, Linux/rootless optional or complete release-verify acceptance is claimed.

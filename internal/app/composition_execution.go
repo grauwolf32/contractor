@@ -38,7 +38,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"google.golang.org/adk/v2/model"
 )
 
 type executorServices struct {
@@ -93,13 +92,6 @@ func configureExecutors(
 	if err != nil {
 		return executorServices{}, fmt.Errorf("configure A2A client: %w", err)
 	}
-	plannerModelFactory := func(access planner.ModelAccess) (model.LLM, error) {
-		return streamline.NewOpenAICompatibleModel(streamline.GatewaySettings{
-			Recovery: access.Recovery, FailureSignatures: access.LLMGateway.EffectiveFailureSignatures(),
-			URL: access.LLMGateway.URL, Token: access.Token, Model: access.ModelPolicy.Model,
-			MaxOutputTokens: access.ModelPolicy.MaxOutputTokens, RequestTimeout: cfg.PlannerTimeout,
-		})
-	}
 	streamlineLimits := streamline.DefaultLimits()
 	streamlineLimits.MaxWallTime = cfg.PlannerTimeout
 	scanArtifacts, err := plannerscan.NewServiceArtifacts(artifactService)
@@ -107,9 +99,9 @@ func configureExecutors(
 		return executorServices{}, err
 	}
 	plannerRegistry, err := composePlanners(plannerAdapters{
-		sessions: plannerSessions, planSessions: plannerSessions, adkSessions: plannerSessions,
+		sessions: plannerSessions, planSessions: plannerSessions,
 		scanSessions: plannerSessions, invoker: a2aInvoker, inspector: artifactInspector,
-		stateReader: runtimeClient, memory: plannerMemoryStore, model: plannerModelFactory,
+		stateReader: runtimeClient, memory: plannerMemoryStore,
 		limits: streamlineLimits, scanArtifacts: scanArtifacts,
 	})
 	if err != nil {
@@ -126,13 +118,11 @@ func configureExecutors(
 type plannerAdapters struct {
 	sessions      planner.SessionService
 	planSessions  planner.PlanSessionService
-	adkSessions   streamline.ADKSessionFactory
 	scanSessions  planner.ScanSessionService
 	invoker       planner.WorkerInvoker
 	inspector     planner.ArtifactInspector
 	stateReader   planner.WorkerStateReader
 	memory        plannermemory.Store
-	model         streamline.InvocationModelFactory
 	limits        streamline.Limits
 	scanArtifacts plannerscan.ArtifactStore
 }
@@ -147,16 +137,13 @@ func composePlanners(adapters plannerAdapters) (*planner.Registry, error) {
 		return nil, err
 	}
 	streamlineFactory, err := streamline.NewRuntimeFactoryWithMemory(
-		adapters.planSessions, adapters.adkSessions, adapters.invoker, adapters.inspector,
+		adapters.planSessions, adapters.invoker, adapters.inspector,
 		adapters.stateReader, adapters.memory, adapters.limits,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("configure Streamline Planner: %w", err)
 	}
-	routerFactory, err := plannerrouter.NewConfiguredFactoryWithMemory(
-		adapters.planSessions, adapters.adkSessions, adapters.invoker, adapters.inspector,
-		adapters.stateReader, adapters.memory, adapters.model, adapters.limits,
-	)
+	routerFactory, err := plannerrouter.NewRuntimeFactory(streamlineFactory)
 	if err != nil {
 		return nil, fmt.Errorf("configure Router Planner: %w", err)
 	}

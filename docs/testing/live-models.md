@@ -21,8 +21,8 @@ The checked-in LiteLLM profile exposes `planner-model` and `worker-model`.
 In another terminal, run the bounded real-model Router scenario:
 
 ```shell
-CONTRACTOR_LIVE_LLM_URL='http://127.0.0.1:4000/v1' \
-CONTRACTOR_LIVE_LLM_TOKEN='replace-with-litellm-master-key' \
+CONTRACTOR_LIVE_LLM_GATEWAY_URL='http://127.0.0.1:4000/v1' \
+CONTRACTOR_LIVE_LLM_GATEWAY_TOKEN='replace-with-litellm-master-key' \
 CONTRACTOR_LIVE_LLM_MODEL='planner-model' \
   make test-live-routing
 ```
@@ -32,14 +32,11 @@ to the checked-in LiteLLM profile's `planner-model` alias. Set
 `CONTRACTOR_LIVE_LLM_MODEL` explicitly when evaluating another published model.
 
 Use a token accepted by the Gateway; the local profile above requires one. The
-evaluation uses the production Go ADK Router and exact four-tool contract,
-offers builder and reviewer descriptions, and requires exactly one dispatch to
-reviewer. The Worker and artifact lookup are deterministic because the normal
-E2E gate already covers A2A and mTLS. Success prints only a model-name SHA-256,
-bounded call count, selected logical Worker, and outcome. Failure reports a
-stable Contractor error code; inspect local LiteLLM/LM Studio logs separately
-when provider diagnostics are needed. Provider bodies and tokens are never
-printed by the test command.
+evaluation uses the production Python PlannerLoop and Gateway adapter, offers
+builder and reviewer descriptions, and requires exactly one dispatch to reviewer.
+The local host supplies deterministic plan and Worker results; ordinary process
+checks cover Server, PostgreSQL, A2A and mTLS. Provider bodies and tokens are
+never printed by the test command.
 
 The live check found and now guards an important dialect detail: no-argument
 tools still carry an explicit closed JSON object schema with `properties: {}`.
@@ -47,15 +44,15 @@ LM Studio rejects the otherwise equivalent schema when that field is omitted.
 
 ## Planner Gateway dialect
 
-The live Gateway dialect check is opt-in so normal tests remain deterministic.
-It verifies that a deployed LiteLLM or LM Studio model returns a real function
-tool call through the same Go adapter:
+The live Router check uses the same Python PlannerLoop and Gateway adapter as
+Runtime, with two named test Workers behind a local host. Configure the desired
+model explicitly; no live calls are part of deterministic acceptance.
 
 ```shell
-CONTRACTOR_STREAMLINE_LIVE_GATEWAY_URL='http://127.0.0.1:4000/v1' \
-CONTRACTOR_STREAMLINE_LIVE_GATEWAY_TOKEN='replace-with-gateway-token' \
-CONTRACTOR_STREAMLINE_LIVE_MODEL='planner-model' \
-  go test -count=1 -run TestLiveGatewayToolCall ./tests/integration/streamline
+CONTRACTOR_LIVE_LLM_GATEWAY_URL='http://127.0.0.1:4000/v1' \
+CONTRACTOR_LIVE_LLM_GATEWAY_TOKEN='replace-with-gateway-token' \
+CONTRACTOR_LIVE_LLM_MODEL='planner-model' \
+  make test-live-routing
 ```
 
 ## Worker and summarizer Gateway checks

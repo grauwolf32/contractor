@@ -43,7 +43,7 @@ func TestSharedPlannerTelemetrySubtaskIDs(t *testing.T) {
 func TestModeledPlannerReportsThreeDigitSubtaskID(t *testing.T) {
 	for _, profile := range []plannerProfile{streamlineProfile, routerProfile} {
 		t.Run(profile.ref, func(t *testing.T) {
-			llm := &scriptedModel{}
+			llm := &operationScript{}
 			for range 101 {
 				llm.steps = append(llm.steps, addSubtaskStep("Inspect", "Read source"))
 			}
@@ -61,8 +61,8 @@ func TestModeledPlannerReportsThreeDigitSubtaskID(t *testing.T) {
 			workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{
 				"builder": stageResult("done", map[string]contracts.ArtifactRef{}),
 			}}
-			factory, err := newFactory(profile, sessions, sessions, workers, &fakeInspector{},
-				unavailableWorkerStateReader{}, nil, testModelFactory(llm), Limits{})
+			factory, err := runtimeScriptFactory(profile, sessions, workers, &fakeInspector{},
+				unavailableWorkerStateReader{}, llm, Limits{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -117,7 +117,7 @@ func TestModeledFactoriesEnforceWorkflowSubtaskLimitThroughTools(t *testing.T) {
 	for _, profile := range []plannerProfile{streamlineProfile, routerProfile} {
 		for _, limit := range []contracts.PlannerSubtaskLimit{0, 1, 64} {
 			t.Run(fmt.Sprintf("%s/%d", profile.ref, limit), func(t *testing.T) {
-				llm := &scriptedModel{}
+				llm := &operationScript{}
 				for range limit.Effective() + 1 {
 					llm.steps = append(llm.steps, addSubtaskStep("Inspect", "Read the source"))
 				}
@@ -126,8 +126,8 @@ func TestModeledFactoriesEnforceWorkflowSubtaskLimitThroughTools(t *testing.T) {
 					"error": map[string]any{"code": "plan_budget", "message": "Plan budget reached", "retryable": false},
 				}))
 				sessions := newFakeSessions()
-				factory, err := newFactory(profile, sessions, sessions, &fakeWorkerInvoker{}, &fakeInspector{},
-					unavailableWorkerStateReader{}, nil, testModelFactory(llm), Limits{})
+				factory, err := runtimeScriptFactory(profile, sessions, &fakeWorkerInvoker{}, &fakeInspector{},
+					unavailableWorkerStateReader{}, llm, Limits{})
 				if err != nil {
 					t.Fatal(err)
 				}

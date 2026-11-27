@@ -4,8 +4,6 @@ import (
 	"context"
 	"math"
 	"time"
-
-	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 // Request contains only safe control metadata. Provider messages and secrets
@@ -73,38 +71,6 @@ func (s *Service) Update(ctx context.Context, allocationID string, request Reque
 	}
 	route := run.bindings[binding]
 	return s.update(run, binding, route.key, request, route.timeout)
-}
-
-type Participant struct {
-	service                    *Service
-	runID, stageID, key, model string
-	signatures                 llmgateway.GatewayFailureSignatures
-}
-
-// Planner references an already admitted Stage; it never registers a missing
-// participant. An old Participant cannot recreate state after cleanup or restart.
-func (s *Service) Planner(runID, stageID string, route Route, signatures llmgateway.GatewayFailureSignatures) *Participant {
-	return &Participant{s, runID, stageID, route.Key(), route.Model, signatures}
-}
-func (p *Participant) Update(ctx context.Context, request Request) (Decision, error) {
-	request.Model = p.model
-	if err := request.Validate(); err != nil {
-		return Decision{}, err
-	}
-	if err := checkContext(ctx); err != nil {
-		return Decision{}, err
-	}
-	s := p.service
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	run := s.runs[p.runID]
-	if run == nil || run.stageID != p.stageID {
-		if request.Terminal() {
-			return Decision{}, nil
-		}
-		return Decision{}, ErrUnavailable
-	}
-	return s.update(run, bindingKey{"planner:" + p.stageID, p.model}, p.key, request, s.plannerRequestTimeout)
 }
 
 // update holds only the process mutex; no database or network work runs here.

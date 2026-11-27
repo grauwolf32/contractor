@@ -93,7 +93,7 @@ test-lease-integration:
 	cd runtime && uv run pytest tests/test_lease_watchdog.py
 
 test-streamline: require-database
-	go test -count=1 ./internal/planner/streamline ./internal/planner/session ./tests/integration/streamline
+	go test -count=1 ./internal/planner/...
 
 test-faults: require-database
 	go test -race -count=1 ./tests/faults ./tests/integration/lease ./internal/helpers/requestid ./internal/controlplane ./internal/httpapi/privateartifacts ./internal/mtls ./internal/config/... ./internal/planner/...

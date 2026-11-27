@@ -9,7 +9,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannerscan "github.com/grauwolf32/contractor/internal/planner/scan"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
-	"google.golang.org/adk/v2/model"
 )
 
 // The Server composes exactly one PlannerFactory for each registered
@@ -18,12 +17,10 @@ func TestComposedPlannerFactoriesMatchTheDescriptorRegistry(t *testing.T) {
 	registry, err := composePlanners(plannerAdapters{
 		sessions:      struct{ planner.SessionService }{},
 		planSessions:  struct{ planner.PlanSessionService }{},
-		adkSessions:   struct{ streamline.ADKSessionFactory }{},
 		scanSessions:  struct{ planner.ScanSessionService }{},
 		invoker:       struct{ planner.WorkerInvoker }{},
 		inspector:     struct{ planner.ArtifactInspector }{},
 		stateReader:   struct{ planner.WorkerStateReader }{},
-		model:         func(planner.ModelAccess) (model.LLM, error) { return nil, nil },
 		limits:        streamline.DefaultLimits(),
 		scanArtifacts: struct{ plannerscan.ArtifactStore }{},
 	})

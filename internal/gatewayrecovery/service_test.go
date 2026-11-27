@@ -7,8 +7,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
 type fixture struct {
@@ -27,15 +25,15 @@ func memoryFixture(t *testing.T) *fixture {
 	s.now = func() time.Time { return f.now }
 	return f
 }
-func (f *fixture) participant(t *testing.T, id string, route Route) *Participant {
+func (f *fixture) participant(t *testing.T, id string, route Route) *allocationParticipant {
 	t.Helper()
 	if allowed, err := f.s.Admit(t.Context(), id, "stage-"+id, []Route{route}); err != nil || !allowed {
 		t.Fatalf("admit %s: %v %v", id, allowed, err)
 	}
 	f.s.Activate(id, "stage-"+id)
-	return f.s.Planner(id, "stage-"+id, route, llmgateway.DefaultGatewayFailureSignatures())
+	return newAllocationParticipant(t, f.s, id, "stage-"+id, route)
 }
-func update(t *testing.T, p *Participant, id, action string) Decision {
+func update(t *testing.T, p *allocationParticipant, id, action string) Decision {
 	t.Helper()
 	r := Request{RequestID: id, Action: action}
 	if action == "failed" {
@@ -64,7 +62,7 @@ func TestMemoryRecoverySharedProbeQueuePriorityAndIndependentRoutes(t *testing.T
 	var wg sync.WaitGroup
 	decisions := make([]Decision, 2)
 	errs := make([]error, 2)
-	ps := []*Participant{a, b}
+	ps := []*allocationParticipant{a, b}
 	for i, p := range ps {
 		wg.Go(func() {
 			decisions[i], errs[i] = p.Update(t.Context(), Request{RequestID: fmt.Sprint("probe", i), Action: "acquire"})
@@ -243,7 +241,7 @@ func TestMemoryRecoveryRestartForgetsStateAndRejectsOldAllocation(t *testing.T) 
 	if _, err := fresh.Update(t.Context(), "old", Request{Model: f.route.Model, RequestID: "late", Action: "failed", Code: "model_unavailable"}); !IsUnavailable(err) {
 		t.Fatal("old allocation adopted")
 	}
-	old := fresh.Planner("old", "stage-old", f.route, llmgateway.DefaultGatewayFailureSignatures())
+	old := &allocationParticipant{fresh, "unbound", f.route.Model}
 	if _, err := old.Update(t.Context(), Request{RequestID: "late", Action: "acquire"}); !IsUnavailable(err) {
 		t.Fatal("old Planner adopted")
 	}
@@ -403,4 +401,24 @@ func TestMemoryRecoveryPlannerAllocationUsesPlannerLease(t *testing.T) {
 	if _, err := f.s.Update(t.Context(), "planner", Request{Model: f.route.Model, RequestID: "late", Action: "acquire"}); !IsUnavailable(err) {
 		t.Fatal("retired Planner allocation recreated recovery state")
 	}
+}
+
+// Exercise the production allocation protocol rather than the removed Go-model
+// participant. This fixture owns no recovery state.
+type allocationParticipant struct {
+	s         *Service
+	id, model string
+}
+
+func newAllocationParticipant(t *testing.T, s *Service, run, stage string, route Route) *allocationParticipant {
+	t.Helper()
+	id := "test-planner-" + stage
+	if err := s.Bind(t.Context(), id, run, stage, route, true); err != nil {
+		t.Fatal(err)
+	}
+	return &allocationParticipant{s, id, route.Model}
+}
+func (p *allocationParticipant) Update(ctx context.Context, r Request) (Decision, error) {
+	r.Model = p.model
+	return p.s.Update(ctx, p.id, r)
 }

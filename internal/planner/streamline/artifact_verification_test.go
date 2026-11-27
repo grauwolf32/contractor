@@ -73,7 +73,7 @@ func TestStreamlineClassifiesWorkerArtifactVerificationAndContinues(t *testing.T
 			if err != nil {
 				t.Fatal(err)
 			}
-			model := &scriptedModel{steps: []modelStep{
+			model := &operationScript{steps: []operationStep{
 				addSubtaskStep("Analyze the input", "Produce the final report"),
 				functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 				functionStep(finishToolName, map[string]any{
@@ -88,8 +88,8 @@ func TestStreamlineClassifiesWorkerArtifactVerificationAndContinues(t *testing.T
 				"builder": stageResult("report ready", map[string]contracts.ArtifactRef{"report": report}),
 			}}
 			sessions := newFakeSessions()
-			factory, err := NewConfiguredFactory(
-				sessions, sessions, workers, inspector, unavailableWorkerStateReader{}, testModelFactory(model), Limits{},
+			factory, err := runtimeScriptFactory(streamlineProfile,
+				sessions, workers, inspector, unavailableWorkerStateReader{}, model, Limits{},
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -173,19 +173,19 @@ func TestStreamlineFinishRejectionKeepsVerificationClass(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			failedFinish := func(resultArtifacts map[string]any) modelStep {
+			failedFinish := func(resultArtifacts map[string]any) operationStep {
 				return functionStep(finishToolName, map[string]any{
 					"outcome": string(stageresult.StageFailed), "summary": "partial report", "artifacts": resultArtifacts,
 					"error": map[string]any{"code": "incomplete", "message": "the review is incomplete", "retryable": false},
 				})
 			}
-			model := &scriptedModel{steps: []modelStep{
+			model := &operationScript{steps: []operationStep{
 				failedFinish(map[string]any{"report": materialArgs("review", "report")}),
 				failedFinish(test.retry),
 			}}
 			sessions := newFakeSessions()
-			factory, err := NewConfiguredFactory(
-				sessions, sessions, &fakeWorkerInvoker{}, inspector, unavailableWorkerStateReader{}, testModelFactory(model), Limits{},
+			factory, err := runtimeScriptFactory(streamlineProfile,
+				sessions, &fakeWorkerInvoker{}, inspector, unavailableWorkerStateReader{}, model, Limits{},
 			)
 			if err != nil {
 				t.Fatal(err)

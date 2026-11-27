@@ -15,13 +15,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/stageresult"
-	"google.golang.org/adk/v2/model"
-	adksession "google.golang.org/adk/v2/session"
-	"google.golang.org/genai"
 )
 
-// loadPlan reads one session's plan through LoadPlans, the read the Run
-// detail uses.
 func loadPlan(
 	ctx context.Context, service *Service, identity planner.SessionIdentity,
 ) (planner.PlannerPlanProjection, bool, error) {
@@ -114,109 +109,6 @@ func TestServiceCreatesOneInvocationAndRecoversCompletion(t *testing.T) {
 	}
 	if store.startCalls != 1 {
 		t.Fatalf("StartPlanner calls = %d", store.startCalls)
-	}
-}
-
-func TestADKSessionPersistsOnlyBoundedRedactedEventFacts(t *testing.T) {
-	const secret = "sk-provider-error-and-tool-argument"
-	const memoryContent = "memory-content-retention-canary"
-	const memoryDescription = "memory-description-retention-canary"
-	const memoryTag = "memory-tag-retention-canary"
-	const statePath = "private/workspace-path-retention-canary.go"
-	const stateCursor = "opaque-state-cursor-retention-canary"
-	store := &memoryStore{execution: runstore.StageExecution{
-		StageExecutionID: "stage-1", State: runstore.StagePreparing,
-		StageSpecSnapshot: json.RawMessage(`{"session":"isolated"}`),
-	}}
-	sequence := 0
-	service, err := New(store, Options{NewID: func(prefix string) (string, error) {
-		sequence++
-		return fmt.Sprintf("%s%d", prefix, sequence), nil
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	started, err := service.Begin(t.Context(), "stage-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := service.RecordRequest(t.Context(), started.Identity, planner.RequestFacts{
-		Bindings: []string{"builder"}, ObjectiveDigest: "sha256:" + strings.Repeat("a", 64),
-		InstructionsDigest: "sha256:" + strings.Repeat("b", 64),
-		ParameterNames:     []string{}, Artifacts: map[string]contracts.ArtifactRef{},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	adk, err := service.NewADKSession(t.Context(), started.Identity, ADKOptions{
-		AppName: "contractor_streamline", UserID: "stage-1",
-		AllowedTools: []string{"finish", "write_memory", "read_memory", "list_read_files"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	created, err := adk.Create(t.Context(), &adksession.CreateRequest{
-		AppName: "contractor_streamline", UserID: "stage-1", SessionID: started.Identity.SessionID,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	event := adksession.NewEvent(t.Context(), "adk-invocation")
-	event.Author = "streamline_planner"
-	event.LLMResponse = model.LLMResponse{
-		Content: &genai.Content{Role: genai.RoleModel, Parts: []*genai.Part{
-			genai.NewPartFromText("provider payload " + secret),
-			genai.NewPartFromFunctionCall("finish", map[string]any{"summary": secret}),
-			genai.NewPartFromFunctionCall("write_memory", map[string]any{
-				"name": "safe_note", "content": memoryContent,
-				"description": memoryDescription, "tags": []any{memoryTag},
-			}),
-			genai.NewPartFromFunctionResponse("read_memory", map[string]any{
-				"name": "safe_note", "content": memoryContent,
-				"description": memoryDescription, "tags": []any{memoryTag},
-			}),
-			genai.NewPartFromFunctionResponse("list_read_files", map[string]any{
-				"ok": true, "page": map[string]any{
-					"files": []any{statePath}, "nextCursor": stateCursor, "complete": true,
-				},
-			}),
-			genai.NewPartFromFunctionCall(secret, map[string]any{"token": secret}),
-		}},
-		UsageMetadata: &genai.GenerateContentResponseUsageMetadata{
-			PromptTokenCount: 11, CandidatesTokenCount: 7,
-		},
-	}
-	if err := adk.AppendEvent(t.Context(), created.Session, event); err != nil {
-		t.Fatal(err)
-	}
-	if len(store.events) != 3 {
-		t.Fatalf("events = %+v", store.events)
-	}
-	persisted := string(store.events[2].RunEvent.Data)
-	runPersisted := persisted
-	for _, canary := range []string{
-		secret, memoryContent, memoryDescription, memoryTag, statePath, stateCursor,
-	} {
-		if strings.Contains(persisted, canary) || strings.Contains(runPersisted, canary) ||
-			strings.Contains(string(store.session.State), canary) {
-			t.Fatalf("ADK facts retained %q: event=%s run=%s", canary, persisted, runPersisted)
-		}
-	}
-	if strings.Contains(persisted, "summary") ||
-		!strings.Contains(persisted, `"functionCalls":["finish","write_memory","unknown"]`) ||
-		!strings.Contains(persisted, `"functionResults":["read_memory","list_read_files"]`) {
-		t.Fatalf("unsafe or incomplete ADK facts: event=%s run=%s", persisted, runPersisted)
-	}
-	state, err := decodeState(store.session.State)
-	if err != nil || state.ADKEventCount != 1 {
-		t.Fatalf("state = (%+v, %v)", state, err)
-	}
-	if strings.Contains(string(store.session.State), "adkInputTokens") ||
-		strings.Contains(string(store.session.State), "adkOutputTokens") {
-		t.Fatalf("state retained unused token counters: %s", store.session.State)
-	}
-	if !strings.Contains(runPersisted, `"inputTokens":11`) ||
-		!strings.Contains(runPersisted, `"outputTokens":7`) {
-		t.Fatalf("run event lost per-event token counts: %s", runPersisted)
 	}
 }
 
@@ -510,10 +402,6 @@ func (s *memoryStore) AppendPlannerEvent(
 	return nil
 }
 
-// checkStoredStateSize refuses a session state as the
-// planner_session_state_size CHECK does: on the length of its jsonb text,
-// which puts a space after every member colon and element comma, so compact
-// JSON within the Server's pre-check can still exceed it.
 func checkStoredStateSize(state json.RawMessage) error {
 	if storedJSONBTextBytes(state) > 2*1024*1024 {
 		return fmt.Errorf("%w: planner_session_state_size", runstore.ErrInvalid)
@@ -563,9 +451,6 @@ func (s *memoryStore) runEventKinds() []runstore.RunEventKind {
 	return result
 }
 
-// TestPlannerFactWorkerNamesUseTheLogicalAgentNameGrammar holds a recorded
-// dispatch to the logical Agent name grammar (WFL-R84) the Run event store
-// applies, so the session never accepts a fact whose append must fail.
 func TestPlannerFactWorkerNamesUseTheLogicalAgentNameGrammar(t *testing.T) {
 	fact := planner.PlannerFact{
 		Kind: planner.PlannerEventDispatchSelected, Key: "selected:dispatch-0001",
@@ -583,9 +468,6 @@ func TestPlannerFactWorkerNamesUseTheLogicalAgentNameGrammar(t *testing.T) {
 	}
 }
 
-// TestPlannerFactIDsUseTheRunEventGrammar is the regression for facts whose
-// subtask or call ID the session accepted while the Run event store rejected
-// the append ("01", "dispatch-x"), which failed the Planner permanently.
 func TestPlannerFactIDsUseTheRunEventGrammar(t *testing.T) {
 	selected := planner.PlannerFact{
 		Kind: planner.PlannerEventDispatchSelected, Key: "selected:dispatch-0001",

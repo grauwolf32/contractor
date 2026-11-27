@@ -1,0 +1,456 @@
+{
+  "task": "V489-001",
+  "date": "2026-11-27",
+  "result": "passed",
+  "base": "b899210ff0a39ff8e8d5ff1a0308083eac323bb4",
+  "implementation_commit": "8f541e1ff96300eef89d7094c4023f885309b38e",
+  "boundary": {
+    "runtime": "Streamline and Router share one Python PlannerLoop, model/Gateway adapter and optional compactor. Each has a separately accounted planner@1 allocation; N prepared Workers use N+1 fleet slots.",
+    "server": "Existing plan, budget, result/Artifact acceptance, Memory/State, WorkerInvoker, session and recovery gate owners remain. Direct native declarations and bounded activity replace the Go SDK bridge.",
+    "headless": "The real Router loop, named Workers, compaction and exact sampling/output policy run with injected model and test PlannerHost without Server/A2A/bootstrap imports. No second engine or production LocalHost was added.",
+    "authority": "Both factory descriptors share the same host registry, selected by trusted Stage/allocation identity. Existing grant/fence/ordered reply replay is retained. No new endpoint, table, lease, receipt, public event shape or configuration identity.",
+    "deferred": "P2 replacement/resume, Worker restore and Server restart recovery remain deferred. Loss still uses ordinary interruption/retry."
+  },
+  "runtime": {
+    "command": "make test-runtime",
+    "passed": 6774,
+    "skipped": 136,
+    "skip_reasons": {
+      "OPS-R1: Linux byte-exact filename/long-path fixture; excluded from macOS acceptance": 2,
+      "run make test-interactsh-protocol for the pinned upstream server": 1,
+      "live LLM Gateway environment is not configured": 4,
+      "OPS-R1: the allocation-scoped Podman backend needs Linux host capabilities (AF_UNIX SOCK_SEQPACKET socket pairs, pidfd_open)": 94,
+      "explicit real-rootless startup capability gate": 2,
+      "explicit real-rootless deployment/workflow gate": 1,
+      "explicit real-rootless command execution gate": 13,
+      "explicit real-rootless owner-process gate": 3,
+      "explicit real Podman release gate": 5,
+      "explicit real gate: make test-podman-supervisor": 11
+    },
+    "report_sha256": "da6275f2490daaed763663190a753ecc2740032eac5f98004f7508d354e46039",
+    "compaction_selected_cases_passed": 610,
+    "verifiers": [
+      "verify-runtime",
+      "verify-compaction-runtime"
+    ],
+    "targeted_planner_check": "Planner loop/Gateway/host cases passed; four live checks skipped without configured Gateway. Final full Runtime run also includes the real-HTTP empty-tool-schema regression."
+  },
+  "go": {
+    "command": "go test -json -race -tags=integration -count=1 ./internal/planner/... ./internal/scheduler ./internal/controlplane ./internal/runstore ./internal/httpapi/privateartifacts ./internal/app ./internal/telemetry ./internal/gatewayrecovery ./internal/archtest ./internal/config/... ./internal/contracts/...",
+    "effective_passing_packages": 28,
+    "effective_root_passes": 1269,
+    "report_precedence": "Full package run, then complete affected packages after dead Gateway/cost removal, then final reporting package after unused AddUSD removal. Latest complete report wins per package; removed test-only collector coverage is not counted.",
+    "reports": [
+      {
+        "path": "/private/tmp/v489-go-final.jsonl",
+        "sha256": "353a58c940e68eb89360be5eb492bb1d581f0bdd9abfc53997b971241222459d",
+        "packages": [
+          "github.com/grauwolf32/contractor/internal/app",
+          "github.com/grauwolf32/contractor/internal/archtest",
+          "github.com/grauwolf32/contractor/internal/config",
+          "github.com/grauwolf32/contractor/internal/config/auditprofile",
+          "github.com/grauwolf32/contractor/internal/config/resolved",
+          "github.com/grauwolf32/contractor/internal/contracts",
+          "github.com/grauwolf32/contractor/internal/contracts/auditcontract",
+          "github.com/grauwolf32/contractor/internal/contracts/contractstest",
+          "github.com/grauwolf32/contractor/internal/contracts/control",
+          "github.com/grauwolf32/contractor/internal/contracts/engagementcontract",
+          "github.com/grauwolf32/contractor/internal/contracts/llmgateway",
+          "github.com/grauwolf32/contractor/internal/contracts/memorycontract",
+          "github.com/grauwolf32/contractor/internal/contracts/reporting",
+          "github.com/grauwolf32/contractor/internal/contracts/runlabels",
+          "github.com/grauwolf32/contractor/internal/contracts/runtimesettings",
+          "github.com/grauwolf32/contractor/internal/contracts/scan",
+          "github.com/grauwolf32/contractor/internal/controlplane",
+          "github.com/grauwolf32/contractor/internal/gatewayrecovery",
+          "github.com/grauwolf32/contractor/internal/httpapi/privateartifacts",
+          "github.com/grauwolf32/contractor/internal/planner",
+          "github.com/grauwolf32/contractor/internal/planner/a2a",
+          "github.com/grauwolf32/contractor/internal/planner/scan",
+          "github.com/grauwolf32/contractor/internal/planner/session",
+          "github.com/grauwolf32/contractor/internal/planner/stateview",
+          "github.com/grauwolf32/contractor/internal/planner/streamline",
+          "github.com/grauwolf32/contractor/internal/runstore",
+          "github.com/grauwolf32/contractor/internal/scheduler",
+          "github.com/grauwolf32/contractor/internal/telemetry"
+        ],
+        "passed_test_records": 4519,
+        "skips": [
+          "github.com/grauwolf32/contractor/internal/planner/router",
+          "TestPlannerOTLPCollectorProjection"
+        ],
+        "root_passes": 1270
+      },
+      {
+        "path": "/private/tmp/v489-go-cleanup.jsonl",
+        "sha256": "4ddf495bf55c78254941850d3bc986869ed7b5195ca5b898e6bd20325c058705",
+        "packages": [
+          "github.com/grauwolf32/contractor/internal/contracts",
+          "github.com/grauwolf32/contractor/internal/contracts/auditcontract",
+          "github.com/grauwolf32/contractor/internal/contracts/contractstest",
+          "github.com/grauwolf32/contractor/internal/contracts/control",
+          "github.com/grauwolf32/contractor/internal/contracts/engagementcontract",
+          "github.com/grauwolf32/contractor/internal/contracts/llmgateway",
+          "github.com/grauwolf32/contractor/internal/contracts/memorycontract",
+          "github.com/grauwolf32/contractor/internal/contracts/reporting",
+          "github.com/grauwolf32/contractor/internal/contracts/runlabels",
+          "github.com/grauwolf32/contractor/internal/contracts/runtimesettings",
+          "github.com/grauwolf32/contractor/internal/contracts/scan",
+          "github.com/grauwolf32/contractor/internal/gatewayrecovery",
+          "github.com/grauwolf32/contractor/internal/planner",
+          "github.com/grauwolf32/contractor/internal/planner/a2a",
+          "github.com/grauwolf32/contractor/internal/planner/scan",
+          "github.com/grauwolf32/contractor/internal/planner/session",
+          "github.com/grauwolf32/contractor/internal/planner/stateview",
+          "github.com/grauwolf32/contractor/internal/planner/streamline",
+          "github.com/grauwolf32/contractor/internal/scheduler"
+        ],
+        "passed_test_records": 2379,
+        "skips": [
+          "github.com/grauwolf32/contractor/internal/planner/router"
+        ],
+        "root_passes": 557
+      },
+      {
+        "path": "/private/tmp/v489-reporting-final.jsonl",
+        "sha256": "540e5ee10f18168b7d206576b30656108f36dc9d5c14dc35b9f84157a728de70",
+        "packages": [
+          "github.com/grauwolf32/contractor/internal/contracts/reporting"
+        ],
+        "passed_test_records": 148,
+        "skips": [],
+        "root_passes": 29
+      }
+    ],
+    "declared_skips": [
+      "router package has no standalone tests: its production delegate is exercised in common host and real process tests",
+      "TestPlannerOTLPCollectorProjection requires CONTRACTOR_TEST_OTLP_ENDPOINT; deterministic telemetry tests passed"
+    ]
+  },
+  "processes": {
+    "commands": [
+      "make -j2 RELEASE_REPORTS=/private/tmp/v489-process-ac-final test-release-process-e2e-a test-release-process-e2e-c",
+      "make RELEASE_REPORTS=/private/tmp/v489-process-final test-release-process-e2e-b"
+    ],
+    "distinct_roots": 71,
+    "same_as_full_test_e2e": true,
+    "shards": [
+      {
+        "path": "/private/tmp/v489-process-ac-final/go-process-a.jsonl",
+        "sha256": "50bc99ff763f5cba60c916a5a3bb97e167628a5c9504f12a667a0ce885003579",
+        "packages": [
+          "github.com/grauwolf32/contractor/tests/e2e"
+        ],
+        "roots": [
+          "TestArtifactFilePublicationAcrossProcesses",
+          "TestArtifactHistoryAcrossProductionProcesses",
+          "TestArtifactImagesAcrossProcesses",
+          "TestAuditBasicExactHandoffAcrossProductionProcesses",
+          "TestAuditCommonObservationProfilesAcrossProductionProcesses",
+          "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+          "TestAuditCompactionLeaseLossAcrossProcesses",
+          "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses",
+          "TestAuditFixedHypothesesAcrossProductionProcesses",
+          "TestAuditHypothesisContinuationAcrossProductionProcesses",
+          "TestAuditIncrementalEvidenceAcrossProcesses",
+          "TestAuditPartialJudgmentsAcrossProcesses",
+          "TestAuditWorkspaceAcrossProductionProcesses",
+          "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses",
+          "TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses",
+          "TestLocalGoToPythonArtifactCopy",
+          "TestMemoryMVPProcesses",
+          "TestOpenAPIPreparedWorkServerOperation",
+          "TestProjectSitemapHTTPCollectionAcrossProductionProcesses",
+          "TestProjectSitemapReportImportsAcrossProductionProcesses",
+          "TestProjectSitemapServerOperationsAcrossProductionProcesses",
+          "TestProjectSitemapToolsAcrossProductionProcesses",
+          "TestRuntimeManagedArtifactWritesAcrossProcesses",
+          "TestRuntimeManagedMaterialVersionsAcrossProcesses",
+          "TestRuntimeManagedSitemapEditsAcrossProcesses",
+          "TestWorkflowMaterialSetsAcrossProductionProcesses"
+        ],
+        "passed_test_records": 43,
+        "skips": []
+      },
+      {
+        "path": "/private/tmp/v489-process-final/go-process-b.jsonl",
+        "sha256": "1f7a88e71a9b7d0a68d454476e8692614384ebdc8c7406f9e0d55fd38a4993be",
+        "packages": [
+          "github.com/grauwolf32/contractor/tests/e2e"
+        ],
+        "roots": [
+          "TestAuditProgramCatalogReplacementRestartsServer",
+          "TestEngagementHTTPBoundsAcrossProcesses",
+          "TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses",
+          "TestEngagementHTTPLifecycleAcrossProcesses",
+          "TestEngagementHTTPRouteMatrixAcrossProcesses",
+          "TestEngagementHTTPSelectedEvidenceAcrossProcesses",
+          "TestEngagementIdentityLifecycleAcrossProcesses",
+          "TestEngagementIdentitySessionsAcrossProcesses",
+          "TestEngagementOrdinaryRunAcrossProcesses",
+          "TestLabelDrivenRuntimeConfigurationAcrossProcesses",
+          "TestRoutingAndEscalationProductionBoundaries",
+          "TestRunMetadataLabelsAcrossProcesses",
+          "TestRuntimeAdapterSelectionAllowsAdditionalCapabilities",
+          "TestSchedulerConcurrencyAcrossProductionProcesses",
+          "TestTaintAnnotationsAcrossRealRuntimeProcess",
+          "TestWorkerSummarizerProductionBoundaries"
+        ],
+        "passed_test_records": 71,
+        "skips": []
+      },
+      {
+        "path": "/private/tmp/v489-process-ac-final/go-process-c.jsonl",
+        "sha256": "464068b2dc1df08f1c70533fdadba17669d86e9bd7a379b3124509cd244d6750",
+        "packages": [
+          "github.com/grauwolf32/contractor/tests/e2e"
+        ],
+        "roots": [
+          "TestAgentSkillsMVPProcesses",
+          "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",
+          "TestDiscoveryFactsAcrossProcesses",
+          "TestEvalFindingProjectNavigationAcrossProcesses",
+          "TestFactExtractionAcrossProcesses",
+          "TestFactExtractionAuditEvalAcrossProcesses",
+          "TestFindingLocationsAcrossProcesses",
+          "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts",
+          "TestFindingsProducerAndReaderAcrossProcesses",
+          "TestFindingsReaderBoundariesAcrossProcesses",
+          "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses",
+          "TestHeterogeneousRuntimeCapabilityPlacement",
+          "TestIndependentFindingsServersAcrossProcesses",
+          "TestMemorySnapshotAcrossProcesses",
+          "TestNucleiWebWithDeterministicScannerAcrossProcesses",
+          "TestProcessDatabaseIsolation",
+          "TestProductionMemoryTemplatesAcrossProcesses",
+          "TestProjectDocumentOutputLimitRecoveryAcrossProcesses",
+          "TestProjectDocumentResponseRecoveryAcrossProcesses",
+          "TestProjectFactsAcrossProcesses",
+          "TestProjectFindingsReaderAcrossProcesses",
+          "TestProjectWorkspaceLifecycleAcrossProductionProcesses",
+          "TestRuntimeAllocationSlotsAcrossProductionProcesses",
+          "TestRuntimeGuidanceAcrossProductionProcesses",
+          "TestRuntimePlacementAcrossProductionProcesses",
+          "TestRuntimePlacementScannerFixture",
+          "TestTraceFindingCoordinatesAcrossProcesses",
+          "TestWorkerCompactionContinuesIsolatedWorker",
+          "TestWorkerSessionModesAcrossProductionProcesses"
+        ],
+        "passed_test_records": 76,
+        "skips": []
+      }
+    ],
+    "verifiers": [
+      "verify-compaction-process A/C",
+      "verify-findings C",
+      "test-audit-basic-e2e --verify-report A",
+      "verify-iterative-process A",
+      "test-audit-composition-e2e --case-set workspace --verify-only A",
+      "test-engagement-http-process --verify-process-report B"
+    ],
+    "coverage": "Router routes builder then reviewer on separate capacity-one Runtime processes, retains exact artifacts and worker-scoped Memory/State. Common Memory/session fixtures use two capacity-two processes for N+1 allocation accounting. The shared allocator four-slot isolation/drain/cancel case also passes."
+  },
+  "wire": {
+    "command": "make test-wire-cross-language",
+    "result": "passed",
+    "fixtures": 434,
+    "go_shared_tests": 465,
+    "python_shared_tests": 300,
+    "runtime_contract_cases": 450,
+    "runtime_shared_selected_cases": 1642,
+    "optional_heavy_io_skips": 1,
+    "log_sha256": "9a01b3a0776b22d429d30efb5c942a7bc3ad60c522387289e31a87ee049e9573"
+  },
+  "other_gates": {
+    "make lint": {
+      "result": "passed",
+      "log_sha256": "bb15547f2db5201b1e5686bf0fb02e081791c3e268f8712697caac66ff22dbff"
+    },
+    "make verify-public-api / verify-public-api-postgres / test-config / verify-architecture": {
+      "result": "passed",
+      "log_sha256": "b4c20afcb7ccea6bb93864786eaac626d0d5b1bc9051759f03c5a61a672d7558"
+    },
+    "shipped_configuration": "Catalog lock validated; no shipped config content/identity changed"
+  },
+  "regression_migration": [
+    {
+      "removed": "Go model runner, callbacks and temperature/SDK characterization tests",
+      "owner": "runtime/tests/test_planner_loop.py, test_planner_gateway.py, test_planner_host.py; injected local Router model asserts configured temperature/output limits and both none/compact modes; real HTTP requests require explicit empty object properties"
+    },
+    {
+      "removed": "Go Gateway HTTP/parser/classifier/provider-cost tests",
+      "owner": "runtime/tests/test_gateway_client.py, test_gateway_error_classification.py, test_gateway_response_bounds.py, test_llm_cost.py, test_shared_gateway_recovery_participant.py; Server retains normalized protocol and report/cost validation"
+    },
+    {
+      "removed": "Go raw conversation/compactor/boundary ledger tests",
+      "owner": "runtime/tests/test_planner_loop.py, test_adk_compaction_contracts.py; real Go host checkpoint acknowledgement/history tests and process worker compaction gate"
+    },
+    {
+      "removed": "ADK session reducer and model-driven session rejection/finish-write tests",
+      "owner": "Direct session PostgreSQL tests, TestPostgresRuntimePlannerOrderedReplayAndRequiredEvent, ClassifiedFailures, CancellationJoinsAdmittedWorker and CheckpointRequiresAcknowledgedMarker; full RunStore/session packages"
+    },
+    {
+      "removed": "Go Router factory/SDK tool and scope callers",
+      "owner": "TestRuntimeToolDeclarationsKeepExactWorkerScopes (1/2/3/64 bindings), TestPostgresRuntimeRouterDispatchHistoryAndReplay, existing real-process routing/observations/shared Memory/session gates"
+    },
+    {
+      "retained": "Artifact verification, subtask bounds and summary continuation domain regressions",
+      "owner": "operationScript drives the real Factory.ExecuteOperation; no test-only Go model engine or replacement execution framework"
+    },
+    {
+      "removed": "tests/integration/streamline SDK-dependent integration/live package",
+      "owner": "make test-streamline selects all actual Planner packages; live Router check now uses the production Python loop/Gateway with injected test host, standard explicit Gateway variables and no deterministic live calls"
+    }
+  ],
+  "negative_controls": [
+    {
+      "name": "routing",
+      "detects": "Unknown/foreign Worker selection cannot dispatch the first Worker",
+      "expected_exit": 1,
+      "result": "failed as intended",
+      "log_sha256": "a961bed0ccd37999e89ce1b512c0e6c2cda8ab88a65d757a2415493ab6c98ac7",
+      "working_tree_mutation": false
+    },
+    {
+      "name": "replay",
+      "detects": "Lost-response replay must succeed with the same ordered reply",
+      "expected_exit": 1,
+      "result": "failed as intended",
+      "log_sha256": "6b948ffcdab39fd48464e821d8c4005b6264079c986b274d4df64df73a23f477",
+      "working_tree_mutation": false
+    },
+    {
+      "name": "double-dispatch",
+      "detects": "Replay cannot invoke a Worker again even if the reply is unchanged",
+      "expected_exit": 1,
+      "result": "failed as intended",
+      "log_sha256": "0da61c3ea8a7b72ebd398b9c13bc27b236a1d9c65006462bb3fefa0e77b2585c",
+      "working_tree_mutation": false
+    },
+    {
+      "name": "double-charge",
+      "detects": "Replay cannot charge known model usage again even if the reply is unchanged",
+      "expected_exit": 1,
+      "result": "failed as intended",
+      "log_sha256": "01c5ac56d0947c8697a1ef8ed7a07b3898b45f31ab110356e432a0d23db39f36",
+      "working_tree_mutation": false
+    },
+    {
+      "name": "event",
+      "detects": "A rejected required finish event cannot be reported as success",
+      "expected_exit": 1,
+      "result": "failed as intended",
+      "log_sha256": "b46f14e83d9d82474ed908267f5c18c2c40d20e234289bc37e7e92c64d44ad24",
+      "working_tree_mutation": false
+    },
+    {
+      "name": "empty-tool-schema",
+      "detects": "The real Planner Gateway request must preserve explicit empty properties after native Go schema marshaling",
+      "expected_exit": 1,
+      "result": "failed as intended before the two-line common Runtime normalization; passed with it",
+      "log_sha256": "91614e7638e0fba347e94b4d0f93f3e58aecbc090d50f78730e4456eab2b1900",
+      "working_tree_mutation": "Regression added first, then minimal production correction"
+    }
+  ],
+  "code_size": {
+    "before": {
+      "go": 164759,
+      "python": 77904
+    },
+    "after": {
+      "go": 162015,
+      "python": 77906
+    },
+    "net": {
+      "go": -2744,
+      "python": 2
+    },
+    "method": "Physical source lines including comments and blanks, cmd/internal non-test Go and runtime/src Python; exclude generated files, testdata and *test helper directories.",
+    "total_net": -2742
+  },
+  "dependencies": {
+    "removed": {
+      "google.golang.org/adk/v2": "direct",
+      "go.opentelemetry.io/otel/trace": "indirect",
+      "rsc.io/ordered": "indirect",
+      "golang.org/x/oauth2": "indirect",
+      "github.com/googleapis/gax-go/v2": "indirect",
+      "go.opentelemetry.io/otel/log": "indirect",
+      "github.com/cespare/xxhash/v2": "indirect",
+      "github.com/go-logr/stdr": "indirect",
+      "go.opentelemetry.io/auto/sdk": "indirect",
+      "github.com/googleapis/enterprise-certificate-proxy": "indirect",
+      "github.com/go-logr/logr": "indirect",
+      "go.opentelemetry.io/otel/metric": "indirect",
+      "go.opentelemetry.io/otel": "indirect",
+      "cloud.google.com/go/compute/metadata": "indirect",
+      "github.com/google/safehtml": "indirect",
+      "github.com/google/go-cmp": "indirect",
+      "cloud.google.com/go/auth": "indirect",
+      "google.golang.org/genai": "direct",
+      "rsc.io/omap": "indirect",
+      "google.golang.org/api": "indirect",
+      "github.com/google/s2a-go": "indirect",
+      "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp": "indirect",
+      "cloud.google.com/go": "indirect"
+    },
+    "before": 73,
+    "after": 50,
+    "sdk_modules_present": false,
+    "module_graph_sha256": "1a86e33832c369815a43af40aea10c829257e12614f9bbf27a497c60191034e1"
+  },
+  "deleted_production_paths": [
+    "Go Planner model runner and callbacks",
+    "Go compactor model/ledger",
+    "Go Gateway HTTP/provider classification/cost/participant adapter",
+    "ADK tool, Memory/State SDK wrappers",
+    "ADK in-memory session/event bridge",
+    "test-only Go cost collector/default-signature/addition helpers without production callers"
+  ],
+  "superseded_attempts": [
+    "Initial Runtime suite lacked Go/ffuf on PATH; its environment failures are not acceptance. Final complete run uses pinned tool PATH.",
+    "First wire run exposed a stale Go reader declaration for a removed provider decoder; manifest ownership was updated and the complete wire gate passed.",
+    "Early process runs exposed old two-slot Router fixture assumptions. Routing now uses three capacity-one processes; shared Memory/session uses capacity two on each of two processes. Superseded A/C processes were stopped; complete A/C targets were rerun.",
+    "A duplicate B attempt briefly shared a report path and was stopped. Neither mixed report is evidence; the accepted complete B report uses its own separate directory.",
+    "Lint exposed dead exports, stale generated dependency HTML and formatting in new Python tests/docs. Dead production code was removed, HTML regenerated with its generator and formatting corrected; final lint passed."
+  ],
+  "cleanup": {
+    "completed": true,
+    "exclusive_postgres_cluster": "/private/tmp/v489-pg",
+    "port": 55493,
+    "client_connections_before_drop": 0,
+    "databases_explicitly_dropped": 4,
+    "cluster_stopped_and_removed": true,
+    "initial_ascii_setup_removed": true,
+    "process_gates_joined": true,
+    "temporary_environment_link_removed": true,
+    "borrowed_owned_environment_restored": "/Users/ruslan/src/contractor-worktrees/runtime-planner-p1-main/runtime/.venv",
+    "negative_overlay_sources_removed": true,
+    "primary_head": "b899210ff0a39ff8e8d5ff1a0308083eac323bb4",
+    "primary_status": [
+      " M tasks/BACKLOG.md",
+      "?? tasks/v486-001-portable-linux-kit.yml"
+    ],
+    "primary_mutations_performed": false,
+    "primary_working_file_sha256": {
+      "tasks/BACKLOG.md": "75510ba9bfe4af79f83c46a6bcb6aa3bb8096b9f38058f8cf7f0fb4bd4627366",
+      "tasks/v486-001-portable-linux-kit.yml": "fec1a80da187967959302f276030ab3f5b91e601982411de12953071cbe73b94"
+    }
+  },
+  "delivery": {
+    "branch": "codex/runtime-planner-p3-plan",
+    "ready_for_merge": true,
+    "merged": false,
+    "pushed": false,
+    "deployed": false,
+    "live_models_run": false,
+    "full_release_verify_claim": false
+  },
+  "final_source_sha256": {
+    "internal/planner/streamline/runtime.go": "a2f92cfbe1a8f782f60508cc5b6fda122ef5a5a365da5f465fb6b7dee3d230e5",
+    "internal/planner/streamline/tools_schema.go": "d3b7207ed4d2d308928a7815b6a0b55aac76785e10e072dbacc4bbcbf83419d0",
+    "internal/planner/session/activity.go": "238f3a3809a2a17a9861a1649fec7a904d211dcead25f288c5ab5ae7756b3136",
+    "runtime/src/contractor_runtime/llm/request.py": "c1c610968a70a3dc0758ed01a8e86780c009460047842fa0eef0cb73f11a9c15",
+    "runtime/src/contractor_runtime/planner/loop.py": "acaa1dcbe1b04380a8fd435505068a1fc68649e49020aaaefb0a895e91af8a84"
+  }
+}

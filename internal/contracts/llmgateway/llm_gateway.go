@@ -93,25 +93,6 @@ var (
 	gatewayFailureCodePattern       = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 )
 
-// DefaultGatewayFailureSignatures is the openai-compatible@1 baseline used when
-// a Gateway declares nothing: the LM Studio unload responses observed through
-// LiteLLM, and inference engine loss after OOM or GPU watchdog failures.
-func DefaultGatewayFailureSignatures() GatewayFailureSignatures {
-	return GatewayFailureSignatures{
-		ModelUnavailable: []GatewayFailureSignature{
-			{Status: 400, MessageEquals: "Model is unloaded."},
-			{Status: 400, MessageEquals: "Model unloaded by user or API request."},
-			{Status: 400, MessageEquals: "Engine protocol predict request failed: fetch failed"},
-			{Status: 400, MessageEquals: "terminated"},
-			{Status: 400, LiteLLMWrapped: "Model is unloaded."},
-			{Status: 400, LiteLLMWrapped: "Model unloaded by user or API request."},
-			{Status: 400, LiteLLMWrapped: "Engine protocol predict request failed: fetch failed"},
-			{Status: 400, LiteLLMWrapped: "terminated"},
-		},
-		PermanentCodes: []string{"insufficient_quota", "budget_exceeded", "context_length_exceeded"},
-	}
-}
-
 func (s GatewayFailureSignatures) Validate() error {
 	if len(s.ModelUnavailable) > MaximumGatewayFailureSignatures || len(s.PermanentCodes) > MaximumGatewayFailureSignatures {
 		return contracts.Invalidf("llmGatewayConfig.failureSignatures lists at most %d entries per kind", MaximumGatewayFailureSignatures)
@@ -164,17 +145,9 @@ type ResolvedLLMGatewayConfig struct {
 	URL               string                       `json:"url" strictjson:"required"`
 	CredentialManager *LLMGatewayCredentialManager `json:"credentialManager,omitempty"`
 	// FailureSignatures is present only when the Gateway declares its own set,
-	// which keeps the digest of existing declarations stable; readers use
-	// EffectiveFailureSignatures.
+	// which keeps the digest of declarations stable; Runtime applies protocol
+	// defaults when the selection is absent.
 	FailureSignatures *GatewayFailureSignatures `json:"failureSignatures,omitempty"`
-}
-
-// EffectiveFailureSignatures returns the declared set or the protocol default.
-func (c ResolvedLLMGatewayConfig) EffectiveFailureSignatures() GatewayFailureSignatures {
-	if c.FailureSignatures != nil {
-		return c.FailureSignatures.Clone()
-	}
-	return DefaultGatewayFailureSignatures()
 }
 
 // Clone returns a copy that shares no pointer or slice with c. It is the one

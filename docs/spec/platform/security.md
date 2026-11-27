@@ -116,12 +116,12 @@ flowchart LR
   (SEC-R63); Server Git traffic passes the Git remote allowlist
   ([Git import](../artifacts/git-import.md)).
 - **LLM Gateway.** Two components cross this boundary with secrets. The Server
-  makes Server-side Planner model calls with credentials it decrypts just in
-  time (SEC-R28, [RCF-R46](../configuration/runtime-config.md)) and sends a
+  decrypts model credentials just in time for allocation preparation
+  (SEC-R28, [RCF-R46](../configuration/runtime-config.md)) and sends a
   Gateway admin key only to the bound Gateway URL
-  ([RCF-R60](../configuration/runtime-config.md)). A Runtime Agent reaches the
-  Gateway with the LLM Gateway settings supplied in its RuntimeSettings
-  (SEC-R13, SEC-R29).
+  ([RCF-R60](../configuration/runtime-config.md)). Runtime Planners and Workers
+  make model calls with the LLM Gateway settings supplied in their allocation
+  RuntimeSettings (SEC-R13, SEC-R29).
 - **Content channels.** The selected LLM Gateway receives the model
   conversation ([Memory](../tools/memory.md)), and a configured telemetry sink receives bounded content after exact
   known credential replacement

@@ -1,7 +1,6 @@
 package streamline
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"sort"
@@ -13,59 +12,38 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
-	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/planner/stateview"
-	"google.golang.org/adk/v2/model"
-	adksession "google.golang.org/adk/v2/session"
 )
 
 type plannerProfile struct {
-	runtime          bool
-	ref              string
-	adkAppName       string
-	agentName        string
-	agentDescription string
-	routesWorkers    bool
+	ref           string
+	agentName     string
+	routesWorkers bool
 }
 
 var (
 	streamlineProfile = plannerProfile{
-		ref: resolved.StreamlinePlanner, adkAppName: "contractor_streamline", agentName: "streamline_planner",
-		agentDescription: "Plans one immutable Contractor Stage using its sole prepared Worker.",
+		ref: resolved.StreamlinePlanner, agentName: "streamline_planner",
 	}
 	routerProfile = plannerProfile{
-		ref: resolved.RouterPlanner, adkAppName: "contractor_router", agentName: "router_planner",
-		agentDescription: "Plans one immutable Contractor Stage and routes each subtask to one fixed logical Worker.",
-		routesWorkers:    true,
+		ref: resolved.RouterPlanner, agentName: "router_planner",
+		routesWorkers: true,
 	}
 )
-
-type ADKSessionFactory interface {
-	NewADKSession(
-		context.Context,
-		planner.SessionIdentity,
-		plannersession.ADKOptions,
-	) (adksession.Service, error)
-}
 
 type Factory struct {
 	runtimeHosts *sync.Map
 	profile      plannerProfile
 	sessions     planner.PlanSessionService
-	adkSessions  ADKSessionFactory
 	invoker      planner.WorkerInvoker
 	inspector    planner.ArtifactInspector
 	stateReader  planner.WorkerStateReader
 	memoryStore  plannermemory.Store
-	modelFactory InvocationModelFactory
 	limits       Limits
 }
 
-type InvocationModelFactory func(planner.ModelAccess) (model.LLM, error)
-
 func NewRuntimeFactoryWithMemory(
 	sessions planner.PlanSessionService,
-	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
 	stateReader planner.WorkerStateReader,
@@ -73,49 +51,19 @@ func NewRuntimeFactoryWithMemory(
 	limits Limits,
 ) (*Factory, error) {
 	profile := streamlineProfile
-	profile.runtime = true
-	return newFactory(
-		profile, sessions, adkSessions, invoker, inspector, stateReader,
-		memoryStore, nil, limits,
-	)
-}
-
-// NewConfiguredFactoryWithMemory builds the local agent engine shared with Router.
-// Production Streamline uses NewRuntimeFactoryWithMemory.
-func NewConfiguredFactoryWithMemory(sessions planner.PlanSessionService, adkSessions ADKSessionFactory, invoker planner.WorkerInvoker, inspector planner.ArtifactInspector, stateReader planner.WorkerStateReader, memory plannermemory.Store, models InvocationModelFactory, limits Limits) (*Factory, error) {
-	return newFactory(streamlineProfile, sessions, adkSessions, invoker, inspector, stateReader, memory, models, limits)
-}
-
-func NewConfiguredRouterDelegateWithMemory(
-	sessions planner.PlanSessionService,
-	adkSessions ADKSessionFactory,
-	invoker planner.WorkerInvoker,
-	inspector planner.ArtifactInspector,
-	stateReader planner.WorkerStateReader,
-	memoryStore plannermemory.Store,
-	modelFactory InvocationModelFactory,
-	limits Limits,
-) (*Factory, error) {
-	factory, err := NewConfiguredFactoryWithMemory(sessions, adkSessions, invoker, inspector, stateReader, memoryStore, modelFactory, limits)
-	if err == nil {
-		factory.profile = routerProfile
-	}
-	return factory, err
+	return newFactory(profile, sessions, invoker, inspector, stateReader, memoryStore, limits)
 }
 
 func newFactory(
 	profile plannerProfile,
 	sessions planner.PlanSessionService,
-	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
 	stateReader planner.WorkerStateReader,
 	memoryStore plannermemory.Store,
-	modelFactory InvocationModelFactory,
 	limits Limits,
 ) (*Factory, error) {
-	if sessions == nil || adkSessions == nil || invoker == nil || inspector == nil || stateReader == nil ||
-		(modelFactory == nil && !profile.runtime) {
+	if sessions == nil || invoker == nil || inspector == nil || stateReader == nil {
 		return nil, fmt.Errorf("model-backed Planner dependencies are incomplete")
 	}
 	normalized, err := normalizeLimits(limits)
@@ -123,13 +71,20 @@ func newFactory(
 		return nil, err
 	}
 	return &Factory{
-		profile: profile, sessions: sessions, adkSessions: adkSessions, invoker: invoker, runtimeHosts: &sync.Map{},
+		profile: profile, sessions: sessions, invoker: invoker, runtimeHosts: &sync.Map{},
 		inspector: inspector, stateReader: stateReader, memoryStore: memoryStore,
-		modelFactory: modelFactory, limits: normalized,
+		limits: normalized,
 	}, nil
 }
 
 func (f *Factory) Ref() string { return f.profile.ref }
+
+// CreateRouter uses the shared Runtime host registry with Router's logical tools.
+func (f *Factory) CreateRouter(invocation planner.Invocation) (planner.Planner, error) {
+	routed := *f
+	routed.profile = routerProfile
+	return routed.Create(invocation)
+}
 
 func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error) {
 	bindings, err := validateInvocation(f.profile, invocation)
@@ -219,8 +174,8 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	instance := &streamlinePlanner{
 		profile: f.profile, invocation: invocation, request: request, workers: workers, plan: plan, runtimeHosts: f.runtimeHosts,
 		resultContract: cloneResultContract(invocation.Stage.Result.Artifacts),
-		sessions:       f.sessions, adkSessions: f.adkSessions,
-		invoker: f.invoker, inspector: f.inspector, stateViews: stateViews,
+		sessions:       f.sessions,
+		invoker:        f.invoker, inspector: f.inspector, stateViews: stateViews,
 		limits: selectedLimits,
 	}
 	if invocation.Context.Continuation != nil {
@@ -232,35 +187,10 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	if err != nil {
 		return nil, fmt.Errorf("configure %s context compaction: %w", f.profile.ref, err)
 	}
-	if f.profile.runtime {
-		if invocation.RuntimeExecutor == nil {
-			return nil, fmt.Errorf("Runtime Streamline requires a prepared Planner allocation")
-		}
-		instance.compactionSettings = compaction
-		return instance, nil
+	if invocation.RuntimeExecutor == nil {
+		return nil, fmt.Errorf("Runtime Planner requires a prepared Planner allocation")
 	}
-	selectedModel, err := f.modelFactory(*invocation.ModelAccess)
-	if err != nil {
-		return nil, fmt.Errorf("configure %s model client: %w", f.profile.ref, err)
-	}
-	instance.model = selectedModel
-	if compaction != nil {
-		// The compactor shares the effective Planner Gateway and credential
-		// with its own exact ModelPolicy. It has no Gateway recovery
-		// participant: the Gateway failure signatures classify its failures.
-		access := *invocation.ModelAccess
-		access.ModelPolicy = compaction.compactor
-		access.Recovery = nil
-		compactorModel, err := f.modelFactory(access)
-		if err != nil {
-			return nil, fmt.Errorf("configure %s compactor model client: %w", f.profile.ref, err)
-		}
-		compactor, ok := compactorModel.(compactionModel)
-		if !ok {
-			return nil, fmt.Errorf("%s compactor model client does not support tool-free compaction", f.profile.ref)
-		}
-		instance.compactionSettings, instance.compactor = compaction, compactor
-	}
+	instance.compactionSettings = compaction
 	return instance, nil
 }
 

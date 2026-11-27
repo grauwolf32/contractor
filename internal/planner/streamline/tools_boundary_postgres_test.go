@@ -33,7 +33,7 @@ func TestPostgresPlannerOperationsWithoutADKContext(t *testing.T) {
 					t.Fatal(err)
 				}
 				workers := appendProbeWorkers()
-				factory := migrationBoundaryFactory(t, profile, sessions, workers, &scriptedModel{})
+				factory := runtimeTestFactory(t, profile, sessions, workers)
 				instance, err := factory.Create(appendProbeInvocation(profile))
 				if err != nil {
 					t.Fatal(err)

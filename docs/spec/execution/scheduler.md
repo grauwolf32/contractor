@@ -1162,7 +1162,7 @@ invocations recover before new queued work.
 successful responses cannot reopen it. Repeated failure reports are idempotent
 even when other invocations report failures between retries. A probe lease
 lasts its holder's own request timeout (`workerRequestTimeout` for a Runtime
-Worker, `plannerTimeout` for a Server-side Planner) plus the initial probe
+Worker, `plannerTimeout` for a Runtime Planner) plus the initial probe
 delay, never the longer of the two. Admitting a Stage onto a blocked, due
 route that no live invocation waits for reserves that probe for the admitted
 Run until its first request. A later admission of the same Run first
@@ -1197,11 +1197,11 @@ joined before invocation cleanup continues. Terminal Stage commits clear durable
 waiting even when an earlier projection failed. On Server restart, ordinary
 Stage recovery interrupts prior invocations (SCH-R100); their waits are discarded.
 
-**SCH-R108.** A Runtime call or Server-side Planner request that abandons a
+**SCH-R108.** A Runtime Worker or Planner request that abandons a
 granted attempt, through cancellation or an unexpected failure at any point
 before its terminal update is acknowledged (including while reporting the
-outcome), re-delivers that idempotent update as a bounded best effort, the
-Planner on a context detached from its cancelled invocation, so the leased
+outcome), re-delivers that idempotent update as a bounded best effort
+independent of the cancelled invocation, so the leased
 probe is not held until it expires. A `failed` report is re-delivered as
 `released`. An attempt abandoned before any outcome
 reports `released`, which relinquishes the probe without reopening the blocked
@@ -1223,7 +1223,7 @@ generating its answer.
 **SCH-R110.** Cancellation before a grant is known sends nothing and leaves an
 unknown lease to its expiry or to the end of its Stage (SCH-R107).
 
-**SCH-R111.** A Server-side Planner records model outcomes in process memory.
+**SCH-R111.** A Runtime Planner records model outcomes in its process memory.
 A database failure while projecting the Run's waiting state cannot discard a
 model reply or permanent rejection, alter its charged usage, or repeat that
 model request. Scheduler reconciles the projection independently (SCH-R107).
@@ -1668,8 +1668,8 @@ recovery and cleanup converge at every valid limit. Project deletion's use of
 ordinary cancellation is specified in [DEL-R44,
 DEL-R46](../artifacts/retention-and-deletion.md).
 
-**SCH-R185.** Streamline includes its separate Planner allocation in the same
-all-or-nothing placement batch as its fixed Worker. Scheduler excludes that
+**SCH-R185.** Streamline and Router include their separate Planner allocation in the same
+all-or-nothing placement batch as their fixed Workers. Scheduler excludes that
 executor from logical Worker handles passed to Planner operations. Planner
 model execution runs in Runtime, while Server retains claim ownership, Stage
 acceptance, canonical plan writes and sequential dispatch through WorkerInvoker.

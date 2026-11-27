@@ -2,13 +2,13 @@ package planner
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
-	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -48,7 +48,6 @@ func InvocationInstrumentation(invocation Invocation) telemetry.PlannerInstrumen
 // for construction of this invocation's model client and is never persisted in
 // Planner state or events.
 type ModelAccess struct {
-	Recovery    *gatewayrecovery.Participant
 	ModelPolicy contracts.ResolvedModelPolicy
 	LLMGateway  llmgateway.ResolvedLLMGatewayConfig
 	Credential  *llmgateway.LLMCredentialRef
@@ -167,6 +166,7 @@ type PlannerFact struct {
 // PlanSessionService is the modeled-Planner extension of SessionService.
 // Passthrough does not create a subtask plan and only needs SessionService.
 type PlanSessionService interface {
+	RecordActivity(context.Context, SessionIdentity, Activity) error
 	SessionService
 	RecordPlan(context.Context, SessionIdentity, PlannerPlanTransition) error
 	RecordFact(context.Context, SessionIdentity, PlannerFact) error
@@ -185,4 +185,32 @@ type ReportProvider interface {
 type Factory interface {
 	Ref() string
 	Create(Invocation) (Planner, error)
+}
+
+// Activity is the bounded, content-free projection of one confirmed model/tool
+// operation. Arguments and conversation text never enter this type.
+type Activity struct {
+	Kind              string   `json:"kind"`
+	Author            string   `json:"author"`
+	FunctionCalls     []string `json:"functionCalls"`
+	FunctionResults   []string `json:"functionResults"`
+	InputTokens       int64    `json:"inputTokens,omitempty"`
+	OutputTokens      int64    `json:"outputTokens,omitempty"`
+	SkipSummarization bool     `json:"skipSummarization,omitempty"`
+	Escalate          bool     `json:"escalate,omitempty"`
+	Truncated         bool     `json:"truncated,omitempty"`
+}
+
+func (a Activity) Validate() error {
+	if a.Kind != "adk_event" || (a.Author != "streamline_planner" && a.Author != "router_planner") || len(a.FunctionCalls) > 32 || len(a.FunctionResults) > 32 || a.InputTokens < 0 || a.OutputTokens < 0 {
+		return fmt.Errorf("invalid Planner activity")
+	}
+	for _, names := range [][]string{a.FunctionCalls, a.FunctionResults} {
+		for _, name := range names {
+			if len(name) == 0 || len(name) > 128 {
+				return fmt.Errorf("invalid Planner activity function")
+			}
+		}
+	}
+	return nil
 }

@@ -3,11 +3,12 @@ package planner
 import (
 	"context"
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 type Registry struct {
@@ -48,7 +49,7 @@ func (r *Registry) Create(ref string, invocation Invocation) (Planner, error) {
 }
 
 // ExecuteOperation routes an allocation-authenticated callback to the current
-// Streamline invocation. Its Factory owns registration and removal during Run.
+// modeled invocation. Both strategy factories share this host registry.
 func (r *Registry) ExecuteOperation(ctx context.Context, stageID, allocationID string, request contracts.PlannerOperation) (contracts.PlannerOperationResult, error) {
 	if r != nil {
 		if factory, ok := r.factories[resolved.StreamlinePlanner].(interface {

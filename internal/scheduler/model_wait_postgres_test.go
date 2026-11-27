@@ -4,13 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
+	"github.com/grauwolf32/contractor/internal/runstore"
 	"log/slog"
 	"testing"
 	"time"
-
-	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
-	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
-	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 // blockRecoveryRoute uses the production participant protocol rather than SQL
@@ -23,7 +21,7 @@ func blockRecoveryRoute(t *testing.T, service *gatewayrecovery.Service, route ga
 		t.Fatalf("outage admission %v %v", ok, err)
 	}
 	service.Activate(id, id)
-	p := service.Planner(id, id, route, llmgateway.DefaultGatewayFailureSignatures())
+	p := bindTestPlannerRecovery(t, service, id, id, route)
 	if _, err := p.Update(t.Context(), gatewayrecovery.Request{RequestID: "failure", Action: "failed", Code: "model_unavailable", RetryAfterSeconds: 3600}); err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +200,7 @@ func TestCancellationImmediatelyUnregistersMemoryRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	service.Activate("run", "stage")
-	p := service.Planner("run", "stage", route, llmgateway.DefaultGatewayFailureSignatures())
+	p := bindTestPlannerRecovery(t, service, "run", "stage", route)
 	if _, err := p.Update(t.Context(), gatewayrecovery.Request{RequestID: "outage", Action: "failed", Code: "model_unavailable"}); err != nil {
 		t.Fatal(err)
 	}
@@ -217,4 +215,22 @@ func TestCancellationImmediatelyUnregistersMemoryRecovery(t *testing.T) {
 	if status, err := service.ReadStatus(t.Context(), "run", "stage"); err != nil || status != nil {
 		t.Fatalf("cancelled status: %+v %v", status, err)
 	}
+}
+
+type testRecoveryAllocation struct {
+	s         *gatewayrecovery.Service
+	id, model string
+}
+
+func bindTestPlannerRecovery(t *testing.T, s *gatewayrecovery.Service, run, stage string, route gatewayrecovery.Route) testRecoveryAllocation {
+	t.Helper()
+	id := "test-planner-" + stage
+	if err := s.Bind(t.Context(), id, run, stage, route, true); err != nil {
+		t.Fatal(err)
+	}
+	return testRecoveryAllocation{s, id, route.Model}
+}
+func (p testRecoveryAllocation) Update(ctx context.Context, r gatewayrecovery.Request) (gatewayrecovery.Decision, error) {
+	r.Model = p.model
+	return p.s.Update(ctx, p.id, r)
 }

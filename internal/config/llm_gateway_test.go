@@ -176,9 +176,6 @@ func TestSharedLLMGatewayFailureSignaturesAreExplicitDigestedAndDefaulted(t *tes
 	if baselineGateway.FailureSignatures != nil {
 		t.Fatalf("undeclared signatures were materialized on the body: %+v", baselineGateway.FailureSignatures)
 	}
-	if effective := baselineGateway.EffectiveFailureSignatures(); len(effective.ModelUnavailable) != 8 || len(effective.PermanentCodes) != 3 {
-		t.Fatalf("protocol default = %+v", effective)
-	}
 
 	root := copyCoreFixture(t)
 	writeFile(t, filepath.Join(root, "llm-gateways/local_litellm.yaml"), []byte(signedGatewayManifest))

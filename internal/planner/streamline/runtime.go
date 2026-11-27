@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"sort"
 	"sync"
 	"time"
 
@@ -14,13 +12,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/planner"
-	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
-	"google.golang.org/adk/v2/model"
-	adksession "google.golang.org/adk/v2/session"
-	"google.golang.org/adk/v2/tool"
-	"google.golang.org/genai"
 )
 
 // runtimeHost is owned by the current Planner.Run. The last ordered response is
@@ -32,8 +25,6 @@ type runtimeHost struct {
 	state           *executionState
 	identity        planner.SessionIdentity
 	allowed         map[string]struct{}
-	events          adksession.Service
-	session         adksession.Session
 	mu              sync.Mutex
 	sequence        int
 	last            []byte
@@ -93,7 +84,7 @@ func (f *Factory) ExecuteOperation(ctx context.Context, stageID, allocationID st
 func (h *runtimeHost) execute(ctx context.Context, request contracts.PlannerOperation) (contracts.PlannerOperationResult, *planner.Error) {
 	reply := contracts.PlannerOperationResult{APIVersion: contracts.APIVersion, Result: json.RawMessage(`{}`)}
 	var value any
-	var event *adksession.Event
+	var event *planner.Activity
 	switch request.Name {
 	case "before_model":
 		var args struct {
@@ -115,12 +106,12 @@ func (h *runtimeHost) execute(ctx context.Context, request contracts.PlannerOper
 			return reply, failure
 		}
 		h.modelPhase = "main"
-		projected := &model.LLMRequest{}
-		if err := h.planner.prepareGuidance(h.state, projected); err != nil {
+		guidance, err := h.planner.prepareGuidance(h.state)
+		if err != nil {
 			return reply, invalidRuntimeOperation()
 		}
 		capture := h.startModel("model.generate", h.planner.invocation.ModelAccess.ModelPolicy.Model)
-		value = map[string]any{"guidance": h.planner.guidance.Parts[0].Text, "plan": planView(h.planner.plan.Snapshot()), "captureContent": capture}
+		value = map[string]any{"guidance": guidance, "plan": planView(h.planner.plan.Snapshot()), "captureContent": capture}
 	case "after_model":
 		var args struct {
 			Input   int32              `json:"inputTokens" strictjson:"required"`
@@ -130,36 +121,33 @@ func (h *runtimeHost) execute(ctx context.Context, request contracts.PlannerOper
 			Content string             `json:"content,omitempty"`
 			Cost    *reporting.LLMCost `json:"cost,omitempty"`
 		}
-		if strictjson.DecodeNonNull(request.Arguments, &args) != nil || args.Input < 0 || args.Output < 0 || args.Cached < 0 || len(args.Calls) > contracts.MaxPlannerTools || h.modelPhase != "main" || !h.acceptCost(args.Cost) {
+		if strictjson.DecodeNonNull(request.Arguments, &args) != nil || args.Input < 0 || args.Output < 0 || args.Cached < 0 || h.modelPhase != "main" || !h.acceptCost(args.Cost) {
 			return reply, invalidRuntimeOperation()
 		}
-		response := &model.LLMResponse{UsageMetadata: &genai.GenerateContentResponseUsageMetadata{PromptTokenCount: args.Input, CandidatesTokenCount: args.Output, CachedContentTokenCount: args.Cached}, Content: &genai.Content{Role: "model"}}
-		for _, name := range args.Calls {
-			response.Content.Parts = append(response.Content.Parts, &genai.Part{FunctionCall: &genai.FunctionCall{Name: name}})
-		}
-		replacement, err := h.state.afterModel(response, h.allowed)
+		usage := &modelUsage{PromptTokenCount: args.Input, CandidatesTokenCount: args.Output, CachedContentTokenCount: args.Cached}
+		rejected, err := h.state.afterModel(usage, args.Calls, h.allowed)
 		if len(args.Content) <= telemetry.MaxContentBytes && len(args.Content) > 0 {
 			telemetry.CapturePlannerOutput(h.modelSpan, func() any { return json.RawMessage(args.Content) })
 		}
 		if err != nil {
 			failure := planner.FailureFrom(err)
-			h.endModel("failed", failure.Code, response.UsageMetadata)
+			h.endModel("failed", failure.Code, usage)
 			return reply, planner.NewError(failure.Code, failure.Message, failure.Retryable, err)
 		}
 		h.modelPhase = ""
-		if h.planner.finishRecovery && !singleFinish(response) {
-			h.endModel("failed", "planner_tool_selection_invalid", response.UsageMetadata)
+		if h.planner.finishRecovery && (len(args.Calls) != 1 || args.Calls[0] != finishToolName) {
+			h.endModel("failed", "planner_tool_selection_invalid", usage)
 			return reply, planner.NewError("planner_tool_selection_invalid", "Document recovery requires exactly one finish", true, nil)
 		}
-		h.endModel("succeeded", "", response.UsageMetadata)
-		if replacement == nil && len(args.Calls) == 1 {
+		h.endModel("succeeded", "", usage)
+		if !rejected && len(args.Calls) == 1 {
 			h.nextTool = args.Calls[0]
 		}
-		value = map[string]bool{"rejected": replacement != nil}
-		event = adksession.NewEvent(ctx, h.identity.InvocationID)
-		event.LLMResponse = *response
-		if replacement != nil {
-			event.LLMResponse = *replacement
+		value = map[string]bool{"rejected": rejected}
+		event = h.activity()
+		event.InputTokens, event.OutputTokens = int64(args.Input), int64(args.Output)
+		if !rejected {
+			event.FunctionCalls = append(event.FunctionCalls, args.Calls...)
 		}
 	case "model_failed":
 		var args struct {
@@ -176,26 +164,23 @@ func (h *runtimeHost) execute(ctx context.Context, request contracts.PlannerOper
 		if strictjson.DecodeNonNull(request.Arguments, &args) != nil || h.modelPhase == "" || !h.acceptCost(args.Cost) || (args.Usage != nil && (args.Usage.Input < 0 || args.Usage.Output < 0)) {
 			return reply, invalidRuntimeOperation()
 		}
-		var usage *genai.GenerateContentResponseUsageMetadata
+		var usage *modelUsage
 		if args.Usage != nil {
-			usage = &genai.GenerateContentResponseUsageMetadata{PromptTokenCount: args.Usage.Input, CandidatesTokenCount: args.Usage.Output}
+			usage = &modelUsage{PromptTokenCount: args.Usage.Input, CandidatesTokenCount: args.Usage.Output}
 		}
 		switch args.Kind {
 		case "invalid_response":
 			h.endModel("failed", "planner_gateway_invalid_response", usage)
-			rejected := &gatewayResponseRejected{}
-			if args.Usage != nil {
-				rejected.usage = &genai.GenerateContentResponseUsageMetadata{PromptTokenCount: args.Usage.Input, CandidatesTokenCount: args.Usage.Output}
-			}
+
 			if h.modelPhase == "main" && args.Usage != nil && (args.EmptyStop || args.OutputLimited) && h.planner.readyForDocumentRecovery() {
-				if failure := h.state.chargeUsage(rejected.usage); failure != nil {
+				if failure := h.state.chargeUsage(usage); failure != nil {
 					return reply, failure
 				}
 				h.modelPhase, h.planner.finishRecovery = "", true
 				reply.Result = json.RawMessage(`{"recoverFinish":true}`)
 				return reply, nil
 			}
-			return reply, h.state.rejectedGatewayResponse(rejected)
+			return reply, h.state.rejectedGatewayResponse(usage)
 		case "rejected":
 			if !contracts.ValidName(args.Code) || args.Usage != nil {
 				return reply, invalidRuntimeOperation()
@@ -249,11 +234,19 @@ func (h *runtimeHost) execute(ctx context.Context, request contracts.PlannerOper
 			}
 			value = p.listSubtasks(ctx, state)
 		case executeCurrentSubtaskToolName:
-			var args workerCallArgs
-			if strictjson.DecodeNonNull(request.Arguments, &args) != nil {
-				return reply, invalidRuntimeOperation()
+			if p.profile.routesWorkers {
+				var args routerWorkerCallArgs
+				if strictjson.DecodeNonNull(request.Arguments, &args) != nil {
+					return reply, invalidRuntimeOperation()
+				}
+				value, reply.Stop = p.routeWorker(ctx, state, identity, args)
+			} else {
+				var args workerCallArgs
+				if strictjson.DecodeNonNull(request.Arguments, &args) != nil {
+					return reply, invalidRuntimeOperation()
+				}
+				value, reply.Stop = p.callWorker(ctx, state, identity, p.workers[0], args.SubtaskID)
 			}
-			value, reply.Stop = p.callWorker(ctx, state, identity, p.workers[0], args.SubtaskID)
 		case finishToolName:
 			var args finishArgs
 			if strictjson.DecodeNonNull(request.Arguments, &args) != nil {
@@ -262,36 +255,43 @@ func (h *runtimeHost) execute(ctx context.Context, request contracts.PlannerOper
 			result := p.finish(ctx, state, identity, args)
 			value, reply.Stop, reply.Escalate = result, result.Accepted, result.Accepted
 		case readContextHistoryToolName:
-			var args historyArgs
-			if strictjson.DecodeNonNull(request.Arguments, &args) != nil {
-				return reply, invalidRuntimeOperation()
+			if p.profile.routesWorkers {
+				var args routerHistoryArgs
+				if strictjson.DecodeNonNull(request.Arguments, &args) != nil {
+					return reply, invalidRuntimeOperation()
+				}
+				value = p.routeHistory(state, identity.SessionID, args)
+			} else {
+				var args historyArgs
+				if strictjson.DecodeNonNull(request.Arguments, &args) != nil {
+					return reply, invalidRuntimeOperation()
+				}
+				value = p.readHistory(state, identity.SessionID, p.workers[0].logicalName, args.Cursor)
 			}
-			value = p.readHistory(state, identity.SessionID, p.workers[0].logicalName, args.Cursor)
 		default:
 			var args map[string]any
 			if strictjson.DecodeNonNull(request.Arguments, &args) != nil {
 				return reply, invalidRuntimeOperation()
 			}
 			if bindings := p.memoryBindings(request.Name); len(bindings) > 0 {
-				value, _ = (&plannerMemoryTool{planner: p, state: state, operation: request.Name, bindings: bindings}).run(ctx, args)
+				value, _ = (&plannerMemoryTool{planner: p, state: state, operation: request.Name, bindings: bindings, router: p.profile.routesWorkers}).run(ctx, args)
 			} else {
-				value, _ = (&plannerStateTool{planner: p, state: state, operation: request.Name, bindings: p.stateBindings(request.Name)}).run(ctx, args)
+				value, _ = (&plannerStateTool{planner: p, state: state, operation: request.Name, bindings: p.stateBindings(request.Name), router: p.profile.routesWorkers}).run(ctx, args)
 			}
 		}
-		event = adksession.NewEvent(ctx, h.identity.InvocationID)
-		event.Content = &genai.Content{Role: "user", Parts: []*genai.Part{{FunctionResponse: &genai.FunctionResponse{Name: request.Name, Response: map[string]any{}}}}}
+		event = h.activity()
+		event.FunctionResults = append(event.FunctionResults, request.Name)
 	}
 	if event != nil {
-		event.Author = h.planner.profile.agentName
-		event.Actions.SkipSummarization = reply.Stop
-		event.Actions.Escalate = reply.Escalate
-		if err := h.events.AppendEvent(ctx, h.session, event); err != nil {
+		event.SkipSummarization, event.Escalate = reply.Stop, reply.Escalate
+		if err := h.planner.sessions.RecordActivity(ctx, h.identity, *event); err != nil {
 			if result, _ := h.state.terminal(); result != nil {
 				return reply, planner.CompletionWriteError(planner.Completion{Result: result}, err)
 			}
 			return reply, planner.SessionError("record Runtime Planner event", err)
 		}
 	}
+
 	encoded, err := json.Marshal(value)
 	if err != nil {
 		return reply, invalidRuntimeOperation()
@@ -304,32 +304,19 @@ func invalidRuntimeOperation() *planner.Error {
 	return planner.NewError("planner_operation_invalid", "Runtime Planner operation is invalid", false, nil)
 }
 
-func (p *streamlinePlanner) runRuntime(ctx context.Context, identity planner.SessionIdentity, state *executionState, tools []tool.Tool, allowed map[string]struct{}) (stageresult.StageContentResult, error) {
+func (p *streamlinePlanner) runRuntime(ctx context.Context, identity planner.SessionIdentity, state *executionState, tools []contracts.PlannerTool, allowed map[string]struct{}) (stageresult.StageContentResult, error) {
 	deadline := minTime(p.invocation.Deadline, time.Now().Add(p.limits.MaxWallTime))
 	p.deadline = deadline
 	runContext, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
-	names := make([]string, 0, len(allowed))
-	for name := range allowed {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	events, err := p.adkSessions.NewADKSession(runContext, identity, plannersession.ADKOptions{AppName: p.profile.adkAppName, UserID: p.invocation.StageExecutionID, AllowedTools: names})
-	if err != nil {
-		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, planner.SessionError("open Runtime Planner events", err))
-	}
-	session, err := events.Create(runContext, &adksession.CreateRequest{AppName: p.profile.adkAppName, UserID: p.invocation.StageExecutionID, SessionID: identity.SessionID})
-	if err != nil {
-		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, planner.SessionError("create Runtime Planner events", err))
-	}
-	host := &runtimeHost{ctx: runContext, planner: p, state: state, identity: identity, allowed: allowed, events: events, session: session.Session}
+	host := &runtimeHost{ctx: runContext, planner: p, state: state, identity: identity, allowed: allowed}
 	if _, exists := p.runtimeHosts.LoadOrStore(p.invocation.StageExecutionID, host); exists {
 		return stageresult.StageContentResult{}, invalidRuntimeOperation()
 	}
 	defer p.runtimeHosts.Delete(p.invocation.StageExecutionID)
 	message, err := p.initialMessage()
 	if err != nil {
-		return stageresult.StageContentResult{}, invalidRuntimeOperation()
+		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, planner.NewError("planner_context_invalid", "Planner context could not be encoded", false, err))
 	}
 	// The canonical Stage context is already in Input. Do not duplicate its
 	// parameters and exact refs in the outer execution envelope.
@@ -338,23 +325,12 @@ func (p *streamlinePlanner) runRuntime(ctx context.Context, identity planner.Ses
 		Instructions: p.systemInstruction(), Deadline: deadline,
 		Parameters: map[string]string{}, Artifacts: map[string]contracts.ArtifactRef{},
 	}
-	request.Planner = &contracts.PlannerInvocation{Input: message.Parts[0].Text, Tools: []contracts.PlannerTool{}}
+	request.Planner = &contracts.PlannerInvocation{Input: message, Tools: tools}
 	if c := p.compactionSettings; c != nil {
 		request.Planner.Compaction = &contracts.PlannerCompaction{Instructions: c.instructions, Threshold: c.threshold, KeepRecentGroups: c.keepRecent, MaxCompactions: c.maxCompactions, Policy: c.compactor.Clone()}
 	}
-	for _, current := range tools {
-		declaring, ok := current.(interface {
-			Declaration() *genai.FunctionDeclaration
-		})
-		if !ok {
-			return stageresult.StageContentResult{}, fmt.Errorf("Planner tool has no declaration")
-		}
-		declaration := declaring.Declaration()
-		parameters, err := json.Marshal(declaration.ParametersJsonSchema)
-		if err != nil {
-			return stageresult.StageContentResult{}, err
-		}
-		request.Planner.Tools = append(request.Planner.Tools, contracts.PlannerTool{Name: declaration.Name, Description: declaration.Description, Parameters: parameters})
+	if err := request.Validate(); err != nil {
+		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, planner.NewError("invalid_stage_content", "Planner execution request violates its contract", false, err))
 	}
 	completion, callErr := p.invoker.Invoke(runContext, "planner", p.invocation.RuntimeExecutor.Clone(), request)
 	stopped := stoppedPlannerError(ctx, runContext)
@@ -367,6 +343,15 @@ func (p *streamlinePlanner) runRuntime(ctx context.Context, identity planner.Ses
 		host.endModel("failed", "planner_execution_failed", nil)
 	}
 	host.mu.Unlock()
+	// A confirmed terminal turn survives late transport failure or cancellation.
+	// A required append failure still prevents candidate completion (PLN-R106).
+	if result, _ := state.terminal(); failure == nil && result != nil {
+		outcome := planner.Completion{Result: result}
+		if err := planner.CompleteSession(ctx, p.sessions, identity, outcome); err != nil {
+			return stageresult.StageContentResult{}, planner.CompletionWriteError(outcome, err)
+		}
+		return result.Clone(), nil
+	}
 	if stopped != nil {
 		if failure != nil {
 			stopped = planner.NewError(stopped.Code, stopped.Message, stopped.Retryable && failure.Retryable, errors.Join(stopped, failure))
@@ -384,15 +369,13 @@ func (p *streamlinePlanner) runRuntime(ctx context.Context, identity planner.Ses
 		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
 	}
 	if callErr != nil {
-		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, planner.NewError("planner_execution_failed", "Runtime Planner invocation failed", true, callErr))
-	}
-	if result, failure := state.terminal(); result != nil {
-		outcome := planner.Completion{Result: result}
-		if err := planner.CompleteSession(ctx, p.sessions, identity, outcome); err != nil {
-			return stageresult.StageContentResult{}, planner.CompletionWriteError(outcome, err)
+		var classified *planner.Error
+		if !errors.As(callErr, &classified) {
+			classified = planner.NewError("planner_execution_failed", "Runtime Planner invocation failed", true, callErr)
 		}
-		return result.Clone(), nil
-	} else if failure != nil {
+		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, classified)
+	}
+	if _, failure := state.terminal(); failure != nil {
 		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
 	}
 	if completion.Failure != nil {
@@ -407,7 +390,7 @@ func (h *runtimeHost) startModel(operation, alias string) bool {
 	return telemetry.PlannerSpanCapturesContent(h.modelSpan)
 }
 
-func (h *runtimeHost) endModel(outcome, code string, usage *genai.GenerateContentResponseUsageMetadata) {
+func (h *runtimeHost) endModel(outcome, code string, usage *modelUsage) {
 	if h.modelSpan == nil {
 		return
 	}
@@ -439,4 +422,8 @@ func (h *runtimeHost) acceptCost(cost *reporting.LLMCost) bool {
 	h.state.runtimeCost = cost
 	h.state.mu.Unlock()
 	return true
+}
+
+func (h *runtimeHost) activity() *planner.Activity {
+	return &planner.Activity{Kind: "adk_event", Author: h.planner.profile.agentName, FunctionCalls: []string{}, FunctionResults: []string{}}
 }

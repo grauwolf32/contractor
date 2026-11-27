@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
-
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -204,7 +203,7 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 	}
 	workRoot := filepath.Join(temporaryRoot, "runtime-work")
 	allocationSlots, expectedAllocations := "1", expectedWorkers
-	if layer == "streamline" {
+	if layer == "streamline" || layer == "router" {
 		allocationSlots, expectedAllocations = "2", expectedWorkers+1
 	}
 	runtimeProcess := startProcess(

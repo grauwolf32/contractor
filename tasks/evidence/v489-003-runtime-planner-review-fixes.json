@@ -1,0 +1,332 @@
+{
+  "schema_version": "1.0",
+  "task": "V489-003",
+  "reviewed_revision": "d3f179e3e67dae281925d17597bf7784bfbeba7f",
+  "implementation_commit": "1a1d659ce5c2b7c120fc7ce874cd38b76900ea4a",
+  "date": "2026-11-27",
+  "result": "in_progress",
+  "findings": {
+    "terminal_precedence": "Confirmed success/final failure survives late cancellation/transport; real PostgreSQL required-append guard still blocks rejected completion.",
+    "compactor_outcome": "One raw received provider outcome reaches host acceptance/accounting; no SDK tool dispatch/repair or rejected checkpoint.",
+    "context_rejection": "Initial prompt/envelope rejection records permanent completion before any Runtime or Worker invocation.",
+    "compactor_objective": "Existing context operation supplies canonical objective; 101000-byte protected parameter stays in main context, outside compactor input.",
+    "parallel_selection": "Runtime reports first two names, Server accounts then rejects multiple calls under existing byte bound."
+  },
+  "boundary": {
+    "headless": "Same injected PlannerLoop and local-host regressions; no Server/A2A/bootstrap import or second engine. No production LocalHost added.",
+    "p2": "Deferred; no replacement/resume, new receipt, table, lease or endpoint.",
+    "models": "Configured model policies unchanged; no live Gateway calls."
+  },
+  "production_loc": {
+    "baseline": "b899210ff0a39ff8e8d5ff1a0308083eac323bb4",
+    "net": {
+      "go": -2734,
+      "python": 50
+    },
+    "total_net": -2684,
+    "method": "Physical source lines, cmd/internal non-test Go and runtime/src Python; exclude generated, testdata and test helper directories."
+  },
+  "delivery": {
+    "branch": "codex/runtime-planner-p3-plan",
+    "merged": false,
+    "pushed": false,
+    "deployed": false
+  },
+  "status": "passed",
+  "go": {
+    "command": "GOFLAGS=-p=1 go test -json -race -tags=integration -count=1 ./internal/planner/... ./internal/scheduler ./internal/controlplane ./internal/runstore ./internal/httpapi/privateartifacts ./internal/app",
+    "report": "/private/tmp/sol-v489-go-acceptance.jsonl",
+    "result": "passed",
+    "root_tests": 791,
+    "test_packages": 11,
+    "skips": 0,
+    "path": "/private/tmp/sol-v489-go-acceptance.jsonl",
+    "sha256": "b8db8aea96dd8899c001ddb8f9c6bd65184e8aaf560b8666b85fcfc21c312623",
+    "including_subcases": 2025,
+    "packages": {
+      "github.com/grauwolf32/contractor/internal/planner": "pass",
+      "github.com/grauwolf32/contractor/internal/planner/a2a": "pass",
+      "github.com/grauwolf32/contractor/internal/planner/scan": "pass",
+      "github.com/grauwolf32/contractor/internal/planner/session": "pass",
+      "github.com/grauwolf32/contractor/internal/planner/stateview": "pass",
+      "github.com/grauwolf32/contractor/internal/planner/streamline": "pass",
+      "github.com/grauwolf32/contractor/internal/scheduler": "pass",
+      "github.com/grauwolf32/contractor/internal/controlplane": "pass",
+      "github.com/grauwolf32/contractor/internal/runstore": "pass",
+      "github.com/grauwolf32/contractor/internal/httpapi/privateartifacts": "pass",
+      "github.com/grauwolf32/contractor/internal/app": "pass"
+    },
+    "skipped": 0,
+    "failed": 0
+  },
+  "runtime": {
+    "command": "make test-runtime",
+    "result": "passed",
+    "report": "/private/tmp/sol-v489-runtime-class-report/runtime.xml",
+    "passed": 6795,
+    "skipped": 136,
+    "seconds": 483.5,
+    "compaction_selected_passed": 610,
+    "skip_reasons": {
+      "OPS-R1: Linux byte-exact filename/long-path fixture; excluded from macOS acceptance": 2,
+      "run make test-interactsh-protocol for the pinned upstream server": 1,
+      "live LLM Gateway environment is not configured": 4,
+      "OPS-R1: the allocation-scoped Podman backend needs Linux host capabilities (AF_UNIX SOCK_SEQPACKET socket pairs, pidfd_open)": 94,
+      "explicit real-rootless startup capability gate": 2,
+      "explicit real-rootless deployment/workflow gate": 1,
+      "explicit real-rootless command execution gate": 13,
+      "explicit real-rootless owner-process gate": 3,
+      "explicit real Podman release gate": 5,
+      "explicit real gate: make test-podman-supervisor": 11
+    },
+    "path": "/private/tmp/sol-v489-runtime-class-report/runtime.xml",
+    "sha256": "6bcced50b14e2e330cdfa2e4ae18c3df4a522459dc53d13409ff994a3e33b2a2",
+    "exit_code": 0,
+    "log": "/private/tmp/sol-v489-runtime-class-final.log"
+  },
+  "wire": {
+    "command": "GOFLAGS=-p=1 make test-wire-cross-language",
+    "result": "passed",
+    "log": "/private/tmp/sol-v489-wire-final.log",
+    "fixtures": 434,
+    "go_shared_tests": 465,
+    "python_shared_tests": 300,
+    "python_contract_cases": 450,
+    "python_selected_shared_cases": 1642,
+    "optional_heavy_io_skips": 1,
+    "path": "/private/tmp/sol-v489-wire-final.log",
+    "sha256": "28369544d31f4f0e366214b20614035c2559a9116e89dc52301a444cbff48592"
+  },
+  "regressions": {
+    "confirmed_terminal": "24 real PostgreSQL cases: both strategies, succeeded/final failed candidate, late cancellation/transport, required append accepted/rejected; fresh session service loads the durable outcome; one Worker call.",
+    "initial_context": "Both strategies reject a legal near-limit parameter plus roster or an oversized combined execution envelope before invoke, persist a permanent classified outcome and reload a closed session.",
+    "compactor": "13 real HTTP adapter + ADK loop cases and 16 PostgreSQL host acceptance cases preserve raw finish/tool/empty/refusal/length/invalid outcome, known usage/cost and exactly one admission/call; rejected replies never checkpoint or dispatch.",
+    "headless_objective": "Actual loop with local host and independently injected compactor uses only canonical objective despite 101000-byte protected parameter, preserves original main input after checkpoint and still imports with Server/A2A/bootstrap blocked.",
+    "parallel_selection": "2/65/1000 calls are accounted and rejected before effects on PostgreSQL host for both strategies; actual Python loop transmits two names and recovers with exactly one permitted finish."
+  },
+  "superseded_attempts": [
+    "Initial broad Go/wire run exceeded the owned PostgreSQL default lock-table capacity during concurrent migrations/schema cleanup. No such failure counts as acceptance; complete gates reran with GOFLAGS=-p=1.",
+    "Initial Go serial attempt used macOS /var temporary paths rejected by the filesystem store symlink policy. Final complete Go gate uses canonical TMPDIR=/private/tmp.",
+    "Initial lint lacked pinned Corepack on PATH; final command uses the cached Node24.20/Corepack toolchain.",
+    "Earlier Runtime runs were interrupted while correcting the command PATH and isolating report writers; only the final complete report is acceptance."
+  ],
+  "lint": {
+    "command": "make docs-dependencies lint",
+    "exit_code": 0,
+    "seconds": 210.9,
+    "log": "/private/tmp/sol-v489-lint-confirmed.log",
+    "path": "/private/tmp/sol-v489-lint-confirmed.log",
+    "sha256": "327ac81c1bc4819f9ed1c509ec1facecc1443bcf31605f0a06628570ada02de2"
+  },
+  "process_a": {
+    "result": "passed",
+    "root_tests": 26,
+    "path": "/private/tmp/sol-v489-accepted/go-process-a.jsonl",
+    "sha256": "3c31709b3739eb733370a450f956f063592ae01c59439bae5efa5dd86b8f4548"
+  },
+  "dependencies": {
+    "new_dependencies": 0,
+    "p3_removed_go_module_requirements": 23,
+    "go_model_sdks_remaining": []
+  },
+  "negative_controls": {
+    "go_log": {
+      "path": "/private/tmp/v489-review-fixes-negative-go.log",
+      "sha256": "69ef3395a148f9dd2ef418844db4d2a44b6331313f9ef4bbcfbbe74ddeea31a4"
+    },
+    "python_log": {
+      "path": "/private/tmp/v489-review-fixes-negative-python-final.log",
+      "sha256": "40a1c7cb3481541c84acb65b05af1bb4b2280eadeafbc3df260f0c777a8dd520"
+    },
+    "method": "Temporary Go source overlay and isolated Python module reload use pre-fix revision with new regressions; no negative mutation remains in source.",
+    "logs": [
+      {
+        "path": "/private/tmp/v489-review-fixes-negative-go.log",
+        "sha256": "69ef3395a148f9dd2ef418844db4d2a44b6331313f9ef4bbcfbbe74ddeea31a4"
+      },
+      {
+        "path": "/private/tmp/v489-review-fixes-negative-python-final.log",
+        "sha256": "40a1c7cb3481541c84acb65b05af1bb4b2280eadeafbc3df260f0c777a8dd520"
+      }
+    ],
+    "result": "Expected regressions fail against pre-fix sources and pass with committed sources.",
+    "go": {
+      "path": "/private/tmp/v489-review-fixes-negative-go.log",
+      "sha256": "69ef3395a148f9dd2ef418844db4d2a44b6331313f9ef4bbcfbbe74ddeea31a4"
+    },
+    "python": {
+      "path": "/private/tmp/sol-v489-negative-final.log",
+      "sha256": "7d93292a3bd3a352c849ed856d267a1eac2401ff6cd71a03db28fb1919cc90f3"
+    }
+  },
+  "processes": {
+    "commands": [
+      "make test-release-process-e2e-a",
+      "make test-release-process-e2e-b",
+      "make test-release-process-e2e-c"
+    ],
+    "shards": [
+      {
+        "path": "/private/tmp/sol-v489-accepted/go-process-a.jsonl",
+        "sha256": "3c31709b3739eb733370a450f956f063592ae01c59439bae5efa5dd86b8f4548",
+        "root_tests": 26,
+        "roots": [
+          "TestArtifactFilePublicationAcrossProcesses",
+          "TestArtifactHistoryAcrossProductionProcesses",
+          "TestArtifactImagesAcrossProcesses",
+          "TestAuditBasicExactHandoffAcrossProductionProcesses",
+          "TestAuditCommonObservationProfilesAcrossProductionProcesses",
+          "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+          "TestAuditCompactionLeaseLossAcrossProcesses",
+          "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses",
+          "TestAuditFixedHypothesesAcrossProductionProcesses",
+          "TestAuditHypothesisContinuationAcrossProductionProcesses",
+          "TestAuditIncrementalEvidenceAcrossProcesses",
+          "TestAuditPartialJudgmentsAcrossProcesses",
+          "TestAuditWorkspaceAcrossProductionProcesses",
+          "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses",
+          "TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses",
+          "TestLocalGoToPythonArtifactCopy",
+          "TestMemoryMVPProcesses",
+          "TestOpenAPIPreparedWorkServerOperation",
+          "TestProjectSitemapHTTPCollectionAcrossProductionProcesses",
+          "TestProjectSitemapReportImportsAcrossProductionProcesses",
+          "TestProjectSitemapServerOperationsAcrossProductionProcesses",
+          "TestProjectSitemapToolsAcrossProductionProcesses",
+          "TestRuntimeManagedArtifactWritesAcrossProcesses",
+          "TestRuntimeManagedMaterialVersionsAcrossProcesses",
+          "TestRuntimeManagedSitemapEditsAcrossProcesses",
+          "TestWorkflowMaterialSetsAcrossProductionProcesses"
+        ],
+        "including_subcases": 43,
+        "packages": {
+          "github.com/grauwolf32/contractor/tests/e2e": "pass"
+        },
+        "skipped": 0,
+        "failed": 0
+      },
+      {
+        "path": "/private/tmp/sol-v489-accepted/go-process-b.jsonl",
+        "sha256": "14c90f5a6f493cedc61b8ddbd207460900ef9f562746c8ed202f26324b3b68aa",
+        "root_tests": 16,
+        "roots": [
+          "TestAuditProgramCatalogReplacementRestartsServer",
+          "TestEngagementHTTPBoundsAcrossProcesses",
+          "TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses",
+          "TestEngagementHTTPLifecycleAcrossProcesses",
+          "TestEngagementHTTPRouteMatrixAcrossProcesses",
+          "TestEngagementHTTPSelectedEvidenceAcrossProcesses",
+          "TestEngagementIdentityLifecycleAcrossProcesses",
+          "TestEngagementIdentitySessionsAcrossProcesses",
+          "TestEngagementOrdinaryRunAcrossProcesses",
+          "TestLabelDrivenRuntimeConfigurationAcrossProcesses",
+          "TestRoutingAndEscalationProductionBoundaries",
+          "TestRunMetadataLabelsAcrossProcesses",
+          "TestRuntimeAdapterSelectionAllowsAdditionalCapabilities",
+          "TestSchedulerConcurrencyAcrossProductionProcesses",
+          "TestTaintAnnotationsAcrossRealRuntimeProcess",
+          "TestWorkerSummarizerProductionBoundaries"
+        ],
+        "including_subcases": 71,
+        "packages": {
+          "github.com/grauwolf32/contractor/tests/e2e": "pass"
+        },
+        "skipped": 0,
+        "failed": 0
+      },
+      {
+        "path": "/private/tmp/sol-v489-accepted/go-process-c.jsonl",
+        "sha256": "773e0854441533d654e1066de09d16da3d4f78b0baff49919c62ec9b3df943c1",
+        "root_tests": 29,
+        "roots": [
+          "TestAgentSkillsMVPProcesses",
+          "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",
+          "TestDiscoveryFactsAcrossProcesses",
+          "TestEvalFindingProjectNavigationAcrossProcesses",
+          "TestFactExtractionAcrossProcesses",
+          "TestFactExtractionAuditEvalAcrossProcesses",
+          "TestFindingLocationsAcrossProcesses",
+          "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts",
+          "TestFindingsProducerAndReaderAcrossProcesses",
+          "TestFindingsReaderBoundariesAcrossProcesses",
+          "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses",
+          "TestHeterogeneousRuntimeCapabilityPlacement",
+          "TestIndependentFindingsServersAcrossProcesses",
+          "TestMemorySnapshotAcrossProcesses",
+          "TestNucleiWebWithDeterministicScannerAcrossProcesses",
+          "TestProcessDatabaseIsolation",
+          "TestProductionMemoryTemplatesAcrossProcesses",
+          "TestProjectDocumentOutputLimitRecoveryAcrossProcesses",
+          "TestProjectDocumentResponseRecoveryAcrossProcesses",
+          "TestProjectFactsAcrossProcesses",
+          "TestProjectFindingsReaderAcrossProcesses",
+          "TestProjectWorkspaceLifecycleAcrossProductionProcesses",
+          "TestRuntimeAllocationSlotsAcrossProductionProcesses",
+          "TestRuntimeGuidanceAcrossProductionProcesses",
+          "TestRuntimePlacementAcrossProductionProcesses",
+          "TestRuntimePlacementScannerFixture",
+          "TestTraceFindingCoordinatesAcrossProcesses",
+          "TestWorkerCompactionContinuesIsolatedWorker",
+          "TestWorkerSessionModesAcrossProductionProcesses"
+        ],
+        "including_subcases": 76,
+        "packages": {
+          "github.com/grauwolf32/contractor/tests/e2e": "pass"
+        },
+        "skipped": 0,
+        "failed": 0
+      }
+    ],
+    "distinct_roots": 71,
+    "same_as_full_e2e_inventory": true,
+    "all_report_validators_passed": true,
+    "focused_router": {
+      "path": "/private/tmp/sol-v489-router-process.jsonl",
+      "sha256": "917d10f2f4497070c883b2b510ec6abdedd1e6d1df665510e9b8e0e603e1a407",
+      "root_tests": 1,
+      "roots": [
+        "TestRoutingAndEscalationProductionBoundaries"
+      ],
+      "including_subcases": 6,
+      "packages": {
+        "github.com/grauwolf32/contractor/tests/e2e": "pass"
+      },
+      "skipped": 0,
+      "failed": 0
+    }
+  },
+  "source_digest_files": {
+    "internal/planner/streamline/runtime.go": "f63a2bf3ac4dc1fb5110a82a299df2bc07adf3ac6276b0f11fdc4684e6c94f4c",
+    "internal/planner/streamline/runtime_context.go": "36246d11224258736a8f65335630623ba5b42f00a1fcfd73a1660378a6b9a097",
+    "runtime/src/contractor_runtime/llm/errors.py": "8fbc32dd5557b558761aa2e83302435d67c8bc47e688dfccbfbd8d4134a6cae9",
+    "runtime/src/contractor_runtime/llm/openai.py": "5a66d21cd73a628f84b48f71e19e7a816a139220a92702bed8447e1636c2c085",
+    "runtime/src/contractor_runtime/planner/compaction.py": "934f16c22a2dfd0106e7ece896ca345589b191e2625f82964e357716c1a030f7",
+    "runtime/src/contractor_runtime/planner/loop.py": "1c4045f2a6e75d1e233b9887dafae7f598398e2e93b3c4f242ea769016f56f99"
+  },
+  "cleanup": {
+    "result": "passed",
+    "owned_cluster": "/private/tmp/v489-review-fixes-pg",
+    "owned_port": 55494,
+    "database": "contractor_p3_fixes",
+    "primary_main_preserved": "b899210ff0a39ff8e8d5ff1a0308083eac323bb4",
+    "primary_user_paths_preserved": [
+      "tasks/BACKLOG.md",
+      "tasks/v486-001-portable-linux-kit.yml"
+    ],
+    "client_connections_before_drop": 0,
+    "databases_dropped": [
+      "contractor_p3_fixes"
+    ],
+    "owned_cluster_stopped_and_removed": true,
+    "negative_overlays_removed": true
+  },
+  "task_file": "tasks/done/v489-003-runtime-planner-review-fixes.yml",
+  "final_source_checksums": {
+    "internal/planner/streamline/runtime.go": "f63a2bf3ac4dc1fb5110a82a299df2bc07adf3ac6276b0f11fdc4684e6c94f4c",
+    "internal/planner/streamline/runtime_context.go": "36246d11224258736a8f65335630623ba5b42f00a1fcfd73a1660378a6b9a097",
+    "runtime/src/contractor_runtime/llm/errors.py": "8fbc32dd5557b558761aa2e83302435d67c8bc47e688dfccbfbd8d4134a6cae9",
+    "runtime/src/contractor_runtime/llm/openai.py": "5a66d21cd73a628f84b48f71e19e7a816a139220a92702bed8447e1636c2c085",
+    "runtime/src/contractor_runtime/planner/compaction.py": "934f16c22a2dfd0106e7ece896ca345589b191e2625f82964e357716c1a030f7",
+    "runtime/src/contractor_runtime/planner/loop.py": "1c4045f2a6e75d1e233b9887dafae7f598398e2e93b3c4f242ea769016f56f99"
+  }
+}

@@ -1,0 +1,122 @@
+schema_version: '1.0'
+id: V489-002
+title: Remove the remaining Go Planner SDK bridge and accept P3
+milestone: runtime-planner-p3-2026-11
+epic: planner-worker
+kind: chore
+introduced_by: V488-002
+priority: P1
+status: archived
+depends_on: [V489-001]
+languages: [go, python, yaml, markdown]
+goal: >-
+  Both modeled Planners use one Runtime engine with ordinary Server domain
+  operations and session facts. Remove the temporary Go SDK bridge, unused
+  dependencies and duplicated test execution paths, then verify P3 as a whole.
+context:
+  authority: >-
+    User decision 2026-11-27 defers P2 and requests P3 planning with headless
+    compatibility and less total code. V488-002 intentionally kept Go ADK
+    tooling/events while Router required the Go engine. After V489-001 those
+    adapters are only a representation bridge and can be replaced by direct
+    Contractor types. This is cleanup of that boundary, not a claim that P1
+    was defective. No recovery work is authorized by this task.
+  proposal: docs/proposals/0058-runtime-planner-and-recovery.md
+  specification:
+    - docs/spec/execution/planners.md#PLN-R106
+    - docs/spec/execution/planners.md#PLN-R124
+    - docs/spec/execution/planners.md#PLN-R125
+    - docs/spec/execution/planners.md#PLN-R136
+    - docs/spec/execution/planners.md#PLN-R137
+    - docs/spec/platform/observability.md
+    - docs/spec/platform/persistence.md
+    - docs/testing/README.md
+  finding: >-
+    On P1 main b899210ff, streamline/runtime.go builds genai responses and ADK
+    events to call domain budget/session code; runtime_context.go creates ADK
+    checkpoint markers; tools_adk.go and Memory/State/history adapters wrap
+    ordinary operations as SDK tools; session/adk.go creates an unnecessary
+    in-memory Go conversation for reduced-event writes. Production ADK/GenAI
+    imports are confined to Planner/session and composition. Remove the bridge
+    without replacing it with a custom general-purpose SDK.
+  verification_environment: >-
+    Use a nonempty CONTRACTOR_TEST_DATABASE_URL pointing to one owned disposable
+    database for PostgreSQL/process gates. An unreachable database fails.
+    Drop it after pools/processes stop. Report optional heavy-I/O and other
+    skips separately; do not enable them implicitly. No live-model calls or
+    deployment are required for this deterministic acceptance.
+scope:
+  in:
+    - Direct existing Contractor tool declarations and ordered operation dispatch; direct bounded/redacted session activity writes and compaction marker.
+    - Delete replaced Go runner, model/compactor execution, Gateway adapter, ADK session wrapper, local model/tool callback plumbing, SDK type conversions, unused factories/exports and dependencies after checking all callers.
+    - Keep one implementation of budgets, validation, exact result history, Memory/State, finish and required-write failure semantics; no generic new abstraction.
+    - Migrate meaningful old-engine regressions to Runtime/host/store tests, update gate selectors/report validators and accept both strategies end to end.
+    - Retire Go-ADK migration scripts/gates once they have no active caller; retain historical evidence and do not make completed migration tasks a dependency of the new engine.
+    - Same-change owning docs/architecture and dependency cleanup; measure net production code against pre-P3 main.
+  out:
+    - P2, new allocation history or leases, durable checkpoint stores, offline execution and a production LocalHost.
+    - Removing domain owners, deterministic Planners, ordinary Gateway recovery/probes or other code with production callers.
+    - Package renaming/reorganization for symmetry, SDK replacement framework, new public states or event-field renames solely for cosmetic cleanup.
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Streamline and Router no longer execute or import Go ADK/GenAI machinery.
+      Production and test callers are migrated before old implementations are
+      deleted; go mod tidy removes unused direct/transitive dependencies and
+      the module graph is checked. No old engine remains solely for tests.
+  - id: A2
+    text: >-
+      Direct session writes preserve durable ordering, redaction, bounded
+      counters, exact error/cancellation precedence and compaction confirmation.
+      Real PostgreSQL tests cover failures before/after commit, rejected writes,
+      lost replies and terminal/cancel races. No raw dialogue, arguments or
+      secrets enter reduced facts, and no new receipt/table/lease is added.
+  - id: A3
+    text: >-
+      Native declarations preserve both strategies' schema, Worker constraints,
+      optional/required fields, model-visible domain errors, finish actions and
+      Memory/State/history behavior. One Python loop with injected host still
+      runs Router and Streamline, including compaction, without Server bootstrap;
+      no second local domain engine is introduced.
+  - id: A4
+    text: >-
+      Final evidence runs full touched packages and both modeled strategies
+      through real Server/PostgreSQL/Runtime process gates, including capacity
+      four, distributed routing, cancellation, stale authority, replay, strict
+      usage/JSON/filtering, compaction and exact result acceptance. Gate selections
+      are nonempty; removed/renamed tests have a coverage mapping. Negative
+      controls detect Worker misrouting, duplicate dispatch/charge and lost
+      required-event failure propagation. Disabled/skipped cases are not passes.
+  - id: A5
+    text: >-
+      Record before/after Go+Python production LOC separately from tests,
+      generated files and docs, deleted execution paths and dependency delta.
+      Target is net code reduction across P3; if it is not achieved, explain
+      the remaining callers and revisit scope before claiming simplification.
+      P2 stays deferred. State merge status explicitly; readiness is not merge
+      authorization. The milestone is complete only when every listed gate
+      and criterion passes.
+tests:
+  - command: go test -race -tags=integration -count=1 ./internal/planner/... ./internal/scheduler ./internal/controlplane ./internal/runstore ./internal/httpapi/privateartifacts ./internal/app ./internal/telemetry ./internal/gatewayrecovery ./internal/archtest
+    covers: [A1, A2, A3, A4]
+  - command: make test-runtime
+    covers: [A3, A4]
+  - command: make test-wire-cross-language
+    covers: [A3, A4]
+  - command: make -j3 test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
+    covers: [A2, A3, A4]
+  - command: make verify-public-api
+    covers: [A2, A3, A4]
+  - command: make verify-public-api-postgres
+    covers: [A2, A3, A4]
+  - command: make test-config
+    covers: [A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5]
+  - command: make verify-architecture
+    covers: [A1, A5]
+
+archive:
+  date: '2026-11-27'
+  previous_status: pending
+  reason: Consolidated into V489-001 during implementation because runner/tool/session SDK callers and regressions must migrate atomically to keep required lint gates green; no scope or acceptance was dropped.
