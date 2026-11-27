@@ -2,7 +2,7 @@
 
 Обновлено 2026-11-27. База: `main @ 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b`.
 Статус: **переход разрешён пользователем; задачи созданы; подтверждена транспортная
-предпосылка mTLS, ожидается выбор решения. Production-переход ещё не выполнен.** Исторический разбор ниже
+предпосылка mTLS; пользователь выбрал локальный TLS-адаптер. Production-переход ещё не выполнен.** Исторический разбор ниже
 сохранён как контекст; его рекомендация оставить HTTP больше не является планом.
 
 ## Решения и результат
@@ -38,7 +38,9 @@ Task/Message/Agent Card, используемым официальными SDK. 
 
 На базе проверки: Go `a2a-go/v2 v2.7.0`, Python `a2a-sdk 1.1.2`,
 protobuf Go `v1.36.12`, Python `6.33.6`; grpc Go уже косвенная зависимость
-`v1.85.0`, grpcio пока не входит в Runtime lock. Private Artifact handler имеет
+`v1.85.0`. Проверка использует dev extra `a2a-sdk[grpc]==1.1.2`:
+grpcio `1.85.4`, grpcio-tools/reflection `1.81.2` закреплены в Runtime lock.
+Production extra переключается вместе с первым рабочим caller. Private Artifact handler имеет
 16 route declarations; это не только четыре CRUD-операции над файлами.
 `_https.py` содержит 620 строк собственного HTTPS-клиента. Не весь этот объём
 автоматически исчезнет: решение mTLS ниже определяет оставшуюся TLS-обвязку.
@@ -100,7 +102,10 @@ Go/A2A interoperability; это следующая проверка после �
 Рекомендация агента для сохранения текущих гарантий — сначала оценить малый TLS
 adapter; если он заметно раздувает транспорт, предпочесть явно согласованный PKI
 design. Не ослаблять проверку до CA+hostname, не использовать небезопасный override,
-не вводить custom native grpcio fork. Итоговый выбор пока открыт.
+не вводить custom native grpcio fork. Пользователь 2026-11-27 выбрал первый вариант: ограниченный TLS-адаптер внутри
+Runtime при сохранении PKI. Локальная граница — Unix sockets в process-owned
+каталоге 0700, без plaintext TCP listener; HTTP/2 и gRPC обрабатывает grpcio.
+Admission, backpressure и shutdown/join входят в обязательную проверку.
 
 ## Контракт, который нужно сохранить
 
@@ -141,6 +146,69 @@ design. Не ослаблять проверку до CA+hostname, не испо
   предлагается 256 KiB, полный payload по-прежнему ≤64 MiB; перед реализацией число
   получает один owning limit и fixture. Upload header передаётся один раз, затем
   упорядоченные chunks и terminal receipt; partial stream не публикует revision.
+
+## Решения wire для первой реализации
+
+- Собственный package `contractor.runtime.v1alpha1`; сервисы ControlPlane,
+  RuntimeLifecycle, Allocation и Artifact имеют именованные методы. A2A остаётся
+  `lf.a2a.v1.A2AService` официального SDK. Нет собственного универсального invoke.
+- `proto3 optional` используется для scalar presence; message presence — штатная.
+  Required repeated/map представлены presence-bearing message, если omission
+  отличается от пустого значения. Semantic validators проверяют presence до
+  преобразования в domain types. Nullable domain value получает явную ветку `oneof`.
+- Неизвестные поля собственных messages рекурсивно обнаруживаются через reflection,
+  неизвестные enum values — через существующие closed-domain validators.
+  Управляющие данные отвергаются целиком. Явные существующие salvage boundaries
+  сохраняются: неверная optional telemetry/resources или отдельная adapter metrics
+  entry помечаются/отбрасываются по OBS-R36 и CTL-R136, не теряя основной final report.
+  Универсальный interceptor не должен превращать такую ошибку в отказ всей finalize.
+  Повторные protobuf tags обрабатываются стандартным protobuf merge/last-value
+  правилом. JSON duplicate keys/case aliases остаются запрещёнными для JSON
+  документов; не создаётся собственный binary parser.
+- `.proto` описывает wire envelope; канонические подписанные/дигестируемые JSON
+  конфигурации и содержимое Artifact остаются доменными документами. Нельзя
+  считать JSON-обёртку всего старого RPC типизированной миграцией.
+- Правила размера содержимого сохраняются; транспортный max-message задаётся
+  явно, отдельно от compact-JSON domain bounds. Lifecycle payload ≤1 MiB,
+  A2A envelope ≤4 MiB, Planner operation/reply ≤4 MiB; передача Artifact имеет
+  chunks ≤256 KiB и прежний aggregate ceiling 64 MiB. В 002/004/005 owning limits
+  и проверка фактического protobuf frame фиксируются одновременно с их codecs.
+- Stable error details содержат code/retryable/requestId без raw exception text.
+  Malformed input → InvalidArgument; missing TLS identity → Unauthenticated;
+  foreign allocation authority → PermissionDenied; stale/domain precondition →
+  FailedPrecondition; транзакционный конфликт → Aborted; capacity →
+  ResourceExhausted; временная инфраструктурная недоступность → Unavailable.
+  NotFound, Cancelled и DeadlineExceeded имеют отдельные исходы. Domain code
+  различает случаи внутри одного gRPC status; неизвестные/невалидные details не
+  дают разрешения повторить mutation. Existing operation receipts решают ambiguity.
+- Pinned Go/Python tooling генерирует stubs воспроизводимо; проверка generation
+  входит в lint. Runtime lock закрепляет grpcio вместе с официальным A2A extra.
+  Ни schema changes, ни dependencies не обновляются автоматически ради "latest".
+  Первая генерация использует `grpcio-tools==1.81.2` (`libprotoc 33.5`),
+  `protoc-gen-go@v1.36.12`, `protoc-gen-go-grpc@v1.6.2`; собственные `.proto`
+  не копируют официальную A2A-схему.
+
+## Проверка выбранного TLS-адаптера
+
+`runtime/tests/test_grpc_interop.py` выполняет реальные Go/Python вызовы через
+loopback TLS и private Unix sockets. Официальные SendMessage/GetTask/CancelTask
+проходят с существующим `ContractorAgentExecutor`; чужой tenant отвергается.
+Wrong-role сертификаты того же CA отвергаются в обоих направлениях до вызова
+защищённого handler; Go дополнительно отвергает неверный ожидаемый Runtime SPKI.
+Ответ `UNAVAILABLE` после принятой mutation оставляет ровно один вызов handler.
+
+Прототип допускает восемь forwarding owners, буфер каждого направления 64 KiB,
+connect/handshake budget 3 s и close budget 0.5 s. Девятое соединение отвергается;
+shutdown отменяет и присоединяет owners **до** ожидания закрытия listener.
+Это ограниченный test-only proof: admission до TLS handshake, 300 s connection
+lifetime и полное allocation cleanup остаются production-приёмкой 002/003.
+Прототип не выдается за готовый защищённый listener.
+
+Выявленные особенности SDK: DataPart передаётся после нормализации вложенных
+maps в JSON-совместимые значения; Go SDK не принимает `map[string]string`
+непосредственно как protobuf Struct. CancelTask может вернуть Task ещё в WORKING:
+подтверждение остановки принадлежит существующим abort/finalize, а не A2A reply.
+Проверка вызывает отмену реального executor и наблюдает завершение владельца.
 
 ## Задачи и последовательность
 

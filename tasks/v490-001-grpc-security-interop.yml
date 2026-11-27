@@ -5,7 +5,7 @@ milestone: server-runtime-grpc-2026-11
 epic: execution-core
 kind: chore
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
@@ -21,7 +21,8 @@ context:
   authority: 'User decision 2026-11-27: plan and implement gRPC for Server/Runtime, preserve A2A. Direct connectivity
     through the existing overlay is an architectural fact, not new scope. NAT, reverse tunnels and removal
     of A2A were explicitly rejected. Implementation does not authorize deployment or merging main. The task
-    decomposition and typed protobuf design are agent proposals.'
+    decomposition and typed protobuf design are agent proposals. Subsequent user decision 2026-11-27: preserve
+    PKI and implement a bounded in-process TLS adapter inside Runtime; no new trust issuer.'
   proposal: docs/proposals/0038-server-runtime-transport.md
   specification:
   - docs/spec/execution/control-plane.md#CTL-R163
@@ -30,10 +31,13 @@ context:
   - docs/spec/platform/failure-model.md
   - docs/spec/platform/persistence.md#PER-R24
   baseline: main 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b
-  decision_needed: Stock grpcio 1.85.0 sends a request to a CA/hostname-valid peer lacking the Control Plane
-    URI SAN, as reproduced in the attached loopback evidence. User chooses a bounded in-process TLS adapter
-    preserving existing PKI (recommended) or a separately scoped role-constrained PKI change. Do not weaken
-    SEC-R5/CTL-R163 or begin production migration before this is resolved.
+  tls_decision: Use the existing SSLContext and peer role verifier on the actual network connection. grpcio
+    handles gRPC/HTTP2 behind private Unix sockets in a process-owned 0700 directory, with bounded forwarding,
+    admission and joined cleanup; no plaintext TCP listener.
+  test_scope: V490-001 is a transport prerequisite, not the production Run migration. Its real Go/Python loopback
+    interop tests live in the Runtime suite and need no database. Replace the initially overbroad make test-e2e
+    selection with this exact nonempty suite; real Server/PostgreSQL Run acceptance remains mandatory in V490-002
+    and the final release gate.
 scope:
   in:
   - Inspect pinned SDK bindings and supported TLS APIs; record a reproducible loopback authentication probe
@@ -43,8 +47,7 @@ scope:
   - Record the TLS implementation decision, required/optional protobuf presence, closed enums/unknown fields,
     message size accounting, error mapping and pinned generation toolchain before production migration.
   out:
-  - Production cutover belongs to V490-002; no new PKI policy, TLS proxy or native extension without resolving
-    the recorded security choice.
+  - Production cutover belongs to V490-002; no new PKI policy, native extension or separate proxy process.
 requirements:
 - id: R1
   text: Preserve existing component/domain ownership, mTLS role and principal checks, allocation fencing, receipts,
@@ -93,10 +96,11 @@ tests:
 - command: uv run --no-project --python 3.13 --with grpcio==1.85.0 --with cryptography python tasks/evidence/v490-001-grpc-peer-probe.py
   covers:
   - A3
-- command: cd runtime && uv run python ../scripts/check_tasks.py
+- command: cd runtime && uv run --locked pytest tests/test_grpc_interop.py tests/test_mtls.py tests/test_a2a_server.py
   covers:
-  - A3
-- command: make test-e2e
+  - A1
+  - A2
+- command: make test-runtime
   covers:
   - A1
   - A2
@@ -104,9 +108,22 @@ tests:
   covers:
   - A3
 verification:
-  status: partial; prerequisite requires user decision
-  evidence: tasks/evidence/v490-001-grpc-peer-probe.json
-  observed: Stock grpcio accepts control_plane and runtime_as_server; rejects wrong hostname and foreign CA.
-    Existing explicit URI role check rejects runtime_as_server. All owned probe resources were removed.
-  unproven: Go/Python A2A interoperability, production security acceptance and migration gates are not yet
-    executed.
+  status: in progress; focused real-process acceptance passed, full Runtime gate running
+  evidence:
+  - tasks/evidence/v490-001-grpc-peer-probe.json
+  - runtime/tests/test_grpc_interop.py
+  observed: >-
+    Stock grpcio reproduces the missing role check. The selected TLS adapter passes
+    official Go/Python A2A SendMessage/GetTask/CancelTask, rejects wrong tenant,
+    wrong-role peers in both directions and wrong Runtime SPKI, prevents mutation
+    replay after UNAVAILABLE, and bounds/joins eight open forwarding owners.
+    Focused interop/PKI/A2A suite has 24 passes. make lint passed; Ruff passed
+    again after adding the active-shutdown regression.
+  environment: >-
+    The first full Runtime run was interrupted after 17 scanner conformance
+    failures (2301 passes, one skip): PATH selected unsupported host ffuf.
+    Repeating all 18 ffuf engagement tests with the existing pinned ffuf 2.3.0
+    succeeded; the full Runtime gate is rerunning with that tool path.
+  unproven: >-
+    Production security, real Server/PostgreSQL Run and migration gates belong
+    to the dependent tasks; this prerequisite does not claim production cutover.
