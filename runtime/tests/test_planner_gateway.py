@@ -104,7 +104,11 @@ async def run_gateway_case(phase, case):
     class Host:
         async def execute(self, name, arguments):
             operations.append((name, arguments))
-            result = {"plan": {"revision": 1}, "retainedBytes": 0}
+            result = {
+                "plan": {"revision": 1},
+                "retainedBytes": 0,
+                "objective": "Inspect and finish",
+            }
             failure = None
             if name == "model_failed":
                 failure = {
@@ -179,3 +183,132 @@ async def run_gateway_case(phase, case):
                 }
         finally:
             await model.close()
+
+
+@pytest.mark.parametrize(
+    "case, reason, has_tools, rejection",
+    [
+        ("valid", "stop", False, None),
+        ("tool_empty", "tool_calls", False, "tool_output"),
+        ("function_empty", "function_call", False, "tool_output"),
+        ("tool_valid", "tool_calls", True, "tool_output"),
+        ("tool_bad_arguments", "tool_calls", True, "tool_output"),
+        ("tool_many", "tool_calls", True, "tool_output"),
+        ("empty", "stop", False, "empty"),
+        ("filtered", "content_filter", False, "empty"),
+        ("refusal", "content_filter", False, "empty"),
+        ("length", "length", False, "output_limit"),
+        ("unknown", "", False, "invalid"),
+        ("missing_reason", "", False, "invalid"),
+        ("invalid_summary", "stop", False, "invalid"),
+    ],
+)
+def test_planner_compactor_preserves_provider_outcome_and_usage(case, reason, has_tools, rejection):
+    async def scenario():
+        from contractor_runtime.llm.cost import CostCollector
+
+        operations, requests = [], []
+        value = json.loads(gateway_reply("compactor", "valid"))
+        choice = value["choices"][0]
+        choice["finish_reason"] = reason or "unknown-provider-reason"
+        if case == "missing_reason":
+            del choice["finish_reason"]
+        if case == "refusal":
+            choice["finish_reason"] = "stop"
+            choice["message"]["refusal"] = "Declined"
+        if case in {"empty", "filtered"}:
+            choice["message"]["content"] = ""
+        if case == "invalid_summary":
+            choice["message"]["content"] = "not valid summary JSON"
+        if has_tools:
+            choice["message"]["tool_calls"] = [
+                {
+                    "id": f"forbidden-{i}",
+                    "function": {
+                        "name": "forbidden_tool",
+                        "arguments": ("{" if case == "tool_bad_arguments" else "{}"),
+                    },
+                }
+                for i in range(65 if case == "tool_many" else 1)
+            ]
+        elif case in {"tool_empty", "function_empty"}:
+            choice["message"]["tool_calls"] = []
+
+        class Host:
+            async def execute(self, name, arguments):
+                operations.append((name, arguments))
+                result = {"plan": {"revision": 1}, "objective": "Inspect", "retainedBytes": 0}
+                failure = None
+                if name == "after_compactor":
+                    assert arguments["inputTokens"] == 13 and arguments["outputTokens"] == 4
+                    assert arguments["finishReason"] == reason
+                    assert arguments["toolCalls"] == int(has_tools)
+                    assert arguments["cost"]["calls"] == 1
+                    assert arguments["cost"]["groups"][0]["amount"] == "0.01"
+                    if rejection:
+                        failure = {
+                            "code": "planner_compaction_failed",
+                            "message": f"Compaction failed ({rejection})",
+                            "retryable": False,
+                        }
+                    else:
+                        result = {"summary": "Earlier work is complete."}
+                if name == "model_failed":
+                    pytest.fail(
+                        "usable compactor outcome bypassed required classification/accounting"
+                    )
+                return PlannerOperationResult(
+                    apiVersion=API_VERSION,
+                    result=result,
+                    stop=name == "finish",
+                    escalate=name == "finish",
+                    **({"failure": failure} if failure else {}),
+                )
+
+        async def gateway(request):
+            requests.append(request)
+            return httpx.Response(200, json=value, headers={"x-litellm-response-cost": "0.01"})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            costs = CostCollector()
+            client = new_gateway_client(
+                base_url="https://gateway.invalid/v1",
+                api_key="",
+                timeout_seconds=10,
+                http_client=http,
+            )
+            client.cost_observer = costs.observe
+            compactor = OpenAICompatibleGatewayLlm(
+                model="compactor-test-model", client_handle=client
+            )
+            steps = [tool_call("step", {}, call_id=f"step-{i}") for i in range(2)]
+            for response in steps:
+                response.usage_metadata.prompt_token_count = 100
+                response.usage_metadata.total_token_count = 103
+            main = scripted_model([*steps, tool_call("finish", {}, call_id="finish")])
+            loop = PlannerLoop(
+                main,
+                Host(),
+                planner_policy(),
+                compactor=compactor,
+                cost_snapshot=lambda: costs.snapshot(0),
+            )
+            try:
+                if rejection:
+                    with pytest.raises(PlannerStoppedError, match=rejection) as caught:
+                        await loop.run(compaction_input(), "Inspect")
+                    assert (
+                        caught.value.code == "planner_compaction_failed"
+                        and not caught.value.retryable
+                    )
+                else:
+                    await loop.run(compaction_input(), "Inspect")
+                assert len(requests) == 1
+                names = [name for name, _ in operations]
+                assert names.count("before_compactor") == names.count("after_compactor") == 1
+                assert names.count("checkpoint") == int(rejection is None)
+                assert "forbidden_tool" not in names
+            finally:
+                await compactor.close()
+
+    asyncio.run(scenario())

@@ -1,0 +1,77 @@
+schema_version: '1.0'
+id: V489-003
+title: Preserve modeled Planner outcomes and compaction across Runtime execution
+milestone: runtime-planner-p3-2026-11
+epic: planner-worker
+kind: defect
+introduced_by: V489-001
+priority: P1
+status: in_progress
+depends_on: [V489-001]
+languages: [go, python, markdown]
+goal: >-
+  Router and Streamline preserve confirmed terminal outcomes, finish rejected
+  sessions, account rejected model calls and compact only the intended context.
+context:
+  authority: User instruction 2026-11-27 fixes all five Astra P3 review findings, preserving headless and reducing code.
+  specification:
+    - docs/spec/execution/planners.md#PLN-R41
+    - docs/spec/execution/planners.md#PLN-R106
+    - docs/spec/execution/planners.md#PLN-R122
+    - docs/spec/execution/planners.md#PLN-R128
+    - docs/spec/execution/planners.md#PLN-R136
+    - docs/spec/platform/persistence.md
+  severity: high
+  finding: >-
+    Astra review of d3f179e3e: runtime.go:343/359 replaces confirmed finish
+    with late cancellation/A2A failure; runtime.go:317 leaves the begun session
+    running after oversized initial context; compaction.py:277 loses provider
+    finish reason and lets SDK repair tool/empty compactor replies; loop.py:248
+    sends the entire Stage input as compactor objective; runtime.go:124 rejects
+    65 calls before usage accounting. Reproductions cover actual host operations
+    and the Python loop with its real HTTP Gateway adapter. The common Runtime
+    path originated in V488-002; V489-001 exposes it to Router and removes the
+    former correct Go paths.
+  siblings: >-
+    Both modeled strategies use the same host and loop and are covered here.
+    Required append failures must still block a candidate, preserving permanent
+    rejection and final failed-candidate retryability. Passthrough owns its
+    existing completion path. Worker one-shot summarizers share the Gateway
+    adapter but keep their ordinary response/tool policy; provider adaptation
+    stays at the LLM boundary, and PlannerHost remains deployment-neutral.
+scope:
+  in:
+    - Preserve a terminal candidate after confirmed required writes before late transport/cancellation; retain required-write precedence.
+    - Persist permanent initial context/envelope rejection and preserve classified invocation failures.
+    - Preserve bounded provider compactor outcomes, suppress SDK repair/dispatch, charge known usage once and reject invalid checkpoint replies correctly.
+    - Obtain only the canonical Stage objective for compactor input through the existing host operation.
+    - Bound multi-call selection metadata without discarding known model usage or allowing effects.
+    - Real PostgreSQL and actual Python loop/HTTP regressions, headless regression, owning spec and updated P3 evidence.
+  out:
+    - P2 recovery, a production LocalHost, new endpoints/tables/leases/receipts, configured model changes or deployment.
+acceptance_criteria:
+  - id: A1
+    text: Both strategies persist and recover confirmed succeeded or final failed candidates despite late cancellation/transport failure; failed required appends still prevent completion with correct retryability.
+  - id: A2
+    text: Oversized initial context or execution envelope leaves a completed permanent session outcome, no model/Worker effects and no invocation-in-progress session on reload.
+  - id: A3
+    text: Actual HTTP compactor stop/tool_calls/function_call/empty/filter/length/invalid replies preserve classification and usage, make at most one provider/admission call and never publish a rejected checkpoint or invoke a tool.
+  - id: A4
+    text: A large legal Stage parameter remains in the protected main context but does not inflate the compactor objective; the same loop runs with an injected local host.
+  - id: A5
+    text: Rejected parallel choices including 65 calls are charged exactly once, dispatch nothing and allow a corrected next choice within existing budgets; wire metadata remains bounded.
+  - id: A6
+    text: Each new regression fails against the pre-fix behavior; full touched packages, Runtime, wire, lint and relevant process scenarios pass with skips stated. Evidence and P3 readiness are updated without merging.
+tests:
+  - command: go test -race -tags=integration -count=1 ./internal/planner/... ./internal/scheduler ./internal/controlplane ./internal/httpapi/privateartifacts ./internal/app
+    covers: [A1, A2, A3, A5, A6]
+  - command: make test-runtime
+    covers: [A3, A4, A5, A6]
+  - command: make test-wire-cross-language
+    covers: [A4, A5, A6]
+  - command: make test-release-process-e2e-a
+    covers: [A1, A3, A4, A5, A6]
+  - command: make test-release-process-e2e-c
+    covers: [A1, A3, A4, A5, A6]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5, A6]

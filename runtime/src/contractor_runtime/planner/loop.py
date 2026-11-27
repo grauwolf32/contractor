@@ -174,7 +174,9 @@ class PlannerLoop:
                 "inputTokens": (usage.prompt_token_count or 0) if usage else 0,
                 "outputTokens": (usage.candidates_token_count or 0) if usage else 0,
                 "cachedTokens": (usage.cached_content_token_count or 0) if usage else 0,
-                "calls": calls,
+                # Two names preserve single/parallel selection without copying
+                # an arbitrarily large provider call list into the host request.
+                "calls": calls[:2],
             }
             if self._capture_model:
                 content = await bounded_content(llm_response.content)
@@ -245,7 +247,6 @@ class PlannerLoop:
                     await conversation.compact(
                         model=self._compactor,
                         operation=self.operation,
-                        objective=invocation.input,
                         on_model_error=on_model_error,
                     )
                 if recovery_requested:

@@ -100,6 +100,7 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
         usage: types.GenerateContentResponseUsageMetadata | None = None
         request_invalid = False
         empty_stop = False
+        response_metadata = None
         try:
             if stream:
                 raise _AdapterFailure("StreamingUnsupported")
@@ -123,6 +124,7 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
                         observer.capture_model_input(lambda: _observed_input(request))
                 completion = await self._client_handle.complete(request)
                 received = True
+                response_metadata = _response_metadata(completion)
                 if observer is not None:
                     with contextlib.suppress(Exception):
                         choice = _first_choice(completion)
@@ -165,6 +167,7 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
                 usage_metadata=usage,
                 request_invalid=request_invalid,
                 empty_stop=empty_stop,
+                response_metadata=response_metadata,
             ) from None
         if response is None:  # Defensive: every non-error call must produce one response.
             raise GatewayModelError("InvalidGatewayResponse") from None
@@ -235,6 +238,19 @@ def _first_choice(completion: Any) -> Mapping[str, Any]:
     return choices[0]
 
 
+def _response_metadata(completion: Any) -> dict[str, str | bool]:
+    choice = _first_choice(completion)
+    message = choice.get("message")
+    message = message if isinstance(message, Mapping) else {}
+    reason = choice.get("finish_reason")
+    return {
+        "finish_reason": "content_filter"
+        if message.get("refusal")
+        else (reason if isinstance(reason, str) and reason in _FINISH_REASON else ""),
+        "tool_calls": bool(message.get("tool_calls")),
+    }
+
+
 def _to_llm_response(completion: Any) -> LlmResponse:
     choice = _first_choice(completion)
     message = choice.get("message")
@@ -277,6 +293,7 @@ def _to_llm_response(completion: Any) -> LlmResponse:
         model_version=completion.get("model"),
         content=types.Content(role="model", parts=parts),
         partial=False,
+        custom_metadata=_response_metadata(completion),
         finish_reason=finish_reason,
         usage_metadata=_usage_metadata(completion.get("usage")),
     )

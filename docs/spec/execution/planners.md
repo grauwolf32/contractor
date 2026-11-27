@@ -908,8 +908,10 @@ A validated in-memory `finish` and its `finish_requested` fact are not a
 completed-session receipt. A required ADK event write failure, including the
 final FunctionResponse append after that finish, prevents candidate completion
 and retains the owning session-error classification and outcome retryability.
-This does not move ordinary cancellation ahead of a successfully persisted
-terminal turn: its completion write keeps the independent budget below.
+This does not move ordinary cancellation or a lost final Runtime/A2A response
+ahead of a successfully persisted terminal turn: its completion write keeps the
+independent budget below. Both succeeded and failed candidates retain that
+precedence; a failed required append still prevents completion.
 If genuine cancellation or deadline expiry determines the stop code after a
 failed required append, it cannot make a known final outcome or definite store
 rejection retryable; the original write and stop causes remain in the private
@@ -1044,7 +1046,10 @@ bytes (including its response schema), plus a framing reserve of 1,024 tokens
 compactor `contextWindowTokens` and its `maxTotalTokens`, and the request must
 fit the 4 MiB Gateway request bound; otherwise the invocation ends with
 `planner_compaction_failed` (input_capacity), without truncating a group or
-substituting a model. The compactor is a separate tool-free ADK `LlmAgent`
+substituting a model. The compactor input carries the canonical Stage objective,
+previous summary, plan projection and selected earlier history. The protected initial Stage input
+(parameters, Worker roster and input references) is not copied into its objective.
+The compactor is a separate tool-free ADK `LlmAgent`
 with `OutputSchema` requiring an object with one string `summary`, a private
 in-memory session and a model wrapper allowing exactly one provider call.
 It is not a Scheduler Worker and does not inherit the main Planner's tools or
@@ -1053,8 +1058,12 @@ instructions and the schema. The Gateway adapter transmits the ADK response
 schema as strict JSON Schema through `response_format`, requiring `summary`
 and forbidding additional properties;
 the instruction alone is not the format contract. A Gateway rejection keeps
-the ordinary failure classification, with no schema-free retry. The reply is
-accepted only when it finished with `stop`, called no tool, reports usage
+the ordinary failure classification, with no schema-free retry. Runtime retains
+the bounded original finish/tool outcome and known usage before ADK can normalize
+it or attempt a repair. Empty, filtered and tool-emitting received replies reach
+the host acceptance once; no provider tool call enters ADK dispatch. The reply is
+accepted only when its original provider response finished with `stop`, called
+no tool, reports usage
 within the compactor limits and is exactly one
 JSON object `{"summary": …}` whose trimmed, non-empty UTF-8 summary is at most
 16 KiB (LIM-PLN-13) and smaller than the source it replaces. Any other reply
@@ -1137,7 +1146,14 @@ nor registration. The Server adapter alone binds operations to the allocation's
 ordinary mTLS private transport. This permits another host implementation without
 changing the model loop; no local persistence backend, offline execution or resume
 is implied. The wire shapes and bounds are in `planner-execution.schema.json`
-and LIM-PLN-23/24. The 4 MiB operation/reply ceiling accommodates the 2 MiB
+and LIM-PLN-23/24. Initial prompt and envelope rejection closes any opened
+Planner session permanently before Runtime invocation; deterministic classified
+invocation errors retain their retryability. The `context` operation returns the
+canonical Stage objective alongside its plan projection and retained-byte count.
+For main-model selection Runtime sends at most the first two tool names: two
+names already prove a parallel selection. The host charges known usage/cost before
+rejecting any multiple selection; the 64-declaration ceiling is not a cap on
+received model calls. The 4 MiB operation/reply ceiling accommodates the 2 MiB
 canonical session state plus the Stage objective and operation envelope.
 `before_model` admits a model call; `after_model` charges its
 usage and admits at most one known tool. Tool operations use existing Server

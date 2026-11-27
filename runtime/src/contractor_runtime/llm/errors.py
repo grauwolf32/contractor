@@ -48,6 +48,7 @@ class GatewayModelError(RuntimeError):
         usage_metadata: types.GenerateContentResponseUsageMetadata | None = None,
         request_invalid: bool = False,
         empty_stop: bool = False,
+        response_metadata: dict[str, str | bool] | None = None,
     ) -> None:
         self.provider_error_type = provider_error_type
         self.retryable = retryable
@@ -56,6 +57,7 @@ class GatewayModelError(RuntimeError):
         self.usage_metadata = usage_metadata if response_received else None
         self.request_invalid = request_invalid
         self.empty_stop = empty_stop
+        self.response_metadata = response_metadata if response_received else None
         super().__init__(f"LLM gateway call failed ({provider_error_type})")
 
 

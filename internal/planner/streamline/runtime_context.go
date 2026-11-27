@@ -38,7 +38,7 @@ func (h *runtimeHost) contextOperation(ctx context.Context, request contracts.Pl
 		if strictjson.DecodeNonNull(request.Arguments, &args) != nil || h.modelPhase != "" || h.checkpointReady {
 			return nil, nil, invalidRuntimeOperation()
 		}
-		return map[string]any{"plan": planView(h.planner.plan.Snapshot()), "retainedBytes": c.retainedLocked()}, nil, nil
+		return map[string]any{"objective": h.planner.request.Objective, "plan": planView(h.planner.plan.Snapshot()), "retainedBytes": c.retainedLocked()}, nil, nil
 	case "before_compactor":
 		var args struct {
 			Retained int64 `json:"retainedBytes" strictjson:"required"`

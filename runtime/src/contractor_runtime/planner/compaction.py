@@ -6,12 +6,14 @@ import json
 from typing import Any
 
 from google.adk.agents import LlmAgent
+from google.adk.models.llm_response import LlmResponse
 from google.genai import types
 from pydantic import BaseModel, ConfigDict
 
 from contractor_runtime.adapters.content import bounded_content, model_request_content
 from contractor_runtime.contracts.planner import PlannerCompaction
 from contractor_runtime.llm.cost import model_cost_phase
+from contractor_runtime.llm.errors import GatewayModelError
 from contractor_runtime.llm.one_shot import OneShotModel, generation_config, one_shot_session
 from contractor_runtime.llm.request import completion_request
 from contractor_runtime.llm.usage import valid_token_usage
@@ -194,11 +196,11 @@ class Conversation:
             raise failed("peak", limit=True)
         return end, source_bytes, document
 
-    async def compact(self, *, model, operation, objective, on_model_error) -> None:
+    async def compact(self, *, model, operation, on_model_error) -> None:
         context = (await operation("context", {})).result
         end, source_bytes, document = await to_thread_until_done(
             self.selection,
-            objective,
+            context["objective"],
             context["plan"],
             context["retainedBytes"],
             name="planner-compaction-input",
@@ -274,11 +276,15 @@ class Conversation:
             raise failed("invalid")
         usage = response.usage_metadata
         parts = (response.content.parts if response.content else []) or []
-        reason = {
-            types.FinishReason.STOP: "stop",
-            types.FinishReason.MAX_TOKENS: "length",
-            types.FinishReason.SAFETY: "content_filter",
-        }.get(response.finish_reason, "")
+        metadata = response.custom_metadata or {}
+        reason = metadata.get(
+            "finish_reason",
+            {
+                types.FinishReason.STOP: "stop",
+                types.FinishReason.MAX_TOKENS: "length",
+                types.FinishReason.SAFETY: "content_filter",
+            }.get(response.finish_reason, ""),
+        )
         arguments = {
             "inputTokens": usage.prompt_token_count or 0,
             "outputTokens": usage.candidates_token_count or 0,
@@ -287,7 +293,10 @@ class Conversation:
                 part.text for part in parts if part.text is not None and not part.thought
             ),
             "finishReason": reason,
-            "toolCalls": sum(part.function_call is not None for part in parts),
+            "toolCalls": int(
+                metadata.get("tool_calls", False)
+                or any(part.function_call is not None for part in parts)
+            ),
             "sourceBytes": source_bytes,
         }
         if capture:
@@ -316,6 +325,35 @@ class _Summary(BaseModel):
 
 
 class _CompactorModel(OneShotModel):
+    async def generate_content_async(self, llm_request, stream=False):
+        try:
+            async for _ in super().generate_content_async(llm_request, stream=stream):
+                # Host validates the retained raw reply after Runner joins. No
+                # provider tool call or structured-output repair may enter ADK.
+                yield LlmResponse()
+        except GatewayModelError as error:
+            metadata = error.response_metadata
+            if (
+                not valid_token_usage(error.usage_metadata)
+                or not metadata
+                or not (
+                    error.provider_error_type == "EmptyGatewayResponse"
+                    or metadata["tool_calls"]
+                    or metadata["finish_reason"]
+                    in {
+                        "tool_calls",
+                        "function_call",
+                        "length",
+                        "content_filter",
+                    }
+                )
+            ):
+                raise
+            self._response = LlmResponse(
+                usage_metadata=error.usage_metadata, custom_metadata=metadata
+            )
+            yield LlmResponse()
+
     def _record_usage(self, usage_metadata):
         pass
 

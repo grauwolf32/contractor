@@ -121,7 +121,7 @@ func (h *runtimeHost) execute(ctx context.Context, request contracts.PlannerOper
 			Content string             `json:"content,omitempty"`
 			Cost    *reporting.LLMCost `json:"cost,omitempty"`
 		}
-		if strictjson.DecodeNonNull(request.Arguments, &args) != nil || args.Input < 0 || args.Output < 0 || args.Cached < 0 || len(args.Calls) > contracts.MaxPlannerTools || h.modelPhase != "main" || !h.acceptCost(args.Cost) {
+		if strictjson.DecodeNonNull(request.Arguments, &args) != nil || args.Input < 0 || args.Output < 0 || args.Cached < 0 || h.modelPhase != "main" || !h.acceptCost(args.Cost) {
 			return reply, invalidRuntimeOperation()
 		}
 		usage := &modelUsage{PromptTokenCount: args.Input, CandidatesTokenCount: args.Output, CachedContentTokenCount: args.Cached}
@@ -316,7 +316,7 @@ func (p *streamlinePlanner) runRuntime(ctx context.Context, identity planner.Ses
 	defer p.runtimeHosts.Delete(p.invocation.StageExecutionID)
 	message, err := p.initialMessage()
 	if err != nil {
-		return stageresult.StageContentResult{}, invalidRuntimeOperation()
+		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, planner.NewError("planner_context_invalid", "Planner context could not be encoded", false, err))
 	}
 	// The canonical Stage context is already in Input. Do not duplicate its
 	// parameters and exact refs in the outer execution envelope.
@@ -329,6 +329,9 @@ func (p *streamlinePlanner) runRuntime(ctx context.Context, identity planner.Ses
 	if c := p.compactionSettings; c != nil {
 		request.Planner.Compaction = &contracts.PlannerCompaction{Instructions: c.instructions, Threshold: c.threshold, KeepRecentGroups: c.keepRecent, MaxCompactions: c.maxCompactions, Policy: c.compactor.Clone()}
 	}
+	if err := request.Validate(); err != nil {
+		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, planner.NewError("invalid_stage_content", "Planner execution request violates its contract", false, err))
+	}
 	completion, callErr := p.invoker.Invoke(runContext, "planner", p.invocation.RuntimeExecutor.Clone(), request)
 	stopped := stoppedPlannerError(ctx, runContext)
 	cancel()
@@ -340,6 +343,15 @@ func (p *streamlinePlanner) runRuntime(ctx context.Context, identity planner.Ses
 		host.endModel("failed", "planner_execution_failed", nil)
 	}
 	host.mu.Unlock()
+	// A confirmed terminal turn survives late transport failure or cancellation.
+	// A required append failure still prevents candidate completion (PLN-R106).
+	if result, _ := state.terminal(); failure == nil && result != nil {
+		outcome := planner.Completion{Result: result}
+		if err := planner.CompleteSession(ctx, p.sessions, identity, outcome); err != nil {
+			return stageresult.StageContentResult{}, planner.CompletionWriteError(outcome, err)
+		}
+		return result.Clone(), nil
+	}
 	if stopped != nil {
 		if failure != nil {
 			stopped = planner.NewError(stopped.Code, stopped.Message, stopped.Retryable && failure.Retryable, errors.Join(stopped, failure))
@@ -357,15 +369,13 @@ func (p *streamlinePlanner) runRuntime(ctx context.Context, identity planner.Ses
 		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
 	}
 	if callErr != nil {
-		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, planner.NewError("planner_execution_failed", "Runtime Planner invocation failed", true, callErr))
-	}
-	if result, failure := state.terminal(); result != nil {
-		outcome := planner.Completion{Result: result}
-		if err := planner.CompleteSession(ctx, p.sessions, identity, outcome); err != nil {
-			return stageresult.StageContentResult{}, planner.CompletionWriteError(outcome, err)
+		var classified *planner.Error
+		if !errors.As(callErr, &classified) {
+			classified = planner.NewError("planner_execution_failed", "Runtime Planner invocation failed", true, callErr)
 		}
-		return result.Clone(), nil
-	} else if failure != nil {
+		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, classified)
+	}
+	if _, failure := state.terminal(); failure != nil {
 		return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
 	}
 	if completion.Failure != nil {
