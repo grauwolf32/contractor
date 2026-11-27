@@ -5,7 +5,7 @@ milestone: server-runtime-grpc-2026-11
 epic: execution-core
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V490-001
 languages:
@@ -115,3 +115,19 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 403df53f68db090ca876ac4a6144e8342951256f
+verification:
+  status: passed
+  observed: >-
+    make lint, make test-wire-cross-language and make test-go passed, with
+    disposable PostgreSQL enabled for Go persistence tests. make test-runtime
+    passed: 6863 tests and 136 declared skips; both Runtime report verifiers
+    passed. make test-e2e passed all 71 process roots in 4189.232 seconds and
+    all six process report verifiers. The accepted full process run was
+    restarted after the user's temporary pause; interrupted diagnostic runs
+    are not passing coverage. Full mtls, A2A and Control Plane race suites and
+    actual native lifecycle integration tests passed. Code-analysis, HTTP/Caido
+    and taint release-loss scenarios passed through native HTTP/2 fault proxies.
+    Heavy-I/O stayed disabled; declared skips are not passing coverage. No
+    live model calls, deployment or merge into main were performed. Later
+    control, domain and Artifact binding tasks remain open.

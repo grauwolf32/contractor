@@ -3,7 +3,8 @@
 Обновлено 2026-11-27. База: `main @ 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b`.
 Статус: **переход разрешён пользователем; задачи созданы; подтверждена транспортная
 предпосылка mTLS; пользователь выбрал локальный TLS-адаптер. Первый сквозной путь registration → lifecycle → A2A gRPC
-прошёл real-process проверку; полная приёмка и остальные семейства ещё не завершены.** Исторический разбор ниже
+принят: Go/PostgreSQL, Runtime, wire, lint и 71 process-сценарий прошли.
+Остальные семейства и полная release-приёмка ещё не завершены.** Исторический разбор ниже
 сохранён как контекст; его рекомендация оставить HTTP больше не является планом.
 
 ## Решения и результат
@@ -236,7 +237,7 @@ maps в JSON-совместимые значения; Go SDK не принима
 | Задача | Проверяемый результат | Зависит от |
 | --- | --- | --- |
 | [V490-001](../../tasks/done/v490-001-grpc-security-interop.yml) | Решён TLS prerequisite, официальные SDK совместимы, определены binary validation и generation | — |
-| [V490-002](../../tasks/v490-002-grpc-run-slice.yml) | Первый настоящий Run: registration → prepare → A2A gRPC → finalize/release, плюс cancel | 001 |
+| [V490-002](../../tasks/done/v490-002-grpc-run-slice.yml) | Первый настоящий Run: registration → prepare → A2A gRPC → finalize/release, плюс cancel | 001 |
 | [V490-003](../../tasks/v490-003-grpc-control-lifecycle.yml) | Полный control/State, четыре slots, lease, shutdown, lost replies и restart | 002 |
 | [V490-004](../../tasks/v490-004-grpc-allocation-services.yml) | Planner callbacks и все allocation domain services на gRPC | 003 |
 | [V490-005](../../tasks/v490-005-grpc-artifact-streams.yml) | Artifact streams с CAS, receipt, bounded memory и cleanup | 004 |
