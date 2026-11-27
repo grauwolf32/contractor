@@ -89,4 +89,4 @@ verification:
   simplification: No execution logic, tests, stores, leases or engines added. Only a release comment changes in production; Go source shrinks by one comment line. Four stale single-slot descriptions are corrected.
   p2: Deferred indefinitely by the user's 2026-11-27 decision; ordinary Workflow retry may repeat effects inside the interrupted Stage. Already durable finalizing candidates use existing terminal recovery.
   cleanup: All owned process groups and Runtime interpreters are gone; owned databases and PostgreSQL cluster removed. Primary files, modes, staged delta and main preserved.
-  delivery: Committed on codex/runtime-planner-p4; not merged into main, pushed or deployed.
+  delivery: Accepted on codex/runtime-planner-p4 and merged into local main through c261572459fdae4f3ff00a9d98455e034b23afc9 (V489-006); no push or deployment.

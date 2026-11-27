@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.0",
+  "task": "V489-006",
+  "date": "2026-11-27",
+  "result": "passed",
+  "main_before": "9c038839ecc7f6fba3eb4cc2a0519479a34c4503",
+  "accepted_source": "1bcc21f9aa9dc34e9ac3d9fdf9aebc9f7455e81b",
+  "merge_commit": "c261572459fdae4f3ff00a9d98455e034b23afc9",
+  "merge_parents": [
+    "9c038839ecc7f6fba3eb4cc2a0519479a34c4503",
+    "1bcc21f9aa9dc34e9ac3d9fdf9aebc9f7455e81b"
+  ],
+  "implementation_commit": "c261572459fdae4f3ff00a9d98455e034b23afc9",
+  "source_acceptance_evidence_sha256": "be7d2e7dbcf21325beb13383f45f430e519888a69e0552d4d77cbd5cdba329fd",
+  "source_identity": {
+    "result": "identical",
+    "scope": [
+      "api",
+      "cmd",
+      "configs",
+      "internal",
+      "runtime",
+      "ui",
+      "tests",
+      "tools",
+      "scripts",
+      "make",
+      "Makefile",
+      "go.mod",
+      "go.sum",
+      "docs/spec"
+    ],
+    "note": "Only proposal, task and evidence delivery metadata differ from accepted P4. Generated graph is checked by its owner."
+  },
+  "verification_reuse": {
+    "source_task": "V489-005",
+    "go_roots_with_race_postgres": 649,
+    "runtime_passed": 6795,
+    "runtime_declared_skips": 136,
+    "process_roots_passed": 71,
+    "process_skips": 0,
+    "wire_architecture_mtls_lint": "passed in P4; checksums of retained Go, Runtime, wire and all three process reports verified during integration",
+    "negative_controls": "Broken progression and incomplete report rejected in P4",
+    "fresh_full_run": false
+  },
+  "fresh_integration_checks": [
+    "make tasks-backlog",
+    "check_tasks.py",
+    "check_spec.py",
+    "shared_fixture_gate.py --sources-only",
+    "dependencies/build_graph.py --check",
+    "git diff --check",
+    "accepted source identity comparison",
+    "git check-ignore --no-index .portable/example.zip",
+    "guarded main installation and preservation verification"
+  ],
+  "preservation": {
+    "main_head": "c261572459fdae4f3ff00a9d98455e034b23afc9",
+    "portable_task_exact": true,
+    "portable_payload_files_exact": 10,
+    "generated_backlog_preserves_portable_task": true,
+    "staged_delta_preserved": true,
+    "portable_ignored_untracked": true,
+    "accepted_source_identity": true
+  },
+  "guard_snapshot": "/private/tmp/contractor-v489-p4-main-4x9o1sze/primary-before.json",
+  "guard_script": "/private/tmp/contractor-v489-p4-main-4x9o1sze/install-main.py",
+  "policy": {
+    "p2": "Deferred indefinitely",
+    "failure_outcome": "Ordinary interruption and Workflow-governed fresh Stage retry; effects inside interrupted Stage may repeat. Existing durable finalization remains idempotent.",
+    "headless": "Common injected PlannerHost boundary retained; no new backend or engine."
+  },
+  "delivery": "Merged into local main; delivery metadata follows in a descendant commit. No push, deployment, migrations or model calls.",
+  "fresh_integration_checks_result": "passed",
+  "guard_script_sha256": "b8514f4a7003cafdb11d32083d8602167bcaf6a4f7a246e66f1689eaf7740760",
+  "final_installation_evidence": "/private/tmp/contractor-v489-p4-main-4x9o1sze/preservation-after.json"
+}

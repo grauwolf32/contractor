@@ -1,9 +1,12 @@
 # Planner в Runtime: единый движок и приёмка P4
 
-Обновлено 27 ноября 2026. P1 и P3 приняты в локальный `main`.
+Обновлено 27 ноября 2026. P1, P3 и приёмка P4 приняты в локальный `main`.
 P3 слит через `d35ba0bd53bbc801b79996076497b6c45864552a`;
 [интеграция V489-004](../../tasks/done/v489-004-runtime-planner-main-integration.yml)
 подтверждает идентичность принятому коду и сохранность локальной работы.
+P4 слит через `c261572459fdae4f3ff00a9d98455e034b23afc9`;
+[интеграция V489-006](../../tasks/done/v489-006-runtime-planner-p4-main-integration.yml)
+фиксирует сохранность локальной работы и идентичность принятой версии.
 Исходная приёмка: [V489-001](../../tasks/done/v489-001-runtime-router.yml) и
 [evidence](../../tasks/evidence/v489-001-runtime-router.json).
 
@@ -279,7 +282,7 @@ StageExecution остаётся возможным будущим охватом
 | Headless-граница | Тот же Router/Streamline loop и compaction с внедрённым локальным host/model, без Server bootstrap. Production LocalHost не заявлен. |
 
 Приёмка [V489-005](../../tasks/done/v489-005-runtime-planner-p4-acceptance.yml)
-завершена в ветке `codex/runtime-planner-p4`, без слияния в main:
+принята в локальный `main` через merge `c261572459fdae4f3ff00a9d98455e034b23afc9`:
 649 Go root tests с race/PostgreSQL, 6 795 Runtime passes / 136 declared skips,
 71 process roots без отказов и пропусков, wire, architecture и lint прошли.
 Отрицательный контроль через Go overlay нарушил создание следующей попытки;

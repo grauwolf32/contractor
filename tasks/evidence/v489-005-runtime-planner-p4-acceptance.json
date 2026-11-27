@@ -451,7 +451,7 @@
     "Unavailable Linux/rootless or optional heavy-I/O coverage",
     "Full release-verify, deployment, migration of user data, remote push or main integration"
   ],
-  "delivery": "Isolated codex/runtime-planner-p4 branch; not merged into main.",
+  "delivery": "Accepted on codex/runtime-planner-p4; merged into local main through c261572459fdae4f3ff00a9d98455e034b23afc9 (V489-006). No push or deployment.",
   "implementation_commit": "4d9275b7775b3b0669ae7fa253b425c3645785a8",
   "task_file": "tasks/done/v489-005-runtime-planner-p4-acceptance.yml",
   "metadata_validation": {
@@ -466,5 +466,12 @@
     "source_identity": "All production, tests, contracts, build/check inputs and normative specifications match the implementation commit; only task completion/proposal link/evidence metadata follow.",
     "post_metadata_primary_preservation": "All 12 protected files retain bytes/modes; staged delta and main remain unchanged.",
     "database_scope": "Full metadata lint runs after owned PostgreSQL removal; real PostgreSQL/race and wire checks completed before cleanup."
+  },
+  "main_integration": {
+    "task": "V489-006",
+    "merge_commit": "c261572459fdae4f3ff00a9d98455e034b23afc9",
+    "accepted_source": "1bcc21f9aa9dc34e9ac3d9fdf9aebc9f7455e81b",
+    "evidence": "tasks/evidence/v489-006-runtime-planner-p4-main-integration.json",
+    "note": "Acceptance results and cleanup above describe the original P4 run. Main integration reuses those results and adds delivery metadata only."
   }
 }

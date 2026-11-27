@@ -5,7 +5,7 @@ milestone: runtime-planner-p3-2026-11
 epic: planner-worker
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V489-005]
 languages: [markdown, yaml]
 goal: Local main contains the accepted P4 results, indefinite P2 deferral and corrected capacity descriptions through a no-fast-forward merge, preserving the user's portable-kit work and staged delta.
@@ -45,3 +45,12 @@ tests:
     covers: [A2]
   - command: python3 /private/tmp/contractor-v489-p4-main-4x9o1sze/install-main.py --verify-only
     covers: [A2]
+
+implementation_commit: c261572459fdae4f3ff00a9d98455e034b23afc9
+verification:
+  result: passed
+  evidence: tasks/evidence/v489-006-runtime-planner-p4-main-integration.json
+  delivery: P4 is merged into local main through the exact two-parent merge; no push or deployment.
+  source_identity: Production, tests, contracts, build/check inputs and normative specifications match the pinned accepted source. Integration adds delivery metadata only and reuses verified P4 without claiming a fresh full run.
+  preservation: The portable task and all ten ignored payload files retain bytes/modes; generated backlog retains the local task contribution; original empty staged delta is preserved. Portable work remains untracked and uncommitted.
+  p2: Remains indefinitely deferred by the user; ordinary interruption/fresh-attempt retry and the headless boundary are unchanged.
