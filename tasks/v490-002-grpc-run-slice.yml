@@ -22,7 +22,9 @@ context:
   authority: 'User decision 2026-11-27: plan and implement gRPC for Server/Runtime, preserve A2A. Direct connectivity
     through the existing overlay is an architectural fact, not new scope. NAT, reverse tunnels and removal
     of A2A were explicitly rejected. Implementation does not authorize deployment or merging main. The task
-    decomposition and typed protobuf design are agent proposals.'
+    decomposition and typed protobuf design are agent proposals. Subsequent user decision 2026-11-27:
+    preserve the current PKI and use a bounded in-process Runtime TLS adapter with actual-connection
+    Control Plane URI SAN verification and private Unix sockets for native grpcio.'
   proposal: docs/proposals/0038-server-runtime-transport.md
   specification:
   - docs/spec/execution/control-plane.md#CTL-R163
