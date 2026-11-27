@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 10 in progress, 45 pending, 13 deferred. 1729 finished: 1710 completed, 19 archived.
+68 open tasks: 11 in progress, 44 pending, 13 deferred. 1729 finished: 1710 completed, 19 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V490-004](v490-004-grpc-allocation-services.yml) | api-contracts | feature | P1 | Move allocation domain services to typed gRPC |
 
 ## Pending
 
@@ -118,7 +119,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016 | Expose HTTP engagement setup and results through existing API and CLI |
-| [V490-004](v490-004-grpc-allocation-services.yml) | feature | P1 | — | Move allocation domain services to typed gRPC |
 
 ### PostgreSQL persistence and schema (`persistence`)
 

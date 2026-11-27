@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from audit_fixtures import assigned
+from fakes.allocation_rpc import AllocationRPCFixture
 from fakes.audit_judgments import acknowledged_judgments
 from fakes.engagement_socket import SocketTarget, preflight
 from fakes.worker_state import WorkerState
@@ -29,7 +30,7 @@ from contractor_runtime.toolsets.http.controlled import ControlledHTTPSession
 from contractor_runtime.worker.instrumentation import _safe_tool_response
 
 
-class EvidenceTransport:
+class EvidenceTransport(AllocationRPCFixture):
     def __init__(self, *, lose_reply=False):
         self.values = {}
         self.requests = []

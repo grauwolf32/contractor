@@ -1485,6 +1485,384 @@ func (x *ErrorDetail) GetRequestId() string {
 	return ""
 }
 
+type PlannerOperationRequest struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	ApiVersion    *string                   `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	Sequence      *int64                    `protobuf:"varint,2,opt,name=sequence,proto3,oneof" json:"sequence,omitempty"`
+	Name          *string                   `protobuf:"bytes,3,opt,name=name,proto3,oneof" json:"name,omitempty"`
+	Arguments     *PlannerArgumentsDocument `protobuf:"bytes,4,opt,name=arguments,proto3" json:"arguments,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlannerOperationRequest) Reset() {
+	*x = PlannerOperationRequest{}
+	mi := &file_runtime_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlannerOperationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlannerOperationRequest) ProtoMessage() {}
+
+func (x *PlannerOperationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlannerOperationRequest.ProtoReflect.Descriptor instead.
+func (*PlannerOperationRequest) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *PlannerOperationRequest) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *PlannerOperationRequest) GetSequence() int64 {
+	if x != nil && x.Sequence != nil {
+		return *x.Sequence
+	}
+	return 0
+}
+
+func (x *PlannerOperationRequest) GetName() string {
+	if x != nil && x.Name != nil {
+		return *x.Name
+	}
+	return ""
+}
+
+func (x *PlannerOperationRequest) GetArguments() *PlannerArgumentsDocument {
+	if x != nil {
+		return x.Arguments
+	}
+	return nil
+}
+
+type PlannerOperationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion    *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	Result        *PlannerResultDocument `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
+	Stop          *bool                  `protobuf:"varint,3,opt,name=stop,proto3,oneof" json:"stop,omitempty"`
+	Escalate      *bool                  `protobuf:"varint,4,opt,name=escalate,proto3,oneof" json:"escalate,omitempty"`
+	Failure       *TerminationError      `protobuf:"bytes,5,opt,name=failure,proto3" json:"failure,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlannerOperationResponse) Reset() {
+	*x = PlannerOperationResponse{}
+	mi := &file_runtime_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlannerOperationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlannerOperationResponse) ProtoMessage() {}
+
+func (x *PlannerOperationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlannerOperationResponse.ProtoReflect.Descriptor instead.
+func (*PlannerOperationResponse) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *PlannerOperationResponse) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *PlannerOperationResponse) GetResult() *PlannerResultDocument {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+func (x *PlannerOperationResponse) GetStop() bool {
+	if x != nil && x.Stop != nil {
+		return *x.Stop
+	}
+	return false
+}
+
+func (x *PlannerOperationResponse) GetEscalate() bool {
+	if x != nil && x.Escalate != nil {
+		return *x.Escalate
+	}
+	return false
+}
+
+func (x *PlannerOperationResponse) GetFailure() *TerminationError {
+	if x != nil {
+		return x.Failure
+	}
+	return nil
+}
+
+// Tool arguments and results are the existing schema-validated domain documents,
+// not encoded HTTP requests or a replacement invocation protocol.
+type PlannerArgumentsDocument struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Json          []byte                 `protobuf:"bytes,1,opt,name=json,proto3,oneof" json:"json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlannerArgumentsDocument) Reset() {
+	*x = PlannerArgumentsDocument{}
+	mi := &file_runtime_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlannerArgumentsDocument) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlannerArgumentsDocument) ProtoMessage() {}
+
+func (x *PlannerArgumentsDocument) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlannerArgumentsDocument.ProtoReflect.Descriptor instead.
+func (*PlannerArgumentsDocument) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *PlannerArgumentsDocument) GetJson() []byte {
+	if x != nil {
+		return x.Json
+	}
+	return nil
+}
+
+type PlannerResultDocument struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Json          []byte                 `protobuf:"bytes,1,opt,name=json,proto3,oneof" json:"json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlannerResultDocument) Reset() {
+	*x = PlannerResultDocument{}
+	mi := &file_runtime_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlannerResultDocument) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlannerResultDocument) ProtoMessage() {}
+
+func (x *PlannerResultDocument) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlannerResultDocument.ProtoReflect.Descriptor instead.
+func (*PlannerResultDocument) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *PlannerResultDocument) GetJson() []byte {
+	if x != nil {
+		return x.Json
+	}
+	return nil
+}
+
+type GatewayRecoveryRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Model             *string                `protobuf:"bytes,1,opt,name=model,proto3,oneof" json:"model,omitempty"`
+	RequestId         *string                `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3,oneof" json:"request_id,omitempty"`
+	Action            *string                `protobuf:"bytes,3,opt,name=action,proto3,oneof" json:"action,omitempty"`
+	Code              *string                `protobuf:"bytes,4,opt,name=code,proto3,oneof" json:"code,omitempty"`
+	RetryAfterSeconds *float64               `protobuf:"fixed64,5,opt,name=retry_after_seconds,json=retryAfterSeconds,proto3,oneof" json:"retry_after_seconds,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GatewayRecoveryRequest) Reset() {
+	*x = GatewayRecoveryRequest{}
+	mi := &file_runtime_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GatewayRecoveryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GatewayRecoveryRequest) ProtoMessage() {}
+
+func (x *GatewayRecoveryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GatewayRecoveryRequest.ProtoReflect.Descriptor instead.
+func (*GatewayRecoveryRequest) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *GatewayRecoveryRequest) GetModel() string {
+	if x != nil && x.Model != nil {
+		return *x.Model
+	}
+	return ""
+}
+
+func (x *GatewayRecoveryRequest) GetRequestId() string {
+	if x != nil && x.RequestId != nil {
+		return *x.RequestId
+	}
+	return ""
+}
+
+func (x *GatewayRecoveryRequest) GetAction() string {
+	if x != nil && x.Action != nil {
+		return *x.Action
+	}
+	return ""
+}
+
+func (x *GatewayRecoveryRequest) GetCode() string {
+	if x != nil && x.Code != nil {
+		return *x.Code
+	}
+	return ""
+}
+
+func (x *GatewayRecoveryRequest) GetRetryAfterSeconds() float64 {
+	if x != nil && x.RetryAfterSeconds != nil {
+		return *x.RetryAfterSeconds
+	}
+	return 0
+}
+
+type GatewayRecoveryResponse struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Allowed           *bool                  `protobuf:"varint,1,opt,name=allowed,proto3,oneof" json:"allowed,omitempty"`
+	Code              *string                `protobuf:"bytes,2,opt,name=code,proto3,oneof" json:"code,omitempty"`
+	RetryAfterSeconds *float64               `protobuf:"fixed64,3,opt,name=retry_after_seconds,json=retryAfterSeconds,proto3,oneof" json:"retry_after_seconds,omitempty"`
+	RequiresRetry     *bool                  `protobuf:"varint,4,opt,name=requires_retry,json=requiresRetry,proto3,oneof" json:"requires_retry,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GatewayRecoveryResponse) Reset() {
+	*x = GatewayRecoveryResponse{}
+	mi := &file_runtime_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GatewayRecoveryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GatewayRecoveryResponse) ProtoMessage() {}
+
+func (x *GatewayRecoveryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GatewayRecoveryResponse.ProtoReflect.Descriptor instead.
+func (*GatewayRecoveryResponse) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *GatewayRecoveryResponse) GetAllowed() bool {
+	if x != nil && x.Allowed != nil {
+		return *x.Allowed
+	}
+	return false
+}
+
+func (x *GatewayRecoveryResponse) GetCode() string {
+	if x != nil && x.Code != nil {
+		return *x.Code
+	}
+	return ""
+}
+
+func (x *GatewayRecoveryResponse) GetRetryAfterSeconds() float64 {
+	if x != nil && x.RetryAfterSeconds != nil {
+		return *x.RetryAfterSeconds
+	}
+	return 0
+}
+
+func (x *GatewayRecoveryResponse) GetRequiresRetry() bool {
+	if x != nil && x.RequiresRetry != nil {
+		return *x.RequiresRetry
+	}
+	return false
+}
+
 type StateReadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AllocationId  *string                `protobuf:"bytes,1,opt,name=allocation_id,json=allocationId,proto3,oneof" json:"allocation_id,omitempty"`
@@ -1495,7 +1873,7 @@ type StateReadRequest struct {
 
 func (x *StateReadRequest) Reset() {
 	*x = StateReadRequest{}
-	mi := &file_runtime_proto_msgTypes[21]
+	mi := &file_runtime_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1507,7 +1885,7 @@ func (x *StateReadRequest) String() string {
 func (*StateReadRequest) ProtoMessage() {}
 
 func (x *StateReadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[21]
+	mi := &file_runtime_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1520,7 +1898,7 @@ func (x *StateReadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StateReadRequest.ProtoReflect.Descriptor instead.
 func (*StateReadRequest) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{21}
+	return file_runtime_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *StateReadRequest) GetAllocationId() string {
@@ -1551,7 +1929,7 @@ type StateReadResponse struct {
 
 func (x *StateReadResponse) Reset() {
 	*x = StateReadResponse{}
-	mi := &file_runtime_proto_msgTypes[22]
+	mi := &file_runtime_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1563,7 +1941,7 @@ func (x *StateReadResponse) String() string {
 func (*StateReadResponse) ProtoMessage() {}
 
 func (x *StateReadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[22]
+	mi := &file_runtime_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1576,7 +1954,7 @@ func (x *StateReadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StateReadResponse.ProtoReflect.Descriptor instead.
 func (*StateReadResponse) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{22}
+	return file_runtime_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *StateReadResponse) GetRevision() uint64 {
@@ -1635,7 +2013,7 @@ type StateNotModified struct {
 
 func (x *StateNotModified) Reset() {
 	*x = StateNotModified{}
-	mi := &file_runtime_proto_msgTypes[23]
+	mi := &file_runtime_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1647,7 +2025,7 @@ func (x *StateNotModified) String() string {
 func (*StateNotModified) ProtoMessage() {}
 
 func (x *StateNotModified) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[23]
+	mi := &file_runtime_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1660,7 +2038,7 @@ func (x *StateNotModified) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StateNotModified.ProtoReflect.Descriptor instead.
 func (*StateNotModified) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{23}
+	return file_runtime_proto_rawDescGZIP(), []int{29}
 }
 
 type AgentStateDocument struct {
@@ -1672,7 +2050,7 @@ type AgentStateDocument struct {
 
 func (x *AgentStateDocument) Reset() {
 	*x = AgentStateDocument{}
-	mi := &file_runtime_proto_msgTypes[24]
+	mi := &file_runtime_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1684,7 +2062,7 @@ func (x *AgentStateDocument) String() string {
 func (*AgentStateDocument) ProtoMessage() {}
 
 func (x *AgentStateDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[24]
+	mi := &file_runtime_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1697,7 +2075,7 @@ func (x *AgentStateDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentStateDocument.ProtoReflect.Descriptor instead.
 func (*AgentStateDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{24}
+	return file_runtime_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *AgentStateDocument) GetJson() []byte {
@@ -1717,7 +2095,7 @@ type PrepareAllocationRequest struct {
 
 func (x *PrepareAllocationRequest) Reset() {
 	*x = PrepareAllocationRequest{}
-	mi := &file_runtime_proto_msgTypes[25]
+	mi := &file_runtime_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1729,7 +2107,7 @@ func (x *PrepareAllocationRequest) String() string {
 func (*PrepareAllocationRequest) ProtoMessage() {}
 
 func (x *PrepareAllocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[25]
+	mi := &file_runtime_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1742,7 +2120,7 @@ func (x *PrepareAllocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PrepareAllocationRequest.ProtoReflect.Descriptor instead.
 func (*PrepareAllocationRequest) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{25}
+	return file_runtime_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *PrepareAllocationRequest) GetApiVersion() string {
@@ -1769,7 +2147,7 @@ type PrepareAllocationResponse struct {
 
 func (x *PrepareAllocationResponse) Reset() {
 	*x = PrepareAllocationResponse{}
-	mi := &file_runtime_proto_msgTypes[26]
+	mi := &file_runtime_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1781,7 +2159,7 @@ func (x *PrepareAllocationResponse) String() string {
 func (*PrepareAllocationResponse) ProtoMessage() {}
 
 func (x *PrepareAllocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[26]
+	mi := &file_runtime_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1794,7 +2172,7 @@ func (x *PrepareAllocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PrepareAllocationResponse.ProtoReflect.Descriptor instead.
 func (*PrepareAllocationResponse) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{26}
+	return file_runtime_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *PrepareAllocationResponse) GetApiVersion() string {
@@ -1823,7 +2201,7 @@ type FinalizeAllocationRequest struct {
 
 func (x *FinalizeAllocationRequest) Reset() {
 	*x = FinalizeAllocationRequest{}
-	mi := &file_runtime_proto_msgTypes[27]
+	mi := &file_runtime_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1835,7 +2213,7 @@ func (x *FinalizeAllocationRequest) String() string {
 func (*FinalizeAllocationRequest) ProtoMessage() {}
 
 func (x *FinalizeAllocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[27]
+	mi := &file_runtime_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1848,7 +2226,7 @@ func (x *FinalizeAllocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FinalizeAllocationRequest.ProtoReflect.Descriptor instead.
 func (*FinalizeAllocationRequest) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{27}
+	return file_runtime_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *FinalizeAllocationRequest) GetApiVersion() string {
@@ -1892,7 +2270,7 @@ type AbortAllocationRequest struct {
 
 func (x *AbortAllocationRequest) Reset() {
 	*x = AbortAllocationRequest{}
-	mi := &file_runtime_proto_msgTypes[28]
+	mi := &file_runtime_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1904,7 +2282,7 @@ func (x *AbortAllocationRequest) String() string {
 func (*AbortAllocationRequest) ProtoMessage() {}
 
 func (x *AbortAllocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[28]
+	mi := &file_runtime_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1917,7 +2295,7 @@ func (x *AbortAllocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AbortAllocationRequest.ProtoReflect.Descriptor instead.
 func (*AbortAllocationRequest) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{28}
+	return file_runtime_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *AbortAllocationRequest) GetApiVersion() string {
@@ -1965,7 +2343,7 @@ type ReleaseAllocationRequest struct {
 
 func (x *ReleaseAllocationRequest) Reset() {
 	*x = ReleaseAllocationRequest{}
-	mi := &file_runtime_proto_msgTypes[29]
+	mi := &file_runtime_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1977,7 +2355,7 @@ func (x *ReleaseAllocationRequest) String() string {
 func (*ReleaseAllocationRequest) ProtoMessage() {}
 
 func (x *ReleaseAllocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[29]
+	mi := &file_runtime_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1990,7 +2368,7 @@ func (x *ReleaseAllocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseAllocationRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseAllocationRequest) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{29}
+	return file_runtime_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ReleaseAllocationRequest) GetApiVersion() string {
@@ -2015,7 +2393,7 @@ type ReleaseAllocationResponse struct {
 
 func (x *ReleaseAllocationResponse) Reset() {
 	*x = ReleaseAllocationResponse{}
-	mi := &file_runtime_proto_msgTypes[30]
+	mi := &file_runtime_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2027,7 +2405,7 @@ func (x *ReleaseAllocationResponse) String() string {
 func (*ReleaseAllocationResponse) ProtoMessage() {}
 
 func (x *ReleaseAllocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[30]
+	mi := &file_runtime_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2040,7 +2418,7 @@ func (x *ReleaseAllocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseAllocationResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseAllocationResponse) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{30}
+	return file_runtime_proto_rawDescGZIP(), []int{36}
 }
 
 type TerminationError struct {
@@ -2054,7 +2432,7 @@ type TerminationError struct {
 
 func (x *TerminationError) Reset() {
 	*x = TerminationError{}
-	mi := &file_runtime_proto_msgTypes[31]
+	mi := &file_runtime_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2066,7 +2444,7 @@ func (x *TerminationError) String() string {
 func (*TerminationError) ProtoMessage() {}
 
 func (x *TerminationError) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[31]
+	mi := &file_runtime_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2079,7 +2457,7 @@ func (x *TerminationError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminationError.ProtoReflect.Descriptor instead.
 func (*TerminationError) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{31}
+	return file_runtime_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *TerminationError) GetCode() string {
@@ -2133,7 +2511,7 @@ type AllocationSpec struct {
 
 func (x *AllocationSpec) Reset() {
 	*x = AllocationSpec{}
-	mi := &file_runtime_proto_msgTypes[32]
+	mi := &file_runtime_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2145,7 +2523,7 @@ func (x *AllocationSpec) String() string {
 func (*AllocationSpec) ProtoMessage() {}
 
 func (x *AllocationSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[32]
+	mi := &file_runtime_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2158,7 +2536,7 @@ func (x *AllocationSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocationSpec.ProtoReflect.Descriptor instead.
 func (*AllocationSpec) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{32}
+	return file_runtime_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *AllocationSpec) GetApiVersion() string {
@@ -2326,7 +2704,7 @@ type AgentTemplateDocument struct {
 
 func (x *AgentTemplateDocument) Reset() {
 	*x = AgentTemplateDocument{}
-	mi := &file_runtime_proto_msgTypes[33]
+	mi := &file_runtime_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2338,7 +2716,7 @@ func (x *AgentTemplateDocument) String() string {
 func (*AgentTemplateDocument) ProtoMessage() {}
 
 func (x *AgentTemplateDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[33]
+	mi := &file_runtime_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2351,7 +2729,7 @@ func (x *AgentTemplateDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentTemplateDocument.ProtoReflect.Descriptor instead.
 func (*AgentTemplateDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{33}
+	return file_runtime_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *AgentTemplateDocument) GetJson() []byte {
@@ -2370,7 +2748,7 @@ type ModelPolicyDocument struct {
 
 func (x *ModelPolicyDocument) Reset() {
 	*x = ModelPolicyDocument{}
-	mi := &file_runtime_proto_msgTypes[34]
+	mi := &file_runtime_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2382,7 +2760,7 @@ func (x *ModelPolicyDocument) String() string {
 func (*ModelPolicyDocument) ProtoMessage() {}
 
 func (x *ModelPolicyDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[34]
+	mi := &file_runtime_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2395,7 +2773,7 @@ func (x *ModelPolicyDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelPolicyDocument.ProtoReflect.Descriptor instead.
 func (*ModelPolicyDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{34}
+	return file_runtime_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *ModelPolicyDocument) GetJson() []byte {
@@ -2414,7 +2792,7 @@ type RuntimeSettingsDocument struct {
 
 func (x *RuntimeSettingsDocument) Reset() {
 	*x = RuntimeSettingsDocument{}
-	mi := &file_runtime_proto_msgTypes[35]
+	mi := &file_runtime_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2426,7 +2804,7 @@ func (x *RuntimeSettingsDocument) String() string {
 func (*RuntimeSettingsDocument) ProtoMessage() {}
 
 func (x *RuntimeSettingsDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[35]
+	mi := &file_runtime_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2439,7 +2817,7 @@ func (x *RuntimeSettingsDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeSettingsDocument.ProtoReflect.Descriptor instead.
 func (*RuntimeSettingsDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{35}
+	return file_runtime_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *RuntimeSettingsDocument) GetJson() []byte {
@@ -2458,7 +2836,7 @@ type RuntimeConfigProvenanceDocument struct {
 
 func (x *RuntimeConfigProvenanceDocument) Reset() {
 	*x = RuntimeConfigProvenanceDocument{}
-	mi := &file_runtime_proto_msgTypes[36]
+	mi := &file_runtime_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2470,7 +2848,7 @@ func (x *RuntimeConfigProvenanceDocument) String() string {
 func (*RuntimeConfigProvenanceDocument) ProtoMessage() {}
 
 func (x *RuntimeConfigProvenanceDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[36]
+	mi := &file_runtime_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2483,7 +2861,7 @@ func (x *RuntimeConfigProvenanceDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeConfigProvenanceDocument.ProtoReflect.Descriptor instead.
 func (*RuntimeConfigProvenanceDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{36}
+	return file_runtime_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *RuntimeConfigProvenanceDocument) GetJson() []byte {
@@ -2502,7 +2880,7 @@ type AgentCardDocument struct {
 
 func (x *AgentCardDocument) Reset() {
 	*x = AgentCardDocument{}
-	mi := &file_runtime_proto_msgTypes[37]
+	mi := &file_runtime_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2514,7 +2892,7 @@ func (x *AgentCardDocument) String() string {
 func (*AgentCardDocument) ProtoMessage() {}
 
 func (x *AgentCardDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[37]
+	mi := &file_runtime_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2527,7 +2905,7 @@ func (x *AgentCardDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentCardDocument.ProtoReflect.Descriptor instead.
 func (*AgentCardDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{37}
+	return file_runtime_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *AgentCardDocument) GetJson() []byte {
@@ -2548,7 +2926,7 @@ type ExecutionReportDocument struct {
 
 func (x *ExecutionReportDocument) Reset() {
 	*x = ExecutionReportDocument{}
-	mi := &file_runtime_proto_msgTypes[38]
+	mi := &file_runtime_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2560,7 +2938,7 @@ func (x *ExecutionReportDocument) String() string {
 func (*ExecutionReportDocument) ProtoMessage() {}
 
 func (x *ExecutionReportDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[38]
+	mi := &file_runtime_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2573,7 +2951,7 @@ func (x *ExecutionReportDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecutionReportDocument.ProtoReflect.Descriptor instead.
 func (*ExecutionReportDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{38}
+	return file_runtime_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ExecutionReportDocument) GetJson() []byte {
@@ -2592,7 +2970,7 @@ type RuntimeReportDocument struct {
 
 func (x *RuntimeReportDocument) Reset() {
 	*x = RuntimeReportDocument{}
-	mi := &file_runtime_proto_msgTypes[39]
+	mi := &file_runtime_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2604,7 +2982,7 @@ func (x *RuntimeReportDocument) String() string {
 func (*RuntimeReportDocument) ProtoMessage() {}
 
 func (x *RuntimeReportDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[39]
+	mi := &file_runtime_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2617,7 +2995,7 @@ func (x *RuntimeReportDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeReportDocument.ProtoReflect.Descriptor instead.
 func (*RuntimeReportDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{39}
+	return file_runtime_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *RuntimeReportDocument) GetJson() []byte {
@@ -2636,7 +3014,7 @@ type MapOfString struct {
 
 func (x *MapOfString) Reset() {
 	*x = MapOfString{}
-	mi := &file_runtime_proto_msgTypes[40]
+	mi := &file_runtime_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2648,7 +3026,7 @@ func (x *MapOfString) String() string {
 func (*MapOfString) ProtoMessage() {}
 
 func (x *MapOfString) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[40]
+	mi := &file_runtime_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2661,7 +3039,7 @@ func (x *MapOfString) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MapOfString.ProtoReflect.Descriptor instead.
 func (*MapOfString) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{40}
+	return file_runtime_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *MapOfString) GetValues() map[string]string {
@@ -2682,7 +3060,7 @@ type ResolvedInstructions struct {
 
 func (x *ResolvedInstructions) Reset() {
 	*x = ResolvedInstructions{}
-	mi := &file_runtime_proto_msgTypes[41]
+	mi := &file_runtime_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2694,7 +3072,7 @@ func (x *ResolvedInstructions) String() string {
 func (*ResolvedInstructions) ProtoMessage() {}
 
 func (x *ResolvedInstructions) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[41]
+	mi := &file_runtime_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2707,7 +3085,7 @@ func (x *ResolvedInstructions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolvedInstructions.ProtoReflect.Descriptor instead.
 func (*ResolvedInstructions) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{41}
+	return file_runtime_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *ResolvedInstructions) GetRef() string {
@@ -2745,7 +3123,7 @@ type WorkerContextManagement struct {
 
 func (x *WorkerContextManagement) Reset() {
 	*x = WorkerContextManagement{}
-	mi := &file_runtime_proto_msgTypes[42]
+	mi := &file_runtime_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2757,7 +3135,7 @@ func (x *WorkerContextManagement) String() string {
 func (*WorkerContextManagement) ProtoMessage() {}
 
 func (x *WorkerContextManagement) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[42]
+	mi := &file_runtime_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2770,7 +3148,7 @@ func (x *WorkerContextManagement) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkerContextManagement.ProtoReflect.Descriptor instead.
 func (*WorkerContextManagement) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{42}
+	return file_runtime_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *WorkerContextManagement) GetStrategy() string {
@@ -2826,7 +3204,7 @@ type ArtifactRef struct {
 
 func (x *ArtifactRef) Reset() {
 	*x = ArtifactRef{}
-	mi := &file_runtime_proto_msgTypes[43]
+	mi := &file_runtime_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2838,7 +3216,7 @@ func (x *ArtifactRef) String() string {
 func (*ArtifactRef) ProtoMessage() {}
 
 func (x *ArtifactRef) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[43]
+	mi := &file_runtime_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2851,7 +3229,7 @@ func (x *ArtifactRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtifactRef.ProtoReflect.Descriptor instead.
 func (*ArtifactRef) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{43}
+	return file_runtime_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *ArtifactRef) GetNamespace() string {
@@ -2886,7 +3264,7 @@ type ResolvedSkill struct {
 
 func (x *ResolvedSkill) Reset() {
 	*x = ResolvedSkill{}
-	mi := &file_runtime_proto_msgTypes[44]
+	mi := &file_runtime_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2898,7 +3276,7 @@ func (x *ResolvedSkill) String() string {
 func (*ResolvedSkill) ProtoMessage() {}
 
 func (x *ResolvedSkill) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[44]
+	mi := &file_runtime_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2911,7 +3289,7 @@ func (x *ResolvedSkill) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolvedSkill.ProtoReflect.Descriptor instead.
 func (*ResolvedSkill) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{44}
+	return file_runtime_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *ResolvedSkill) GetName() string {
@@ -2944,7 +3322,7 @@ type ListOfResolvedSkill struct {
 
 func (x *ListOfResolvedSkill) Reset() {
 	*x = ListOfResolvedSkill{}
-	mi := &file_runtime_proto_msgTypes[45]
+	mi := &file_runtime_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2956,7 +3334,7 @@ func (x *ListOfResolvedSkill) String() string {
 func (*ListOfResolvedSkill) ProtoMessage() {}
 
 func (x *ListOfResolvedSkill) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[45]
+	mi := &file_runtime_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2969,7 +3347,7 @@ func (x *ListOfResolvedSkill) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOfResolvedSkill.ProtoReflect.Descriptor instead.
 func (*ListOfResolvedSkill) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{45}
+	return file_runtime_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *ListOfResolvedSkill) GetValues() []*ResolvedSkill {
@@ -2990,7 +3368,7 @@ type WorkerCompletionContract struct {
 
 func (x *WorkerCompletionContract) Reset() {
 	*x = WorkerCompletionContract{}
-	mi := &file_runtime_proto_msgTypes[46]
+	mi := &file_runtime_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3002,7 +3380,7 @@ func (x *WorkerCompletionContract) String() string {
 func (*WorkerCompletionContract) ProtoMessage() {}
 
 func (x *WorkerCompletionContract) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[46]
+	mi := &file_runtime_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3015,7 +3393,7 @@ func (x *WorkerCompletionContract) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkerCompletionContract.ProtoReflect.Descriptor instead.
 func (*WorkerCompletionContract) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{46}
+	return file_runtime_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *WorkerCompletionContract) GetKind() string {
@@ -3050,7 +3428,7 @@ type AgentTemplateRef struct {
 
 func (x *AgentTemplateRef) Reset() {
 	*x = AgentTemplateRef{}
-	mi := &file_runtime_proto_msgTypes[47]
+	mi := &file_runtime_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3062,7 +3440,7 @@ func (x *AgentTemplateRef) String() string {
 func (*AgentTemplateRef) ProtoMessage() {}
 
 func (x *AgentTemplateRef) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[47]
+	mi := &file_runtime_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3075,7 +3453,7 @@ func (x *AgentTemplateRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentTemplateRef.ProtoReflect.Descriptor instead.
 func (*AgentTemplateRef) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{47}
+	return file_runtime_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *AgentTemplateRef) GetTemplateId() string {
@@ -3109,7 +3487,7 @@ type WorkerRuntimeRef struct {
 
 func (x *WorkerRuntimeRef) Reset() {
 	*x = WorkerRuntimeRef{}
-	mi := &file_runtime_proto_msgTypes[48]
+	mi := &file_runtime_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3121,7 +3499,7 @@ func (x *WorkerRuntimeRef) String() string {
 func (*WorkerRuntimeRef) ProtoMessage() {}
 
 func (x *WorkerRuntimeRef) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[48]
+	mi := &file_runtime_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3134,7 +3512,7 @@ func (x *WorkerRuntimeRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkerRuntimeRef.ProtoReflect.Descriptor instead.
 func (*WorkerRuntimeRef) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{48}
+	return file_runtime_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *WorkerRuntimeRef) GetRuntimeId() string {
@@ -3164,7 +3542,7 @@ type WorkerHandle struct {
 
 func (x *WorkerHandle) Reset() {
 	*x = WorkerHandle{}
-	mi := &file_runtime_proto_msgTypes[49]
+	mi := &file_runtime_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3176,7 +3554,7 @@ func (x *WorkerHandle) String() string {
 func (*WorkerHandle) ProtoMessage() {}
 
 func (x *WorkerHandle) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[49]
+	mi := &file_runtime_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3189,7 +3567,7 @@ func (x *WorkerHandle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkerHandle.ProtoReflect.Descriptor instead.
 func (*WorkerHandle) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{49}
+	return file_runtime_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *WorkerHandle) GetAllocationId() string {
@@ -3239,7 +3617,7 @@ type AllocationWorkspace struct {
 
 func (x *AllocationWorkspace) Reset() {
 	*x = AllocationWorkspace{}
-	mi := &file_runtime_proto_msgTypes[50]
+	mi := &file_runtime_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3251,7 +3629,7 @@ func (x *AllocationWorkspace) String() string {
 func (*AllocationWorkspace) ProtoMessage() {}
 
 func (x *AllocationWorkspace) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[50]
+	mi := &file_runtime_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3264,7 +3642,7 @@ func (x *AllocationWorkspace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocationWorkspace.ProtoReflect.Descriptor instead.
 func (*AllocationWorkspace) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{50}
+	return file_runtime_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *AllocationWorkspace) GetMode() string {
@@ -3305,7 +3683,7 @@ type WorkspaceSource struct {
 
 func (x *WorkspaceSource) Reset() {
 	*x = WorkspaceSource{}
-	mi := &file_runtime_proto_msgTypes[51]
+	mi := &file_runtime_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3317,7 +3695,7 @@ func (x *WorkspaceSource) String() string {
 func (*WorkspaceSource) ProtoMessage() {}
 
 func (x *WorkspaceSource) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[51]
+	mi := &file_runtime_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3330,7 +3708,7 @@ func (x *WorkspaceSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceSource.ProtoReflect.Descriptor instead.
 func (*WorkspaceSource) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{51}
+	return file_runtime_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *WorkspaceSource) GetArtifact() *ArtifactRef {
@@ -3356,7 +3734,7 @@ type ListOfWorkspaceSource struct {
 
 func (x *ListOfWorkspaceSource) Reset() {
 	*x = ListOfWorkspaceSource{}
-	mi := &file_runtime_proto_msgTypes[52]
+	mi := &file_runtime_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3368,7 +3746,7 @@ func (x *ListOfWorkspaceSource) String() string {
 func (*ListOfWorkspaceSource) ProtoMessage() {}
 
 func (x *ListOfWorkspaceSource) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[52]
+	mi := &file_runtime_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3381,7 +3759,7 @@ func (x *ListOfWorkspaceSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOfWorkspaceSource.ProtoReflect.Descriptor instead.
 func (*ListOfWorkspaceSource) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{52}
+	return file_runtime_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *ListOfWorkspaceSource) GetValues() []*WorkspaceSource {
@@ -3400,7 +3778,7 @@ type WorkspaceState struct {
 
 func (x *WorkspaceState) Reset() {
 	*x = WorkspaceState{}
-	mi := &file_runtime_proto_msgTypes[53]
+	mi := &file_runtime_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3412,7 +3790,7 @@ func (x *WorkspaceState) String() string {
 func (*WorkspaceState) ProtoMessage() {}
 
 func (x *WorkspaceState) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[53]
+	mi := &file_runtime_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3425,7 +3803,7 @@ func (x *WorkspaceState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceState.ProtoReflect.Descriptor instead.
 func (*WorkspaceState) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{53}
+	return file_runtime_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *WorkspaceState) GetArtifact() *ArtifactRef {
@@ -3445,7 +3823,7 @@ type WorkspaceExport struct {
 
 func (x *WorkspaceExport) Reset() {
 	*x = WorkspaceExport{}
-	mi := &file_runtime_proto_msgTypes[54]
+	mi := &file_runtime_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3457,7 +3835,7 @@ func (x *WorkspaceExport) String() string {
 func (*WorkspaceExport) ProtoMessage() {}
 
 func (x *WorkspaceExport) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[54]
+	mi := &file_runtime_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3470,7 +3848,7 @@ func (x *WorkspaceExport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceExport.ProtoReflect.Descriptor instead.
 func (*WorkspaceExport) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{54}
+	return file_runtime_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *WorkspaceExport) GetState() string {
@@ -3500,7 +3878,7 @@ type NullableAllocationWorkspace struct {
 
 func (x *NullableAllocationWorkspace) Reset() {
 	*x = NullableAllocationWorkspace{}
-	mi := &file_runtime_proto_msgTypes[55]
+	mi := &file_runtime_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3512,7 +3890,7 @@ func (x *NullableAllocationWorkspace) String() string {
 func (*NullableAllocationWorkspace) ProtoMessage() {}
 
 func (x *NullableAllocationWorkspace) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[55]
+	mi := &file_runtime_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3525,7 +3903,7 @@ func (x *NullableAllocationWorkspace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NullableAllocationWorkspace.ProtoReflect.Descriptor instead.
 func (*NullableAllocationWorkspace) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{55}
+	return file_runtime_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *NullableAllocationWorkspace) GetKind() isNullableAllocationWorkspace_Kind {
@@ -3582,7 +3960,7 @@ type NullableWorkspaceState struct {
 
 func (x *NullableWorkspaceState) Reset() {
 	*x = NullableWorkspaceState{}
-	mi := &file_runtime_proto_msgTypes[56]
+	mi := &file_runtime_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3594,7 +3972,7 @@ func (x *NullableWorkspaceState) String() string {
 func (*NullableWorkspaceState) ProtoMessage() {}
 
 func (x *NullableWorkspaceState) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[56]
+	mi := &file_runtime_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3607,7 +3985,7 @@ func (x *NullableWorkspaceState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NullableWorkspaceState.ProtoReflect.Descriptor instead.
 func (*NullableWorkspaceState) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{56}
+	return file_runtime_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *NullableWorkspaceState) GetKind() isNullableWorkspaceState_Kind {
@@ -3664,7 +4042,7 @@ type NullableWorkspaceExport struct {
 
 func (x *NullableWorkspaceExport) Reset() {
 	*x = NullableWorkspaceExport{}
-	mi := &file_runtime_proto_msgTypes[57]
+	mi := &file_runtime_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3676,7 +4054,7 @@ func (x *NullableWorkspaceExport) String() string {
 func (*NullableWorkspaceExport) ProtoMessage() {}
 
 func (x *NullableWorkspaceExport) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[57]
+	mi := &file_runtime_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3689,7 +4067,7 @@ func (x *NullableWorkspaceExport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NullableWorkspaceExport.ProtoReflect.Descriptor instead.
 func (*NullableWorkspaceExport) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{57}
+	return file_runtime_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *NullableWorkspaceExport) GetKind() isNullableWorkspaceExport_Kind {
@@ -3743,7 +4121,7 @@ type PerformanceMetricsRequest struct {
 
 func (x *PerformanceMetricsRequest) Reset() {
 	*x = PerformanceMetricsRequest{}
-	mi := &file_runtime_proto_msgTypes[58]
+	mi := &file_runtime_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3755,7 +4133,7 @@ func (x *PerformanceMetricsRequest) String() string {
 func (*PerformanceMetricsRequest) ProtoMessage() {}
 
 func (x *PerformanceMetricsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[58]
+	mi := &file_runtime_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3768,7 +4146,7 @@ func (x *PerformanceMetricsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PerformanceMetricsRequest.ProtoReflect.Descriptor instead.
 func (*PerformanceMetricsRequest) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{58}
+	return file_runtime_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *PerformanceMetricsRequest) GetVersion() int64 {
@@ -3798,7 +4176,7 @@ type NullablePerformanceMetricsRequest struct {
 
 func (x *NullablePerformanceMetricsRequest) Reset() {
 	*x = NullablePerformanceMetricsRequest{}
-	mi := &file_runtime_proto_msgTypes[59]
+	mi := &file_runtime_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3810,7 +4188,7 @@ func (x *NullablePerformanceMetricsRequest) String() string {
 func (*NullablePerformanceMetricsRequest) ProtoMessage() {}
 
 func (x *NullablePerformanceMetricsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[59]
+	mi := &file_runtime_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3823,7 +4201,7 @@ func (x *NullablePerformanceMetricsRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use NullablePerformanceMetricsRequest.ProtoReflect.Descriptor instead.
 func (*NullablePerformanceMetricsRequest) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{59}
+	return file_runtime_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *NullablePerformanceMetricsRequest) GetKind() isNullablePerformanceMetricsRequest_Kind {
@@ -3881,7 +4259,7 @@ type EngagementAllocation struct {
 
 func (x *EngagementAllocation) Reset() {
 	*x = EngagementAllocation{}
-	mi := &file_runtime_proto_msgTypes[60]
+	mi := &file_runtime_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3893,7 +4271,7 @@ func (x *EngagementAllocation) String() string {
 func (*EngagementAllocation) ProtoMessage() {}
 
 func (x *EngagementAllocation) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[60]
+	mi := &file_runtime_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3906,7 +4284,7 @@ func (x *EngagementAllocation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngagementAllocation.ProtoReflect.Descriptor instead.
 func (*EngagementAllocation) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{60}
+	return file_runtime_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *EngagementAllocation) GetSchema() string {
@@ -3965,7 +4343,7 @@ type HTTPAssignment struct {
 
 func (x *HTTPAssignment) Reset() {
 	*x = HTTPAssignment{}
-	mi := &file_runtime_proto_msgTypes[61]
+	mi := &file_runtime_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3977,7 +4355,7 @@ func (x *HTTPAssignment) String() string {
 func (*HTTPAssignment) ProtoMessage() {}
 
 func (x *HTTPAssignment) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[61]
+	mi := &file_runtime_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3990,7 +4368,7 @@ func (x *HTTPAssignment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HTTPAssignment.ProtoReflect.Descriptor instead.
 func (*HTTPAssignment) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{61}
+	return file_runtime_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *HTTPAssignment) GetLimits() *HTTPLimits {
@@ -4047,7 +4425,7 @@ type HTTPLimits struct {
 
 func (x *HTTPLimits) Reset() {
 	*x = HTTPLimits{}
-	mi := &file_runtime_proto_msgTypes[62]
+	mi := &file_runtime_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4059,7 +4437,7 @@ func (x *HTTPLimits) String() string {
 func (*HTTPLimits) ProtoMessage() {}
 
 func (x *HTTPLimits) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[62]
+	mi := &file_runtime_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4072,7 +4450,7 @@ func (x *HTTPLimits) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HTTPLimits.ProtoReflect.Descriptor instead.
 func (*HTTPLimits) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{62}
+	return file_runtime_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *HTTPLimits) GetRequestsPerSecond() int64 {
@@ -4115,7 +4493,7 @@ type HTTPRoute struct {
 
 func (x *HTTPRoute) Reset() {
 	*x = HTTPRoute{}
-	mi := &file_runtime_proto_msgTypes[63]
+	mi := &file_runtime_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4127,7 +4505,7 @@ func (x *HTTPRoute) String() string {
 func (*HTTPRoute) ProtoMessage() {}
 
 func (x *HTTPRoute) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[63]
+	mi := &file_runtime_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4140,7 +4518,7 @@ func (x *HTTPRoute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HTTPRoute.ProtoReflect.Descriptor instead.
 func (*HTTPRoute) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{63}
+	return file_runtime_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *HTTPRoute) GetOrigin() string {
@@ -4185,7 +4563,7 @@ type HTTPIdentity struct {
 
 func (x *HTTPIdentity) Reset() {
 	*x = HTTPIdentity{}
-	mi := &file_runtime_proto_msgTypes[64]
+	mi := &file_runtime_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4197,7 +4575,7 @@ func (x *HTTPIdentity) String() string {
 func (*HTTPIdentity) ProtoMessage() {}
 
 func (x *HTTPIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[64]
+	mi := &file_runtime_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4210,7 +4588,7 @@ func (x *HTTPIdentity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HTTPIdentity.ProtoReflect.Descriptor instead.
 func (*HTTPIdentity) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{64}
+	return file_runtime_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *HTTPIdentity) GetId() string {
@@ -4265,7 +4643,7 @@ type RuntimeCredentialRef struct {
 
 func (x *RuntimeCredentialRef) Reset() {
 	*x = RuntimeCredentialRef{}
-	mi := &file_runtime_proto_msgTypes[65]
+	mi := &file_runtime_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4277,7 +4655,7 @@ func (x *RuntimeCredentialRef) String() string {
 func (*RuntimeCredentialRef) ProtoMessage() {}
 
 func (x *RuntimeCredentialRef) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[65]
+	mi := &file_runtime_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4290,7 +4668,7 @@ func (x *RuntimeCredentialRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeCredentialRef.ProtoReflect.Descriptor instead.
 func (*RuntimeCredentialRef) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{65}
+	return file_runtime_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *RuntimeCredentialRef) GetCredentialId() string {
@@ -4318,7 +4696,7 @@ type ProtectedDestination struct {
 
 func (x *ProtectedDestination) Reset() {
 	*x = ProtectedDestination{}
-	mi := &file_runtime_proto_msgTypes[66]
+	mi := &file_runtime_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4330,7 +4708,7 @@ func (x *ProtectedDestination) String() string {
 func (*ProtectedDestination) ProtoMessage() {}
 
 func (x *ProtectedDestination) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[66]
+	mi := &file_runtime_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4343,7 +4721,7 @@ func (x *ProtectedDestination) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProtectedDestination.ProtoReflect.Descriptor instead.
 func (*ProtectedDestination) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{66}
+	return file_runtime_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *ProtectedDestination) GetHostname() string {
@@ -4376,7 +4754,7 @@ type ListOfHTTPRoute struct {
 
 func (x *ListOfHTTPRoute) Reset() {
 	*x = ListOfHTTPRoute{}
-	mi := &file_runtime_proto_msgTypes[67]
+	mi := &file_runtime_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4388,7 +4766,7 @@ func (x *ListOfHTTPRoute) String() string {
 func (*ListOfHTTPRoute) ProtoMessage() {}
 
 func (x *ListOfHTTPRoute) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[67]
+	mi := &file_runtime_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4401,7 +4779,7 @@ func (x *ListOfHTTPRoute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOfHTTPRoute.ProtoReflect.Descriptor instead.
 func (*ListOfHTTPRoute) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{67}
+	return file_runtime_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *ListOfHTTPRoute) GetValues() []*HTTPRoute {
@@ -4420,7 +4798,7 @@ type ListOfHTTPIdentity struct {
 
 func (x *ListOfHTTPIdentity) Reset() {
 	*x = ListOfHTTPIdentity{}
-	mi := &file_runtime_proto_msgTypes[68]
+	mi := &file_runtime_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4432,7 +4810,7 @@ func (x *ListOfHTTPIdentity) String() string {
 func (*ListOfHTTPIdentity) ProtoMessage() {}
 
 func (x *ListOfHTTPIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[68]
+	mi := &file_runtime_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4445,7 +4823,7 @@ func (x *ListOfHTTPIdentity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOfHTTPIdentity.ProtoReflect.Descriptor instead.
 func (*ListOfHTTPIdentity) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{68}
+	return file_runtime_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *ListOfHTTPIdentity) GetValues() []*HTTPIdentity {
@@ -4464,7 +4842,7 @@ type ListOfProtectedDestination struct {
 
 func (x *ListOfProtectedDestination) Reset() {
 	*x = ListOfProtectedDestination{}
-	mi := &file_runtime_proto_msgTypes[69]
+	mi := &file_runtime_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4476,7 +4854,7 @@ func (x *ListOfProtectedDestination) String() string {
 func (*ListOfProtectedDestination) ProtoMessage() {}
 
 func (x *ListOfProtectedDestination) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[69]
+	mi := &file_runtime_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4489,7 +4867,7 @@ func (x *ListOfProtectedDestination) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOfProtectedDestination.ProtoReflect.Descriptor instead.
 func (*ListOfProtectedDestination) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{69}
+	return file_runtime_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *ListOfProtectedDestination) GetValues() []*ProtectedDestination {
@@ -4509,7 +4887,7 @@ type AllocationFinalResponse struct {
 
 func (x *AllocationFinalResponse) Reset() {
 	*x = AllocationFinalResponse{}
-	mi := &file_runtime_proto_msgTypes[70]
+	mi := &file_runtime_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4521,7 +4899,7 @@ func (x *AllocationFinalResponse) String() string {
 func (*AllocationFinalResponse) ProtoMessage() {}
 
 func (x *AllocationFinalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[70]
+	mi := &file_runtime_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4534,7 +4912,7 @@ func (x *AllocationFinalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocationFinalResponse.ProtoReflect.Descriptor instead.
 func (*AllocationFinalResponse) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{70}
+	return file_runtime_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *AllocationFinalResponse) GetApiVersion() string {
@@ -4565,7 +4943,7 @@ type AllocationFinalReport struct {
 
 func (x *AllocationFinalReport) Reset() {
 	*x = AllocationFinalReport{}
-	mi := &file_runtime_proto_msgTypes[71]
+	mi := &file_runtime_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4577,7 +4955,7 @@ func (x *AllocationFinalReport) String() string {
 func (*AllocationFinalReport) ProtoMessage() {}
 
 func (x *AllocationFinalReport) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[71]
+	mi := &file_runtime_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4590,7 +4968,7 @@ func (x *AllocationFinalReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocationFinalReport.ProtoReflect.Descriptor instead.
 func (*AllocationFinalReport) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{71}
+	return file_runtime_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *AllocationFinalReport) GetReportId() string {
@@ -4633,6 +5011,3463 @@ func (x *AllocationFinalReport) GetRuntime() *RuntimeReportDocument {
 		return x.Runtime
 	}
 	return nil
+}
+
+// Allocation domain contracts preserve owning validators and receipt identities.
+type NullableString struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Kind:
+	//
+	//	*NullableString_Null
+	//	*NullableString_Value
+	Kind          isNullableString_Kind `protobuf_oneof:"kind"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NullableString) Reset() {
+	*x = NullableString{}
+	mi := &file_runtime_proto_msgTypes[78]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NullableString) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NullableString) ProtoMessage() {}
+
+func (x *NullableString) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[78]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NullableString.ProtoReflect.Descriptor instead.
+func (*NullableString) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{78}
+}
+
+func (x *NullableString) GetKind() isNullableString_Kind {
+	if x != nil {
+		return x.Kind
+	}
+	return nil
+}
+
+func (x *NullableString) GetNull() structpb.NullValue {
+	if x != nil {
+		if x, ok := x.Kind.(*NullableString_Null); ok {
+			return x.Null
+		}
+	}
+	return structpb.NullValue(0)
+}
+
+func (x *NullableString) GetValue() string {
+	if x != nil {
+		if x, ok := x.Kind.(*NullableString_Value); ok {
+			return x.Value
+		}
+	}
+	return ""
+}
+
+type isNullableString_Kind interface {
+	isNullableString_Kind()
+}
+
+type NullableString_Null struct {
+	Null structpb.NullValue `protobuf:"varint,1,opt,name=null,proto3,enum=google.protobuf.NullValue,oneof"`
+}
+
+type NullableString_Value struct {
+	Value string `protobuf:"bytes,2,opt,name=value,proto3,oneof"`
+}
+
+func (*NullableString_Null) isNullableString_Kind() {}
+
+func (*NullableString_Value) isNullableString_Kind() {}
+
+type ExactArtifact struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ref           *ArtifactRef           `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	Digest        *string                `protobuf:"bytes,2,opt,name=digest,proto3,oneof" json:"digest,omitempty"`
+	MediaType     *string                `protobuf:"bytes,3,opt,name=media_type,json=mediaType,proto3,oneof" json:"media_type,omitempty"`
+	SizeBytes     *int64                 `protobuf:"varint,4,opt,name=size_bytes,json=sizeBytes,proto3,oneof" json:"size_bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExactArtifact) Reset() {
+	*x = ExactArtifact{}
+	mi := &file_runtime_proto_msgTypes[79]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExactArtifact) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExactArtifact) ProtoMessage() {}
+
+func (x *ExactArtifact) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[79]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExactArtifact.ProtoReflect.Descriptor instead.
+func (*ExactArtifact) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{79}
+}
+
+func (x *ExactArtifact) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *ExactArtifact) GetDigest() string {
+	if x != nil && x.Digest != nil {
+		return *x.Digest
+	}
+	return ""
+}
+
+func (x *ExactArtifact) GetMediaType() string {
+	if x != nil && x.MediaType != nil {
+		return *x.MediaType
+	}
+	return ""
+}
+
+func (x *ExactArtifact) GetSizeBytes() int64 {
+	if x != nil && x.SizeBytes != nil {
+		return *x.SizeBytes
+	}
+	return 0
+}
+
+type Material struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ScopeKind     *string                `protobuf:"bytes,1,opt,name=scope_kind,proto3,oneof" json:"scope_kind,omitempty"`
+	ScopeId       *string                `protobuf:"bytes,2,opt,name=scope_id,proto3,oneof" json:"scope_id,omitempty"`
+	Ref           *ArtifactRef           `protobuf:"bytes,3,opt,name=ref,proto3" json:"ref,omitempty"`
+	Digest        *string                `protobuf:"bytes,4,opt,name=digest,proto3,oneof" json:"digest,omitempty"`
+	MediaType     *string                `protobuf:"bytes,5,opt,name=media_type,proto3,oneof" json:"media_type,omitempty"`
+	SizeBytes     *int64                 `protobuf:"varint,6,opt,name=size_bytes,proto3,oneof" json:"size_bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Material) Reset() {
+	*x = Material{}
+	mi := &file_runtime_proto_msgTypes[80]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Material) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Material) ProtoMessage() {}
+
+func (x *Material) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[80]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Material.ProtoReflect.Descriptor instead.
+func (*Material) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{80}
+}
+
+func (x *Material) GetScopeKind() string {
+	if x != nil && x.ScopeKind != nil {
+		return *x.ScopeKind
+	}
+	return ""
+}
+
+func (x *Material) GetScopeId() string {
+	if x != nil && x.ScopeId != nil {
+		return *x.ScopeId
+	}
+	return ""
+}
+
+func (x *Material) GetRef() *ArtifactRef {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+func (x *Material) GetDigest() string {
+	if x != nil && x.Digest != nil {
+		return *x.Digest
+	}
+	return ""
+}
+
+func (x *Material) GetMediaType() string {
+	if x != nil && x.MediaType != nil {
+		return *x.MediaType
+	}
+	return ""
+}
+
+func (x *Material) GetSizeBytes() int64 {
+	if x != nil && x.SizeBytes != nil {
+		return *x.SizeBytes
+	}
+	return 0
+}
+
+type ListOfMaterial struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []*Material            `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfMaterial) Reset() {
+	*x = ListOfMaterial{}
+	mi := &file_runtime_proto_msgTypes[81]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfMaterial) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfMaterial) ProtoMessage() {}
+
+func (x *ListOfMaterial) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[81]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfMaterial.ProtoReflect.Descriptor instead.
+func (*ListOfMaterial) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{81}
+}
+
+func (x *ListOfMaterial) GetValues() []*Material {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type ListOfArtifactRef struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []*ArtifactRef         `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfArtifactRef) Reset() {
+	*x = ListOfArtifactRef{}
+	mi := &file_runtime_proto_msgTypes[82]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfArtifactRef) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfArtifactRef) ProtoMessage() {}
+
+func (x *ListOfArtifactRef) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[82]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfArtifactRef.ProtoReflect.Descriptor instead.
+func (*ListOfArtifactRef) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{82}
+}
+
+func (x *ListOfArtifactRef) GetValues() []*ArtifactRef {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type AuditEvidenceRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion       *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	InvocationId     *string                `protobuf:"bytes,2,opt,name=invocation_id,json=invocationId,proto3,oneof" json:"invocation_id,omitempty"`
+	SubmissionId     *string                `protobuf:"bytes,3,opt,name=submission_id,json=submissionId,proto3,oneof" json:"submission_id,omitempty"`
+	ItemKey          *string                `protobuf:"bytes,4,opt,name=item_key,json=itemKey,proto3,oneof" json:"item_key,omitempty"`
+	Sources          *ListOfArtifactRef     `protobuf:"bytes,5,opt,name=sources,proto3" json:"sources,omitempty"`
+	Interpretation   *string                `protobuf:"bytes,6,opt,name=interpretation,proto3,oneof" json:"interpretation,omitempty"`
+	TestedConditions *ListOfString          `protobuf:"bytes,7,opt,name=tested_conditions,json=testedConditions,proto3" json:"tested_conditions,omitempty"`
+	Limitations      *ListOfString          `protobuf:"bytes,8,opt,name=limitations,proto3" json:"limitations,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *AuditEvidenceRequest) Reset() {
+	*x = AuditEvidenceRequest{}
+	mi := &file_runtime_proto_msgTypes[83]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuditEvidenceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuditEvidenceRequest) ProtoMessage() {}
+
+func (x *AuditEvidenceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[83]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuditEvidenceRequest.ProtoReflect.Descriptor instead.
+func (*AuditEvidenceRequest) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{83}
+}
+
+func (x *AuditEvidenceRequest) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *AuditEvidenceRequest) GetInvocationId() string {
+	if x != nil && x.InvocationId != nil {
+		return *x.InvocationId
+	}
+	return ""
+}
+
+func (x *AuditEvidenceRequest) GetSubmissionId() string {
+	if x != nil && x.SubmissionId != nil {
+		return *x.SubmissionId
+	}
+	return ""
+}
+
+func (x *AuditEvidenceRequest) GetItemKey() string {
+	if x != nil && x.ItemKey != nil {
+		return *x.ItemKey
+	}
+	return ""
+}
+
+func (x *AuditEvidenceRequest) GetSources() *ListOfArtifactRef {
+	if x != nil {
+		return x.Sources
+	}
+	return nil
+}
+
+func (x *AuditEvidenceRequest) GetInterpretation() string {
+	if x != nil && x.Interpretation != nil {
+		return *x.Interpretation
+	}
+	return ""
+}
+
+func (x *AuditEvidenceRequest) GetTestedConditions() *ListOfString {
+	if x != nil {
+		return x.TestedConditions
+	}
+	return nil
+}
+
+func (x *AuditEvidenceRequest) GetLimitations() *ListOfString {
+	if x != nil {
+		return x.Limitations
+	}
+	return nil
+}
+
+type AuditEvidenceReceipt struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion      *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	SelectedSources *ListOfMaterial        `protobuf:"bytes,2,opt,name=selected_sources,json=selectedSources,proto3" json:"selected_sources,omitempty"`
+	Material        *Material              `protobuf:"bytes,3,opt,name=material,proto3" json:"material,omitempty"`
+	Sources         *ListOfMaterial        `protobuf:"bytes,4,opt,name=sources,proto3" json:"sources,omitempty"`
+	ItemKey         *string                `protobuf:"bytes,5,opt,name=item_key,json=itemKey,proto3,oneof" json:"item_key,omitempty"`
+	Replayed        *bool                  `protobuf:"varint,6,opt,name=replayed,proto3,oneof" json:"replayed,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *AuditEvidenceReceipt) Reset() {
+	*x = AuditEvidenceReceipt{}
+	mi := &file_runtime_proto_msgTypes[84]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuditEvidenceReceipt) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuditEvidenceReceipt) ProtoMessage() {}
+
+func (x *AuditEvidenceReceipt) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[84]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuditEvidenceReceipt.ProtoReflect.Descriptor instead.
+func (*AuditEvidenceReceipt) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{84}
+}
+
+func (x *AuditEvidenceReceipt) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *AuditEvidenceReceipt) GetSelectedSources() *ListOfMaterial {
+	if x != nil {
+		return x.SelectedSources
+	}
+	return nil
+}
+
+func (x *AuditEvidenceReceipt) GetMaterial() *Material {
+	if x != nil {
+		return x.Material
+	}
+	return nil
+}
+
+func (x *AuditEvidenceReceipt) GetSources() *ListOfMaterial {
+	if x != nil {
+		return x.Sources
+	}
+	return nil
+}
+
+func (x *AuditEvidenceReceipt) GetItemKey() string {
+	if x != nil && x.ItemKey != nil {
+		return *x.ItemKey
+	}
+	return ""
+}
+
+func (x *AuditEvidenceReceipt) GetReplayed() bool {
+	if x != nil && x.Replayed != nil {
+		return *x.Replayed
+	}
+	return false
+}
+
+type AuditConclusion struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ItemKey          *string                `protobuf:"bytes,1,opt,name=item_key,proto3,oneof" json:"item_key,omitempty"`
+	Rationale        *string                `protobuf:"bytes,2,opt,name=rationale,proto3,oneof" json:"rationale,omitempty"`
+	TestedConditions *ListOfString          `protobuf:"bytes,3,opt,name=tested_conditions,proto3" json:"tested_conditions,omitempty"`
+	Limitations      *ListOfString          `protobuf:"bytes,4,opt,name=limitations,proto3" json:"limitations,omitempty"`
+	Evidence         *ListOfMaterial        `protobuf:"bytes,5,opt,name=evidence,proto3" json:"evidence,omitempty"`
+	Verdict          *string                `protobuf:"bytes,6,opt,name=verdict,proto3,oneof" json:"verdict,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *AuditConclusion) Reset() {
+	*x = AuditConclusion{}
+	mi := &file_runtime_proto_msgTypes[85]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuditConclusion) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuditConclusion) ProtoMessage() {}
+
+func (x *AuditConclusion) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[85]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuditConclusion.ProtoReflect.Descriptor instead.
+func (*AuditConclusion) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{85}
+}
+
+func (x *AuditConclusion) GetItemKey() string {
+	if x != nil && x.ItemKey != nil {
+		return *x.ItemKey
+	}
+	return ""
+}
+
+func (x *AuditConclusion) GetRationale() string {
+	if x != nil && x.Rationale != nil {
+		return *x.Rationale
+	}
+	return ""
+}
+
+func (x *AuditConclusion) GetTestedConditions() *ListOfString {
+	if x != nil {
+		return x.TestedConditions
+	}
+	return nil
+}
+
+func (x *AuditConclusion) GetLimitations() *ListOfString {
+	if x != nil {
+		return x.Limitations
+	}
+	return nil
+}
+
+func (x *AuditConclusion) GetEvidence() *ListOfMaterial {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
+func (x *AuditConclusion) GetVerdict() string {
+	if x != nil && x.Verdict != nil {
+		return *x.Verdict
+	}
+	return ""
+}
+
+type AuditJudgmentUpdate struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	BaseGeneration *uint64                `protobuf:"varint,1,opt,name=base_generation,json=baseGeneration,proto3,oneof" json:"base_generation,omitempty"`
+	Conclusion     *AuditConclusion       `protobuf:"bytes,2,opt,name=conclusion,proto3" json:"conclusion,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AuditJudgmentUpdate) Reset() {
+	*x = AuditJudgmentUpdate{}
+	mi := &file_runtime_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuditJudgmentUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuditJudgmentUpdate) ProtoMessage() {}
+
+func (x *AuditJudgmentUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuditJudgmentUpdate.ProtoReflect.Descriptor instead.
+func (*AuditJudgmentUpdate) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *AuditJudgmentUpdate) GetBaseGeneration() uint64 {
+	if x != nil && x.BaseGeneration != nil {
+		return *x.BaseGeneration
+	}
+	return 0
+}
+
+func (x *AuditJudgmentUpdate) GetConclusion() *AuditConclusion {
+	if x != nil {
+		return x.Conclusion
+	}
+	return nil
+}
+
+type ListOfAuditJudgmentUpdate struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []*AuditJudgmentUpdate `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfAuditJudgmentUpdate) Reset() {
+	*x = ListOfAuditJudgmentUpdate{}
+	mi := &file_runtime_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfAuditJudgmentUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfAuditJudgmentUpdate) ProtoMessage() {}
+
+func (x *ListOfAuditJudgmentUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfAuditJudgmentUpdate.ProtoReflect.Descriptor instead.
+func (*ListOfAuditJudgmentUpdate) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *ListOfAuditJudgmentUpdate) GetValues() []*AuditJudgmentUpdate {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type AuditJudgmentsRequest struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	ApiVersion    *string                    `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	InvocationId  *string                    `protobuf:"bytes,2,opt,name=invocation_id,json=invocationId,proto3,oneof" json:"invocation_id,omitempty"`
+	SubmissionId  *string                    `protobuf:"bytes,3,opt,name=submission_id,json=submissionId,proto3,oneof" json:"submission_id,omitempty"`
+	Mode          *string                    `protobuf:"bytes,4,opt,name=mode,proto3,oneof" json:"mode,omitempty"`
+	Items         *ListOfAuditJudgmentUpdate `protobuf:"bytes,5,opt,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuditJudgmentsRequest) Reset() {
+	*x = AuditJudgmentsRequest{}
+	mi := &file_runtime_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuditJudgmentsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuditJudgmentsRequest) ProtoMessage() {}
+
+func (x *AuditJudgmentsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuditJudgmentsRequest.ProtoReflect.Descriptor instead.
+func (*AuditJudgmentsRequest) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *AuditJudgmentsRequest) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *AuditJudgmentsRequest) GetInvocationId() string {
+	if x != nil && x.InvocationId != nil {
+		return *x.InvocationId
+	}
+	return ""
+}
+
+func (x *AuditJudgmentsRequest) GetSubmissionId() string {
+	if x != nil && x.SubmissionId != nil {
+		return *x.SubmissionId
+	}
+	return ""
+}
+
+func (x *AuditJudgmentsRequest) GetMode() string {
+	if x != nil && x.Mode != nil {
+		return *x.Mode
+	}
+	return ""
+}
+
+func (x *AuditJudgmentsRequest) GetItems() *ListOfAuditJudgmentUpdate {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type AuditGeneration struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ItemKey       *string                `protobuf:"bytes,1,opt,name=item_key,json=itemKey,proto3,oneof" json:"item_key,omitempty"`
+	Generation    *uint64                `protobuf:"varint,2,opt,name=generation,proto3,oneof" json:"generation,omitempty"`
+	TaskId        *string                `protobuf:"bytes,3,opt,name=task_id,json=taskId,proto3,oneof" json:"task_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuditGeneration) Reset() {
+	*x = AuditGeneration{}
+	mi := &file_runtime_proto_msgTypes[89]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuditGeneration) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuditGeneration) ProtoMessage() {}
+
+func (x *AuditGeneration) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[89]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuditGeneration.ProtoReflect.Descriptor instead.
+func (*AuditGeneration) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *AuditGeneration) GetItemKey() string {
+	if x != nil && x.ItemKey != nil {
+		return *x.ItemKey
+	}
+	return ""
+}
+
+func (x *AuditGeneration) GetGeneration() uint64 {
+	if x != nil && x.Generation != nil {
+		return *x.Generation
+	}
+	return 0
+}
+
+func (x *AuditGeneration) GetTaskId() string {
+	if x != nil && x.TaskId != nil {
+		return *x.TaskId
+	}
+	return ""
+}
+
+type ListOfAuditGeneration struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []*AuditGeneration     `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfAuditGeneration) Reset() {
+	*x = ListOfAuditGeneration{}
+	mi := &file_runtime_proto_msgTypes[90]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfAuditGeneration) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfAuditGeneration) ProtoMessage() {}
+
+func (x *ListOfAuditGeneration) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[90]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfAuditGeneration.ProtoReflect.Descriptor instead.
+func (*ListOfAuditGeneration) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{90}
+}
+
+func (x *ListOfAuditGeneration) GetValues() []*AuditGeneration {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type AuditJudgmentReceipt struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion    *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	Material      *Material              `protobuf:"bytes,2,opt,name=material,proto3" json:"material,omitempty"`
+	Generations   *ListOfAuditGeneration `protobuf:"bytes,3,opt,name=generations,proto3" json:"generations,omitempty"`
+	Replayed      *bool                  `protobuf:"varint,4,opt,name=replayed,proto3,oneof" json:"replayed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuditJudgmentReceipt) Reset() {
+	*x = AuditJudgmentReceipt{}
+	mi := &file_runtime_proto_msgTypes[91]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuditJudgmentReceipt) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuditJudgmentReceipt) ProtoMessage() {}
+
+func (x *AuditJudgmentReceipt) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[91]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuditJudgmentReceipt.ProtoReflect.Descriptor instead.
+func (*AuditJudgmentReceipt) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{91}
+}
+
+func (x *AuditJudgmentReceipt) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *AuditJudgmentReceipt) GetMaterial() *Material {
+	if x != nil {
+		return x.Material
+	}
+	return nil
+}
+
+func (x *AuditJudgmentReceipt) GetGenerations() *ListOfAuditGeneration {
+	if x != nil {
+		return x.Generations
+	}
+	return nil
+}
+
+func (x *AuditJudgmentReceipt) GetReplayed() bool {
+	if x != nil && x.Replayed != nil {
+		return *x.Replayed
+	}
+	return false
+}
+
+type AuditJudgmentStale struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion         *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	CurrentGenerations *ListOfAuditGeneration `protobuf:"bytes,2,opt,name=current_generations,json=currentGenerations,proto3" json:"current_generations,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *AuditJudgmentStale) Reset() {
+	*x = AuditJudgmentStale{}
+	mi := &file_runtime_proto_msgTypes[92]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuditJudgmentStale) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuditJudgmentStale) ProtoMessage() {}
+
+func (x *AuditJudgmentStale) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[92]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuditJudgmentStale.ProtoReflect.Descriptor instead.
+func (*AuditJudgmentStale) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{92}
+}
+
+func (x *AuditJudgmentStale) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *AuditJudgmentStale) GetCurrentGenerations() *ListOfAuditGeneration {
+	if x != nil {
+		return x.CurrentGenerations
+	}
+	return nil
+}
+
+type AuditJudgmentsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Result:
+	//
+	//	*AuditJudgmentsResponse_Receipt
+	//	*AuditJudgmentsResponse_Stale
+	Result        isAuditJudgmentsResponse_Result `protobuf_oneof:"result"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AuditJudgmentsResponse) Reset() {
+	*x = AuditJudgmentsResponse{}
+	mi := &file_runtime_proto_msgTypes[93]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AuditJudgmentsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AuditJudgmentsResponse) ProtoMessage() {}
+
+func (x *AuditJudgmentsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[93]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuditJudgmentsResponse.ProtoReflect.Descriptor instead.
+func (*AuditJudgmentsResponse) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{93}
+}
+
+func (x *AuditJudgmentsResponse) GetResult() isAuditJudgmentsResponse_Result {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+func (x *AuditJudgmentsResponse) GetReceipt() *AuditJudgmentReceipt {
+	if x != nil {
+		if x, ok := x.Result.(*AuditJudgmentsResponse_Receipt); ok {
+			return x.Receipt
+		}
+	}
+	return nil
+}
+
+func (x *AuditJudgmentsResponse) GetStale() *AuditJudgmentStale {
+	if x != nil {
+		if x, ok := x.Result.(*AuditJudgmentsResponse_Stale); ok {
+			return x.Stale
+		}
+	}
+	return nil
+}
+
+type isAuditJudgmentsResponse_Result interface {
+	isAuditJudgmentsResponse_Result()
+}
+
+type AuditJudgmentsResponse_Receipt struct {
+	Receipt *AuditJudgmentReceipt `protobuf:"bytes,1,opt,name=receipt,proto3,oneof"`
+}
+
+type AuditJudgmentsResponse_Stale struct {
+	Stale *AuditJudgmentStale `protobuf:"bytes,2,opt,name=stale,proto3,oneof"`
+}
+
+func (*AuditJudgmentsResponse_Receipt) isAuditJudgmentsResponse_Result() {}
+
+func (*AuditJudgmentsResponse_Stale) isAuditJudgmentsResponse_Result() {}
+
+type SitemapProvenance struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SourceId      *string                `protobuf:"bytes,1,opt,name=source_id,json=sourceId,proto3,oneof" json:"source_id,omitempty"`
+	Kind          *string                `protobuf:"bytes,2,opt,name=kind,proto3,oneof" json:"kind,omitempty"`
+	Deployment    *string                `protobuf:"bytes,3,opt,name=deployment,proto3,oneof" json:"deployment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SitemapProvenance) Reset() {
+	*x = SitemapProvenance{}
+	mi := &file_runtime_proto_msgTypes[94]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapProvenance) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapProvenance) ProtoMessage() {}
+
+func (x *SitemapProvenance) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[94]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapProvenance.ProtoReflect.Descriptor instead.
+func (*SitemapProvenance) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{94}
+}
+
+func (x *SitemapProvenance) GetSourceId() string {
+	if x != nil && x.SourceId != nil {
+		return *x.SourceId
+	}
+	return ""
+}
+
+func (x *SitemapProvenance) GetKind() string {
+	if x != nil && x.Kind != nil {
+		return *x.Kind
+	}
+	return ""
+}
+
+func (x *SitemapProvenance) GetDeployment() string {
+	if x != nil && x.Deployment != nil {
+		return *x.Deployment
+	}
+	return ""
+}
+
+type SitemapSource struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Provenance    *SitemapProvenance     `protobuf:"bytes,1,opt,name=provenance,proto3" json:"provenance,omitempty"`
+	Generation    *uint64                `protobuf:"varint,2,opt,name=generation,proto3,oneof" json:"generation,omitempty"`
+	Artifact      *ExactArtifact         `protobuf:"bytes,3,opt,name=artifact,proto3" json:"artifact,omitempty"`
+	PolicyDigest  *string                `protobuf:"bytes,4,opt,name=policy_digest,json=policyDigest,proto3,oneof" json:"policy_digest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SitemapSource) Reset() {
+	*x = SitemapSource{}
+	mi := &file_runtime_proto_msgTypes[95]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapSource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapSource) ProtoMessage() {}
+
+func (x *SitemapSource) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[95]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapSource.ProtoReflect.Descriptor instead.
+func (*SitemapSource) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{95}
+}
+
+func (x *SitemapSource) GetProvenance() *SitemapProvenance {
+	if x != nil {
+		return x.Provenance
+	}
+	return nil
+}
+
+func (x *SitemapSource) GetGeneration() uint64 {
+	if x != nil && x.Generation != nil {
+		return *x.Generation
+	}
+	return 0
+}
+
+func (x *SitemapSource) GetArtifact() *ExactArtifact {
+	if x != nil {
+		return x.Artifact
+	}
+	return nil
+}
+
+func (x *SitemapSource) GetPolicyDigest() string {
+	if x != nil && x.PolicyDigest != nil {
+		return *x.PolicyDigest
+	}
+	return ""
+}
+
+type SitemapStructuralParameter struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          *string                `protobuf:"bytes,1,opt,name=name,proto3,oneof" json:"name,omitempty"`
+	Allowed       *ListOfString          `protobuf:"bytes,2,opt,name=allowed,proto3" json:"allowed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SitemapStructuralParameter) Reset() {
+	*x = SitemapStructuralParameter{}
+	mi := &file_runtime_proto_msgTypes[96]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapStructuralParameter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapStructuralParameter) ProtoMessage() {}
+
+func (x *SitemapStructuralParameter) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[96]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapStructuralParameter.ProtoReflect.Descriptor instead.
+func (*SitemapStructuralParameter) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{96}
+}
+
+func (x *SitemapStructuralParameter) GetName() string {
+	if x != nil && x.Name != nil {
+		return *x.Name
+	}
+	return ""
+}
+
+func (x *SitemapStructuralParameter) GetAllowed() *ListOfString {
+	if x != nil {
+		return x.Allowed
+	}
+	return nil
+}
+
+type ListOfSitemapStructuralParameter struct {
+	state         protoimpl.MessageState        `protogen:"open.v1"`
+	Values        []*SitemapStructuralParameter `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfSitemapStructuralParameter) Reset() {
+	*x = ListOfSitemapStructuralParameter{}
+	mi := &file_runtime_proto_msgTypes[97]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfSitemapStructuralParameter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfSitemapStructuralParameter) ProtoMessage() {}
+
+func (x *ListOfSitemapStructuralParameter) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[97]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfSitemapStructuralParameter.ProtoReflect.Descriptor instead.
+func (*ListOfSitemapStructuralParameter) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{97}
+}
+
+func (x *ListOfSitemapStructuralParameter) GetValues() []*SitemapStructuralParameter {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type SitemapEditorRule struct {
+	state         protoimpl.MessageState            `protogen:"open.v1"`
+	Origin        *string                           `protobuf:"bytes,1,opt,name=origin,proto3,oneof" json:"origin,omitempty"`
+	Method        *string                           `protobuf:"bytes,2,opt,name=method,proto3,oneof" json:"method,omitempty"`
+	Path          *string                           `protobuf:"bytes,3,opt,name=path,proto3,oneof" json:"path,omitempty"`
+	Pointer       *string                           `protobuf:"bytes,4,opt,name=pointer,proto3,oneof" json:"pointer,omitempty"`
+	Parameters    *ListOfString                     `protobuf:"bytes,5,opt,name=parameters,proto3" json:"parameters,omitempty"`
+	Structural    *ListOfSitemapStructuralParameter `protobuf:"bytes,6,opt,name=structural,proto3" json:"structural,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SitemapEditorRule) Reset() {
+	*x = SitemapEditorRule{}
+	mi := &file_runtime_proto_msgTypes[98]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapEditorRule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapEditorRule) ProtoMessage() {}
+
+func (x *SitemapEditorRule) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[98]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapEditorRule.ProtoReflect.Descriptor instead.
+func (*SitemapEditorRule) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{98}
+}
+
+func (x *SitemapEditorRule) GetOrigin() string {
+	if x != nil && x.Origin != nil {
+		return *x.Origin
+	}
+	return ""
+}
+
+func (x *SitemapEditorRule) GetMethod() string {
+	if x != nil && x.Method != nil {
+		return *x.Method
+	}
+	return ""
+}
+
+func (x *SitemapEditorRule) GetPath() string {
+	if x != nil && x.Path != nil {
+		return *x.Path
+	}
+	return ""
+}
+
+func (x *SitemapEditorRule) GetPointer() string {
+	if x != nil && x.Pointer != nil {
+		return *x.Pointer
+	}
+	return ""
+}
+
+func (x *SitemapEditorRule) GetParameters() *ListOfString {
+	if x != nil {
+		return x.Parameters
+	}
+	return nil
+}
+
+func (x *SitemapEditorRule) GetStructural() *ListOfSitemapStructuralParameter {
+	if x != nil {
+		return x.Structural
+	}
+	return nil
+}
+
+type ListOfSitemapEditorRule struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []*SitemapEditorRule   `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfSitemapEditorRule) Reset() {
+	*x = ListOfSitemapEditorRule{}
+	mi := &file_runtime_proto_msgTypes[99]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfSitemapEditorRule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfSitemapEditorRule) ProtoMessage() {}
+
+func (x *ListOfSitemapEditorRule) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[99]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfSitemapEditorRule.ProtoReflect.Descriptor instead.
+func (*ListOfSitemapEditorRule) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{99}
+}
+
+func (x *ListOfSitemapEditorRule) GetValues() []*SitemapEditorRule {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type SitemapEditorSource struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Expected      *SitemapSource           `protobuf:"bytes,1,opt,name=expected,proto3" json:"expected,omitempty"`
+	Rules         *ListOfSitemapEditorRule `protobuf:"bytes,2,opt,name=rules,proto3" json:"rules,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SitemapEditorSource) Reset() {
+	*x = SitemapEditorSource{}
+	mi := &file_runtime_proto_msgTypes[100]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapEditorSource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapEditorSource) ProtoMessage() {}
+
+func (x *SitemapEditorSource) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[100]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapEditorSource.ProtoReflect.Descriptor instead.
+func (*SitemapEditorSource) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{100}
+}
+
+func (x *SitemapEditorSource) GetExpected() *SitemapSource {
+	if x != nil {
+		return x.Expected
+	}
+	return nil
+}
+
+func (x *SitemapEditorSource) GetRules() *ListOfSitemapEditorRule {
+	if x != nil {
+		return x.Rules
+	}
+	return nil
+}
+
+type SitemapEditorMutation struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Operation        *string                `protobuf:"bytes,1,opt,name=operation,proto3,oneof" json:"operation,omitempty"`
+	ExpectedRevision *string                `protobuf:"bytes,2,opt,name=expected_revision,json=expectedRevision,proto3,oneof" json:"expected_revision,omitempty"`
+	Url              *string                `protobuf:"bytes,3,opt,name=url,proto3,oneof" json:"url,omitempty"`
+	Method           *string                `protobuf:"bytes,4,opt,name=method,proto3,oneof" json:"method,omitempty"`
+	MemberIds        *ListOfString          `protobuf:"bytes,5,opt,name=member_ids,json=memberIds,proto3" json:"member_ids,omitempty"`
+	Note             *string                `protobuf:"bytes,6,opt,name=note,proto3,oneof" json:"note,omitempty"`
+	Tags             *ListOfString          `protobuf:"bytes,7,opt,name=tags,proto3" json:"tags,omitempty"`
+	MarkerId         *string                `protobuf:"bytes,8,opt,name=marker_id,json=markerId,proto3,oneof" json:"marker_id,omitempty"`
+	Source           *SitemapEditorSource   `protobuf:"bytes,9,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *SitemapEditorMutation) Reset() {
+	*x = SitemapEditorMutation{}
+	mi := &file_runtime_proto_msgTypes[101]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapEditorMutation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapEditorMutation) ProtoMessage() {}
+
+func (x *SitemapEditorMutation) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[101]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapEditorMutation.ProtoReflect.Descriptor instead.
+func (*SitemapEditorMutation) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{101}
+}
+
+func (x *SitemapEditorMutation) GetOperation() string {
+	if x != nil && x.Operation != nil {
+		return *x.Operation
+	}
+	return ""
+}
+
+func (x *SitemapEditorMutation) GetExpectedRevision() string {
+	if x != nil && x.ExpectedRevision != nil {
+		return *x.ExpectedRevision
+	}
+	return ""
+}
+
+func (x *SitemapEditorMutation) GetUrl() string {
+	if x != nil && x.Url != nil {
+		return *x.Url
+	}
+	return ""
+}
+
+func (x *SitemapEditorMutation) GetMethod() string {
+	if x != nil && x.Method != nil {
+		return *x.Method
+	}
+	return ""
+}
+
+func (x *SitemapEditorMutation) GetMemberIds() *ListOfString {
+	if x != nil {
+		return x.MemberIds
+	}
+	return nil
+}
+
+func (x *SitemapEditorMutation) GetNote() string {
+	if x != nil && x.Note != nil {
+		return *x.Note
+	}
+	return ""
+}
+
+func (x *SitemapEditorMutation) GetTags() *ListOfString {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *SitemapEditorMutation) GetMarkerId() string {
+	if x != nil && x.MarkerId != nil {
+		return *x.MarkerId
+	}
+	return ""
+}
+
+func (x *SitemapEditorMutation) GetSource() *SitemapEditorSource {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+type SitemapMutationRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion     *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	Mutation       *SitemapEditorMutation `protobuf:"bytes,2,opt,name=mutation,proto3" json:"mutation,omitempty"`
+	IdempotencyKey *string                `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3,oneof" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SitemapMutationRequest) Reset() {
+	*x = SitemapMutationRequest{}
+	mi := &file_runtime_proto_msgTypes[102]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapMutationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapMutationRequest) ProtoMessage() {}
+
+func (x *SitemapMutationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[102]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapMutationRequest.ProtoReflect.Descriptor instead.
+func (*SitemapMutationRequest) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{102}
+}
+
+func (x *SitemapMutationRequest) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *SitemapMutationRequest) GetMutation() *SitemapEditorMutation {
+	if x != nil {
+		return x.Mutation
+	}
+	return nil
+}
+
+func (x *SitemapMutationRequest) GetIdempotencyKey() string {
+	if x != nil && x.IdempotencyKey != nil {
+		return *x.IdempotencyKey
+	}
+	return ""
+}
+
+type SitemapMutationResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Artifact      *ArtifactRef           `protobuf:"bytes,1,opt,name=artifact,proto3" json:"artifact,omitempty"`
+	Replayed      *bool                  `protobuf:"varint,2,opt,name=replayed,proto3,oneof" json:"replayed,omitempty"`
+	Changed       *bool                  `protobuf:"varint,3,opt,name=changed,proto3,oneof" json:"changed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SitemapMutationResult) Reset() {
+	*x = SitemapMutationResult{}
+	mi := &file_runtime_proto_msgTypes[103]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapMutationResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapMutationResult) ProtoMessage() {}
+
+func (x *SitemapMutationResult) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[103]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapMutationResult.ProtoReflect.Descriptor instead.
+func (*SitemapMutationResult) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{103}
+}
+
+func (x *SitemapMutationResult) GetArtifact() *ArtifactRef {
+	if x != nil {
+		return x.Artifact
+	}
+	return nil
+}
+
+func (x *SitemapMutationResult) GetReplayed() bool {
+	if x != nil && x.Replayed != nil {
+		return *x.Replayed
+	}
+	return false
+}
+
+func (x *SitemapMutationResult) GetChanged() bool {
+	if x != nil && x.Changed != nil {
+		return *x.Changed
+	}
+	return false
+}
+
+type SitemapMutationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion    *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	Result        *SitemapMutationResult `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SitemapMutationResponse) Reset() {
+	*x = SitemapMutationResponse{}
+	mi := &file_runtime_proto_msgTypes[104]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapMutationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapMutationResponse) ProtoMessage() {}
+
+func (x *SitemapMutationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[104]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapMutationResponse.ProtoReflect.Descriptor instead.
+func (*SitemapMutationResponse) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{104}
+}
+
+func (x *SitemapMutationResponse) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *SitemapMutationResponse) GetResult() *SitemapMutationResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+type SitemapSnapshotSelection struct {
+	state                   protoimpl.MessageState `protogen:"open.v1"`
+	Revision                *string                `protobuf:"bytes,1,opt,name=revision,proto3,oneof" json:"revision,omitempty"`
+	RequireReferencedInputs *bool                  `protobuf:"varint,2,opt,name=require_referenced_inputs,json=requireReferencedInputs,proto3,oneof" json:"require_referenced_inputs,omitempty"`
+	Groups                  *ListOfString          `protobuf:"bytes,3,opt,name=groups,proto3" json:"groups,omitempty"`
+	Members                 *ListOfString          `protobuf:"bytes,4,opt,name=members,proto3" json:"members,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *SitemapSnapshotSelection) Reset() {
+	*x = SitemapSnapshotSelection{}
+	mi := &file_runtime_proto_msgTypes[105]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapSnapshotSelection) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapSnapshotSelection) ProtoMessage() {}
+
+func (x *SitemapSnapshotSelection) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[105]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapSnapshotSelection.ProtoReflect.Descriptor instead.
+func (*SitemapSnapshotSelection) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{105}
+}
+
+func (x *SitemapSnapshotSelection) GetRevision() string {
+	if x != nil && x.Revision != nil {
+		return *x.Revision
+	}
+	return ""
+}
+
+func (x *SitemapSnapshotSelection) GetRequireReferencedInputs() bool {
+	if x != nil && x.RequireReferencedInputs != nil {
+		return *x.RequireReferencedInputs
+	}
+	return false
+}
+
+func (x *SitemapSnapshotSelection) GetGroups() *ListOfString {
+	if x != nil {
+		return x.Groups
+	}
+	return nil
+}
+
+func (x *SitemapSnapshotSelection) GetMembers() *ListOfString {
+	if x != nil {
+		return x.Members
+	}
+	return nil
+}
+
+type SitemapSnapshotRequest struct {
+	state          protoimpl.MessageState    `protogen:"open.v1"`
+	ApiVersion     *string                   `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	Selection      *SitemapSnapshotSelection `protobuf:"bytes,2,opt,name=selection,proto3" json:"selection,omitempty"`
+	IdempotencyKey *string                   `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3,oneof" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SitemapSnapshotRequest) Reset() {
+	*x = SitemapSnapshotRequest{}
+	mi := &file_runtime_proto_msgTypes[106]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapSnapshotRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapSnapshotRequest) ProtoMessage() {}
+
+func (x *SitemapSnapshotRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[106]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapSnapshotRequest.ProtoReflect.Descriptor instead.
+func (*SitemapSnapshotRequest) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{106}
+}
+
+func (x *SitemapSnapshotRequest) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *SitemapSnapshotRequest) GetSelection() *SitemapSnapshotSelection {
+	if x != nil {
+		return x.Selection
+	}
+	return nil
+}
+
+func (x *SitemapSnapshotRequest) GetIdempotencyKey() string {
+	if x != nil && x.IdempotencyKey != nil {
+		return *x.IdempotencyKey
+	}
+	return ""
+}
+
+type SitemapSnapshotResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Artifact      *ExactArtifact         `protobuf:"bytes,1,opt,name=artifact,proto3" json:"artifact,omitempty"`
+	Replayed      *bool                  `protobuf:"varint,2,opt,name=replayed,proto3,oneof" json:"replayed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SitemapSnapshotResult) Reset() {
+	*x = SitemapSnapshotResult{}
+	mi := &file_runtime_proto_msgTypes[107]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapSnapshotResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapSnapshotResult) ProtoMessage() {}
+
+func (x *SitemapSnapshotResult) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[107]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapSnapshotResult.ProtoReflect.Descriptor instead.
+func (*SitemapSnapshotResult) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{107}
+}
+
+func (x *SitemapSnapshotResult) GetArtifact() *ExactArtifact {
+	if x != nil {
+		return x.Artifact
+	}
+	return nil
+}
+
+func (x *SitemapSnapshotResult) GetReplayed() bool {
+	if x != nil && x.Replayed != nil {
+		return *x.Replayed
+	}
+	return false
+}
+
+type SitemapSnapshotResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion    *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	Result        *SitemapSnapshotResult `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SitemapSnapshotResponse) Reset() {
+	*x = SitemapSnapshotResponse{}
+	mi := &file_runtime_proto_msgTypes[108]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapSnapshotResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapSnapshotResponse) ProtoMessage() {}
+
+func (x *SitemapSnapshotResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[108]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapSnapshotResponse.ProtoReflect.Descriptor instead.
+func (*SitemapSnapshotResponse) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{108}
+}
+
+func (x *SitemapSnapshotResponse) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *SitemapSnapshotResponse) GetResult() *SitemapSnapshotResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+type SitemapObservation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Note          *string                `protobuf:"bytes,1,opt,name=note,proto3,oneof" json:"note,omitempty"`
+	Tags          *ListOfString          `protobuf:"bytes,2,opt,name=tags,proto3" json:"tags,omitempty"`
+	Url           *string                `protobuf:"bytes,3,opt,name=url,proto3,oneof" json:"url,omitempty"`
+	Method        *string                `protobuf:"bytes,4,opt,name=method,proto3,oneof" json:"method,omitempty"`
+	Outcome       *string                `protobuf:"bytes,5,opt,name=outcome,proto3,oneof" json:"outcome,omitempty"`
+	Status        *int64                 `protobuf:"varint,6,opt,name=status,proto3,oneof" json:"status,omitempty"`
+	At            *string                `protobuf:"bytes,7,opt,name=at,proto3,oneof" json:"at,omitempty"`
+	Parameters    *ListOfString          `protobuf:"bytes,8,opt,name=parameters,proto3" json:"parameters,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SitemapObservation) Reset() {
+	*x = SitemapObservation{}
+	mi := &file_runtime_proto_msgTypes[109]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapObservation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapObservation) ProtoMessage() {}
+
+func (x *SitemapObservation) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[109]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapObservation.ProtoReflect.Descriptor instead.
+func (*SitemapObservation) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{109}
+}
+
+func (x *SitemapObservation) GetNote() string {
+	if x != nil && x.Note != nil {
+		return *x.Note
+	}
+	return ""
+}
+
+func (x *SitemapObservation) GetTags() *ListOfString {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *SitemapObservation) GetUrl() string {
+	if x != nil && x.Url != nil {
+		return *x.Url
+	}
+	return ""
+}
+
+func (x *SitemapObservation) GetMethod() string {
+	if x != nil && x.Method != nil {
+		return *x.Method
+	}
+	return ""
+}
+
+func (x *SitemapObservation) GetOutcome() string {
+	if x != nil && x.Outcome != nil {
+		return *x.Outcome
+	}
+	return ""
+}
+
+func (x *SitemapObservation) GetStatus() int64 {
+	if x != nil && x.Status != nil {
+		return *x.Status
+	}
+	return 0
+}
+
+func (x *SitemapObservation) GetAt() string {
+	if x != nil && x.At != nil {
+		return *x.At
+	}
+	return ""
+}
+
+func (x *SitemapObservation) GetParameters() *ListOfString {
+	if x != nil {
+		return x.Parameters
+	}
+	return nil
+}
+
+type ListOfSitemapObservation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []*SitemapObservation  `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfSitemapObservation) Reset() {
+	*x = ListOfSitemapObservation{}
+	mi := &file_runtime_proto_msgTypes[110]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfSitemapObservation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfSitemapObservation) ProtoMessage() {}
+
+func (x *ListOfSitemapObservation) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[110]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfSitemapObservation.ProtoReflect.Descriptor instead.
+func (*ListOfSitemapObservation) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{110}
+}
+
+func (x *ListOfSitemapObservation) GetValues() []*SitemapObservation {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type SitemapCollectionGap struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Reason        *string                `protobuf:"bytes,1,opt,name=reason,proto3,oneof" json:"reason,omitempty"`
+	Count         *uint64                `protobuf:"varint,2,opt,name=count,proto3,oneof" json:"count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SitemapCollectionGap) Reset() {
+	*x = SitemapCollectionGap{}
+	mi := &file_runtime_proto_msgTypes[111]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapCollectionGap) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapCollectionGap) ProtoMessage() {}
+
+func (x *SitemapCollectionGap) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[111]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapCollectionGap.ProtoReflect.Descriptor instead.
+func (*SitemapCollectionGap) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{111}
+}
+
+func (x *SitemapCollectionGap) GetReason() string {
+	if x != nil && x.Reason != nil {
+		return *x.Reason
+	}
+	return ""
+}
+
+func (x *SitemapCollectionGap) GetCount() uint64 {
+	if x != nil && x.Count != nil {
+		return *x.Count
+	}
+	return 0
+}
+
+type ListOfSitemapCollectionGap struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Values        []*SitemapCollectionGap `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfSitemapCollectionGap) Reset() {
+	*x = ListOfSitemapCollectionGap{}
+	mi := &file_runtime_proto_msgTypes[112]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfSitemapCollectionGap) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfSitemapCollectionGap) ProtoMessage() {}
+
+func (x *ListOfSitemapCollectionGap) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[112]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfSitemapCollectionGap.ProtoReflect.Descriptor instead.
+func (*ListOfSitemapCollectionGap) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{112}
+}
+
+func (x *ListOfSitemapCollectionGap) GetValues() []*SitemapCollectionGap {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type SitemapCollectionIngress struct {
+	state         protoimpl.MessageState      `protogen:"open.v1"`
+	Kind          *string                     `protobuf:"bytes,1,opt,name=kind,proto3,oneof" json:"kind,omitempty"`
+	Observations  *ListOfSitemapObservation   `protobuf:"bytes,2,opt,name=observations,proto3" json:"observations,omitempty"`
+	Gaps          *ListOfSitemapCollectionGap `protobuf:"bytes,3,opt,name=gaps,proto3" json:"gaps,omitempty"`
+	Artifact      *ArtifactRef                `protobuf:"bytes,4,opt,name=artifact,proto3" json:"artifact,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SitemapCollectionIngress) Reset() {
+	*x = SitemapCollectionIngress{}
+	mi := &file_runtime_proto_msgTypes[113]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapCollectionIngress) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapCollectionIngress) ProtoMessage() {}
+
+func (x *SitemapCollectionIngress) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[113]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapCollectionIngress.ProtoReflect.Descriptor instead.
+func (*SitemapCollectionIngress) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{113}
+}
+
+func (x *SitemapCollectionIngress) GetKind() string {
+	if x != nil && x.Kind != nil {
+		return *x.Kind
+	}
+	return ""
+}
+
+func (x *SitemapCollectionIngress) GetObservations() *ListOfSitemapObservation {
+	if x != nil {
+		return x.Observations
+	}
+	return nil
+}
+
+func (x *SitemapCollectionIngress) GetGaps() *ListOfSitemapCollectionGap {
+	if x != nil {
+		return x.Gaps
+	}
+	return nil
+}
+
+func (x *SitemapCollectionIngress) GetArtifact() *ArtifactRef {
+	if x != nil {
+		return x.Artifact
+	}
+	return nil
+}
+
+type SitemapCollectionRequest struct {
+	state          protoimpl.MessageState    `protogen:"open.v1"`
+	ApiVersion     *string                   `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	Input          *SitemapCollectionIngress `protobuf:"bytes,2,opt,name=input,proto3" json:"input,omitempty"`
+	Automatic      *bool                     `protobuf:"varint,3,opt,name=automatic,proto3,oneof" json:"automatic,omitempty"`
+	IdempotencyKey *string                   `protobuf:"bytes,4,opt,name=idempotency_key,json=idempotencyKey,proto3,oneof" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SitemapCollectionRequest) Reset() {
+	*x = SitemapCollectionRequest{}
+	mi := &file_runtime_proto_msgTypes[114]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SitemapCollectionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SitemapCollectionRequest) ProtoMessage() {}
+
+func (x *SitemapCollectionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[114]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SitemapCollectionRequest.ProtoReflect.Descriptor instead.
+func (*SitemapCollectionRequest) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{114}
+}
+
+func (x *SitemapCollectionRequest) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *SitemapCollectionRequest) GetInput() *SitemapCollectionIngress {
+	if x != nil {
+		return x.Input
+	}
+	return nil
+}
+
+func (x *SitemapCollectionRequest) GetAutomatic() bool {
+	if x != nil && x.Automatic != nil {
+		return *x.Automatic
+	}
+	return false
+}
+
+func (x *SitemapCollectionRequest) GetIdempotencyKey() string {
+	if x != nil && x.IdempotencyKey != nil {
+		return *x.IdempotencyKey
+	}
+	return ""
+}
+
+type ArtifactListRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Namespace     *string                `protobuf:"bytes,1,opt,name=namespace,proto3,oneof" json:"namespace,omitempty"`
+	NamePrefix    *string                `protobuf:"bytes,2,opt,name=name_prefix,json=namePrefix,proto3,oneof" json:"name_prefix,omitempty"`
+	Limit         *int64                 `protobuf:"varint,3,opt,name=limit,proto3,oneof" json:"limit,omitempty"`
+	Cursor        *string                `protobuf:"bytes,4,opt,name=cursor,proto3,oneof" json:"cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArtifactListRequest) Reset() {
+	*x = ArtifactListRequest{}
+	mi := &file_runtime_proto_msgTypes[115]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtifactListRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtifactListRequest) ProtoMessage() {}
+
+func (x *ArtifactListRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[115]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtifactListRequest.ProtoReflect.Descriptor instead.
+func (*ArtifactListRequest) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{115}
+}
+
+func (x *ArtifactListRequest) GetNamespace() string {
+	if x != nil && x.Namespace != nil {
+		return *x.Namespace
+	}
+	return ""
+}
+
+func (x *ArtifactListRequest) GetNamePrefix() string {
+	if x != nil && x.NamePrefix != nil {
+		return *x.NamePrefix
+	}
+	return ""
+}
+
+func (x *ArtifactListRequest) GetLimit() int64 {
+	if x != nil && x.Limit != nil {
+		return *x.Limit
+	}
+	return 0
+}
+
+func (x *ArtifactListRequest) GetCursor() string {
+	if x != nil && x.Cursor != nil {
+		return *x.Cursor
+	}
+	return ""
+}
+
+type ArtifactListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion    *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	Artifacts     *ListOfArtifactRef     `protobuf:"bytes,2,opt,name=artifacts,proto3" json:"artifacts,omitempty"`
+	NextCursor    *string                `protobuf:"bytes,3,opt,name=next_cursor,json=nextCursor,proto3,oneof" json:"next_cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArtifactListResponse) Reset() {
+	*x = ArtifactListResponse{}
+	mi := &file_runtime_proto_msgTypes[116]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtifactListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtifactListResponse) ProtoMessage() {}
+
+func (x *ArtifactListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[116]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtifactListResponse.ProtoReflect.Descriptor instead.
+func (*ArtifactListResponse) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{116}
+}
+
+func (x *ArtifactListResponse) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *ArtifactListResponse) GetArtifacts() *ListOfArtifactRef {
+	if x != nil {
+		return x.Artifacts
+	}
+	return nil
+}
+
+func (x *ArtifactListResponse) GetNextCursor() string {
+	if x != nil && x.NextCursor != nil {
+		return *x.NextCursor
+	}
+	return ""
+}
+
+type ArtifactReadTarget struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Artifact      *ArtifactRef           `protobuf:"bytes,1,opt,name=artifact,proto3" json:"artifact,omitempty"`
+	Scope         *string                `protobuf:"bytes,2,opt,name=scope,proto3,oneof" json:"scope,omitempty"`
+	Operation     *string                `protobuf:"bytes,3,opt,name=operation,proto3,oneof" json:"operation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArtifactReadTarget) Reset() {
+	*x = ArtifactReadTarget{}
+	mi := &file_runtime_proto_msgTypes[117]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtifactReadTarget) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtifactReadTarget) ProtoMessage() {}
+
+func (x *ArtifactReadTarget) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[117]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtifactReadTarget.ProtoReflect.Descriptor instead.
+func (*ArtifactReadTarget) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{117}
+}
+
+func (x *ArtifactReadTarget) GetArtifact() *ArtifactRef {
+	if x != nil {
+		return x.Artifact
+	}
+	return nil
+}
+
+func (x *ArtifactReadTarget) GetScope() string {
+	if x != nil && x.Scope != nil {
+		return *x.Scope
+	}
+	return ""
+}
+
+func (x *ArtifactReadTarget) GetOperation() string {
+	if x != nil && x.Operation != nil {
+		return *x.Operation
+	}
+	return ""
+}
+
+type ArtifactMetadataResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion      *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	Artifact        *ArtifactRef           `protobuf:"bytes,2,opt,name=artifact,proto3" json:"artifact,omitempty"`
+	MediaType       *string                `protobuf:"bytes,3,opt,name=media_type,json=mediaType,proto3,oneof" json:"media_type,omitempty"`
+	Size            *int64                 `protobuf:"varint,4,opt,name=size,proto3,oneof" json:"size,omitempty"`
+	ContentCacheKey *string                `protobuf:"bytes,5,opt,name=content_cache_key,json=contentCacheKey,proto3,oneof" json:"content_cache_key,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ArtifactMetadataResponse) Reset() {
+	*x = ArtifactMetadataResponse{}
+	mi := &file_runtime_proto_msgTypes[118]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtifactMetadataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtifactMetadataResponse) ProtoMessage() {}
+
+func (x *ArtifactMetadataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[118]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtifactMetadataResponse.ProtoReflect.Descriptor instead.
+func (*ArtifactMetadataResponse) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{118}
+}
+
+func (x *ArtifactMetadataResponse) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *ArtifactMetadataResponse) GetArtifact() *ArtifactRef {
+	if x != nil {
+		return x.Artifact
+	}
+	return nil
+}
+
+func (x *ArtifactMetadataResponse) GetMediaType() string {
+	if x != nil && x.MediaType != nil {
+		return *x.MediaType
+	}
+	return ""
+}
+
+func (x *ArtifactMetadataResponse) GetSize() int64 {
+	if x != nil && x.Size != nil {
+		return *x.Size
+	}
+	return 0
+}
+
+func (x *ArtifactMetadataResponse) GetContentCacheKey() string {
+	if x != nil && x.ContentCacheKey != nil {
+		return *x.ContentCacheKey
+	}
+	return ""
+}
+
+type ArtifactAccessResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArtifactAccessResponse) Reset() {
+	*x = ArtifactAccessResponse{}
+	mi := &file_runtime_proto_msgTypes[119]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtifactAccessResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtifactAccessResponse) ProtoMessage() {}
+
+func (x *ArtifactAccessResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[119]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtifactAccessResponse.ProtoReflect.Descriptor instead.
+func (*ArtifactAccessResponse) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{119}
+}
+
+type FindingListRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Limit         *int64                 `protobuf:"varint,1,opt,name=limit,proto3,oneof" json:"limit,omitempty"`
+	Cursor        *string                `protobuf:"bytes,2,opt,name=cursor,proto3,oneof" json:"cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FindingListRequest) Reset() {
+	*x = FindingListRequest{}
+	mi := &file_runtime_proto_msgTypes[120]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindingListRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindingListRequest) ProtoMessage() {}
+
+func (x *FindingListRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[120]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindingListRequest.ProtoReflect.Descriptor instead.
+func (*FindingListRequest) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{120}
+}
+
+func (x *FindingListRequest) GetLimit() int64 {
+	if x != nil && x.Limit != nil {
+		return *x.Limit
+	}
+	return 0
+}
+
+func (x *FindingListRequest) GetCursor() string {
+	if x != nil && x.Cursor != nil {
+		return *x.Cursor
+	}
+	return ""
+}
+
+type ProjectFindingSummary struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	FindingId          *string                `protobuf:"bytes,1,opt,name=finding_id,json=findingId,proto3,oneof" json:"finding_id,omitempty"`
+	ProjectId          *string                `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3,oneof" json:"project_id,omitempty"`
+	Title              *string                `protobuf:"bytes,3,opt,name=title,proto3,oneof" json:"title,omitempty"`
+	TitleTruncated     *bool                  `protobuf:"varint,4,opt,name=title_truncated,json=titleTruncated,proto3,oneof" json:"title_truncated,omitempty"`
+	SubjectKind        *string                `protobuf:"bytes,5,opt,name=subject_kind,json=subjectKind,proto3,oneof" json:"subject_kind,omitempty"`
+	SubjectKey         *string                `protobuf:"bytes,6,opt,name=subject_key,json=subjectKey,proto3,oneof" json:"subject_key,omitempty"`
+	SubjectTruncated   *bool                  `protobuf:"varint,7,opt,name=subject_truncated,json=subjectTruncated,proto3,oneof" json:"subject_truncated,omitempty"`
+	SeveritySuggestion *string                `protobuf:"bytes,8,opt,name=severity_suggestion,json=severitySuggestion,proto3,oneof" json:"severity_suggestion,omitempty"`
+	State              *NullableString        `protobuf:"bytes,9,opt,name=state,proto3" json:"state,omitempty"`
+	AnalystVerdict     *NullableString        `protobuf:"bytes,10,opt,name=analyst_verdict,json=analystVerdict,proto3" json:"analyst_verdict,omitempty"`
+	AnalystSeverity    *NullableString        `protobuf:"bytes,11,opt,name=analyst_severity,json=analystSeverity,proto3" json:"analyst_severity,omitempty"`
+	DuplicateTargetId  *NullableString        `protobuf:"bytes,12,opt,name=duplicate_target_id,json=duplicateTargetId,proto3" json:"duplicate_target_id,omitempty"`
+	Revision           *uint64                `protobuf:"varint,13,opt,name=revision,proto3,oneof" json:"revision,omitempty"`
+	CreatedAt          *string                `protobuf:"bytes,14,opt,name=created_at,json=createdAt,proto3,oneof" json:"created_at,omitempty"`
+	UpdatedAt          *string                `protobuf:"bytes,15,opt,name=updated_at,json=updatedAt,proto3,oneof" json:"updated_at,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *ProjectFindingSummary) Reset() {
+	*x = ProjectFindingSummary{}
+	mi := &file_runtime_proto_msgTypes[121]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProjectFindingSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProjectFindingSummary) ProtoMessage() {}
+
+func (x *ProjectFindingSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[121]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProjectFindingSummary.ProtoReflect.Descriptor instead.
+func (*ProjectFindingSummary) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{121}
+}
+
+func (x *ProjectFindingSummary) GetFindingId() string {
+	if x != nil && x.FindingId != nil {
+		return *x.FindingId
+	}
+	return ""
+}
+
+func (x *ProjectFindingSummary) GetProjectId() string {
+	if x != nil && x.ProjectId != nil {
+		return *x.ProjectId
+	}
+	return ""
+}
+
+func (x *ProjectFindingSummary) GetTitle() string {
+	if x != nil && x.Title != nil {
+		return *x.Title
+	}
+	return ""
+}
+
+func (x *ProjectFindingSummary) GetTitleTruncated() bool {
+	if x != nil && x.TitleTruncated != nil {
+		return *x.TitleTruncated
+	}
+	return false
+}
+
+func (x *ProjectFindingSummary) GetSubjectKind() string {
+	if x != nil && x.SubjectKind != nil {
+		return *x.SubjectKind
+	}
+	return ""
+}
+
+func (x *ProjectFindingSummary) GetSubjectKey() string {
+	if x != nil && x.SubjectKey != nil {
+		return *x.SubjectKey
+	}
+	return ""
+}
+
+func (x *ProjectFindingSummary) GetSubjectTruncated() bool {
+	if x != nil && x.SubjectTruncated != nil {
+		return *x.SubjectTruncated
+	}
+	return false
+}
+
+func (x *ProjectFindingSummary) GetSeveritySuggestion() string {
+	if x != nil && x.SeveritySuggestion != nil {
+		return *x.SeveritySuggestion
+	}
+	return ""
+}
+
+func (x *ProjectFindingSummary) GetState() *NullableString {
+	if x != nil {
+		return x.State
+	}
+	return nil
+}
+
+func (x *ProjectFindingSummary) GetAnalystVerdict() *NullableString {
+	if x != nil {
+		return x.AnalystVerdict
+	}
+	return nil
+}
+
+func (x *ProjectFindingSummary) GetAnalystSeverity() *NullableString {
+	if x != nil {
+		return x.AnalystSeverity
+	}
+	return nil
+}
+
+func (x *ProjectFindingSummary) GetDuplicateTargetId() *NullableString {
+	if x != nil {
+		return x.DuplicateTargetId
+	}
+	return nil
+}
+
+func (x *ProjectFindingSummary) GetRevision() uint64 {
+	if x != nil && x.Revision != nil {
+		return *x.Revision
+	}
+	return 0
+}
+
+func (x *ProjectFindingSummary) GetCreatedAt() string {
+	if x != nil && x.CreatedAt != nil {
+		return *x.CreatedAt
+	}
+	return ""
+}
+
+func (x *ProjectFindingSummary) GetUpdatedAt() string {
+	if x != nil && x.UpdatedAt != nil {
+		return *x.UpdatedAt
+	}
+	return ""
+}
+
+type ListOfProjectFindingSummary struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Values        []*ProjectFindingSummary `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfProjectFindingSummary) Reset() {
+	*x = ListOfProjectFindingSummary{}
+	mi := &file_runtime_proto_msgTypes[122]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfProjectFindingSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfProjectFindingSummary) ProtoMessage() {}
+
+func (x *ListOfProjectFindingSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[122]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfProjectFindingSummary.ProtoReflect.Descriptor instead.
+func (*ListOfProjectFindingSummary) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{122}
+}
+
+func (x *ListOfProjectFindingSummary) GetValues() []*ProjectFindingSummary {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type FindingListResponse struct {
+	state           protoimpl.MessageState       `protogen:"open.v1"`
+	Items           *ListOfProjectFindingSummary `protobuf:"bytes,1,opt,name=items,proto3" json:"items,omitempty"`
+	ProjectRevision *uint64                      `protobuf:"varint,2,opt,name=project_revision,json=projectRevision,proto3,oneof" json:"project_revision,omitempty"`
+	NextCursor      *NullableString              `protobuf:"bytes,3,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *FindingListResponse) Reset() {
+	*x = FindingListResponse{}
+	mi := &file_runtime_proto_msgTypes[123]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindingListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindingListResponse) ProtoMessage() {}
+
+func (x *FindingListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[123]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindingListResponse.ProtoReflect.Descriptor instead.
+func (*FindingListResponse) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{123}
+}
+
+func (x *FindingListResponse) GetItems() *ListOfProjectFindingSummary {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *FindingListResponse) GetProjectRevision() uint64 {
+	if x != nil && x.ProjectRevision != nil {
+		return *x.ProjectRevision
+	}
+	return 0
+}
+
+func (x *FindingListResponse) GetNextCursor() *NullableString {
+	if x != nil {
+		return x.NextCursor
+	}
+	return nil
+}
+
+type FindingReadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FindingId     *string                `protobuf:"bytes,1,opt,name=finding_id,json=findingId,proto3,oneof" json:"finding_id,omitempty"`
+	Revision      *uint64                `protobuf:"varint,2,opt,name=revision,proto3,oneof" json:"revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FindingReadRequest) Reset() {
+	*x = FindingReadRequest{}
+	mi := &file_runtime_proto_msgTypes[124]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindingReadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindingReadRequest) ProtoMessage() {}
+
+func (x *FindingReadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[124]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindingReadRequest.ProtoReflect.Descriptor instead.
+func (*FindingReadRequest) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{124}
+}
+
+func (x *FindingReadRequest) GetFindingId() string {
+	if x != nil && x.FindingId != nil {
+		return *x.FindingId
+	}
+	return ""
+}
+
+func (x *FindingReadRequest) GetRevision() uint64 {
+	if x != nil && x.Revision != nil {
+		return *x.Revision
+	}
+	return 0
+}
+
+type ProjectFinding struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	FindingId         *string                `protobuf:"bytes,1,opt,name=finding_id,json=findingId,proto3,oneof" json:"finding_id,omitempty"`
+	ProjectId         *string                `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3,oneof" json:"project_id,omitempty"`
+	FirstReceiptId    *string                `protobuf:"bytes,3,opt,name=first_receipt_id,json=firstReceiptId,proto3,oneof" json:"first_receipt_id,omitempty"`
+	FirstProposal     *ExactArtifact         `protobuf:"bytes,4,opt,name=first_proposal,json=firstProposal,proto3" json:"first_proposal,omitempty"`
+	Title             *string                `protobuf:"bytes,5,opt,name=title,proto3,oneof" json:"title,omitempty"`
+	Claim             *FindingClaimDocument  `protobuf:"bytes,6,opt,name=claim,proto3" json:"claim,omitempty"`
+	State             *NullableString        `protobuf:"bytes,7,opt,name=state,proto3" json:"state,omitempty"`
+	AnalystVerdict    *NullableString        `protobuf:"bytes,8,opt,name=analyst_verdict,json=analystVerdict,proto3" json:"analyst_verdict,omitempty"`
+	AnalystSeverity   *NullableString        `protobuf:"bytes,9,opt,name=analyst_severity,json=analystSeverity,proto3" json:"analyst_severity,omitempty"`
+	Rationale         *NullableString        `protobuf:"bytes,10,opt,name=rationale,proto3" json:"rationale,omitempty"`
+	ActorId           *NullableString        `protobuf:"bytes,11,opt,name=actor_id,json=actorId,proto3" json:"actor_id,omitempty"`
+	AssessedAt        *NullableString        `protobuf:"bytes,12,opt,name=assessed_at,json=assessedAt,proto3" json:"assessed_at,omitempty"`
+	DuplicateTargetId *NullableString        `protobuf:"bytes,13,opt,name=duplicate_target_id,json=duplicateTargetId,proto3" json:"duplicate_target_id,omitempty"`
+	Revision          *uint64                `protobuf:"varint,14,opt,name=revision,proto3,oneof" json:"revision,omitempty"`
+	CreatedAt         *string                `protobuf:"bytes,15,opt,name=created_at,json=createdAt,proto3,oneof" json:"created_at,omitempty"`
+	UpdatedAt         *string                `protobuf:"bytes,16,opt,name=updated_at,json=updatedAt,proto3,oneof" json:"updated_at,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ProjectFinding) Reset() {
+	*x = ProjectFinding{}
+	mi := &file_runtime_proto_msgTypes[125]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProjectFinding) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProjectFinding) ProtoMessage() {}
+
+func (x *ProjectFinding) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[125]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProjectFinding.ProtoReflect.Descriptor instead.
+func (*ProjectFinding) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{125}
+}
+
+func (x *ProjectFinding) GetFindingId() string {
+	if x != nil && x.FindingId != nil {
+		return *x.FindingId
+	}
+	return ""
+}
+
+func (x *ProjectFinding) GetProjectId() string {
+	if x != nil && x.ProjectId != nil {
+		return *x.ProjectId
+	}
+	return ""
+}
+
+func (x *ProjectFinding) GetFirstReceiptId() string {
+	if x != nil && x.FirstReceiptId != nil {
+		return *x.FirstReceiptId
+	}
+	return ""
+}
+
+func (x *ProjectFinding) GetFirstProposal() *ExactArtifact {
+	if x != nil {
+		return x.FirstProposal
+	}
+	return nil
+}
+
+func (x *ProjectFinding) GetTitle() string {
+	if x != nil && x.Title != nil {
+		return *x.Title
+	}
+	return ""
+}
+
+func (x *ProjectFinding) GetClaim() *FindingClaimDocument {
+	if x != nil {
+		return x.Claim
+	}
+	return nil
+}
+
+func (x *ProjectFinding) GetState() *NullableString {
+	if x != nil {
+		return x.State
+	}
+	return nil
+}
+
+func (x *ProjectFinding) GetAnalystVerdict() *NullableString {
+	if x != nil {
+		return x.AnalystVerdict
+	}
+	return nil
+}
+
+func (x *ProjectFinding) GetAnalystSeverity() *NullableString {
+	if x != nil {
+		return x.AnalystSeverity
+	}
+	return nil
+}
+
+func (x *ProjectFinding) GetRationale() *NullableString {
+	if x != nil {
+		return x.Rationale
+	}
+	return nil
+}
+
+func (x *ProjectFinding) GetActorId() *NullableString {
+	if x != nil {
+		return x.ActorId
+	}
+	return nil
+}
+
+func (x *ProjectFinding) GetAssessedAt() *NullableString {
+	if x != nil {
+		return x.AssessedAt
+	}
+	return nil
+}
+
+func (x *ProjectFinding) GetDuplicateTargetId() *NullableString {
+	if x != nil {
+		return x.DuplicateTargetId
+	}
+	return nil
+}
+
+func (x *ProjectFinding) GetRevision() uint64 {
+	if x != nil && x.Revision != nil {
+		return *x.Revision
+	}
+	return 0
+}
+
+func (x *ProjectFinding) GetCreatedAt() string {
+	if x != nil && x.CreatedAt != nil {
+		return *x.CreatedAt
+	}
+	return ""
+}
+
+func (x *ProjectFinding) GetUpdatedAt() string {
+	if x != nil && x.UpdatedAt != nil {
+		return *x.UpdatedAt
+	}
+	return ""
+}
+
+type FindingClaimDocument struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Json          []byte                 `protobuf:"bytes,1,opt,name=json,proto3,oneof" json:"json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FindingClaimDocument) Reset() {
+	*x = FindingClaimDocument{}
+	mi := &file_runtime_proto_msgTypes[126]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindingClaimDocument) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindingClaimDocument) ProtoMessage() {}
+
+func (x *FindingClaimDocument) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[126]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindingClaimDocument.ProtoReflect.Descriptor instead.
+func (*FindingClaimDocument) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{126}
+}
+
+func (x *FindingClaimDocument) GetJson() []byte {
+	if x != nil {
+		return x.Json
+	}
+	return nil
+}
+
+type FindingRevisionSelection struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FindingId     *string                `protobuf:"bytes,1,opt,name=finding_id,json=findingId,proto3,oneof" json:"finding_id,omitempty"`
+	Revision      *uint64                `protobuf:"varint,2,opt,name=revision,proto3,oneof" json:"revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FindingRevisionSelection) Reset() {
+	*x = FindingRevisionSelection{}
+	mi := &file_runtime_proto_msgTypes[127]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindingRevisionSelection) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindingRevisionSelection) ProtoMessage() {}
+
+func (x *FindingRevisionSelection) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[127]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindingRevisionSelection.ProtoReflect.Descriptor instead.
+func (*FindingRevisionSelection) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{127}
+}
+
+func (x *FindingRevisionSelection) GetFindingId() string {
+	if x != nil && x.FindingId != nil {
+		return *x.FindingId
+	}
+	return ""
+}
+
+func (x *FindingRevisionSelection) GetRevision() uint64 {
+	if x != nil && x.Revision != nil {
+		return *x.Revision
+	}
+	return 0
+}
+
+type ListOfFindingRevisionSelection struct {
+	state         protoimpl.MessageState      `protogen:"open.v1"`
+	Values        []*FindingRevisionSelection `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfFindingRevisionSelection) Reset() {
+	*x = ListOfFindingRevisionSelection{}
+	mi := &file_runtime_proto_msgTypes[128]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfFindingRevisionSelection) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfFindingRevisionSelection) ProtoMessage() {}
+
+func (x *ListOfFindingRevisionSelection) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[128]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfFindingRevisionSelection.ProtoReflect.Descriptor instead.
+func (*ListOfFindingRevisionSelection) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{128}
+}
+
+func (x *ListOfFindingRevisionSelection) GetValues() []*FindingRevisionSelection {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type FindingSelectionRequest struct {
+	state         protoimpl.MessageState          `protogen:"open.v1"`
+	ClientKey     *string                         `protobuf:"bytes,1,opt,name=client_key,json=clientKey,proto3,oneof" json:"client_key,omitempty"`
+	Findings      *ListOfFindingRevisionSelection `protobuf:"bytes,2,opt,name=findings,proto3" json:"findings,omitempty"`
+	ReceiptIds    *ListOfString                   `protobuf:"bytes,3,opt,name=receipt_ids,json=receiptIds,proto3" json:"receipt_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FindingSelectionRequest) Reset() {
+	*x = FindingSelectionRequest{}
+	mi := &file_runtime_proto_msgTypes[129]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindingSelectionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindingSelectionRequest) ProtoMessage() {}
+
+func (x *FindingSelectionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[129]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindingSelectionRequest.ProtoReflect.Descriptor instead.
+func (*FindingSelectionRequest) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{129}
+}
+
+func (x *FindingSelectionRequest) GetClientKey() string {
+	if x != nil && x.ClientKey != nil {
+		return *x.ClientKey
+	}
+	return ""
+}
+
+func (x *FindingSelectionRequest) GetFindings() *ListOfFindingRevisionSelection {
+	if x != nil {
+		return x.Findings
+	}
+	return nil
+}
+
+func (x *FindingSelectionRequest) GetReceiptIds() *ListOfString {
+	if x != nil {
+		return x.ReceiptIds
+	}
+	return nil
+}
+
+type FindingSelectionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Artifact      *ExactArtifact         `protobuf:"bytes,1,opt,name=artifact,proto3" json:"artifact,omitempty"`
+	SnapshotAt    *string                `protobuf:"bytes,2,opt,name=snapshot_at,json=snapshotAt,proto3,oneof" json:"snapshot_at,omitempty"`
+	EntryCount    *int64                 `protobuf:"varint,3,opt,name=entry_count,json=entryCount,proto3,oneof" json:"entry_count,omitempty"`
+	Replayed      *bool                  `protobuf:"varint,4,opt,name=replayed,proto3,oneof" json:"replayed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FindingSelectionResponse) Reset() {
+	*x = FindingSelectionResponse{}
+	mi := &file_runtime_proto_msgTypes[130]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindingSelectionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindingSelectionResponse) ProtoMessage() {}
+
+func (x *FindingSelectionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[130]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindingSelectionResponse.ProtoReflect.Descriptor instead.
+func (*FindingSelectionResponse) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{130}
+}
+
+func (x *FindingSelectionResponse) GetArtifact() *ExactArtifact {
+	if x != nil {
+		return x.Artifact
+	}
+	return nil
+}
+
+func (x *FindingSelectionResponse) GetSnapshotAt() string {
+	if x != nil && x.SnapshotAt != nil {
+		return *x.SnapshotAt
+	}
+	return ""
+}
+
+func (x *FindingSelectionResponse) GetEntryCount() int64 {
+	if x != nil && x.EntryCount != nil {
+		return *x.EntryCount
+	}
+	return 0
+}
+
+func (x *FindingSelectionResponse) GetReplayed() bool {
+	if x != nil && x.Replayed != nil {
+		return *x.Replayed
+	}
+	return false
 }
 
 var File_runtime_proto protoreflect.FileDescriptor
@@ -4817,7 +8652,54 @@ const file_runtime_proto_rawDesc = "" +
 	"\x05_codeB\f\n" +
 	"\n" +
 	"_retryableB\r\n" +
-	"\v_request_id\"\x84\x01\n" +
+	"\v_request_id\"\xf4\x01\n" +
+	"\x17PlannerOperationRequest\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12\x1f\n" +
+	"\bsequence\x18\x02 \x01(\x03H\x01R\bsequence\x88\x01\x01\x12\x17\n" +
+	"\x04name\x18\x03 \x01(\tH\x02R\x04name\x88\x01\x01\x12S\n" +
+	"\targuments\x18\x04 \x01(\v25.contractor.runtime.v1alpha1.PlannerArgumentsDocumentR\targumentsB\x0e\n" +
+	"\f_api_versionB\v\n" +
+	"\t_sequenceB\a\n" +
+	"\x05_name\"\xb5\x02\n" +
+	"\x18PlannerOperationResponse\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12J\n" +
+	"\x06result\x18\x02 \x01(\v22.contractor.runtime.v1alpha1.PlannerResultDocumentR\x06result\x12\x17\n" +
+	"\x04stop\x18\x03 \x01(\bH\x01R\x04stop\x88\x01\x01\x12\x1f\n" +
+	"\bescalate\x18\x04 \x01(\bH\x02R\bescalate\x88\x01\x01\x12G\n" +
+	"\afailure\x18\x05 \x01(\v2-.contractor.runtime.v1alpha1.TerminationErrorR\afailureB\x0e\n" +
+	"\f_api_versionB\a\n" +
+	"\x05_stopB\v\n" +
+	"\t_escalate\"<\n" +
+	"\x18PlannerArgumentsDocument\x12\x17\n" +
+	"\x04json\x18\x01 \x01(\fH\x00R\x04json\x88\x01\x01B\a\n" +
+	"\x05_json\"9\n" +
+	"\x15PlannerResultDocument\x12\x17\n" +
+	"\x04json\x18\x01 \x01(\fH\x00R\x04json\x88\x01\x01B\a\n" +
+	"\x05_json\"\x87\x02\n" +
+	"\x16GatewayRecoveryRequest\x12\x19\n" +
+	"\x05model\x18\x01 \x01(\tH\x00R\x05model\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"request_id\x18\x02 \x01(\tH\x01R\trequestId\x88\x01\x01\x12\x1b\n" +
+	"\x06action\x18\x03 \x01(\tH\x02R\x06action\x88\x01\x01\x12\x17\n" +
+	"\x04code\x18\x04 \x01(\tH\x03R\x04code\x88\x01\x01\x123\n" +
+	"\x13retry_after_seconds\x18\x05 \x01(\x01H\x04R\x11retryAfterSeconds\x88\x01\x01B\b\n" +
+	"\x06_modelB\r\n" +
+	"\v_request_idB\t\n" +
+	"\a_actionB\a\n" +
+	"\x05_codeB\x16\n" +
+	"\x14_retry_after_seconds\"\xf2\x01\n" +
+	"\x17GatewayRecoveryResponse\x12\x1d\n" +
+	"\aallowed\x18\x01 \x01(\bH\x00R\aallowed\x88\x01\x01\x12\x17\n" +
+	"\x04code\x18\x02 \x01(\tH\x01R\x04code\x88\x01\x01\x123\n" +
+	"\x13retry_after_seconds\x18\x03 \x01(\x01H\x02R\x11retryAfterSeconds\x88\x01\x01\x12*\n" +
+	"\x0erequires_retry\x18\x04 \x01(\bH\x03R\rrequiresRetry\x88\x01\x01B\n" +
+	"\n" +
+	"\b_allowedB\a\n" +
+	"\x05_codeB\x16\n" +
+	"\x14_retry_after_secondsB\x11\n" +
+	"\x0f_requires_retry\"\x84\x01\n" +
 	"\x10StateReadRequest\x12(\n" +
 	"\rallocation_id\x18\x01 \x01(\tH\x00R\fallocationId\x88\x01\x01\x12$\n" +
 	"\vif_revision\x18\x02 \x01(\x04H\x01R\n" +
@@ -5141,11 +9023,450 @@ const file_runtime_proto_rawDesc = "" +
 	"_report_idB\x10\n" +
 	"\x0e_allocation_idB\r\n" +
 	"\v_started_atB\x0e\n" +
-	"\f_finished_at2\xd3\x02\n" +
+	"\f_finished_at\"b\n" +
+	"\x0eNullableString\x120\n" +
+	"\x04null\x18\x01 \x01(\x0e2\x1a.google.protobuf.NullValueH\x00R\x04null\x12\x16\n" +
+	"\x05value\x18\x02 \x01(\tH\x00R\x05valueB\x06\n" +
+	"\x04kind\"\xd9\x01\n" +
+	"\rExactArtifact\x12:\n" +
+	"\x03ref\x18\x01 \x01(\v2(.contractor.runtime.v1alpha1.ArtifactRefR\x03ref\x12\x1b\n" +
+	"\x06digest\x18\x02 \x01(\tH\x00R\x06digest\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"media_type\x18\x03 \x01(\tH\x01R\tmediaType\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"size_bytes\x18\x04 \x01(\x03H\x02R\tsizeBytes\x88\x01\x01B\t\n" +
+	"\a_digestB\r\n" +
+	"\v_media_typeB\r\n" +
+	"\v_size_bytes\"\xb8\x02\n" +
+	"\bMaterial\x12#\n" +
+	"\n" +
+	"scope_kind\x18\x01 \x01(\tH\x00R\n" +
+	"scope_kind\x88\x01\x01\x12\x1f\n" +
+	"\bscope_id\x18\x02 \x01(\tH\x01R\bscope_id\x88\x01\x01\x12:\n" +
+	"\x03ref\x18\x03 \x01(\v2(.contractor.runtime.v1alpha1.ArtifactRefR\x03ref\x12\x1b\n" +
+	"\x06digest\x18\x04 \x01(\tH\x02R\x06digest\x88\x01\x01\x12#\n" +
+	"\n" +
+	"media_type\x18\x05 \x01(\tH\x03R\n" +
+	"media_type\x88\x01\x01\x12#\n" +
+	"\n" +
+	"size_bytes\x18\x06 \x01(\x03H\x04R\n" +
+	"size_bytes\x88\x01\x01B\r\n" +
+	"\v_scope_kindB\v\n" +
+	"\t_scope_idB\t\n" +
+	"\a_digestB\r\n" +
+	"\v_media_typeB\r\n" +
+	"\v_size_bytes\"O\n" +
+	"\x0eListOfMaterial\x12=\n" +
+	"\x06values\x18\x01 \x03(\v2%.contractor.runtime.v1alpha1.MaterialR\x06values\"U\n" +
+	"\x11ListOfArtifactRef\x12@\n" +
+	"\x06values\x18\x01 \x03(\v2(.contractor.runtime.v1alpha1.ArtifactRefR\x06values\"\xa0\x04\n" +
+	"\x14AuditEvidenceRequest\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12(\n" +
+	"\rinvocation_id\x18\x02 \x01(\tH\x01R\finvocationId\x88\x01\x01\x12(\n" +
+	"\rsubmission_id\x18\x03 \x01(\tH\x02R\fsubmissionId\x88\x01\x01\x12\x1e\n" +
+	"\bitem_key\x18\x04 \x01(\tH\x03R\aitemKey\x88\x01\x01\x12H\n" +
+	"\asources\x18\x05 \x01(\v2..contractor.runtime.v1alpha1.ListOfArtifactRefR\asources\x12+\n" +
+	"\x0einterpretation\x18\x06 \x01(\tH\x04R\x0einterpretation\x88\x01\x01\x12V\n" +
+	"\x11tested_conditions\x18\a \x01(\v2).contractor.runtime.v1alpha1.ListOfStringR\x10testedConditions\x12K\n" +
+	"\vlimitations\x18\b \x01(\v2).contractor.runtime.v1alpha1.ListOfStringR\vlimitationsB\x0e\n" +
+	"\f_api_versionB\x10\n" +
+	"\x0e_invocation_idB\x10\n" +
+	"\x0e_submission_idB\v\n" +
+	"\t_item_keyB\x11\n" +
+	"\x0f_interpretation\"\x89\x03\n" +
+	"\x14AuditEvidenceReceipt\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12V\n" +
+	"\x10selected_sources\x18\x02 \x01(\v2+.contractor.runtime.v1alpha1.ListOfMaterialR\x0fselectedSources\x12A\n" +
+	"\bmaterial\x18\x03 \x01(\v2%.contractor.runtime.v1alpha1.MaterialR\bmaterial\x12E\n" +
+	"\asources\x18\x04 \x01(\v2+.contractor.runtime.v1alpha1.ListOfMaterialR\asources\x12\x1e\n" +
+	"\bitem_key\x18\x05 \x01(\tH\x01R\aitemKey\x88\x01\x01\x12\x1f\n" +
+	"\breplayed\x18\x06 \x01(\bH\x02R\breplayed\x88\x01\x01B\x0e\n" +
+	"\f_api_versionB\v\n" +
+	"\t_item_keyB\v\n" +
+	"\t_replayed\"\x8a\x03\n" +
+	"\x0fAuditConclusion\x12\x1f\n" +
+	"\bitem_key\x18\x01 \x01(\tH\x00R\bitem_key\x88\x01\x01\x12!\n" +
+	"\trationale\x18\x02 \x01(\tH\x01R\trationale\x88\x01\x01\x12W\n" +
+	"\x11tested_conditions\x18\x03 \x01(\v2).contractor.runtime.v1alpha1.ListOfStringR\x11tested_conditions\x12K\n" +
+	"\vlimitations\x18\x04 \x01(\v2).contractor.runtime.v1alpha1.ListOfStringR\vlimitations\x12G\n" +
+	"\bevidence\x18\x05 \x01(\v2+.contractor.runtime.v1alpha1.ListOfMaterialR\bevidence\x12\x1d\n" +
+	"\averdict\x18\x06 \x01(\tH\x02R\averdict\x88\x01\x01B\v\n" +
+	"\t_item_keyB\f\n" +
+	"\n" +
+	"_rationaleB\n" +
+	"\n" +
+	"\b_verdict\"\xa5\x01\n" +
+	"\x13AuditJudgmentUpdate\x12,\n" +
+	"\x0fbase_generation\x18\x01 \x01(\x04H\x00R\x0ebaseGeneration\x88\x01\x01\x12L\n" +
+	"\n" +
+	"conclusion\x18\x02 \x01(\v2,.contractor.runtime.v1alpha1.AuditConclusionR\n" +
+	"conclusionB\x12\n" +
+	"\x10_base_generation\"e\n" +
+	"\x19ListOfAuditJudgmentUpdate\x12H\n" +
+	"\x06values\x18\x01 \x03(\v20.contractor.runtime.v1alpha1.AuditJudgmentUpdateR\x06values\"\xb5\x02\n" +
+	"\x15AuditJudgmentsRequest\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12(\n" +
+	"\rinvocation_id\x18\x02 \x01(\tH\x01R\finvocationId\x88\x01\x01\x12(\n" +
+	"\rsubmission_id\x18\x03 \x01(\tH\x02R\fsubmissionId\x88\x01\x01\x12\x17\n" +
+	"\x04mode\x18\x04 \x01(\tH\x03R\x04mode\x88\x01\x01\x12L\n" +
+	"\x05items\x18\x05 \x01(\v26.contractor.runtime.v1alpha1.ListOfAuditJudgmentUpdateR\x05itemsB\x0e\n" +
+	"\f_api_versionB\x10\n" +
+	"\x0e_invocation_idB\x10\n" +
+	"\x0e_submission_idB\a\n" +
+	"\x05_mode\"\x9c\x01\n" +
+	"\x0fAuditGeneration\x12\x1e\n" +
+	"\bitem_key\x18\x01 \x01(\tH\x00R\aitemKey\x88\x01\x01\x12#\n" +
+	"\n" +
+	"generation\x18\x02 \x01(\x04H\x01R\n" +
+	"generation\x88\x01\x01\x12\x1c\n" +
+	"\atask_id\x18\x03 \x01(\tH\x02R\x06taskId\x88\x01\x01B\v\n" +
+	"\t_item_keyB\r\n" +
+	"\v_generationB\n" +
+	"\n" +
+	"\b_task_id\"]\n" +
+	"\x15ListOfAuditGeneration\x12D\n" +
+	"\x06values\x18\x01 \x03(\v2,.contractor.runtime.v1alpha1.AuditGenerationR\x06values\"\x93\x02\n" +
+	"\x14AuditJudgmentReceipt\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12A\n" +
+	"\bmaterial\x18\x02 \x01(\v2%.contractor.runtime.v1alpha1.MaterialR\bmaterial\x12T\n" +
+	"\vgenerations\x18\x03 \x01(\v22.contractor.runtime.v1alpha1.ListOfAuditGenerationR\vgenerations\x12\x1f\n" +
+	"\breplayed\x18\x04 \x01(\bH\x01R\breplayed\x88\x01\x01B\x0e\n" +
+	"\f_api_versionB\v\n" +
+	"\t_replayed\"\xaf\x01\n" +
+	"\x12AuditJudgmentStale\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12c\n" +
+	"\x13current_generations\x18\x02 \x01(\v22.contractor.runtime.v1alpha1.ListOfAuditGenerationR\x12currentGenerationsB\x0e\n" +
+	"\f_api_version\"\xba\x01\n" +
+	"\x16AuditJudgmentsResponse\x12M\n" +
+	"\areceipt\x18\x01 \x01(\v21.contractor.runtime.v1alpha1.AuditJudgmentReceiptH\x00R\areceipt\x12G\n" +
+	"\x05stale\x18\x02 \x01(\v2/.contractor.runtime.v1alpha1.AuditJudgmentStaleH\x00R\x05staleB\b\n" +
+	"\x06result\"\x99\x01\n" +
+	"\x11SitemapProvenance\x12 \n" +
+	"\tsource_id\x18\x01 \x01(\tH\x00R\bsourceId\x88\x01\x01\x12\x17\n" +
+	"\x04kind\x18\x02 \x01(\tH\x01R\x04kind\x88\x01\x01\x12#\n" +
+	"\n" +
+	"deployment\x18\x03 \x01(\tH\x02R\n" +
+	"deployment\x88\x01\x01B\f\n" +
+	"\n" +
+	"_source_idB\a\n" +
+	"\x05_kindB\r\n" +
+	"\v_deployment\"\x97\x02\n" +
+	"\rSitemapSource\x12N\n" +
+	"\n" +
+	"provenance\x18\x01 \x01(\v2..contractor.runtime.v1alpha1.SitemapProvenanceR\n" +
+	"provenance\x12#\n" +
+	"\n" +
+	"generation\x18\x02 \x01(\x04H\x00R\n" +
+	"generation\x88\x01\x01\x12F\n" +
+	"\bartifact\x18\x03 \x01(\v2*.contractor.runtime.v1alpha1.ExactArtifactR\bartifact\x12(\n" +
+	"\rpolicy_digest\x18\x04 \x01(\tH\x01R\fpolicyDigest\x88\x01\x01B\r\n" +
+	"\v_generationB\x10\n" +
+	"\x0e_policy_digest\"\x83\x01\n" +
+	"\x1aSitemapStructuralParameter\x12\x17\n" +
+	"\x04name\x18\x01 \x01(\tH\x00R\x04name\x88\x01\x01\x12C\n" +
+	"\aallowed\x18\x02 \x01(\v2).contractor.runtime.v1alpha1.ListOfStringR\aallowedB\a\n" +
+	"\x05_name\"s\n" +
+	" ListOfSitemapStructuralParameter\x12O\n" +
+	"\x06values\x18\x01 \x03(\v27.contractor.runtime.v1alpha1.SitemapStructuralParameterR\x06values\"\xda\x02\n" +
+	"\x11SitemapEditorRule\x12\x1b\n" +
+	"\x06origin\x18\x01 \x01(\tH\x00R\x06origin\x88\x01\x01\x12\x1b\n" +
+	"\x06method\x18\x02 \x01(\tH\x01R\x06method\x88\x01\x01\x12\x17\n" +
+	"\x04path\x18\x03 \x01(\tH\x02R\x04path\x88\x01\x01\x12\x1d\n" +
+	"\apointer\x18\x04 \x01(\tH\x03R\apointer\x88\x01\x01\x12I\n" +
+	"\n" +
+	"parameters\x18\x05 \x01(\v2).contractor.runtime.v1alpha1.ListOfStringR\n" +
+	"parameters\x12]\n" +
+	"\n" +
+	"structural\x18\x06 \x01(\v2=.contractor.runtime.v1alpha1.ListOfSitemapStructuralParameterR\n" +
+	"structuralB\t\n" +
+	"\a_originB\t\n" +
+	"\a_methodB\a\n" +
+	"\x05_pathB\n" +
+	"\n" +
+	"\b_pointer\"a\n" +
+	"\x17ListOfSitemapEditorRule\x12F\n" +
+	"\x06values\x18\x01 \x03(\v2..contractor.runtime.v1alpha1.SitemapEditorRuleR\x06values\"\xa9\x01\n" +
+	"\x13SitemapEditorSource\x12F\n" +
+	"\bexpected\x18\x01 \x01(\v2*.contractor.runtime.v1alpha1.SitemapSourceR\bexpected\x12J\n" +
+	"\x05rules\x18\x02 \x01(\v24.contractor.runtime.v1alpha1.ListOfSitemapEditorRuleR\x05rules\"\xfc\x03\n" +
+	"\x15SitemapEditorMutation\x12!\n" +
+	"\toperation\x18\x01 \x01(\tH\x00R\toperation\x88\x01\x01\x120\n" +
+	"\x11expected_revision\x18\x02 \x01(\tH\x01R\x10expectedRevision\x88\x01\x01\x12\x15\n" +
+	"\x03url\x18\x03 \x01(\tH\x02R\x03url\x88\x01\x01\x12\x1b\n" +
+	"\x06method\x18\x04 \x01(\tH\x03R\x06method\x88\x01\x01\x12H\n" +
+	"\n" +
+	"member_ids\x18\x05 \x01(\v2).contractor.runtime.v1alpha1.ListOfStringR\tmemberIds\x12\x17\n" +
+	"\x04note\x18\x06 \x01(\tH\x04R\x04note\x88\x01\x01\x12=\n" +
+	"\x04tags\x18\a \x01(\v2).contractor.runtime.v1alpha1.ListOfStringR\x04tags\x12 \n" +
+	"\tmarker_id\x18\b \x01(\tH\x05R\bmarkerId\x88\x01\x01\x12H\n" +
+	"\x06source\x18\t \x01(\v20.contractor.runtime.v1alpha1.SitemapEditorSourceR\x06sourceB\f\n" +
+	"\n" +
+	"_operationB\x14\n" +
+	"\x12_expected_revisionB\x06\n" +
+	"\x04_urlB\t\n" +
+	"\a_methodB\a\n" +
+	"\x05_noteB\f\n" +
+	"\n" +
+	"_marker_id\"\xe0\x01\n" +
+	"\x16SitemapMutationRequest\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12N\n" +
+	"\bmutation\x18\x02 \x01(\v22.contractor.runtime.v1alpha1.SitemapEditorMutationR\bmutation\x12,\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tH\x01R\x0eidempotencyKey\x88\x01\x01B\x0e\n" +
+	"\f_api_versionB\x12\n" +
+	"\x10_idempotency_key\"\xb6\x01\n" +
+	"\x15SitemapMutationResult\x12D\n" +
+	"\bartifact\x18\x01 \x01(\v2(.contractor.runtime.v1alpha1.ArtifactRefR\bartifact\x12\x1f\n" +
+	"\breplayed\x18\x02 \x01(\bH\x00R\breplayed\x88\x01\x01\x12\x1d\n" +
+	"\achanged\x18\x03 \x01(\bH\x01R\achanged\x88\x01\x01B\v\n" +
+	"\t_replayedB\n" +
+	"\n" +
+	"\b_changed\"\x9b\x01\n" +
+	"\x17SitemapMutationResponse\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12J\n" +
+	"\x06result\x18\x02 \x01(\v22.contractor.runtime.v1alpha1.SitemapMutationResultR\x06resultB\x0e\n" +
+	"\f_api_version\"\xaf\x02\n" +
+	"\x18SitemapSnapshotSelection\x12\x1f\n" +
+	"\brevision\x18\x01 \x01(\tH\x00R\brevision\x88\x01\x01\x12?\n" +
+	"\x19require_referenced_inputs\x18\x02 \x01(\bH\x01R\x17requireReferencedInputs\x88\x01\x01\x12A\n" +
+	"\x06groups\x18\x03 \x01(\v2).contractor.runtime.v1alpha1.ListOfStringR\x06groups\x12C\n" +
+	"\amembers\x18\x04 \x01(\v2).contractor.runtime.v1alpha1.ListOfStringR\amembersB\v\n" +
+	"\t_revisionB\x1c\n" +
+	"\x1a_require_referenced_inputs\"\xe5\x01\n" +
+	"\x16SitemapSnapshotRequest\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12S\n" +
+	"\tselection\x18\x02 \x01(\v25.contractor.runtime.v1alpha1.SitemapSnapshotSelectionR\tselection\x12,\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tH\x01R\x0eidempotencyKey\x88\x01\x01B\x0e\n" +
+	"\f_api_versionB\x12\n" +
+	"\x10_idempotency_key\"\x8d\x01\n" +
+	"\x15SitemapSnapshotResult\x12F\n" +
+	"\bartifact\x18\x01 \x01(\v2*.contractor.runtime.v1alpha1.ExactArtifactR\bartifact\x12\x1f\n" +
+	"\breplayed\x18\x02 \x01(\bH\x00R\breplayed\x88\x01\x01B\v\n" +
+	"\t_replayed\"\x9b\x01\n" +
+	"\x17SitemapSnapshotResponse\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12J\n" +
+	"\x06result\x18\x02 \x01(\v22.contractor.runtime.v1alpha1.SitemapSnapshotResultR\x06resultB\x0e\n" +
+	"\f_api_version\"\xf6\x02\n" +
+	"\x12SitemapObservation\x12\x17\n" +
+	"\x04note\x18\x01 \x01(\tH\x00R\x04note\x88\x01\x01\x12=\n" +
+	"\x04tags\x18\x02 \x01(\v2).contractor.runtime.v1alpha1.ListOfStringR\x04tags\x12\x15\n" +
+	"\x03url\x18\x03 \x01(\tH\x01R\x03url\x88\x01\x01\x12\x1b\n" +
+	"\x06method\x18\x04 \x01(\tH\x02R\x06method\x88\x01\x01\x12\x1d\n" +
+	"\aoutcome\x18\x05 \x01(\tH\x03R\aoutcome\x88\x01\x01\x12\x1b\n" +
+	"\x06status\x18\x06 \x01(\x03H\x04R\x06status\x88\x01\x01\x12\x13\n" +
+	"\x02at\x18\a \x01(\tH\x05R\x02at\x88\x01\x01\x12I\n" +
+	"\n" +
+	"parameters\x18\b \x01(\v2).contractor.runtime.v1alpha1.ListOfStringR\n" +
+	"parametersB\a\n" +
+	"\x05_noteB\x06\n" +
+	"\x04_urlB\t\n" +
+	"\a_methodB\n" +
+	"\n" +
+	"\b_outcomeB\t\n" +
+	"\a_statusB\x05\n" +
+	"\x03_at\"c\n" +
+	"\x18ListOfSitemapObservation\x12G\n" +
+	"\x06values\x18\x01 \x03(\v2/.contractor.runtime.v1alpha1.SitemapObservationR\x06values\"c\n" +
+	"\x14SitemapCollectionGap\x12\x1b\n" +
+	"\x06reason\x18\x01 \x01(\tH\x00R\x06reason\x88\x01\x01\x12\x19\n" +
+	"\x05count\x18\x02 \x01(\x04H\x01R\x05count\x88\x01\x01B\t\n" +
+	"\a_reasonB\b\n" +
+	"\x06_count\"g\n" +
+	"\x1aListOfSitemapCollectionGap\x12I\n" +
+	"\x06values\x18\x01 \x03(\v21.contractor.runtime.v1alpha1.SitemapCollectionGapR\x06values\"\xaa\x02\n" +
+	"\x18SitemapCollectionIngress\x12\x17\n" +
+	"\x04kind\x18\x01 \x01(\tH\x00R\x04kind\x88\x01\x01\x12Y\n" +
+	"\fobservations\x18\x02 \x01(\v25.contractor.runtime.v1alpha1.ListOfSitemapObservationR\fobservations\x12K\n" +
+	"\x04gaps\x18\x03 \x01(\v27.contractor.runtime.v1alpha1.ListOfSitemapCollectionGapR\x04gaps\x12D\n" +
+	"\bartifact\x18\x04 \x01(\v2(.contractor.runtime.v1alpha1.ArtifactRefR\bartifactB\a\n" +
+	"\x05_kind\"\x90\x02\n" +
+	"\x18SitemapCollectionRequest\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12K\n" +
+	"\x05input\x18\x02 \x01(\v25.contractor.runtime.v1alpha1.SitemapCollectionIngressR\x05input\x12!\n" +
+	"\tautomatic\x18\x03 \x01(\bH\x01R\tautomatic\x88\x01\x01\x12,\n" +
+	"\x0fidempotency_key\x18\x04 \x01(\tH\x02R\x0eidempotencyKey\x88\x01\x01B\x0e\n" +
+	"\f_api_versionB\f\n" +
+	"\n" +
+	"_automaticB\x12\n" +
+	"\x10_idempotency_key\"\xc9\x01\n" +
+	"\x13ArtifactListRequest\x12!\n" +
+	"\tnamespace\x18\x01 \x01(\tH\x00R\tnamespace\x88\x01\x01\x12$\n" +
+	"\vname_prefix\x18\x02 \x01(\tH\x01R\n" +
+	"namePrefix\x88\x01\x01\x12\x19\n" +
+	"\x05limit\x18\x03 \x01(\x03H\x02R\x05limit\x88\x01\x01\x12\x1b\n" +
+	"\x06cursor\x18\x04 \x01(\tH\x03R\x06cursor\x88\x01\x01B\f\n" +
+	"\n" +
+	"_namespaceB\x0e\n" +
+	"\f_name_prefixB\b\n" +
+	"\x06_limitB\t\n" +
+	"\a_cursor\"\xd0\x01\n" +
+	"\x14ArtifactListResponse\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12L\n" +
+	"\tartifacts\x18\x02 \x01(\v2..contractor.runtime.v1alpha1.ListOfArtifactRefR\tartifacts\x12$\n" +
+	"\vnext_cursor\x18\x03 \x01(\tH\x01R\n" +
+	"nextCursor\x88\x01\x01B\x0e\n" +
+	"\f_api_versionB\x0e\n" +
+	"\f_next_cursor\"\xb0\x01\n" +
+	"\x12ArtifactReadTarget\x12D\n" +
+	"\bartifact\x18\x01 \x01(\v2(.contractor.runtime.v1alpha1.ArtifactRefR\bartifact\x12\x19\n" +
+	"\x05scope\x18\x02 \x01(\tH\x00R\x05scope\x88\x01\x01\x12!\n" +
+	"\toperation\x18\x03 \x01(\tH\x01R\toperation\x88\x01\x01B\b\n" +
+	"\x06_scopeB\f\n" +
+	"\n" +
+	"_operation\"\xb2\x02\n" +
+	"\x18ArtifactMetadataResponse\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12D\n" +
+	"\bartifact\x18\x02 \x01(\v2(.contractor.runtime.v1alpha1.ArtifactRefR\bartifact\x12\"\n" +
+	"\n" +
+	"media_type\x18\x03 \x01(\tH\x01R\tmediaType\x88\x01\x01\x12\x17\n" +
+	"\x04size\x18\x04 \x01(\x03H\x02R\x04size\x88\x01\x01\x12/\n" +
+	"\x11content_cache_key\x18\x05 \x01(\tH\x03R\x0fcontentCacheKey\x88\x01\x01B\x0e\n" +
+	"\f_api_versionB\r\n" +
+	"\v_media_typeB\a\n" +
+	"\x05_sizeB\x14\n" +
+	"\x12_content_cache_key\"\x18\n" +
+	"\x16ArtifactAccessResponse\"a\n" +
+	"\x12FindingListRequest\x12\x19\n" +
+	"\x05limit\x18\x01 \x01(\x03H\x00R\x05limit\x88\x01\x01\x12\x1b\n" +
+	"\x06cursor\x18\x02 \x01(\tH\x01R\x06cursor\x88\x01\x01B\b\n" +
+	"\x06_limitB\t\n" +
+	"\a_cursor\"\xcb\a\n" +
+	"\x15ProjectFindingSummary\x12\"\n" +
+	"\n" +
+	"finding_id\x18\x01 \x01(\tH\x00R\tfindingId\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"project_id\x18\x02 \x01(\tH\x01R\tprojectId\x88\x01\x01\x12\x19\n" +
+	"\x05title\x18\x03 \x01(\tH\x02R\x05title\x88\x01\x01\x12,\n" +
+	"\x0ftitle_truncated\x18\x04 \x01(\bH\x03R\x0etitleTruncated\x88\x01\x01\x12&\n" +
+	"\fsubject_kind\x18\x05 \x01(\tH\x04R\vsubjectKind\x88\x01\x01\x12$\n" +
+	"\vsubject_key\x18\x06 \x01(\tH\x05R\n" +
+	"subjectKey\x88\x01\x01\x120\n" +
+	"\x11subject_truncated\x18\a \x01(\bH\x06R\x10subjectTruncated\x88\x01\x01\x124\n" +
+	"\x13severity_suggestion\x18\b \x01(\tH\aR\x12severitySuggestion\x88\x01\x01\x12A\n" +
+	"\x05state\x18\t \x01(\v2+.contractor.runtime.v1alpha1.NullableStringR\x05state\x12T\n" +
+	"\x0fanalyst_verdict\x18\n" +
+	" \x01(\v2+.contractor.runtime.v1alpha1.NullableStringR\x0eanalystVerdict\x12V\n" +
+	"\x10analyst_severity\x18\v \x01(\v2+.contractor.runtime.v1alpha1.NullableStringR\x0fanalystSeverity\x12[\n" +
+	"\x13duplicate_target_id\x18\f \x01(\v2+.contractor.runtime.v1alpha1.NullableStringR\x11duplicateTargetId\x12\x1f\n" +
+	"\brevision\x18\r \x01(\x04H\bR\brevision\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"created_at\x18\x0e \x01(\tH\tR\tcreatedAt\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"updated_at\x18\x0f \x01(\tH\n" +
+	"R\tupdatedAt\x88\x01\x01B\r\n" +
+	"\v_finding_idB\r\n" +
+	"\v_project_idB\b\n" +
+	"\x06_titleB\x12\n" +
+	"\x10_title_truncatedB\x0f\n" +
+	"\r_subject_kindB\x0e\n" +
+	"\f_subject_keyB\x14\n" +
+	"\x12_subject_truncatedB\x16\n" +
+	"\x14_severity_suggestionB\v\n" +
+	"\t_revisionB\r\n" +
+	"\v_created_atB\r\n" +
+	"\v_updated_at\"i\n" +
+	"\x1bListOfProjectFindingSummary\x12J\n" +
+	"\x06values\x18\x01 \x03(\v22.contractor.runtime.v1alpha1.ProjectFindingSummaryR\x06values\"\xf8\x01\n" +
+	"\x13FindingListResponse\x12N\n" +
+	"\x05items\x18\x01 \x01(\v28.contractor.runtime.v1alpha1.ListOfProjectFindingSummaryR\x05items\x12.\n" +
+	"\x10project_revision\x18\x02 \x01(\x04H\x00R\x0fprojectRevision\x88\x01\x01\x12L\n" +
+	"\vnext_cursor\x18\x03 \x01(\v2+.contractor.runtime.v1alpha1.NullableStringR\n" +
+	"nextCursorB\x13\n" +
+	"\x11_project_revision\"u\n" +
+	"\x12FindingReadRequest\x12\"\n" +
+	"\n" +
+	"finding_id\x18\x01 \x01(\tH\x00R\tfindingId\x88\x01\x01\x12\x1f\n" +
+	"\brevision\x18\x02 \x01(\x04H\x01R\brevision\x88\x01\x01B\r\n" +
+	"\v_finding_idB\v\n" +
+	"\t_revision\"\xbe\b\n" +
+	"\x0eProjectFinding\x12\"\n" +
+	"\n" +
+	"finding_id\x18\x01 \x01(\tH\x00R\tfindingId\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"project_id\x18\x02 \x01(\tH\x01R\tprojectId\x88\x01\x01\x12-\n" +
+	"\x10first_receipt_id\x18\x03 \x01(\tH\x02R\x0efirstReceiptId\x88\x01\x01\x12Q\n" +
+	"\x0efirst_proposal\x18\x04 \x01(\v2*.contractor.runtime.v1alpha1.ExactArtifactR\rfirstProposal\x12\x19\n" +
+	"\x05title\x18\x05 \x01(\tH\x03R\x05title\x88\x01\x01\x12G\n" +
+	"\x05claim\x18\x06 \x01(\v21.contractor.runtime.v1alpha1.FindingClaimDocumentR\x05claim\x12A\n" +
+	"\x05state\x18\a \x01(\v2+.contractor.runtime.v1alpha1.NullableStringR\x05state\x12T\n" +
+	"\x0fanalyst_verdict\x18\b \x01(\v2+.contractor.runtime.v1alpha1.NullableStringR\x0eanalystVerdict\x12V\n" +
+	"\x10analyst_severity\x18\t \x01(\v2+.contractor.runtime.v1alpha1.NullableStringR\x0fanalystSeverity\x12I\n" +
+	"\trationale\x18\n" +
+	" \x01(\v2+.contractor.runtime.v1alpha1.NullableStringR\trationale\x12F\n" +
+	"\bactor_id\x18\v \x01(\v2+.contractor.runtime.v1alpha1.NullableStringR\aactorId\x12L\n" +
+	"\vassessed_at\x18\f \x01(\v2+.contractor.runtime.v1alpha1.NullableStringR\n" +
+	"assessedAt\x12[\n" +
+	"\x13duplicate_target_id\x18\r \x01(\v2+.contractor.runtime.v1alpha1.NullableStringR\x11duplicateTargetId\x12\x1f\n" +
+	"\brevision\x18\x0e \x01(\x04H\x04R\brevision\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"created_at\x18\x0f \x01(\tH\x05R\tcreatedAt\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"updated_at\x18\x10 \x01(\tH\x06R\tupdatedAt\x88\x01\x01B\r\n" +
+	"\v_finding_idB\r\n" +
+	"\v_project_idB\x13\n" +
+	"\x11_first_receipt_idB\b\n" +
+	"\x06_titleB\v\n" +
+	"\t_revisionB\r\n" +
+	"\v_created_atB\r\n" +
+	"\v_updated_at\"8\n" +
+	"\x14FindingClaimDocument\x12\x17\n" +
+	"\x04json\x18\x01 \x01(\fH\x00R\x04json\x88\x01\x01B\a\n" +
+	"\x05_json\"{\n" +
+	"\x18FindingRevisionSelection\x12\"\n" +
+	"\n" +
+	"finding_id\x18\x01 \x01(\tH\x00R\tfindingId\x88\x01\x01\x12\x1f\n" +
+	"\brevision\x18\x02 \x01(\x04H\x01R\brevision\x88\x01\x01B\r\n" +
+	"\v_finding_idB\v\n" +
+	"\t_revision\"o\n" +
+	"\x1eListOfFindingRevisionSelection\x12M\n" +
+	"\x06values\x18\x01 \x03(\v25.contractor.runtime.v1alpha1.FindingRevisionSelectionR\x06values\"\xf1\x01\n" +
+	"\x17FindingSelectionRequest\x12\"\n" +
+	"\n" +
+	"client_key\x18\x01 \x01(\tH\x00R\tclientKey\x88\x01\x01\x12W\n" +
+	"\bfindings\x18\x02 \x01(\v2;.contractor.runtime.v1alpha1.ListOfFindingRevisionSelectionR\bfindings\x12J\n" +
+	"\vreceipt_ids\x18\x03 \x01(\v2).contractor.runtime.v1alpha1.ListOfStringR\n" +
+	"receiptIdsB\r\n" +
+	"\v_client_key\"\xfc\x01\n" +
+	"\x18FindingSelectionResponse\x12F\n" +
+	"\bartifact\x18\x01 \x01(\v2*.contractor.runtime.v1alpha1.ExactArtifactR\bartifact\x12$\n" +
+	"\vsnapshot_at\x18\x02 \x01(\tH\x00R\n" +
+	"snapshotAt\x88\x01\x01\x12$\n" +
+	"\ventry_count\x18\x03 \x01(\x03H\x01R\n" +
+	"entryCount\x88\x01\x01\x12\x1f\n" +
+	"\breplayed\x18\x04 \x01(\bH\x02R\breplayed\x88\x01\x01B\x0e\n" +
+	"\f_snapshot_atB\x0e\n" +
+	"\f_entry_countB\v\n" +
+	"\t_replayed2\xd3\x02\n" +
 	"\fControlPlane\x12e\n" +
 	"\tBootstrap\x12-.contractor.runtime.v1alpha1.BootstrapRequest\x1a).contractor.runtime.v1alpha1.SharedConfig\x12r\n" +
 	"\bRegister\x12..contractor.runtime.v1alpha1.AgentRegistration\x1a6.contractor.runtime.v1alpha1.AgentRegistrationResponse\x12h\n" +
-	"\tHeartbeat\x12+.contractor.runtime.v1alpha1.AgentHeartbeat\x1a..contractor.runtime.v1alpha1.HeartbeatResponse2\xe0\x04\n" +
+	"\tHeartbeat\x12+.contractor.runtime.v1alpha1.AgentHeartbeat\x1a..contractor.runtime.v1alpha1.HeartbeatResponse2\xd4\f\n" +
+	"\n" +
+	"Allocation\x12\x7f\n" +
+	"\x10PlannerOperation\x124.contractor.runtime.v1alpha1.PlannerOperationRequest\x1a5.contractor.runtime.v1alpha1.PlannerOperationResponse\x12|\n" +
+	"\x0fGatewayRecovery\x123.contractor.runtime.v1alpha1.GatewayRecoveryRequest\x1a4.contractor.runtime.v1alpha1.GatewayRecoveryResponse\x12{\n" +
+	"\x13SubmitAuditEvidence\x121.contractor.runtime.v1alpha1.AuditEvidenceRequest\x1a1.contractor.runtime.v1alpha1.AuditEvidenceReceipt\x12\x7f\n" +
+	"\x14SubmitAuditJudgments\x122.contractor.runtime.v1alpha1.AuditJudgmentsRequest\x1a3.contractor.runtime.v1alpha1.AuditJudgmentsResponse\x12z\n" +
+	"\rMutateSitemap\x123.contractor.runtime.v1alpha1.SitemapMutationRequest\x1a4.contractor.runtime.v1alpha1.SitemapMutationResponse\x12|\n" +
+	"\x0fSnapshotSitemap\x123.contractor.runtime.v1alpha1.SitemapSnapshotRequest\x1a4.contractor.runtime.v1alpha1.SitemapSnapshotResponse\x12}\n" +
+	"\x0eCollectSitemap\x125.contractor.runtime.v1alpha1.SitemapCollectionRequest\x1a4.contractor.runtime.v1alpha1.SitemapMutationResponse\x12t\n" +
+	"\rListArtifacts\x120.contractor.runtime.v1alpha1.ArtifactListRequest\x1a1.contractor.runtime.v1alpha1.ArtifactListResponse\x12~\n" +
+	"\x14ReadArtifactMetadata\x12/.contractor.runtime.v1alpha1.ArtifactReadTarget\x1a5.contractor.runtime.v1alpha1.ArtifactMetadataResponse\x12{\n" +
+	"\x13CheckArtifactAccess\x12/.contractor.runtime.v1alpha1.ArtifactReadTarget\x1a3.contractor.runtime.v1alpha1.ArtifactAccessResponse\x12q\n" +
+	"\fListFindings\x12/.contractor.runtime.v1alpha1.FindingListRequest\x1a0.contractor.runtime.v1alpha1.FindingListResponse\x12k\n" +
+	"\vReadFinding\x12/.contractor.runtime.v1alpha1.FindingReadRequest\x1a+.contractor.runtime.v1alpha1.ProjectFinding\x12}\n" +
+	"\x0eSelectFindings\x124.contractor.runtime.v1alpha1.FindingSelectionRequest\x1a5.contractor.runtime.v1alpha1.FindingSelectionResponse2\xe0\x04\n" +
 	"\x10RuntimeLifecycle\x12x\n" +
 	"\aPrepare\x125.contractor.runtime.v1alpha1.PrepareAllocationRequest\x1a6.contractor.runtime.v1alpha1.PrepareAllocationResponse\x12x\n" +
 	"\bFinalize\x126.contractor.runtime.v1alpha1.FinalizeAllocationRequest\x1a4.contractor.runtime.v1alpha1.AllocationFinalResponse\x12r\n" +
@@ -5165,7 +9486,7 @@ func file_runtime_proto_rawDescGZIP() []byte {
 	return file_runtime_proto_rawDescData
 }
 
-var file_runtime_proto_msgTypes = make([]protoimpl.MessageInfo, 73)
+var file_runtime_proto_msgTypes = make([]protoimpl.MessageInfo, 132)
 var file_runtime_proto_goTypes = []any{
 	(*BootstrapRequest)(nil),                  // 0: contractor.runtime.v1alpha1.BootstrapRequest
 	(*SharedConfig)(nil),                      // 1: contractor.runtime.v1alpha1.SharedConfig
@@ -5188,165 +9509,327 @@ var file_runtime_proto_goTypes = []any{
 	(*WorkspaceLimits)(nil),                   // 18: contractor.runtime.v1alpha1.WorkspaceLimits
 	(*NullableWorkspaceCapabilities)(nil),     // 19: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities
 	(*ErrorDetail)(nil),                       // 20: contractor.runtime.v1alpha1.ErrorDetail
-	(*StateReadRequest)(nil),                  // 21: contractor.runtime.v1alpha1.StateReadRequest
-	(*StateReadResponse)(nil),                 // 22: contractor.runtime.v1alpha1.StateReadResponse
-	(*StateNotModified)(nil),                  // 23: contractor.runtime.v1alpha1.StateNotModified
-	(*AgentStateDocument)(nil),                // 24: contractor.runtime.v1alpha1.AgentStateDocument
-	(*PrepareAllocationRequest)(nil),          // 25: contractor.runtime.v1alpha1.PrepareAllocationRequest
-	(*PrepareAllocationResponse)(nil),         // 26: contractor.runtime.v1alpha1.PrepareAllocationResponse
-	(*FinalizeAllocationRequest)(nil),         // 27: contractor.runtime.v1alpha1.FinalizeAllocationRequest
-	(*AbortAllocationRequest)(nil),            // 28: contractor.runtime.v1alpha1.AbortAllocationRequest
-	(*ReleaseAllocationRequest)(nil),          // 29: contractor.runtime.v1alpha1.ReleaseAllocationRequest
-	(*ReleaseAllocationResponse)(nil),         // 30: contractor.runtime.v1alpha1.ReleaseAllocationResponse
-	(*TerminationError)(nil),                  // 31: contractor.runtime.v1alpha1.TerminationError
-	(*AllocationSpec)(nil),                    // 32: contractor.runtime.v1alpha1.AllocationSpec
-	(*AgentTemplateDocument)(nil),             // 33: contractor.runtime.v1alpha1.AgentTemplateDocument
-	(*ModelPolicyDocument)(nil),               // 34: contractor.runtime.v1alpha1.ModelPolicyDocument
-	(*RuntimeSettingsDocument)(nil),           // 35: contractor.runtime.v1alpha1.RuntimeSettingsDocument
-	(*RuntimeConfigProvenanceDocument)(nil),   // 36: contractor.runtime.v1alpha1.RuntimeConfigProvenanceDocument
-	(*AgentCardDocument)(nil),                 // 37: contractor.runtime.v1alpha1.AgentCardDocument
-	(*ExecutionReportDocument)(nil),           // 38: contractor.runtime.v1alpha1.ExecutionReportDocument
-	(*RuntimeReportDocument)(nil),             // 39: contractor.runtime.v1alpha1.RuntimeReportDocument
-	(*MapOfString)(nil),                       // 40: contractor.runtime.v1alpha1.MapOfString
-	(*ResolvedInstructions)(nil),              // 41: contractor.runtime.v1alpha1.ResolvedInstructions
-	(*WorkerContextManagement)(nil),           // 42: contractor.runtime.v1alpha1.WorkerContextManagement
-	(*ArtifactRef)(nil),                       // 43: contractor.runtime.v1alpha1.ArtifactRef
-	(*ResolvedSkill)(nil),                     // 44: contractor.runtime.v1alpha1.ResolvedSkill
-	(*ListOfResolvedSkill)(nil),               // 45: contractor.runtime.v1alpha1.ListOfResolvedSkill
-	(*WorkerCompletionContract)(nil),          // 46: contractor.runtime.v1alpha1.WorkerCompletionContract
-	(*AgentTemplateRef)(nil),                  // 47: contractor.runtime.v1alpha1.AgentTemplateRef
-	(*WorkerRuntimeRef)(nil),                  // 48: contractor.runtime.v1alpha1.WorkerRuntimeRef
-	(*WorkerHandle)(nil),                      // 49: contractor.runtime.v1alpha1.WorkerHandle
-	(*AllocationWorkspace)(nil),               // 50: contractor.runtime.v1alpha1.AllocationWorkspace
-	(*WorkspaceSource)(nil),                   // 51: contractor.runtime.v1alpha1.WorkspaceSource
-	(*ListOfWorkspaceSource)(nil),             // 52: contractor.runtime.v1alpha1.ListOfWorkspaceSource
-	(*WorkspaceState)(nil),                    // 53: contractor.runtime.v1alpha1.WorkspaceState
-	(*WorkspaceExport)(nil),                   // 54: contractor.runtime.v1alpha1.WorkspaceExport
-	(*NullableAllocationWorkspace)(nil),       // 55: contractor.runtime.v1alpha1.NullableAllocationWorkspace
-	(*NullableWorkspaceState)(nil),            // 56: contractor.runtime.v1alpha1.NullableWorkspaceState
-	(*NullableWorkspaceExport)(nil),           // 57: contractor.runtime.v1alpha1.NullableWorkspaceExport
-	(*PerformanceMetricsRequest)(nil),         // 58: contractor.runtime.v1alpha1.PerformanceMetricsRequest
-	(*NullablePerformanceMetricsRequest)(nil), // 59: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest
-	(*EngagementAllocation)(nil),              // 60: contractor.runtime.v1alpha1.EngagementAllocation
-	(*HTTPAssignment)(nil),                    // 61: contractor.runtime.v1alpha1.HTTPAssignment
-	(*HTTPLimits)(nil),                        // 62: contractor.runtime.v1alpha1.HTTPLimits
-	(*HTTPRoute)(nil),                         // 63: contractor.runtime.v1alpha1.HTTPRoute
-	(*HTTPIdentity)(nil),                      // 64: contractor.runtime.v1alpha1.HTTPIdentity
-	(*RuntimeCredentialRef)(nil),              // 65: contractor.runtime.v1alpha1.RuntimeCredentialRef
-	(*ProtectedDestination)(nil),              // 66: contractor.runtime.v1alpha1.ProtectedDestination
-	(*ListOfHTTPRoute)(nil),                   // 67: contractor.runtime.v1alpha1.ListOfHTTPRoute
-	(*ListOfHTTPIdentity)(nil),                // 68: contractor.runtime.v1alpha1.ListOfHTTPIdentity
-	(*ListOfProtectedDestination)(nil),        // 69: contractor.runtime.v1alpha1.ListOfProtectedDestination
-	(*AllocationFinalResponse)(nil),           // 70: contractor.runtime.v1alpha1.AllocationFinalResponse
-	(*AllocationFinalReport)(nil),             // 71: contractor.runtime.v1alpha1.AllocationFinalReport
-	nil,                                       // 72: contractor.runtime.v1alpha1.MapOfString.ValuesEntry
-	(structpb.NullValue)(0),                   // 73: google.protobuf.NullValue
+	(*PlannerOperationRequest)(nil),           // 21: contractor.runtime.v1alpha1.PlannerOperationRequest
+	(*PlannerOperationResponse)(nil),          // 22: contractor.runtime.v1alpha1.PlannerOperationResponse
+	(*PlannerArgumentsDocument)(nil),          // 23: contractor.runtime.v1alpha1.PlannerArgumentsDocument
+	(*PlannerResultDocument)(nil),             // 24: contractor.runtime.v1alpha1.PlannerResultDocument
+	(*GatewayRecoveryRequest)(nil),            // 25: contractor.runtime.v1alpha1.GatewayRecoveryRequest
+	(*GatewayRecoveryResponse)(nil),           // 26: contractor.runtime.v1alpha1.GatewayRecoveryResponse
+	(*StateReadRequest)(nil),                  // 27: contractor.runtime.v1alpha1.StateReadRequest
+	(*StateReadResponse)(nil),                 // 28: contractor.runtime.v1alpha1.StateReadResponse
+	(*StateNotModified)(nil),                  // 29: contractor.runtime.v1alpha1.StateNotModified
+	(*AgentStateDocument)(nil),                // 30: contractor.runtime.v1alpha1.AgentStateDocument
+	(*PrepareAllocationRequest)(nil),          // 31: contractor.runtime.v1alpha1.PrepareAllocationRequest
+	(*PrepareAllocationResponse)(nil),         // 32: contractor.runtime.v1alpha1.PrepareAllocationResponse
+	(*FinalizeAllocationRequest)(nil),         // 33: contractor.runtime.v1alpha1.FinalizeAllocationRequest
+	(*AbortAllocationRequest)(nil),            // 34: contractor.runtime.v1alpha1.AbortAllocationRequest
+	(*ReleaseAllocationRequest)(nil),          // 35: contractor.runtime.v1alpha1.ReleaseAllocationRequest
+	(*ReleaseAllocationResponse)(nil),         // 36: contractor.runtime.v1alpha1.ReleaseAllocationResponse
+	(*TerminationError)(nil),                  // 37: contractor.runtime.v1alpha1.TerminationError
+	(*AllocationSpec)(nil),                    // 38: contractor.runtime.v1alpha1.AllocationSpec
+	(*AgentTemplateDocument)(nil),             // 39: contractor.runtime.v1alpha1.AgentTemplateDocument
+	(*ModelPolicyDocument)(nil),               // 40: contractor.runtime.v1alpha1.ModelPolicyDocument
+	(*RuntimeSettingsDocument)(nil),           // 41: contractor.runtime.v1alpha1.RuntimeSettingsDocument
+	(*RuntimeConfigProvenanceDocument)(nil),   // 42: contractor.runtime.v1alpha1.RuntimeConfigProvenanceDocument
+	(*AgentCardDocument)(nil),                 // 43: contractor.runtime.v1alpha1.AgentCardDocument
+	(*ExecutionReportDocument)(nil),           // 44: contractor.runtime.v1alpha1.ExecutionReportDocument
+	(*RuntimeReportDocument)(nil),             // 45: contractor.runtime.v1alpha1.RuntimeReportDocument
+	(*MapOfString)(nil),                       // 46: contractor.runtime.v1alpha1.MapOfString
+	(*ResolvedInstructions)(nil),              // 47: contractor.runtime.v1alpha1.ResolvedInstructions
+	(*WorkerContextManagement)(nil),           // 48: contractor.runtime.v1alpha1.WorkerContextManagement
+	(*ArtifactRef)(nil),                       // 49: contractor.runtime.v1alpha1.ArtifactRef
+	(*ResolvedSkill)(nil),                     // 50: contractor.runtime.v1alpha1.ResolvedSkill
+	(*ListOfResolvedSkill)(nil),               // 51: contractor.runtime.v1alpha1.ListOfResolvedSkill
+	(*WorkerCompletionContract)(nil),          // 52: contractor.runtime.v1alpha1.WorkerCompletionContract
+	(*AgentTemplateRef)(nil),                  // 53: contractor.runtime.v1alpha1.AgentTemplateRef
+	(*WorkerRuntimeRef)(nil),                  // 54: contractor.runtime.v1alpha1.WorkerRuntimeRef
+	(*WorkerHandle)(nil),                      // 55: contractor.runtime.v1alpha1.WorkerHandle
+	(*AllocationWorkspace)(nil),               // 56: contractor.runtime.v1alpha1.AllocationWorkspace
+	(*WorkspaceSource)(nil),                   // 57: contractor.runtime.v1alpha1.WorkspaceSource
+	(*ListOfWorkspaceSource)(nil),             // 58: contractor.runtime.v1alpha1.ListOfWorkspaceSource
+	(*WorkspaceState)(nil),                    // 59: contractor.runtime.v1alpha1.WorkspaceState
+	(*WorkspaceExport)(nil),                   // 60: contractor.runtime.v1alpha1.WorkspaceExport
+	(*NullableAllocationWorkspace)(nil),       // 61: contractor.runtime.v1alpha1.NullableAllocationWorkspace
+	(*NullableWorkspaceState)(nil),            // 62: contractor.runtime.v1alpha1.NullableWorkspaceState
+	(*NullableWorkspaceExport)(nil),           // 63: contractor.runtime.v1alpha1.NullableWorkspaceExport
+	(*PerformanceMetricsRequest)(nil),         // 64: contractor.runtime.v1alpha1.PerformanceMetricsRequest
+	(*NullablePerformanceMetricsRequest)(nil), // 65: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest
+	(*EngagementAllocation)(nil),              // 66: contractor.runtime.v1alpha1.EngagementAllocation
+	(*HTTPAssignment)(nil),                    // 67: contractor.runtime.v1alpha1.HTTPAssignment
+	(*HTTPLimits)(nil),                        // 68: contractor.runtime.v1alpha1.HTTPLimits
+	(*HTTPRoute)(nil),                         // 69: contractor.runtime.v1alpha1.HTTPRoute
+	(*HTTPIdentity)(nil),                      // 70: contractor.runtime.v1alpha1.HTTPIdentity
+	(*RuntimeCredentialRef)(nil),              // 71: contractor.runtime.v1alpha1.RuntimeCredentialRef
+	(*ProtectedDestination)(nil),              // 72: contractor.runtime.v1alpha1.ProtectedDestination
+	(*ListOfHTTPRoute)(nil),                   // 73: contractor.runtime.v1alpha1.ListOfHTTPRoute
+	(*ListOfHTTPIdentity)(nil),                // 74: contractor.runtime.v1alpha1.ListOfHTTPIdentity
+	(*ListOfProtectedDestination)(nil),        // 75: contractor.runtime.v1alpha1.ListOfProtectedDestination
+	(*AllocationFinalResponse)(nil),           // 76: contractor.runtime.v1alpha1.AllocationFinalResponse
+	(*AllocationFinalReport)(nil),             // 77: contractor.runtime.v1alpha1.AllocationFinalReport
+	(*NullableString)(nil),                    // 78: contractor.runtime.v1alpha1.NullableString
+	(*ExactArtifact)(nil),                     // 79: contractor.runtime.v1alpha1.ExactArtifact
+	(*Material)(nil),                          // 80: contractor.runtime.v1alpha1.Material
+	(*ListOfMaterial)(nil),                    // 81: contractor.runtime.v1alpha1.ListOfMaterial
+	(*ListOfArtifactRef)(nil),                 // 82: contractor.runtime.v1alpha1.ListOfArtifactRef
+	(*AuditEvidenceRequest)(nil),              // 83: contractor.runtime.v1alpha1.AuditEvidenceRequest
+	(*AuditEvidenceReceipt)(nil),              // 84: contractor.runtime.v1alpha1.AuditEvidenceReceipt
+	(*AuditConclusion)(nil),                   // 85: contractor.runtime.v1alpha1.AuditConclusion
+	(*AuditJudgmentUpdate)(nil),               // 86: contractor.runtime.v1alpha1.AuditJudgmentUpdate
+	(*ListOfAuditJudgmentUpdate)(nil),         // 87: contractor.runtime.v1alpha1.ListOfAuditJudgmentUpdate
+	(*AuditJudgmentsRequest)(nil),             // 88: contractor.runtime.v1alpha1.AuditJudgmentsRequest
+	(*AuditGeneration)(nil),                   // 89: contractor.runtime.v1alpha1.AuditGeneration
+	(*ListOfAuditGeneration)(nil),             // 90: contractor.runtime.v1alpha1.ListOfAuditGeneration
+	(*AuditJudgmentReceipt)(nil),              // 91: contractor.runtime.v1alpha1.AuditJudgmentReceipt
+	(*AuditJudgmentStale)(nil),                // 92: contractor.runtime.v1alpha1.AuditJudgmentStale
+	(*AuditJudgmentsResponse)(nil),            // 93: contractor.runtime.v1alpha1.AuditJudgmentsResponse
+	(*SitemapProvenance)(nil),                 // 94: contractor.runtime.v1alpha1.SitemapProvenance
+	(*SitemapSource)(nil),                     // 95: contractor.runtime.v1alpha1.SitemapSource
+	(*SitemapStructuralParameter)(nil),        // 96: contractor.runtime.v1alpha1.SitemapStructuralParameter
+	(*ListOfSitemapStructuralParameter)(nil),  // 97: contractor.runtime.v1alpha1.ListOfSitemapStructuralParameter
+	(*SitemapEditorRule)(nil),                 // 98: contractor.runtime.v1alpha1.SitemapEditorRule
+	(*ListOfSitemapEditorRule)(nil),           // 99: contractor.runtime.v1alpha1.ListOfSitemapEditorRule
+	(*SitemapEditorSource)(nil),               // 100: contractor.runtime.v1alpha1.SitemapEditorSource
+	(*SitemapEditorMutation)(nil),             // 101: contractor.runtime.v1alpha1.SitemapEditorMutation
+	(*SitemapMutationRequest)(nil),            // 102: contractor.runtime.v1alpha1.SitemapMutationRequest
+	(*SitemapMutationResult)(nil),             // 103: contractor.runtime.v1alpha1.SitemapMutationResult
+	(*SitemapMutationResponse)(nil),           // 104: contractor.runtime.v1alpha1.SitemapMutationResponse
+	(*SitemapSnapshotSelection)(nil),          // 105: contractor.runtime.v1alpha1.SitemapSnapshotSelection
+	(*SitemapSnapshotRequest)(nil),            // 106: contractor.runtime.v1alpha1.SitemapSnapshotRequest
+	(*SitemapSnapshotResult)(nil),             // 107: contractor.runtime.v1alpha1.SitemapSnapshotResult
+	(*SitemapSnapshotResponse)(nil),           // 108: contractor.runtime.v1alpha1.SitemapSnapshotResponse
+	(*SitemapObservation)(nil),                // 109: contractor.runtime.v1alpha1.SitemapObservation
+	(*ListOfSitemapObservation)(nil),          // 110: contractor.runtime.v1alpha1.ListOfSitemapObservation
+	(*SitemapCollectionGap)(nil),              // 111: contractor.runtime.v1alpha1.SitemapCollectionGap
+	(*ListOfSitemapCollectionGap)(nil),        // 112: contractor.runtime.v1alpha1.ListOfSitemapCollectionGap
+	(*SitemapCollectionIngress)(nil),          // 113: contractor.runtime.v1alpha1.SitemapCollectionIngress
+	(*SitemapCollectionRequest)(nil),          // 114: contractor.runtime.v1alpha1.SitemapCollectionRequest
+	(*ArtifactListRequest)(nil),               // 115: contractor.runtime.v1alpha1.ArtifactListRequest
+	(*ArtifactListResponse)(nil),              // 116: contractor.runtime.v1alpha1.ArtifactListResponse
+	(*ArtifactReadTarget)(nil),                // 117: contractor.runtime.v1alpha1.ArtifactReadTarget
+	(*ArtifactMetadataResponse)(nil),          // 118: contractor.runtime.v1alpha1.ArtifactMetadataResponse
+	(*ArtifactAccessResponse)(nil),            // 119: contractor.runtime.v1alpha1.ArtifactAccessResponse
+	(*FindingListRequest)(nil),                // 120: contractor.runtime.v1alpha1.FindingListRequest
+	(*ProjectFindingSummary)(nil),             // 121: contractor.runtime.v1alpha1.ProjectFindingSummary
+	(*ListOfProjectFindingSummary)(nil),       // 122: contractor.runtime.v1alpha1.ListOfProjectFindingSummary
+	(*FindingListResponse)(nil),               // 123: contractor.runtime.v1alpha1.FindingListResponse
+	(*FindingReadRequest)(nil),                // 124: contractor.runtime.v1alpha1.FindingReadRequest
+	(*ProjectFinding)(nil),                    // 125: contractor.runtime.v1alpha1.ProjectFinding
+	(*FindingClaimDocument)(nil),              // 126: contractor.runtime.v1alpha1.FindingClaimDocument
+	(*FindingRevisionSelection)(nil),          // 127: contractor.runtime.v1alpha1.FindingRevisionSelection
+	(*ListOfFindingRevisionSelection)(nil),    // 128: contractor.runtime.v1alpha1.ListOfFindingRevisionSelection
+	(*FindingSelectionRequest)(nil),           // 129: contractor.runtime.v1alpha1.FindingSelectionRequest
+	(*FindingSelectionResponse)(nil),          // 130: contractor.runtime.v1alpha1.FindingSelectionResponse
+	nil,                                       // 131: contractor.runtime.v1alpha1.MapOfString.ValuesEntry
+	(structpb.NullValue)(0),                   // 132: google.protobuf.NullValue
 }
 var file_runtime_proto_depIdxs = []int32{
-	2,  // 0: contractor.runtime.v1alpha1.SharedConfig.limits:type_name -> contractor.runtime.v1alpha1.SharedLimits
-	10, // 1: contractor.runtime.v1alpha1.AgentHeartbeat.allocations:type_name -> contractor.runtime.v1alpha1.ListOfObservedAllocation
-	6,  // 2: contractor.runtime.v1alpha1.HeartbeatResponse.allocation_actions:type_name -> contractor.runtime.v1alpha1.ListOfAllocationAction
-	5,  // 3: contractor.runtime.v1alpha1.ListOfAllocationAction.values:type_name -> contractor.runtime.v1alpha1.AllocationAction
-	13, // 4: contractor.runtime.v1alpha1.ListOfToolsetCapability.values:type_name -> contractor.runtime.v1alpha1.ToolsetCapability
-	14, // 5: contractor.runtime.v1alpha1.ListOfObservedAllocation.values:type_name -> contractor.runtime.v1alpha1.ObservedAllocation
-	7,  // 6: contractor.runtime.v1alpha1.AgentRegistration.supported_runtimes:type_name -> contractor.runtime.v1alpha1.ListOfString
-	9,  // 7: contractor.runtime.v1alpha1.AgentRegistration.supported_toolsets:type_name -> contractor.runtime.v1alpha1.ListOfToolsetCapability
-	7,  // 8: contractor.runtime.v1alpha1.AgentRegistration.supported_sandbox_profiles:type_name -> contractor.runtime.v1alpha1.ListOfString
-	16, // 9: contractor.runtime.v1alpha1.AgentRegistration.capabilities:type_name -> contractor.runtime.v1alpha1.NullableCompletionCapabilities
-	7,  // 10: contractor.runtime.v1alpha1.AgentRegistration.supported_runtime_adapters:type_name -> contractor.runtime.v1alpha1.ListOfString
-	19, // 11: contractor.runtime.v1alpha1.AgentRegistration.workspace_capabilities:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceCapabilities
-	8,  // 12: contractor.runtime.v1alpha1.AgentRegistration.supported_performance_metrics_versions:type_name -> contractor.runtime.v1alpha1.ListOfInteger
-	7,  // 13: contractor.runtime.v1alpha1.AgentRegistration.placement_labels:type_name -> contractor.runtime.v1alpha1.ListOfString
-	10, // 14: contractor.runtime.v1alpha1.AgentRegistration.allocations:type_name -> contractor.runtime.v1alpha1.ListOfObservedAllocation
-	7,  // 15: contractor.runtime.v1alpha1.ToolsetCapability.tools:type_name -> contractor.runtime.v1alpha1.ListOfString
-	7,  // 16: contractor.runtime.v1alpha1.CompletionCapabilities.completion_contracts:type_name -> contractor.runtime.v1alpha1.ListOfString
-	15, // 17: contractor.runtime.v1alpha1.NullableCompletionCapabilities.value:type_name -> contractor.runtime.v1alpha1.CompletionCapabilities
-	73, // 18: contractor.runtime.v1alpha1.NullableCompletionCapabilities.null:type_name -> google.protobuf.NullValue
-	7,  // 19: contractor.runtime.v1alpha1.WorkspaceCapabilities.modes:type_name -> contractor.runtime.v1alpha1.ListOfString
-	18, // 20: contractor.runtime.v1alpha1.WorkspaceCapabilities.limits:type_name -> contractor.runtime.v1alpha1.WorkspaceLimits
-	17, // 21: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities.value:type_name -> contractor.runtime.v1alpha1.WorkspaceCapabilities
-	73, // 22: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities.null:type_name -> google.protobuf.NullValue
-	24, // 23: contractor.runtime.v1alpha1.StateReadResponse.snapshot:type_name -> contractor.runtime.v1alpha1.AgentStateDocument
-	23, // 24: contractor.runtime.v1alpha1.StateReadResponse.not_modified:type_name -> contractor.runtime.v1alpha1.StateNotModified
-	32, // 25: contractor.runtime.v1alpha1.PrepareAllocationRequest.spec:type_name -> contractor.runtime.v1alpha1.AllocationSpec
-	49, // 26: contractor.runtime.v1alpha1.PrepareAllocationResponse.worker_handle:type_name -> contractor.runtime.v1alpha1.WorkerHandle
-	31, // 27: contractor.runtime.v1alpha1.AbortAllocationRequest.reason:type_name -> contractor.runtime.v1alpha1.TerminationError
-	42, // 28: contractor.runtime.v1alpha1.AllocationSpec.context_management:type_name -> contractor.runtime.v1alpha1.WorkerContextManagement
-	40, // 29: contractor.runtime.v1alpha1.AllocationSpec.run_metadata_labels:type_name -> contractor.runtime.v1alpha1.MapOfString
-	33, // 30: contractor.runtime.v1alpha1.AllocationSpec.agent_template:type_name -> contractor.runtime.v1alpha1.AgentTemplateDocument
-	45, // 31: contractor.runtime.v1alpha1.AllocationSpec.resolved_skills:type_name -> contractor.runtime.v1alpha1.ListOfResolvedSkill
-	34, // 32: contractor.runtime.v1alpha1.AllocationSpec.model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
-	34, // 33: contractor.runtime.v1alpha1.AllocationSpec.summarizer_model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
-	34, // 34: contractor.runtime.v1alpha1.AllocationSpec.compactor_model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
-	35, // 35: contractor.runtime.v1alpha1.AllocationSpec.runtime_settings:type_name -> contractor.runtime.v1alpha1.RuntimeSettingsDocument
-	36, // 36: contractor.runtime.v1alpha1.AllocationSpec.resolved_runtime_config_provenance:type_name -> contractor.runtime.v1alpha1.RuntimeConfigProvenanceDocument
-	55, // 37: contractor.runtime.v1alpha1.AllocationSpec.workspace:type_name -> contractor.runtime.v1alpha1.NullableAllocationWorkspace
-	59, // 38: contractor.runtime.v1alpha1.AllocationSpec.performance_metrics:type_name -> contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest
-	46, // 39: contractor.runtime.v1alpha1.AllocationSpec.completion_contract:type_name -> contractor.runtime.v1alpha1.WorkerCompletionContract
-	60, // 40: contractor.runtime.v1alpha1.AllocationSpec.engagement:type_name -> contractor.runtime.v1alpha1.EngagementAllocation
-	72, // 41: contractor.runtime.v1alpha1.MapOfString.values:type_name -> contractor.runtime.v1alpha1.MapOfString.ValuesEntry
-	41, // 42: contractor.runtime.v1alpha1.WorkerContextManagement.instructions:type_name -> contractor.runtime.v1alpha1.ResolvedInstructions
-	43, // 43: contractor.runtime.v1alpha1.ResolvedSkill.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	44, // 44: contractor.runtime.v1alpha1.ListOfResolvedSkill.values:type_name -> contractor.runtime.v1alpha1.ResolvedSkill
-	43, // 45: contractor.runtime.v1alpha1.WorkerCompletionContract.context:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	43, // 46: contractor.runtime.v1alpha1.WorkerCompletionContract.result_artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	47, // 47: contractor.runtime.v1alpha1.WorkerHandle.agent_template_ref:type_name -> contractor.runtime.v1alpha1.AgentTemplateRef
-	48, // 48: contractor.runtime.v1alpha1.WorkerHandle.worker_runtime_ref:type_name -> contractor.runtime.v1alpha1.WorkerRuntimeRef
-	37, // 49: contractor.runtime.v1alpha1.WorkerHandle.agent_card:type_name -> contractor.runtime.v1alpha1.AgentCardDocument
-	52, // 50: contractor.runtime.v1alpha1.AllocationWorkspace.sources:type_name -> contractor.runtime.v1alpha1.ListOfWorkspaceSource
-	56, // 51: contractor.runtime.v1alpha1.AllocationWorkspace.state:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceState
-	57, // 52: contractor.runtime.v1alpha1.AllocationWorkspace.export:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceExport
-	43, // 53: contractor.runtime.v1alpha1.WorkspaceSource.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	51, // 54: contractor.runtime.v1alpha1.ListOfWorkspaceSource.values:type_name -> contractor.runtime.v1alpha1.WorkspaceSource
-	43, // 55: contractor.runtime.v1alpha1.WorkspaceState.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	50, // 56: contractor.runtime.v1alpha1.NullableAllocationWorkspace.value:type_name -> contractor.runtime.v1alpha1.AllocationWorkspace
-	73, // 57: contractor.runtime.v1alpha1.NullableAllocationWorkspace.null:type_name -> google.protobuf.NullValue
-	53, // 58: contractor.runtime.v1alpha1.NullableWorkspaceState.value:type_name -> contractor.runtime.v1alpha1.WorkspaceState
-	73, // 59: contractor.runtime.v1alpha1.NullableWorkspaceState.null:type_name -> google.protobuf.NullValue
-	54, // 60: contractor.runtime.v1alpha1.NullableWorkspaceExport.value:type_name -> contractor.runtime.v1alpha1.WorkspaceExport
-	73, // 61: contractor.runtime.v1alpha1.NullableWorkspaceExport.null:type_name -> google.protobuf.NullValue
-	58, // 62: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest.value:type_name -> contractor.runtime.v1alpha1.PerformanceMetricsRequest
-	73, // 63: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest.null:type_name -> google.protobuf.NullValue
-	43, // 64: contractor.runtime.v1alpha1.EngagementAllocation.engagement:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	61, // 65: contractor.runtime.v1alpha1.EngagementAllocation.http:type_name -> contractor.runtime.v1alpha1.HTTPAssignment
-	62, // 66: contractor.runtime.v1alpha1.HTTPAssignment.limits:type_name -> contractor.runtime.v1alpha1.HTTPLimits
-	67, // 67: contractor.runtime.v1alpha1.HTTPAssignment.routes:type_name -> contractor.runtime.v1alpha1.ListOfHTTPRoute
-	67, // 68: contractor.runtime.v1alpha1.HTTPAssignment.exclusions:type_name -> contractor.runtime.v1alpha1.ListOfHTTPRoute
-	68, // 69: contractor.runtime.v1alpha1.HTTPAssignment.identities:type_name -> contractor.runtime.v1alpha1.ListOfHTTPIdentity
-	69, // 70: contractor.runtime.v1alpha1.HTTPAssignment.protected_destinations:type_name -> contractor.runtime.v1alpha1.ListOfProtectedDestination
-	7,  // 71: contractor.runtime.v1alpha1.HTTPRoute.path_prefixes:type_name -> contractor.runtime.v1alpha1.ListOfString
-	7,  // 72: contractor.runtime.v1alpha1.HTTPRoute.methods:type_name -> contractor.runtime.v1alpha1.ListOfString
-	7,  // 73: contractor.runtime.v1alpha1.HTTPRoute.address_ranges:type_name -> contractor.runtime.v1alpha1.ListOfString
-	7,  // 74: contractor.runtime.v1alpha1.HTTPIdentity.origins:type_name -> contractor.runtime.v1alpha1.ListOfString
-	65, // 75: contractor.runtime.v1alpha1.HTTPIdentity.credential:type_name -> contractor.runtime.v1alpha1.RuntimeCredentialRef
-	7,  // 76: contractor.runtime.v1alpha1.ProtectedDestination.addresses:type_name -> contractor.runtime.v1alpha1.ListOfString
-	63, // 77: contractor.runtime.v1alpha1.ListOfHTTPRoute.values:type_name -> contractor.runtime.v1alpha1.HTTPRoute
-	64, // 78: contractor.runtime.v1alpha1.ListOfHTTPIdentity.values:type_name -> contractor.runtime.v1alpha1.HTTPIdentity
-	66, // 79: contractor.runtime.v1alpha1.ListOfProtectedDestination.values:type_name -> contractor.runtime.v1alpha1.ProtectedDestination
-	71, // 80: contractor.runtime.v1alpha1.AllocationFinalResponse.report:type_name -> contractor.runtime.v1alpha1.AllocationFinalReport
-	38, // 81: contractor.runtime.v1alpha1.AllocationFinalReport.worker:type_name -> contractor.runtime.v1alpha1.ExecutionReportDocument
-	39, // 82: contractor.runtime.v1alpha1.AllocationFinalReport.runtime:type_name -> contractor.runtime.v1alpha1.RuntimeReportDocument
-	0,  // 83: contractor.runtime.v1alpha1.ControlPlane.Bootstrap:input_type -> contractor.runtime.v1alpha1.BootstrapRequest
-	11, // 84: contractor.runtime.v1alpha1.ControlPlane.Register:input_type -> contractor.runtime.v1alpha1.AgentRegistration
-	3,  // 85: contractor.runtime.v1alpha1.ControlPlane.Heartbeat:input_type -> contractor.runtime.v1alpha1.AgentHeartbeat
-	25, // 86: contractor.runtime.v1alpha1.RuntimeLifecycle.Prepare:input_type -> contractor.runtime.v1alpha1.PrepareAllocationRequest
-	27, // 87: contractor.runtime.v1alpha1.RuntimeLifecycle.Finalize:input_type -> contractor.runtime.v1alpha1.FinalizeAllocationRequest
-	28, // 88: contractor.runtime.v1alpha1.RuntimeLifecycle.Abort:input_type -> contractor.runtime.v1alpha1.AbortAllocationRequest
-	29, // 89: contractor.runtime.v1alpha1.RuntimeLifecycle.Release:input_type -> contractor.runtime.v1alpha1.ReleaseAllocationRequest
-	21, // 90: contractor.runtime.v1alpha1.RuntimeLifecycle.ReadState:input_type -> contractor.runtime.v1alpha1.StateReadRequest
-	1,  // 91: contractor.runtime.v1alpha1.ControlPlane.Bootstrap:output_type -> contractor.runtime.v1alpha1.SharedConfig
-	12, // 92: contractor.runtime.v1alpha1.ControlPlane.Register:output_type -> contractor.runtime.v1alpha1.AgentRegistrationResponse
-	4,  // 93: contractor.runtime.v1alpha1.ControlPlane.Heartbeat:output_type -> contractor.runtime.v1alpha1.HeartbeatResponse
-	26, // 94: contractor.runtime.v1alpha1.RuntimeLifecycle.Prepare:output_type -> contractor.runtime.v1alpha1.PrepareAllocationResponse
-	70, // 95: contractor.runtime.v1alpha1.RuntimeLifecycle.Finalize:output_type -> contractor.runtime.v1alpha1.AllocationFinalResponse
-	70, // 96: contractor.runtime.v1alpha1.RuntimeLifecycle.Abort:output_type -> contractor.runtime.v1alpha1.AllocationFinalResponse
-	30, // 97: contractor.runtime.v1alpha1.RuntimeLifecycle.Release:output_type -> contractor.runtime.v1alpha1.ReleaseAllocationResponse
-	22, // 98: contractor.runtime.v1alpha1.RuntimeLifecycle.ReadState:output_type -> contractor.runtime.v1alpha1.StateReadResponse
-	91, // [91:99] is the sub-list for method output_type
-	83, // [83:91] is the sub-list for method input_type
-	83, // [83:83] is the sub-list for extension type_name
-	83, // [83:83] is the sub-list for extension extendee
-	0,  // [0:83] is the sub-list for field type_name
+	2,   // 0: contractor.runtime.v1alpha1.SharedConfig.limits:type_name -> contractor.runtime.v1alpha1.SharedLimits
+	10,  // 1: contractor.runtime.v1alpha1.AgentHeartbeat.allocations:type_name -> contractor.runtime.v1alpha1.ListOfObservedAllocation
+	6,   // 2: contractor.runtime.v1alpha1.HeartbeatResponse.allocation_actions:type_name -> contractor.runtime.v1alpha1.ListOfAllocationAction
+	5,   // 3: contractor.runtime.v1alpha1.ListOfAllocationAction.values:type_name -> contractor.runtime.v1alpha1.AllocationAction
+	13,  // 4: contractor.runtime.v1alpha1.ListOfToolsetCapability.values:type_name -> contractor.runtime.v1alpha1.ToolsetCapability
+	14,  // 5: contractor.runtime.v1alpha1.ListOfObservedAllocation.values:type_name -> contractor.runtime.v1alpha1.ObservedAllocation
+	7,   // 6: contractor.runtime.v1alpha1.AgentRegistration.supported_runtimes:type_name -> contractor.runtime.v1alpha1.ListOfString
+	9,   // 7: contractor.runtime.v1alpha1.AgentRegistration.supported_toolsets:type_name -> contractor.runtime.v1alpha1.ListOfToolsetCapability
+	7,   // 8: contractor.runtime.v1alpha1.AgentRegistration.supported_sandbox_profiles:type_name -> contractor.runtime.v1alpha1.ListOfString
+	16,  // 9: contractor.runtime.v1alpha1.AgentRegistration.capabilities:type_name -> contractor.runtime.v1alpha1.NullableCompletionCapabilities
+	7,   // 10: contractor.runtime.v1alpha1.AgentRegistration.supported_runtime_adapters:type_name -> contractor.runtime.v1alpha1.ListOfString
+	19,  // 11: contractor.runtime.v1alpha1.AgentRegistration.workspace_capabilities:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceCapabilities
+	8,   // 12: contractor.runtime.v1alpha1.AgentRegistration.supported_performance_metrics_versions:type_name -> contractor.runtime.v1alpha1.ListOfInteger
+	7,   // 13: contractor.runtime.v1alpha1.AgentRegistration.placement_labels:type_name -> contractor.runtime.v1alpha1.ListOfString
+	10,  // 14: contractor.runtime.v1alpha1.AgentRegistration.allocations:type_name -> contractor.runtime.v1alpha1.ListOfObservedAllocation
+	7,   // 15: contractor.runtime.v1alpha1.ToolsetCapability.tools:type_name -> contractor.runtime.v1alpha1.ListOfString
+	7,   // 16: contractor.runtime.v1alpha1.CompletionCapabilities.completion_contracts:type_name -> contractor.runtime.v1alpha1.ListOfString
+	15,  // 17: contractor.runtime.v1alpha1.NullableCompletionCapabilities.value:type_name -> contractor.runtime.v1alpha1.CompletionCapabilities
+	132, // 18: contractor.runtime.v1alpha1.NullableCompletionCapabilities.null:type_name -> google.protobuf.NullValue
+	7,   // 19: contractor.runtime.v1alpha1.WorkspaceCapabilities.modes:type_name -> contractor.runtime.v1alpha1.ListOfString
+	18,  // 20: contractor.runtime.v1alpha1.WorkspaceCapabilities.limits:type_name -> contractor.runtime.v1alpha1.WorkspaceLimits
+	17,  // 21: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities.value:type_name -> contractor.runtime.v1alpha1.WorkspaceCapabilities
+	132, // 22: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities.null:type_name -> google.protobuf.NullValue
+	23,  // 23: contractor.runtime.v1alpha1.PlannerOperationRequest.arguments:type_name -> contractor.runtime.v1alpha1.PlannerArgumentsDocument
+	24,  // 24: contractor.runtime.v1alpha1.PlannerOperationResponse.result:type_name -> contractor.runtime.v1alpha1.PlannerResultDocument
+	37,  // 25: contractor.runtime.v1alpha1.PlannerOperationResponse.failure:type_name -> contractor.runtime.v1alpha1.TerminationError
+	30,  // 26: contractor.runtime.v1alpha1.StateReadResponse.snapshot:type_name -> contractor.runtime.v1alpha1.AgentStateDocument
+	29,  // 27: contractor.runtime.v1alpha1.StateReadResponse.not_modified:type_name -> contractor.runtime.v1alpha1.StateNotModified
+	38,  // 28: contractor.runtime.v1alpha1.PrepareAllocationRequest.spec:type_name -> contractor.runtime.v1alpha1.AllocationSpec
+	55,  // 29: contractor.runtime.v1alpha1.PrepareAllocationResponse.worker_handle:type_name -> contractor.runtime.v1alpha1.WorkerHandle
+	37,  // 30: contractor.runtime.v1alpha1.AbortAllocationRequest.reason:type_name -> contractor.runtime.v1alpha1.TerminationError
+	48,  // 31: contractor.runtime.v1alpha1.AllocationSpec.context_management:type_name -> contractor.runtime.v1alpha1.WorkerContextManagement
+	46,  // 32: contractor.runtime.v1alpha1.AllocationSpec.run_metadata_labels:type_name -> contractor.runtime.v1alpha1.MapOfString
+	39,  // 33: contractor.runtime.v1alpha1.AllocationSpec.agent_template:type_name -> contractor.runtime.v1alpha1.AgentTemplateDocument
+	51,  // 34: contractor.runtime.v1alpha1.AllocationSpec.resolved_skills:type_name -> contractor.runtime.v1alpha1.ListOfResolvedSkill
+	40,  // 35: contractor.runtime.v1alpha1.AllocationSpec.model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
+	40,  // 36: contractor.runtime.v1alpha1.AllocationSpec.summarizer_model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
+	40,  // 37: contractor.runtime.v1alpha1.AllocationSpec.compactor_model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
+	41,  // 38: contractor.runtime.v1alpha1.AllocationSpec.runtime_settings:type_name -> contractor.runtime.v1alpha1.RuntimeSettingsDocument
+	42,  // 39: contractor.runtime.v1alpha1.AllocationSpec.resolved_runtime_config_provenance:type_name -> contractor.runtime.v1alpha1.RuntimeConfigProvenanceDocument
+	61,  // 40: contractor.runtime.v1alpha1.AllocationSpec.workspace:type_name -> contractor.runtime.v1alpha1.NullableAllocationWorkspace
+	65,  // 41: contractor.runtime.v1alpha1.AllocationSpec.performance_metrics:type_name -> contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest
+	52,  // 42: contractor.runtime.v1alpha1.AllocationSpec.completion_contract:type_name -> contractor.runtime.v1alpha1.WorkerCompletionContract
+	66,  // 43: contractor.runtime.v1alpha1.AllocationSpec.engagement:type_name -> contractor.runtime.v1alpha1.EngagementAllocation
+	131, // 44: contractor.runtime.v1alpha1.MapOfString.values:type_name -> contractor.runtime.v1alpha1.MapOfString.ValuesEntry
+	47,  // 45: contractor.runtime.v1alpha1.WorkerContextManagement.instructions:type_name -> contractor.runtime.v1alpha1.ResolvedInstructions
+	49,  // 46: contractor.runtime.v1alpha1.ResolvedSkill.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	50,  // 47: contractor.runtime.v1alpha1.ListOfResolvedSkill.values:type_name -> contractor.runtime.v1alpha1.ResolvedSkill
+	49,  // 48: contractor.runtime.v1alpha1.WorkerCompletionContract.context:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	49,  // 49: contractor.runtime.v1alpha1.WorkerCompletionContract.result_artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	53,  // 50: contractor.runtime.v1alpha1.WorkerHandle.agent_template_ref:type_name -> contractor.runtime.v1alpha1.AgentTemplateRef
+	54,  // 51: contractor.runtime.v1alpha1.WorkerHandle.worker_runtime_ref:type_name -> contractor.runtime.v1alpha1.WorkerRuntimeRef
+	43,  // 52: contractor.runtime.v1alpha1.WorkerHandle.agent_card:type_name -> contractor.runtime.v1alpha1.AgentCardDocument
+	58,  // 53: contractor.runtime.v1alpha1.AllocationWorkspace.sources:type_name -> contractor.runtime.v1alpha1.ListOfWorkspaceSource
+	62,  // 54: contractor.runtime.v1alpha1.AllocationWorkspace.state:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceState
+	63,  // 55: contractor.runtime.v1alpha1.AllocationWorkspace.export:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceExport
+	49,  // 56: contractor.runtime.v1alpha1.WorkspaceSource.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	57,  // 57: contractor.runtime.v1alpha1.ListOfWorkspaceSource.values:type_name -> contractor.runtime.v1alpha1.WorkspaceSource
+	49,  // 58: contractor.runtime.v1alpha1.WorkspaceState.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	56,  // 59: contractor.runtime.v1alpha1.NullableAllocationWorkspace.value:type_name -> contractor.runtime.v1alpha1.AllocationWorkspace
+	132, // 60: contractor.runtime.v1alpha1.NullableAllocationWorkspace.null:type_name -> google.protobuf.NullValue
+	59,  // 61: contractor.runtime.v1alpha1.NullableWorkspaceState.value:type_name -> contractor.runtime.v1alpha1.WorkspaceState
+	132, // 62: contractor.runtime.v1alpha1.NullableWorkspaceState.null:type_name -> google.protobuf.NullValue
+	60,  // 63: contractor.runtime.v1alpha1.NullableWorkspaceExport.value:type_name -> contractor.runtime.v1alpha1.WorkspaceExport
+	132, // 64: contractor.runtime.v1alpha1.NullableWorkspaceExport.null:type_name -> google.protobuf.NullValue
+	64,  // 65: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest.value:type_name -> contractor.runtime.v1alpha1.PerformanceMetricsRequest
+	132, // 66: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest.null:type_name -> google.protobuf.NullValue
+	49,  // 67: contractor.runtime.v1alpha1.EngagementAllocation.engagement:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	67,  // 68: contractor.runtime.v1alpha1.EngagementAllocation.http:type_name -> contractor.runtime.v1alpha1.HTTPAssignment
+	68,  // 69: contractor.runtime.v1alpha1.HTTPAssignment.limits:type_name -> contractor.runtime.v1alpha1.HTTPLimits
+	73,  // 70: contractor.runtime.v1alpha1.HTTPAssignment.routes:type_name -> contractor.runtime.v1alpha1.ListOfHTTPRoute
+	73,  // 71: contractor.runtime.v1alpha1.HTTPAssignment.exclusions:type_name -> contractor.runtime.v1alpha1.ListOfHTTPRoute
+	74,  // 72: contractor.runtime.v1alpha1.HTTPAssignment.identities:type_name -> contractor.runtime.v1alpha1.ListOfHTTPIdentity
+	75,  // 73: contractor.runtime.v1alpha1.HTTPAssignment.protected_destinations:type_name -> contractor.runtime.v1alpha1.ListOfProtectedDestination
+	7,   // 74: contractor.runtime.v1alpha1.HTTPRoute.path_prefixes:type_name -> contractor.runtime.v1alpha1.ListOfString
+	7,   // 75: contractor.runtime.v1alpha1.HTTPRoute.methods:type_name -> contractor.runtime.v1alpha1.ListOfString
+	7,   // 76: contractor.runtime.v1alpha1.HTTPRoute.address_ranges:type_name -> contractor.runtime.v1alpha1.ListOfString
+	7,   // 77: contractor.runtime.v1alpha1.HTTPIdentity.origins:type_name -> contractor.runtime.v1alpha1.ListOfString
+	71,  // 78: contractor.runtime.v1alpha1.HTTPIdentity.credential:type_name -> contractor.runtime.v1alpha1.RuntimeCredentialRef
+	7,   // 79: contractor.runtime.v1alpha1.ProtectedDestination.addresses:type_name -> contractor.runtime.v1alpha1.ListOfString
+	69,  // 80: contractor.runtime.v1alpha1.ListOfHTTPRoute.values:type_name -> contractor.runtime.v1alpha1.HTTPRoute
+	70,  // 81: contractor.runtime.v1alpha1.ListOfHTTPIdentity.values:type_name -> contractor.runtime.v1alpha1.HTTPIdentity
+	72,  // 82: contractor.runtime.v1alpha1.ListOfProtectedDestination.values:type_name -> contractor.runtime.v1alpha1.ProtectedDestination
+	77,  // 83: contractor.runtime.v1alpha1.AllocationFinalResponse.report:type_name -> contractor.runtime.v1alpha1.AllocationFinalReport
+	44,  // 84: contractor.runtime.v1alpha1.AllocationFinalReport.worker:type_name -> contractor.runtime.v1alpha1.ExecutionReportDocument
+	45,  // 85: contractor.runtime.v1alpha1.AllocationFinalReport.runtime:type_name -> contractor.runtime.v1alpha1.RuntimeReportDocument
+	132, // 86: contractor.runtime.v1alpha1.NullableString.null:type_name -> google.protobuf.NullValue
+	49,  // 87: contractor.runtime.v1alpha1.ExactArtifact.ref:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	49,  // 88: contractor.runtime.v1alpha1.Material.ref:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	80,  // 89: contractor.runtime.v1alpha1.ListOfMaterial.values:type_name -> contractor.runtime.v1alpha1.Material
+	49,  // 90: contractor.runtime.v1alpha1.ListOfArtifactRef.values:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	82,  // 91: contractor.runtime.v1alpha1.AuditEvidenceRequest.sources:type_name -> contractor.runtime.v1alpha1.ListOfArtifactRef
+	7,   // 92: contractor.runtime.v1alpha1.AuditEvidenceRequest.tested_conditions:type_name -> contractor.runtime.v1alpha1.ListOfString
+	7,   // 93: contractor.runtime.v1alpha1.AuditEvidenceRequest.limitations:type_name -> contractor.runtime.v1alpha1.ListOfString
+	81,  // 94: contractor.runtime.v1alpha1.AuditEvidenceReceipt.selected_sources:type_name -> contractor.runtime.v1alpha1.ListOfMaterial
+	80,  // 95: contractor.runtime.v1alpha1.AuditEvidenceReceipt.material:type_name -> contractor.runtime.v1alpha1.Material
+	81,  // 96: contractor.runtime.v1alpha1.AuditEvidenceReceipt.sources:type_name -> contractor.runtime.v1alpha1.ListOfMaterial
+	7,   // 97: contractor.runtime.v1alpha1.AuditConclusion.tested_conditions:type_name -> contractor.runtime.v1alpha1.ListOfString
+	7,   // 98: contractor.runtime.v1alpha1.AuditConclusion.limitations:type_name -> contractor.runtime.v1alpha1.ListOfString
+	81,  // 99: contractor.runtime.v1alpha1.AuditConclusion.evidence:type_name -> contractor.runtime.v1alpha1.ListOfMaterial
+	85,  // 100: contractor.runtime.v1alpha1.AuditJudgmentUpdate.conclusion:type_name -> contractor.runtime.v1alpha1.AuditConclusion
+	86,  // 101: contractor.runtime.v1alpha1.ListOfAuditJudgmentUpdate.values:type_name -> contractor.runtime.v1alpha1.AuditJudgmentUpdate
+	87,  // 102: contractor.runtime.v1alpha1.AuditJudgmentsRequest.items:type_name -> contractor.runtime.v1alpha1.ListOfAuditJudgmentUpdate
+	89,  // 103: contractor.runtime.v1alpha1.ListOfAuditGeneration.values:type_name -> contractor.runtime.v1alpha1.AuditGeneration
+	80,  // 104: contractor.runtime.v1alpha1.AuditJudgmentReceipt.material:type_name -> contractor.runtime.v1alpha1.Material
+	90,  // 105: contractor.runtime.v1alpha1.AuditJudgmentReceipt.generations:type_name -> contractor.runtime.v1alpha1.ListOfAuditGeneration
+	90,  // 106: contractor.runtime.v1alpha1.AuditJudgmentStale.current_generations:type_name -> contractor.runtime.v1alpha1.ListOfAuditGeneration
+	91,  // 107: contractor.runtime.v1alpha1.AuditJudgmentsResponse.receipt:type_name -> contractor.runtime.v1alpha1.AuditJudgmentReceipt
+	92,  // 108: contractor.runtime.v1alpha1.AuditJudgmentsResponse.stale:type_name -> contractor.runtime.v1alpha1.AuditJudgmentStale
+	94,  // 109: contractor.runtime.v1alpha1.SitemapSource.provenance:type_name -> contractor.runtime.v1alpha1.SitemapProvenance
+	79,  // 110: contractor.runtime.v1alpha1.SitemapSource.artifact:type_name -> contractor.runtime.v1alpha1.ExactArtifact
+	7,   // 111: contractor.runtime.v1alpha1.SitemapStructuralParameter.allowed:type_name -> contractor.runtime.v1alpha1.ListOfString
+	96,  // 112: contractor.runtime.v1alpha1.ListOfSitemapStructuralParameter.values:type_name -> contractor.runtime.v1alpha1.SitemapStructuralParameter
+	7,   // 113: contractor.runtime.v1alpha1.SitemapEditorRule.parameters:type_name -> contractor.runtime.v1alpha1.ListOfString
+	97,  // 114: contractor.runtime.v1alpha1.SitemapEditorRule.structural:type_name -> contractor.runtime.v1alpha1.ListOfSitemapStructuralParameter
+	98,  // 115: contractor.runtime.v1alpha1.ListOfSitemapEditorRule.values:type_name -> contractor.runtime.v1alpha1.SitemapEditorRule
+	95,  // 116: contractor.runtime.v1alpha1.SitemapEditorSource.expected:type_name -> contractor.runtime.v1alpha1.SitemapSource
+	99,  // 117: contractor.runtime.v1alpha1.SitemapEditorSource.rules:type_name -> contractor.runtime.v1alpha1.ListOfSitemapEditorRule
+	7,   // 118: contractor.runtime.v1alpha1.SitemapEditorMutation.member_ids:type_name -> contractor.runtime.v1alpha1.ListOfString
+	7,   // 119: contractor.runtime.v1alpha1.SitemapEditorMutation.tags:type_name -> contractor.runtime.v1alpha1.ListOfString
+	100, // 120: contractor.runtime.v1alpha1.SitemapEditorMutation.source:type_name -> contractor.runtime.v1alpha1.SitemapEditorSource
+	101, // 121: contractor.runtime.v1alpha1.SitemapMutationRequest.mutation:type_name -> contractor.runtime.v1alpha1.SitemapEditorMutation
+	49,  // 122: contractor.runtime.v1alpha1.SitemapMutationResult.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	103, // 123: contractor.runtime.v1alpha1.SitemapMutationResponse.result:type_name -> contractor.runtime.v1alpha1.SitemapMutationResult
+	7,   // 124: contractor.runtime.v1alpha1.SitemapSnapshotSelection.groups:type_name -> contractor.runtime.v1alpha1.ListOfString
+	7,   // 125: contractor.runtime.v1alpha1.SitemapSnapshotSelection.members:type_name -> contractor.runtime.v1alpha1.ListOfString
+	105, // 126: contractor.runtime.v1alpha1.SitemapSnapshotRequest.selection:type_name -> contractor.runtime.v1alpha1.SitemapSnapshotSelection
+	79,  // 127: contractor.runtime.v1alpha1.SitemapSnapshotResult.artifact:type_name -> contractor.runtime.v1alpha1.ExactArtifact
+	107, // 128: contractor.runtime.v1alpha1.SitemapSnapshotResponse.result:type_name -> contractor.runtime.v1alpha1.SitemapSnapshotResult
+	7,   // 129: contractor.runtime.v1alpha1.SitemapObservation.tags:type_name -> contractor.runtime.v1alpha1.ListOfString
+	7,   // 130: contractor.runtime.v1alpha1.SitemapObservation.parameters:type_name -> contractor.runtime.v1alpha1.ListOfString
+	109, // 131: contractor.runtime.v1alpha1.ListOfSitemapObservation.values:type_name -> contractor.runtime.v1alpha1.SitemapObservation
+	111, // 132: contractor.runtime.v1alpha1.ListOfSitemapCollectionGap.values:type_name -> contractor.runtime.v1alpha1.SitemapCollectionGap
+	110, // 133: contractor.runtime.v1alpha1.SitemapCollectionIngress.observations:type_name -> contractor.runtime.v1alpha1.ListOfSitemapObservation
+	112, // 134: contractor.runtime.v1alpha1.SitemapCollectionIngress.gaps:type_name -> contractor.runtime.v1alpha1.ListOfSitemapCollectionGap
+	49,  // 135: contractor.runtime.v1alpha1.SitemapCollectionIngress.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	113, // 136: contractor.runtime.v1alpha1.SitemapCollectionRequest.input:type_name -> contractor.runtime.v1alpha1.SitemapCollectionIngress
+	82,  // 137: contractor.runtime.v1alpha1.ArtifactListResponse.artifacts:type_name -> contractor.runtime.v1alpha1.ListOfArtifactRef
+	49,  // 138: contractor.runtime.v1alpha1.ArtifactReadTarget.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	49,  // 139: contractor.runtime.v1alpha1.ArtifactMetadataResponse.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	78,  // 140: contractor.runtime.v1alpha1.ProjectFindingSummary.state:type_name -> contractor.runtime.v1alpha1.NullableString
+	78,  // 141: contractor.runtime.v1alpha1.ProjectFindingSummary.analyst_verdict:type_name -> contractor.runtime.v1alpha1.NullableString
+	78,  // 142: contractor.runtime.v1alpha1.ProjectFindingSummary.analyst_severity:type_name -> contractor.runtime.v1alpha1.NullableString
+	78,  // 143: contractor.runtime.v1alpha1.ProjectFindingSummary.duplicate_target_id:type_name -> contractor.runtime.v1alpha1.NullableString
+	121, // 144: contractor.runtime.v1alpha1.ListOfProjectFindingSummary.values:type_name -> contractor.runtime.v1alpha1.ProjectFindingSummary
+	122, // 145: contractor.runtime.v1alpha1.FindingListResponse.items:type_name -> contractor.runtime.v1alpha1.ListOfProjectFindingSummary
+	78,  // 146: contractor.runtime.v1alpha1.FindingListResponse.next_cursor:type_name -> contractor.runtime.v1alpha1.NullableString
+	79,  // 147: contractor.runtime.v1alpha1.ProjectFinding.first_proposal:type_name -> contractor.runtime.v1alpha1.ExactArtifact
+	126, // 148: contractor.runtime.v1alpha1.ProjectFinding.claim:type_name -> contractor.runtime.v1alpha1.FindingClaimDocument
+	78,  // 149: contractor.runtime.v1alpha1.ProjectFinding.state:type_name -> contractor.runtime.v1alpha1.NullableString
+	78,  // 150: contractor.runtime.v1alpha1.ProjectFinding.analyst_verdict:type_name -> contractor.runtime.v1alpha1.NullableString
+	78,  // 151: contractor.runtime.v1alpha1.ProjectFinding.analyst_severity:type_name -> contractor.runtime.v1alpha1.NullableString
+	78,  // 152: contractor.runtime.v1alpha1.ProjectFinding.rationale:type_name -> contractor.runtime.v1alpha1.NullableString
+	78,  // 153: contractor.runtime.v1alpha1.ProjectFinding.actor_id:type_name -> contractor.runtime.v1alpha1.NullableString
+	78,  // 154: contractor.runtime.v1alpha1.ProjectFinding.assessed_at:type_name -> contractor.runtime.v1alpha1.NullableString
+	78,  // 155: contractor.runtime.v1alpha1.ProjectFinding.duplicate_target_id:type_name -> contractor.runtime.v1alpha1.NullableString
+	127, // 156: contractor.runtime.v1alpha1.ListOfFindingRevisionSelection.values:type_name -> contractor.runtime.v1alpha1.FindingRevisionSelection
+	128, // 157: contractor.runtime.v1alpha1.FindingSelectionRequest.findings:type_name -> contractor.runtime.v1alpha1.ListOfFindingRevisionSelection
+	7,   // 158: contractor.runtime.v1alpha1.FindingSelectionRequest.receipt_ids:type_name -> contractor.runtime.v1alpha1.ListOfString
+	79,  // 159: contractor.runtime.v1alpha1.FindingSelectionResponse.artifact:type_name -> contractor.runtime.v1alpha1.ExactArtifact
+	0,   // 160: contractor.runtime.v1alpha1.ControlPlane.Bootstrap:input_type -> contractor.runtime.v1alpha1.BootstrapRequest
+	11,  // 161: contractor.runtime.v1alpha1.ControlPlane.Register:input_type -> contractor.runtime.v1alpha1.AgentRegistration
+	3,   // 162: contractor.runtime.v1alpha1.ControlPlane.Heartbeat:input_type -> contractor.runtime.v1alpha1.AgentHeartbeat
+	21,  // 163: contractor.runtime.v1alpha1.Allocation.PlannerOperation:input_type -> contractor.runtime.v1alpha1.PlannerOperationRequest
+	25,  // 164: contractor.runtime.v1alpha1.Allocation.GatewayRecovery:input_type -> contractor.runtime.v1alpha1.GatewayRecoveryRequest
+	83,  // 165: contractor.runtime.v1alpha1.Allocation.SubmitAuditEvidence:input_type -> contractor.runtime.v1alpha1.AuditEvidenceRequest
+	88,  // 166: contractor.runtime.v1alpha1.Allocation.SubmitAuditJudgments:input_type -> contractor.runtime.v1alpha1.AuditJudgmentsRequest
+	102, // 167: contractor.runtime.v1alpha1.Allocation.MutateSitemap:input_type -> contractor.runtime.v1alpha1.SitemapMutationRequest
+	106, // 168: contractor.runtime.v1alpha1.Allocation.SnapshotSitemap:input_type -> contractor.runtime.v1alpha1.SitemapSnapshotRequest
+	114, // 169: contractor.runtime.v1alpha1.Allocation.CollectSitemap:input_type -> contractor.runtime.v1alpha1.SitemapCollectionRequest
+	115, // 170: contractor.runtime.v1alpha1.Allocation.ListArtifacts:input_type -> contractor.runtime.v1alpha1.ArtifactListRequest
+	117, // 171: contractor.runtime.v1alpha1.Allocation.ReadArtifactMetadata:input_type -> contractor.runtime.v1alpha1.ArtifactReadTarget
+	117, // 172: contractor.runtime.v1alpha1.Allocation.CheckArtifactAccess:input_type -> contractor.runtime.v1alpha1.ArtifactReadTarget
+	120, // 173: contractor.runtime.v1alpha1.Allocation.ListFindings:input_type -> contractor.runtime.v1alpha1.FindingListRequest
+	124, // 174: contractor.runtime.v1alpha1.Allocation.ReadFinding:input_type -> contractor.runtime.v1alpha1.FindingReadRequest
+	129, // 175: contractor.runtime.v1alpha1.Allocation.SelectFindings:input_type -> contractor.runtime.v1alpha1.FindingSelectionRequest
+	31,  // 176: contractor.runtime.v1alpha1.RuntimeLifecycle.Prepare:input_type -> contractor.runtime.v1alpha1.PrepareAllocationRequest
+	33,  // 177: contractor.runtime.v1alpha1.RuntimeLifecycle.Finalize:input_type -> contractor.runtime.v1alpha1.FinalizeAllocationRequest
+	34,  // 178: contractor.runtime.v1alpha1.RuntimeLifecycle.Abort:input_type -> contractor.runtime.v1alpha1.AbortAllocationRequest
+	35,  // 179: contractor.runtime.v1alpha1.RuntimeLifecycle.Release:input_type -> contractor.runtime.v1alpha1.ReleaseAllocationRequest
+	27,  // 180: contractor.runtime.v1alpha1.RuntimeLifecycle.ReadState:input_type -> contractor.runtime.v1alpha1.StateReadRequest
+	1,   // 181: contractor.runtime.v1alpha1.ControlPlane.Bootstrap:output_type -> contractor.runtime.v1alpha1.SharedConfig
+	12,  // 182: contractor.runtime.v1alpha1.ControlPlane.Register:output_type -> contractor.runtime.v1alpha1.AgentRegistrationResponse
+	4,   // 183: contractor.runtime.v1alpha1.ControlPlane.Heartbeat:output_type -> contractor.runtime.v1alpha1.HeartbeatResponse
+	22,  // 184: contractor.runtime.v1alpha1.Allocation.PlannerOperation:output_type -> contractor.runtime.v1alpha1.PlannerOperationResponse
+	26,  // 185: contractor.runtime.v1alpha1.Allocation.GatewayRecovery:output_type -> contractor.runtime.v1alpha1.GatewayRecoveryResponse
+	84,  // 186: contractor.runtime.v1alpha1.Allocation.SubmitAuditEvidence:output_type -> contractor.runtime.v1alpha1.AuditEvidenceReceipt
+	93,  // 187: contractor.runtime.v1alpha1.Allocation.SubmitAuditJudgments:output_type -> contractor.runtime.v1alpha1.AuditJudgmentsResponse
+	104, // 188: contractor.runtime.v1alpha1.Allocation.MutateSitemap:output_type -> contractor.runtime.v1alpha1.SitemapMutationResponse
+	108, // 189: contractor.runtime.v1alpha1.Allocation.SnapshotSitemap:output_type -> contractor.runtime.v1alpha1.SitemapSnapshotResponse
+	104, // 190: contractor.runtime.v1alpha1.Allocation.CollectSitemap:output_type -> contractor.runtime.v1alpha1.SitemapMutationResponse
+	116, // 191: contractor.runtime.v1alpha1.Allocation.ListArtifacts:output_type -> contractor.runtime.v1alpha1.ArtifactListResponse
+	118, // 192: contractor.runtime.v1alpha1.Allocation.ReadArtifactMetadata:output_type -> contractor.runtime.v1alpha1.ArtifactMetadataResponse
+	119, // 193: contractor.runtime.v1alpha1.Allocation.CheckArtifactAccess:output_type -> contractor.runtime.v1alpha1.ArtifactAccessResponse
+	123, // 194: contractor.runtime.v1alpha1.Allocation.ListFindings:output_type -> contractor.runtime.v1alpha1.FindingListResponse
+	125, // 195: contractor.runtime.v1alpha1.Allocation.ReadFinding:output_type -> contractor.runtime.v1alpha1.ProjectFinding
+	130, // 196: contractor.runtime.v1alpha1.Allocation.SelectFindings:output_type -> contractor.runtime.v1alpha1.FindingSelectionResponse
+	32,  // 197: contractor.runtime.v1alpha1.RuntimeLifecycle.Prepare:output_type -> contractor.runtime.v1alpha1.PrepareAllocationResponse
+	76,  // 198: contractor.runtime.v1alpha1.RuntimeLifecycle.Finalize:output_type -> contractor.runtime.v1alpha1.AllocationFinalResponse
+	76,  // 199: contractor.runtime.v1alpha1.RuntimeLifecycle.Abort:output_type -> contractor.runtime.v1alpha1.AllocationFinalResponse
+	36,  // 200: contractor.runtime.v1alpha1.RuntimeLifecycle.Release:output_type -> contractor.runtime.v1alpha1.ReleaseAllocationResponse
+	28,  // 201: contractor.runtime.v1alpha1.RuntimeLifecycle.ReadState:output_type -> contractor.runtime.v1alpha1.StateReadResponse
+	181, // [181:202] is the sub-list for method output_type
+	160, // [160:181] is the sub-list for method input_type
+	160, // [160:160] is the sub-list for extension type_name
+	160, // [160:160] is the sub-list for extension extendee
+	0,   // [0:160] is the sub-list for field type_name
 }
 
 func init() { file_runtime_proto_init() }
@@ -5375,71 +9858,124 @@ func file_runtime_proto_init() {
 	}
 	file_runtime_proto_msgTypes[20].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[21].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[22].OneofWrappers = []any{
-		(*StateReadResponse_Snapshot)(nil),
-		(*StateReadResponse_NotModified)(nil),
-	}
+	file_runtime_proto_msgTypes[22].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[23].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[24].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[25].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[26].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[27].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[28].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[29].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[28].OneofWrappers = []any{
+		(*StateReadResponse_Snapshot)(nil),
+		(*StateReadResponse_NotModified)(nil),
+	}
+	file_runtime_proto_msgTypes[30].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[31].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[32].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[33].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[34].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[35].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[36].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[37].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[38].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[39].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[40].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[41].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[42].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[43].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[44].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[46].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[45].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[47].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[48].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[49].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[50].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[51].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[52].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[53].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[54].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[55].OneofWrappers = []any{
+	file_runtime_proto_msgTypes[55].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[56].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[57].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[60].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[61].OneofWrappers = []any{
 		(*NullableAllocationWorkspace_Value)(nil),
 		(*NullableAllocationWorkspace_Null)(nil),
 	}
-	file_runtime_proto_msgTypes[56].OneofWrappers = []any{
+	file_runtime_proto_msgTypes[62].OneofWrappers = []any{
 		(*NullableWorkspaceState_Value)(nil),
 		(*NullableWorkspaceState_Null)(nil),
 	}
-	file_runtime_proto_msgTypes[57].OneofWrappers = []any{
+	file_runtime_proto_msgTypes[63].OneofWrappers = []any{
 		(*NullableWorkspaceExport_Value)(nil),
 		(*NullableWorkspaceExport_Null)(nil),
 	}
-	file_runtime_proto_msgTypes[58].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[59].OneofWrappers = []any{
+	file_runtime_proto_msgTypes[64].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[65].OneofWrappers = []any{
 		(*NullablePerformanceMetricsRequest_Value)(nil),
 		(*NullablePerformanceMetricsRequest_Null)(nil),
 	}
-	file_runtime_proto_msgTypes[60].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[61].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[62].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[63].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[64].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[65].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[66].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[67].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[68].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[69].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[70].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[71].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[72].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[76].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[77].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[78].OneofWrappers = []any{
+		(*NullableString_Null)(nil),
+		(*NullableString_Value)(nil),
+	}
+	file_runtime_proto_msgTypes[79].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[80].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[83].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[84].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[85].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[86].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[88].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[89].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[91].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[92].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[93].OneofWrappers = []any{
+		(*AuditJudgmentsResponse_Receipt)(nil),
+		(*AuditJudgmentsResponse_Stale)(nil),
+	}
+	file_runtime_proto_msgTypes[94].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[95].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[96].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[98].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[101].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[102].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[103].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[104].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[105].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[106].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[107].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[108].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[109].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[111].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[113].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[114].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[115].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[116].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[117].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[118].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[120].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[121].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[123].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[124].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[125].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[126].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[127].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[129].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[130].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_runtime_proto_rawDesc), len(file_runtime_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   73,
+			NumMessages:   132,
 			NumExtensions: 0,
-			NumServices:   2,
+			NumServices:   3,
 		},
 		GoTypes:           file_runtime_proto_goTypes,
 		DependencyIndexes: file_runtime_proto_depIdxs,

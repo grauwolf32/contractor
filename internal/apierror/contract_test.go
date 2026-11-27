@@ -258,15 +258,22 @@ func TestPrivateAPIsAnswerSharedCodesLikeTheRegistry(t *testing.T) {
 				if !ok || (len(call.Args) != 5 && len(call.Args) != 4) {
 					return true
 				}
+				if calledName(call.Fun) == "newPrivateFailure" && len(call.Args) == 4 {
+					// Classifier declarations have the same status/code/message/retry
+					// contract as an HTTP writer, without its ResponseWriter argument.
+					declaration := *call
+					declaration.Args = append([]ast.Expr{nil}, call.Args...)
+					call = &declaration
+				}
 				native := false
 				switch name := calledName(call.Fun); name {
-				case "writeError", "writePrivateError":
+				case "writeError", "writePrivateError", "newPrivateFailure":
 					if len(call.Args) != 5 {
 						return true
 					}
-				case "Error":
+				case "Error", "ErrorWithRetry":
 					selector, ok := call.Fun.(*ast.SelectorExpr)
-					if !ok || !isIdent(selector.X, "runtimewire") || len(call.Args) != 4 {
+					if !ok || !isIdent(selector.X, "runtimewire") {
 						return true
 					}
 					native = true
@@ -275,7 +282,7 @@ func TestPrivateAPIsAnswerSharedCodesLikeTheRegistry(t *testing.T) {
 				}
 				written++
 				where := set.Position(call.Pos()).String()
-				if !native && fromOneKind(call.Args) {
+				if (!native && fromOneKind(call.Args)) || (native && fromOneNativeKind(call.Args)) {
 					return true
 				}
 				literal, ok := call.Args[2].(*ast.BasicLit)
@@ -326,6 +333,14 @@ func TestPrivateAPIsAnswerSharedCodesLikeTheRegistry(t *testing.T) {
 // message and kind.Retryable() of one Kind value, which agrees with the
 // registry by construction.
 func fromOneKind(arguments []ast.Expr) bool {
+	return fromKind(arguments, "Status", 4)
+}
+
+func fromOneNativeKind(arguments []ast.Expr) bool {
+	return fromKind(arguments, "GRPCStatus", 3)
+}
+
+func fromKind(arguments []ast.Expr, statusMethod string, retryIndex int) bool {
 	receiver := func(expression ast.Expr, method string) string {
 		call, ok := expression.(*ast.CallExpr)
 		if !ok || len(call.Args) != 0 {
@@ -342,7 +357,7 @@ func fromOneKind(arguments []ast.Expr) bool {
 		return ident.Name
 	}
 	kind := receiver(arguments[2], "Code")
-	return kind != "" && receiver(arguments[1], "Status") == kind && receiver(arguments[4], "Retryable") == kind
+	return kind != "" && receiver(arguments[1], statusMethod) == kind && receiver(arguments[retryIndex], "Retryable") == kind
 }
 
 // httpStatusConstants reads the net/http status constants of the Go

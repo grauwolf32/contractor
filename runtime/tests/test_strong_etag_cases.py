@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
+from fakes.allocation_rpc import AllocationRPCFixture
 
 from contractor_runtime.artifacts import (
     ArtifactClient,
@@ -25,7 +26,7 @@ TIMESTAMPS = {
 TARGET = ArtifactRef(namespace="analysis", name="report")
 
 
-class RecordingTransport:
+class RecordingTransport(AllocationRPCFixture):
     """Answers every request with one response and records request headers."""
 
     def __init__(self, response: ArtifactHTTPResponse) -> None:

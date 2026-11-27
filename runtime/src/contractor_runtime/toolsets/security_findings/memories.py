@@ -83,7 +83,7 @@ async def memory_evidence(
     except ArtifactResponseLimitError:
         raise ToolInputError("The assigned memories snapshot exceeds 512 KiB") from None
     except ArtifactAPIError as error:
-        if error.status_code == 404:
+        if error.code == "artifact_not_found":
             raise ToolInputError("The assigned memories snapshot is unavailable") from None
         raise
     if value.media_type != "application/json":

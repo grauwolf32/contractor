@@ -198,7 +198,8 @@ framing assertions не переносятся в HTTP/2; ими владеет 
   и проверка фактического protobuf frame фиксируются одновременно с их codecs.
 - Stable error details содержат code/retryable/requestId без raw exception text.
   Malformed input → InvalidArgument; missing TLS identity → Unauthenticated;
-  foreign allocation authority → PermissionDenied; stale/domain precondition →
+  отказ в правах → PermissionDenied; чужой/несуществующий grant сохраняет
+  доменную маскировку NotFound (Planner/recovery — FailedPrecondition); stale/domain precondition →
   FailedPrecondition; транзакционный конфликт → Aborted; capacity →
   ResourceExhausted; временная инфраструктурная недоступность → Unavailable.
   NotFound, Cancelled и DeadlineExceeded имеют отдельные исходы. Domain code

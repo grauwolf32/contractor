@@ -13,6 +13,7 @@ from pathlib import Path
 
 import grpc
 from google.protobuf.message import DecodeError
+from google.rpc.error_details_pb2 import RetryInfo
 from google.rpc.status_pb2 import Status
 
 from contractor_runtime._grpc_tls import TLSForwarder
@@ -41,6 +42,7 @@ class ControlRPCError(Exception):
         self.code = code
         self.retryable = retryable
         self.request_id = request_id
+        self.retry_after_seconds = None
         super().__init__(f"Control Plane gRPC status {status_code.name} ({code})")
 
     @property
@@ -203,7 +205,8 @@ def _decode_response(response, model):
     return value.model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
-def _error(error, correlation):
+def _error(error, correlation, *, allow_retry_info=False):
+    retry_after = None
     status_code = error.code()
     retryable = status_code in {
         grpc.StatusCode.UNAVAILABLE,
@@ -220,8 +223,34 @@ def _error(error, correlation):
     if len(details) == 1 and isinstance(details[0], bytes) and len(details[0]) <= 4096:
         try:
             status = Status.FromString(details[0])
-            if status.code != status_code.value[0] or len(status.details) != 1:
+            known_status = Status()
+            known_status.CopyFrom(status)
+            known_status.DiscardUnknownFields()
+            if known_status != status:
                 raise ValueError
+            if status.code != status_code.value[0] or len(status.details) not in (
+                {1, 2} if allow_retry_info else {1}
+            ):
+                raise ValueError
+            if len(status.details) == 2:
+                retry_info = RetryInfo()
+                if not status.details[1].Unpack(retry_info) or not retry_info.HasField(
+                    "retry_delay"
+                ):
+                    raise ValueError
+                known = RetryInfo()
+                known.CopyFrom(retry_info)
+                known.DiscardUnknownFields()
+                duration = retry_info.retry_delay
+                if (
+                    known != retry_info
+                    or duration.seconds < 0
+                    or not 0 <= duration.nanos < 1_000_000_000
+                ):
+                    raise ValueError
+                retry_after = duration.seconds + duration.nanos / 1_000_000_000
+                if not 0 < retry_after <= 300:
+                    raise ValueError
             detail = runtime_pb2.ErrorDetail()
             if not status.details[0].Unpack(detail):
                 raise ValueError
@@ -233,7 +262,9 @@ def _error(error, correlation):
                 raise ValueError
             code, retryable, correlation = parsed.code, parsed.retryable, parsed.request_id
         except (ValueError, TypeError, DecodeError):
-            code, retryable = "invalid_error_response", False
+            code, retryable, retry_after = "invalid_error_response", False, None
     elif details:
         code, retryable = "invalid_error_response", False
-    return ControlRPCError(status_code, code, retryable, correlation)
+    result = ControlRPCError(status_code, code, retryable, correlation)
+    result.retry_after_seconds = retry_after
+    return result

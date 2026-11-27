@@ -5,7 +5,7 @@ milestone: server-runtime-grpc-2026-11
 epic: api-contracts
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V490-003
 languages:
@@ -41,7 +41,24 @@ context:
     of 8 MiB and Planner operation limits of 4 MiB with separately bounded
     service messages and existing domain validation. Do not enlarge the
     process control channel or silently shrink any domain limit. Reopen this
-    split only if the actual domain payload ownership changes.
+    split only if the actual domain payload ownership changes. The implementation
+    uses allocation/instance metadata for authority before protobuf decode and
+    one process admission bound across control/domain RPCs. Runtime domain calls
+    lease four exclusive channels, admitting at most 32 calls including waiters;
+    control and bulk owners remain separate. This is an agent implementation
+    choice preserving existing deadlines and sibling allocation isolation, not a
+    new user requirement. Reopen it only if measured concurrency needs exceed
+    the existing four-slot process shape. Agent implementation decision 2026-11-28:
+    reserve four of the shared 32 Server positions for ControlPlane RPCs, so
+    long domain callbacks cannot exhaust control admission. Malformed mutation
+    receipts retain the original frozen identity for the existing bounded
+    domain reconciliation, without transport replay or repeated target work.
+    Audit judgment conflicts use a typed stale-result alternative carrying the
+    existing generations. The simpler status-details-only alternative would
+    mix the domain generation payload into the bounded error metadata/parser.
+    Runtime still raises its existing audit_result_stale outcome; no implicit
+    content retry or ownership change is introduced. Reopen the binding only
+    if a concrete caller requires another native conflict representation.
 scope:
   in:
   - Migrate Planner operations, gateway recovery, Audit evidence/judgments, finding reads/selections,

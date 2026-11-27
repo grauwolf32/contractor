@@ -148,7 +148,7 @@ class WorkspaceAutoExporter:
             try:
                 current = await self._client.read_artifact_metadata(target)
             except ArtifactAPIError as error:
-                if error.status_code != 404 or error.code != "artifact_not_found":
+                if error.code != "artifact_not_found":
                     raise
                 expected_revision = None
             else:

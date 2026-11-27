@@ -84,3 +84,19 @@ def test_shared_protobuf_sequence_precision():
     for raw in cases["invalid"]:
         with pytest.raises(codec.InvalidWireValue):
             codec.encode({"heartbeatSeq": json.loads(raw)}, pb.AgentHeartbeat())
+
+
+def test_shared_allocation_protobuf_shapes():
+    cases = json.loads((FIXTURES / "grpc-allocation-cases.json").read_bytes())
+    assert len(cases["valid"]) >= 18 and len(cases["invalid"]) >= 6
+    for case in cases["valid"]:
+        model = getattr(pb, case["type"])
+        request = codec.encode(case["value"], model())
+        response = model.FromString(request.SerializeToString())
+        assert codec.decode(response) == case["value"]
+        response.MergeFromString(b"\xf8\x07\x01")
+        with pytest.raises(codec.InvalidWireValue):
+            codec.decode(response)
+    for case in cases["invalid"]:
+        with pytest.raises(codec.InvalidWireValue):
+            codec.encode(case["value"], getattr(pb, case["type"])())

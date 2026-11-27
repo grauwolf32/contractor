@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from fakes.allocation_rpc import AllocationRPCFixture
 from pydantic import ValidationError
 from shared_config_defaults import MAX_ARTIFACT_BYTES
 
@@ -697,6 +698,7 @@ def test_mtls_transport_maps_connection_setup_failure_to_transport_error() -> No
         PrivateConnections(ssl.create_default_context(), verify_control_plane_peer),
         timeout_seconds=3,
         runtime_instance_id="runtime-1",
+        rpc_connections=Mock(),
     )
 
     async def scenario() -> None:
@@ -728,6 +730,7 @@ def mtls_transport(connections: PrivateConnections | None = None) -> MTLSArtifac
         connections or PrivateConnections(ssl.create_default_context(), Mock()),
         timeout_seconds=1,
         runtime_instance_id="runtime-1",
+        rpc_connections=Mock(),
     )
 
 
@@ -795,7 +798,7 @@ def test_mtls_transport_maps_peer_rejection_to_transport_error(
     asyncio.run(scenario())
 
 
-class FakeTransport:
+class FakeTransport(AllocationRPCFixture):
     def __init__(self, responses: list[ArtifactHTTPResponse]) -> None:
         self.responses = responses
         self.requests: list[RecordedRequest] = []

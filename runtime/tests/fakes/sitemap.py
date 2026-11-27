@@ -5,6 +5,7 @@ import json
 from urllib.parse import parse_qs, urlsplit
 
 from contractor_runtime.artifacts import ArtifactHTTPResponse, ArtifactTransportError
+from fakes.allocation_rpc import AllocationRPCFixture
 
 ARTIFACT_DIGEST = "sha256:" + "a" * 64
 
@@ -58,7 +59,7 @@ def document(groups: int = 3, members: int = 1, note_bytes: int = 0) -> dict:
     return result
 
 
-class SitemapTransport:
+class SitemapTransport(AllocationRPCFixture):
     def __init__(self, value: dict | None = None) -> None:
         self.document = value or document()
         self.revision = "revision-original"

@@ -10,10 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from contractor_runtime import threads
 from contractor_runtime.artifacts import (
+    ArtifactAPIError,
     ArtifactTransportError,
-    allocation_path,
-    raise_for_status,
-    require_json,
 )
 from contractor_runtime.contracts import API_VERSION
 from contractor_runtime.contracts.audit_documents import validate_audit_material
@@ -37,13 +35,9 @@ class JudgmentReceipt(BaseModel):
     replayed: bool
 
 
-class JudgmentConflict(BaseModel):
+class JudgmentStale(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     apiVersion: Literal["contractor/v1alpha1"]
-    code: Literal["audit_result_stale"]
-    message: str
-    retryable: Literal[False]
-    requestId: str
     currentGenerations: list[JudgmentGeneration]
 
 
@@ -104,32 +98,29 @@ class AuditJudgmentClient:
                     raise
 
     async def _attempt(self, body, keys):
-        response = await self.client.transport.request(
-            "POST",
-            allocation_path(self.client.allocation_id, "audit-results"),
-            headers={"Accept": "application/json", "Content-Type": "application/json"},
-            body=body,
-            max_response_bytes=1 << 20,
+        input_value = await threads.to_thread_until_done(
+            strict_json_loads, body, name="audit-judgment-wire"
         )
-        require_json(response.headers)
         try:
-            value = strict_json_loads(response.body)
-            if not isinstance(value, dict):
-                raise ValueError("Expected object")
-        except ValueError:
-            raise ArtifactTransportError("Audit result API returned an invalid response") from None
-        if response.status_code == 409 and value.get("code") == "audit_result_stale":
+            response = await self.client.transport.submit_audit_judgments(
+                self.client.allocation_id, input_value
+            )
+        except ArtifactAPIError as error:
+            if error.code in {"invalid_response", "invalid_error_response"}:
+                raise ArtifactTransportError("Audit judgment receipt is unconfirmed") from None
+            raise
+        if not isinstance(response, dict) or set(response) not in ({"receipt"}, {"stale"}):
+            raise ArtifactTransportError("Audit result API returned an invalid response")
+        if "stale" in response:
             try:
-                conflict = JudgmentConflict.model_validate(value)
+                conflict = JudgmentStale.model_validate(response["stale"])
                 generations = self._generations(conflict.currentGenerations, keys)
             except (ValidationError, ValueError, TypeError):
                 raise ArtifactTransportError(
                     "Audit result API returned invalid generations"
                 ) from None
             raise JudgmentStaleError(generations)
-        raise_for_status(response)
-        if response.status_code not in {200, 201}:
-            raise ArtifactTransportError("Audit result API returned an invalid status")
+        value = response["receipt"]
         try:
             receipt = JudgmentReceipt.model_validate(value)
             generations = self._generations(receipt.generations, keys)

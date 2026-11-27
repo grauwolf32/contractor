@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from fakes.allocation_rpc import AllocationRPCFixture
 from fakes.artifact_reads import CountingPayload, count_derivations
 from fakes.worker_state import WorkerState
 
@@ -440,7 +441,7 @@ def test_shared_model_hidden_bindings_match_the_shared_cases() -> None:
         assert is_model_hidden_binding(case["namespace"], case["name"]) is case["hidden"], case
 
 
-class PagingTransport:
+class PagingTransport(AllocationRPCFixture):
     """Private list endpoint that pages a fixed binding set like the Server."""
 
     def __init__(self, refs: list[ArtifactRef], *, leak: ArtifactRef | None = None) -> None:

@@ -102,7 +102,7 @@ def test_shared_tool_resolves_configured_roles_cas_and_cumulative_selections():
         async def write_artifact(self, ref, *, data, media_type, expected_revision):
             assert ref == target
             if expected_revision != self.revision:
-                raise ArtifactAPIError(409, "artifact_revision_conflict", False)
+                raise ArtifactAPIError(409, "artifact_conflict", False)
             self.writes += 1
             self.revision = f"r{self.writes}"
             self.data = data
@@ -156,7 +156,7 @@ def test_shared_tool_resolves_configured_roles_cas_and_cumulative_selections():
             }
         }
         client.revision = "external-r3"
-        with pytest.raises(ArtifactAPIError, match="409"):
+        with pytest.raises(ArtifactAPIError, match="artifact_conflict"):
             await tool(json.dumps(seed), "[]")
         client.revision = "r2"
         await tool(json.dumps(seed), "[]")

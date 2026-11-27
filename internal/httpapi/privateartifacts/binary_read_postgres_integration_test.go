@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 )
 
@@ -25,7 +26,7 @@ func TestPostgresBinaryReadIsRefusedBeforeDownload(t *testing.T) {
 	var reads []string
 	record := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-			if request.Method == http.MethodGet {
+			if request.Method == http.MethodGet || request.URL.Path == pb.Allocation_ReadArtifactMetadata_FullMethodName {
 				mu.Lock()
 				reads = append(reads, request.URL.Path)
 				mu.Unlock()
@@ -40,8 +41,8 @@ func TestPostgresBinaryReadIsRefusedBeforeDownload(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	const archive = "/private/v1/allocations/allocation-1/artifacts/builder/archive"
-	if len(reads) != 1 || reads[0] != archive+"/metadata" {
+	const archive = pb.Allocation_ReadArtifactMetadata_FullMethodName
+	if len(reads) != 1 || reads[0] != archive {
 		t.Fatalf("binary read requested %v, want only the metadata of %s", reads, archive)
 	}
 }

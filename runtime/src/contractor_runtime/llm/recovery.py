@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random
 import time
@@ -98,7 +99,7 @@ class GatewayRecoveryClient:
         jitter: Callable[[], float] = random.random,
     ) -> None:
         self._transport = transport
-        self._path = f"/allocations/{allocation_id}/gateway-recovery"
+        self._allocation_id = allocation_id
         self._on_retry = on_retry
         self._monotonic = monotonic
         self._sleep = sleep if sleep is not None else asyncio.sleep
@@ -112,19 +113,15 @@ class GatewayRecoveryClient:
         code: str | None = None,
         retry_after_seconds: float = 0,
     ) -> RecoveryDecision:
-        from contractor_runtime.artifacts import ArtifactTransportError
+        from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
 
-        body = (
-            RecoveryUpdate(
-                model=model,
-                requestId=request_id,
-                action=action,
-                **({"code": code} if code is not None else {}),
-                retryAfterSeconds=retry_after_seconds,
-            )
-            .model_dump_json(by_alias=True, exclude_none=True)
-            .encode()
-        )
+        body = RecoveryUpdate(
+            model=model,
+            requestId=request_id,
+            action=action,
+            **({"code": code} if code is not None else {}),
+            retryAfterSeconds=retry_after_seconds,
+        ).model_dump(mode="json", by_alias=True, exclude_none=True)
         attempts = 0
         started: float | None = None
         error_started: float | None = None
@@ -132,30 +129,29 @@ class GatewayRecoveryClient:
         while True:
             cause: str
             try:
-                response = await self._transport.request(
-                    "POST",
-                    self._path,
-                    headers={"Content-Type": "application/json"},
-                    body=body,
-                    max_response_bytes=MAX_RECOVERY_RESPONSE_BYTES,
-                )
+                response = await self._transport.gateway_recovery(self._allocation_id, body)
+                return _decode_decision(response)
             except ArtifactTransportError:
                 cause = "transport"
                 # Transport loss is bounded by the allocation lease, not here.
                 error_started = None
-            else:
-                if response.status_code == 200:
-                    return _decode_decision(response.body)
-                if 400 <= response.status_code < 500:
-                    raise RecoveryStoppedError("Model recovery allocation is no longer available")
-                cause = f"http_{response.status_code}"
+            except ArtifactAPIError as error:
+                if not error.retryable:
+                    if error.code in {"invalid_response", "invalid_error_response"}:
+                        raise RecoveryStoppedError(
+                            "Model recovery authority returned an invalid decision"
+                        ) from None
+                    raise RecoveryStoppedError(
+                        "Model recovery allocation is no longer available"
+                    ) from None
+                cause = error.code
                 now = self._monotonic()
                 if error_started is None:
                     error_started = now
                 elif now - error_started >= AUTHORITY_ERROR_DEADLINE_SECONDS:
                     raise RecoveryStoppedError(
                         "Model recovery authority kept failing beyond its deadline"
-                    )
+                    ) from None
             attempts += 1
             now = self._monotonic()
             if started is None:
@@ -177,11 +173,13 @@ class GatewayRecoveryClient:
             )
 
 
-def _decode_decision(body: bytes) -> RecoveryDecision:
+def _decode_decision(body: dict) -> RecoveryDecision:
     # A trusted Server that answers with an undecodable decision has a defect;
     # retrying cannot fix it and guessing must never authorize inference.
     try:
-        return RecoveryDecision.model_validate_json(body)
+        return RecoveryDecision.model_validate_json(
+            json.dumps(body, ensure_ascii=False, allow_nan=False)
+        )
     except (ValidationError, ValueError):
         raise RecoveryStoppedError(
             "Model recovery authority returned an invalid decision"

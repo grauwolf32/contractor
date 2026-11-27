@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlsplit
 
 import pytest
+from fakes.allocation_rpc import AllocationRPCFixture
 from fakes.model import json_result, scripted_model, text_result
 from fakes.worker_state import WorkerState
 
@@ -840,10 +841,18 @@ def stage_request() -> StageContentRequest:
     )
 
 
+class MemoryArtifactTransport(AllocationRPCFixture):
+    def __init__(self, owner):
+        self.owner = owner
+
+    async def request(self, *args, **kwargs):
+        return await self.owner._request(*args, **kwargs)
+
+
 class MemoryArtifactClient(ArtifactClient):
     """The real ArtifactClient over an in-memory private Artifact API.
 
-    The client is its own transport. Bindings are keyed by name, and answers
+    A separate transport adapter owns named RPC calls. Bindings are keyed by name, and answers
     name the Namespace of the request. A write needs
     ``If-None-Match: *`` or one strong ``If-Match`` (ART-R45), and a stale one
     is a retryable ``409 artifact_conflict``. Every committed revision stays
@@ -854,7 +863,7 @@ class MemoryArtifactClient(ArtifactClient):
     """
 
     def __init__(self) -> None:
-        super().__init__("allocation-memory", self)
+        super().__init__("allocation-memory", MemoryArtifactTransport(self))
         self.bindings: dict[str, StoredArtifact] = {}
         self.history: dict[tuple[str, str], StoredArtifact] = {}
         self.calls: list[tuple[str, str]] = []
@@ -899,7 +908,7 @@ class MemoryArtifactClient(ArtifactClient):
         self.bindings[name] = stored
         return stored
 
-    async def request(
+    async def _request(
         self,
         method: str,
         path: str,

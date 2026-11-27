@@ -2,7 +2,6 @@ package controlplane
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"net/http"
 
@@ -20,8 +19,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 )
 
 // Registry owns process registration and sequenced heartbeat reconciliation.
@@ -177,14 +174,6 @@ func (h *boundedControlRPC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer func() { <-h.permits }()
 		h.next.ServeHTTP(w, r)
 	default:
-		w.Header().Set("Content-Type", "application/grpc")
-		w.Header().Set("Grpc-Status", "8")
-		w.Header().Set("Grpc-Message", "control_rpc_capacity")
-		failure := runtimewire.Error(r.Context(), codes.ResourceExhausted, "control_rpc_capacity", true)
-		details, err := proto.Marshal(status.Convert(failure).Proto())
-		if err == nil {
-			w.Header().Set("Grpc-Status-Details-Bin", base64.RawStdEncoding.EncodeToString(details))
-		}
-		w.WriteHeader(http.StatusOK)
+		runtimewire.WriteError(w, runtimewire.Error(r.Context(), codes.ResourceExhausted, "control_rpc_capacity", true))
 	}
 }

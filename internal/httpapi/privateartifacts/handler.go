@@ -103,22 +103,9 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 func (h *handler) routes() []httpx.Route {
 	const allocation = "/private/v1/allocations/{allocationID}"
 	return []httpx.Route{
-		{Method: http.MethodPost, Path: allocation + "/planner-operations", Handler: h.plannerOperation},
-		{Method: http.MethodPost, Path: allocation + "/gateway-recovery", Handler: h.gatewayRecovery},
-		{Method: http.MethodGet, Path: allocation + "/artifacts", Handler: h.listArtifacts},
 		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}", Handler: h.getArtifact},
-		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}/metadata", Handler: h.getArtifactMetadata},
-		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}/access", Handler: h.getArtifactAccess},
 		{Method: http.MethodPut, Path: allocation + "/artifacts/{namespace}/{name}", Handler: h.putArtifact},
-		{Method: http.MethodPost, Path: allocation + "/audit-evidence", Handler: h.postAuditEvidence},
-		{Method: http.MethodPost, Path: allocation + "/audit-results", Handler: h.postAuditJudgments},
 		{Method: http.MethodPost, Path: allocation + "/finding-proposals", Handler: h.postFindingProposal},
-		{Method: http.MethodGet, Path: allocation + "/findings", Handler: h.listProjectFindings},
-		{Method: http.MethodGet, Path: allocation + "/findings/{findingID}", Handler: h.readProjectFinding},
-		{Method: http.MethodPost, Path: allocation + "/finding-selections", Handler: h.selectProjectFindings},
-		{Method: http.MethodPost, Path: allocation + "/sitemap/mutations", Handler: h.mutateSitemap},
-		{Method: http.MethodPost, Path: allocation + "/sitemap/snapshots", Handler: h.snapshotSitemap},
-		{Method: http.MethodPost, Path: allocation + "/sitemap/observations", Handler: h.collectSitemapObservations},
 	}
 }
 

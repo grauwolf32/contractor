@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from fakes.allocation_rpc import AllocationRPCFixture
 from shared_config_defaults import MAX_ARTIFACT_BYTES
 from test_artifacts import TIMESTAMP_HEADERS
 
@@ -35,7 +36,7 @@ from contractor_runtime.artifacts import (
 from contractor_runtime.contracts import ArtifactRef
 
 
-class ArchiveTransport:
+class ArchiveTransport(AllocationRPCFixture):
     """Same immutable version, independently authorized allocation binding refs."""
 
     def __init__(self, payload: bytes = b"archive", media_type: str = "application/zip") -> None:
@@ -113,6 +114,23 @@ def source(revision=None):
     return ArtifactRef(
         namespace="inputs", name="source", **({"revision": revision} if revision else {})
     )
+
+
+def authorized_read_barrier(cache, expected):
+    """Observe entry after metadata validation, independent of thread scheduling."""
+    ready = asyncio.Event()
+    original = cache._authorized_read
+    entered = 0
+
+    async def observed(*args, **kwargs):
+        nonlocal entered
+        entered += 1
+        if entered == expected:
+            ready.set()
+        return await original(*args, **kwargs)
+
+    cache._authorized_read = observed
+    return ready
 
 
 def make_cache(tmp_path, **limits):
@@ -193,12 +211,12 @@ def test_same_key_coalescing_and_cancelled_leader_use_followers_own_grant(tmp_pa
         transport.gate = asyncio.Event()
         leader = asyncio.create_task(read_archive(client(cache, transport), source()))
         await transport.started.wait()
+        ready = authorized_read_barrier(cache, 4)
         followers = [
             asyncio.create_task(read_archive(client(cache, transport, f"f-{i}"), source()))
             for i in range(4)
         ]
-        for _ in range(4):
-            await asyncio.sleep(0)
+        await asyncio.wait_for(ready.wait(), 5)
         assert cache.counters["waiters"] == 4
         leader.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -228,12 +246,12 @@ def test_distinct_fill_and_waiter_caps_bypass_without_growing_queue(tmp_path):
         await asyncio.gather(*(t.started.wait() for t in transports))
         assert cache.counters["fills"] == MAX_CACHE_FILLS
         assert cache.counters["entries"] == 4
+        ready = authorized_read_barrier(cache, MAX_CACHE_WAITERS + 1)
         followers = [
             asyncio.create_task(read_archive(client(cache, transports[0], f"w-{i}"), source()))
             for i in range(MAX_CACHE_WAITERS + 1)
         ]
-        for _ in range(4):
-            await asyncio.sleep(0)
+        await asyncio.wait_for(ready.wait(), 5)
         assert cache.counters["waiters"] == MAX_CACHE_WAITERS
         assert transports[0].payload_calls == 2  # 65th waiter bypasses.
         assert cache.counters["bypass"] == 2  # Fifth distinct key also bypasses.
@@ -465,8 +483,9 @@ def test_same_key_success_downloads_once(tmp_path):
         transport.gate = asyncio.Event()
         leader = asyncio.create_task(read_archive(client(cache, transport), source()))
         await transport.started.wait()
+        ready = authorized_read_barrier(cache, 1)
         follower = asyncio.create_task(read_archive(client(cache, transport, "fork"), source()))
-        await asyncio.sleep(0)
+        await asyncio.wait_for(ready.wait(), 5)
         assert cache.counters["waiters"] == 1
         transport.gate.set()
         await asyncio.gather(leader, follower)

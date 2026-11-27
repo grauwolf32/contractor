@@ -25,8 +25,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimewire"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/grpc/codes"
 )
 
 type serverHandlers struct {
@@ -148,13 +150,14 @@ func configureHTTP(
 		return serverHandlers{}, fmt.Errorf("configure public API: %w", err)
 	}
 
-	artifactHandler, err := privateartifacts.NewHandler(privateartifacts.Dependencies{Transfers: storage,
+	allocationDependencies := privateartifacts.Dependencies{Transfers: storage,
 		PlannerOperations: workflows.plannerOperations,
 		Registry:          control.registry, Artifacts: catalogs.artifacts, AuditEvidence: audits.service, AuditJudgments: audits.service, Findings: catalogs.findings, ProjectFindings: collectionPublisher, GatewayRecovery: workflows.gatewayRecovery, Logger: logger,
 		Sitemap:     projectsitemap.NewService(pool, storage),
 		RunProjects: runStore,
 		Projects:    projects,
-	})
+	}
+	artifactHandler, err := privateartifacts.NewHandler(allocationDependencies)
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure private Artifact API: %w", err)
 	}
@@ -162,7 +165,17 @@ func configureHTTP(
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure private Control Plane gRPC: %w", err)
 	}
-	privateHandler := newPrivateHandler(rpcHandler, artifactHandler)
+	allocationRPC, err := privateartifacts.NewGRPCHandler(allocationDependencies)
+	if err != nil {
+		return serverHandlers{}, fmt.Errorf("configure allocation gRPC: %w", err)
+	}
+	privateHandler := newPrivateHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/contractor.runtime.v1alpha1.Allocation/") {
+			allocationRPC.ServeHTTP(w, r)
+			return
+		}
+		rpcHandler.ServeHTTP(w, r)
+	}), artifactHandler)
 	processHandler, instrumentedPrivate, _ := instrumentPerformance(
 		cfg.PerformanceMetrics, NewReadyHandler(pool.Ping, publicHandler), privateHandler,
 		func() *performance.Collector { return performanceCollector },
@@ -179,9 +192,36 @@ func configureHTTP(
 	return serverHandlers{public: processHandler, private: instrumentedPrivate, runners: runners}, nil
 }
 
+const privateControlRPCReserve = 4
+
 func newPrivateHandler(rpc, artifacts http.Handler) http.Handler {
+	// All private RPC families share the process bound even though each
+	// service also protects its standalone composition before decoding.
+	permits := make(chan struct{}, runtimewire.MaxConcurrentRPCs)
+	dataPermits := make(chan struct{}, runtimewire.MaxConcurrentRPCs-privateControlRPCReserve)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
+			control := strings.HasPrefix(r.URL.Path, "/contractor.runtime.v1alpha1.ControlPlane/")
+			if !control {
+				select {
+				case dataPermits <- struct{}{}:
+					defer func() { <-dataPermits }()
+				default:
+					runtimewire.WriteError(w, runtimewire.Error(r.Context(), codes.ResourceExhausted, "allocation_rpc_capacity", true))
+					return
+				}
+			}
+			select {
+			case permits <- struct{}{}:
+				defer func() { <-permits }()
+			default:
+				code := "control_rpc_capacity"
+				if !control {
+					code = "allocation_rpc_capacity"
+				}
+				runtimewire.WriteError(w, runtimewire.Error(r.Context(), codes.ResourceExhausted, code, true))
+				return
+			}
 			rpc.ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/private/v1/allocations/") {
 			artifacts.ServeHTTP(w, r)

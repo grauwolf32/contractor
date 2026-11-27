@@ -8,6 +8,7 @@ Domain models retain the single definition of grammars, bounds and closed sets.
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping
 from typing import Any
 
@@ -42,15 +43,20 @@ def _encode(value: Any, message: Message) -> None:
         ).encode()
         return
     if name == "MapOfString":
-        if not isinstance(value, Mapping):
+        if not isinstance(value, Mapping) or any(
+            not isinstance(key, str) or not isinstance(item, str) for key, item in value.items()
+        ):
             raise InvalidWireValue
         message.values.update(value)
         return
     if name.startswith("Nullable"):
         if value is None:
             message.null = 0
-        else:
+        elif message.DESCRIPTOR.fields_by_name["value"].type == FieldDescriptor.TYPE_MESSAGE:
             _encode(value, message.value)
+        else:
+            field = message.DESCRIPTOR.fields_by_name["value"]
+            message.value = _scalar(field, value)
         return
     if name.startswith("ListOf"):
         if not isinstance(value, list):
@@ -61,7 +67,7 @@ def _encode(value: Any, message: Message) -> None:
             for item in value:
                 _encode(item, values.add())
         else:
-            values.extend(value)
+            values.extend(_scalar(descriptor, item) for item in value)
         return
     if not isinstance(value, Mapping):
         raise InvalidWireValue
@@ -73,12 +79,25 @@ def _encode(value: Any, message: Message) -> None:
         if field.type == FieldDescriptor.TYPE_MESSAGE:
             _encode(item, getattr(message, field.name))
         else:
-            if (
-                field.type in {FieldDescriptor.TYPE_INT64, FieldDescriptor.TYPE_UINT64}
-                and type(item) is not int
-            ):
-                raise InvalidWireValue
-            setattr(message, field.name, item)
+            setattr(message, field.name, _scalar(field, item))
+
+
+def _scalar(field: FieldDescriptor, value: Any) -> Any:
+    if field.type in {FieldDescriptor.TYPE_INT64, FieldDescriptor.TYPE_UINT64}:
+        if type(value) is not int:
+            raise InvalidWireValue
+    elif field.type == FieldDescriptor.TYPE_DOUBLE:
+        if type(value) not in {int, float} or not math.isfinite(value):
+            raise InvalidWireValue
+    elif field.type == FieldDescriptor.TYPE_BOOL:
+        if type(value) is not bool:
+            raise InvalidWireValue
+    elif field.type == FieldDescriptor.TYPE_STRING:
+        if not isinstance(value, str):
+            raise InvalidWireValue
+    else:
+        raise InvalidWireValue
+    return value
 
 
 def decode(message: Message) -> dict[str, Any]:
@@ -113,14 +132,18 @@ def _decode(message: Message) -> Any:
         if choice == "null" and message.null == 0:
             return None
         if choice == "value":
-            return _decode(message.value)
+            if message.DESCRIPTOR.fields_by_name["value"].type == FieldDescriptor.TYPE_MESSAGE:
+                return _decode(message.value)
+            return _scalar(message.DESCRIPTOR.fields_by_name["value"], message.value)
         raise InvalidWireValue
     if name.startswith("ListOf"):
         field = message.DESCRIPTOR.fields_by_name["values"]
         if field.type == FieldDescriptor.TYPE_MESSAGE:
             return [_decode(item) for item in message.values]
-        return list(message.values)
+        return [_scalar(field, value) for value in message.values]
     return {
-        field.json_name: _decode(value) if field.type == FieldDescriptor.TYPE_MESSAGE else value
+        field.json_name: _decode(value)
+        if field.type == FieldDescriptor.TYPE_MESSAGE
+        else _scalar(field, value)
         for field, value in message.ListFields()
     }

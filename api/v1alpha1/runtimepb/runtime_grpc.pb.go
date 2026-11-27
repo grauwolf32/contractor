@@ -203,6 +203,572 @@ var ControlPlane_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
+	Allocation_PlannerOperation_FullMethodName     = "/contractor.runtime.v1alpha1.Allocation/PlannerOperation"
+	Allocation_GatewayRecovery_FullMethodName      = "/contractor.runtime.v1alpha1.Allocation/GatewayRecovery"
+	Allocation_SubmitAuditEvidence_FullMethodName  = "/contractor.runtime.v1alpha1.Allocation/SubmitAuditEvidence"
+	Allocation_SubmitAuditJudgments_FullMethodName = "/contractor.runtime.v1alpha1.Allocation/SubmitAuditJudgments"
+	Allocation_MutateSitemap_FullMethodName        = "/contractor.runtime.v1alpha1.Allocation/MutateSitemap"
+	Allocation_SnapshotSitemap_FullMethodName      = "/contractor.runtime.v1alpha1.Allocation/SnapshotSitemap"
+	Allocation_CollectSitemap_FullMethodName       = "/contractor.runtime.v1alpha1.Allocation/CollectSitemap"
+	Allocation_ListArtifacts_FullMethodName        = "/contractor.runtime.v1alpha1.Allocation/ListArtifacts"
+	Allocation_ReadArtifactMetadata_FullMethodName = "/contractor.runtime.v1alpha1.Allocation/ReadArtifactMetadata"
+	Allocation_CheckArtifactAccess_FullMethodName  = "/contractor.runtime.v1alpha1.Allocation/CheckArtifactAccess"
+	Allocation_ListFindings_FullMethodName         = "/contractor.runtime.v1alpha1.Allocation/ListFindings"
+	Allocation_ReadFinding_FullMethodName          = "/contractor.runtime.v1alpha1.Allocation/ReadFinding"
+	Allocation_SelectFindings_FullMethodName       = "/contractor.runtime.v1alpha1.Allocation/SelectFindings"
+)
+
+// AllocationClient is the client API for Allocation service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Allocation authority is carried in bounded gRPC metadata so the Server can
+// authenticate the actual TLS principal, process and allocation before decoding
+// a potentially large domain request. Metadata grants no additional authority.
+type AllocationClient interface {
+	PlannerOperation(ctx context.Context, in *PlannerOperationRequest, opts ...grpc.CallOption) (*PlannerOperationResponse, error)
+	GatewayRecovery(ctx context.Context, in *GatewayRecoveryRequest, opts ...grpc.CallOption) (*GatewayRecoveryResponse, error)
+	SubmitAuditEvidence(ctx context.Context, in *AuditEvidenceRequest, opts ...grpc.CallOption) (*AuditEvidenceReceipt, error)
+	SubmitAuditJudgments(ctx context.Context, in *AuditJudgmentsRequest, opts ...grpc.CallOption) (*AuditJudgmentsResponse, error)
+	MutateSitemap(ctx context.Context, in *SitemapMutationRequest, opts ...grpc.CallOption) (*SitemapMutationResponse, error)
+	SnapshotSitemap(ctx context.Context, in *SitemapSnapshotRequest, opts ...grpc.CallOption) (*SitemapSnapshotResponse, error)
+	CollectSitemap(ctx context.Context, in *SitemapCollectionRequest, opts ...grpc.CallOption) (*SitemapMutationResponse, error)
+	ListArtifacts(ctx context.Context, in *ArtifactListRequest, opts ...grpc.CallOption) (*ArtifactListResponse, error)
+	ReadArtifactMetadata(ctx context.Context, in *ArtifactReadTarget, opts ...grpc.CallOption) (*ArtifactMetadataResponse, error)
+	CheckArtifactAccess(ctx context.Context, in *ArtifactReadTarget, opts ...grpc.CallOption) (*ArtifactAccessResponse, error)
+	ListFindings(ctx context.Context, in *FindingListRequest, opts ...grpc.CallOption) (*FindingListResponse, error)
+	ReadFinding(ctx context.Context, in *FindingReadRequest, opts ...grpc.CallOption) (*ProjectFinding, error)
+	SelectFindings(ctx context.Context, in *FindingSelectionRequest, opts ...grpc.CallOption) (*FindingSelectionResponse, error)
+}
+
+type allocationClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewAllocationClient(cc grpc.ClientConnInterface) AllocationClient {
+	return &allocationClient{cc}
+}
+
+func (c *allocationClient) PlannerOperation(ctx context.Context, in *PlannerOperationRequest, opts ...grpc.CallOption) (*PlannerOperationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PlannerOperationResponse)
+	err := c.cc.Invoke(ctx, Allocation_PlannerOperation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *allocationClient) GatewayRecovery(ctx context.Context, in *GatewayRecoveryRequest, opts ...grpc.CallOption) (*GatewayRecoveryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GatewayRecoveryResponse)
+	err := c.cc.Invoke(ctx, Allocation_GatewayRecovery_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *allocationClient) SubmitAuditEvidence(ctx context.Context, in *AuditEvidenceRequest, opts ...grpc.CallOption) (*AuditEvidenceReceipt, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AuditEvidenceReceipt)
+	err := c.cc.Invoke(ctx, Allocation_SubmitAuditEvidence_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *allocationClient) SubmitAuditJudgments(ctx context.Context, in *AuditJudgmentsRequest, opts ...grpc.CallOption) (*AuditJudgmentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AuditJudgmentsResponse)
+	err := c.cc.Invoke(ctx, Allocation_SubmitAuditJudgments_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *allocationClient) MutateSitemap(ctx context.Context, in *SitemapMutationRequest, opts ...grpc.CallOption) (*SitemapMutationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SitemapMutationResponse)
+	err := c.cc.Invoke(ctx, Allocation_MutateSitemap_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *allocationClient) SnapshotSitemap(ctx context.Context, in *SitemapSnapshotRequest, opts ...grpc.CallOption) (*SitemapSnapshotResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SitemapSnapshotResponse)
+	err := c.cc.Invoke(ctx, Allocation_SnapshotSitemap_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *allocationClient) CollectSitemap(ctx context.Context, in *SitemapCollectionRequest, opts ...grpc.CallOption) (*SitemapMutationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SitemapMutationResponse)
+	err := c.cc.Invoke(ctx, Allocation_CollectSitemap_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *allocationClient) ListArtifacts(ctx context.Context, in *ArtifactListRequest, opts ...grpc.CallOption) (*ArtifactListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ArtifactListResponse)
+	err := c.cc.Invoke(ctx, Allocation_ListArtifacts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *allocationClient) ReadArtifactMetadata(ctx context.Context, in *ArtifactReadTarget, opts ...grpc.CallOption) (*ArtifactMetadataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ArtifactMetadataResponse)
+	err := c.cc.Invoke(ctx, Allocation_ReadArtifactMetadata_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *allocationClient) CheckArtifactAccess(ctx context.Context, in *ArtifactReadTarget, opts ...grpc.CallOption) (*ArtifactAccessResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ArtifactAccessResponse)
+	err := c.cc.Invoke(ctx, Allocation_CheckArtifactAccess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *allocationClient) ListFindings(ctx context.Context, in *FindingListRequest, opts ...grpc.CallOption) (*FindingListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FindingListResponse)
+	err := c.cc.Invoke(ctx, Allocation_ListFindings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *allocationClient) ReadFinding(ctx context.Context, in *FindingReadRequest, opts ...grpc.CallOption) (*ProjectFinding, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProjectFinding)
+	err := c.cc.Invoke(ctx, Allocation_ReadFinding_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *allocationClient) SelectFindings(ctx context.Context, in *FindingSelectionRequest, opts ...grpc.CallOption) (*FindingSelectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FindingSelectionResponse)
+	err := c.cc.Invoke(ctx, Allocation_SelectFindings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AllocationServer is the server API for Allocation service.
+// All implementations must embed UnimplementedAllocationServer
+// for forward compatibility.
+//
+// Allocation authority is carried in bounded gRPC metadata so the Server can
+// authenticate the actual TLS principal, process and allocation before decoding
+// a potentially large domain request. Metadata grants no additional authority.
+type AllocationServer interface {
+	PlannerOperation(context.Context, *PlannerOperationRequest) (*PlannerOperationResponse, error)
+	GatewayRecovery(context.Context, *GatewayRecoveryRequest) (*GatewayRecoveryResponse, error)
+	SubmitAuditEvidence(context.Context, *AuditEvidenceRequest) (*AuditEvidenceReceipt, error)
+	SubmitAuditJudgments(context.Context, *AuditJudgmentsRequest) (*AuditJudgmentsResponse, error)
+	MutateSitemap(context.Context, *SitemapMutationRequest) (*SitemapMutationResponse, error)
+	SnapshotSitemap(context.Context, *SitemapSnapshotRequest) (*SitemapSnapshotResponse, error)
+	CollectSitemap(context.Context, *SitemapCollectionRequest) (*SitemapMutationResponse, error)
+	ListArtifacts(context.Context, *ArtifactListRequest) (*ArtifactListResponse, error)
+	ReadArtifactMetadata(context.Context, *ArtifactReadTarget) (*ArtifactMetadataResponse, error)
+	CheckArtifactAccess(context.Context, *ArtifactReadTarget) (*ArtifactAccessResponse, error)
+	ListFindings(context.Context, *FindingListRequest) (*FindingListResponse, error)
+	ReadFinding(context.Context, *FindingReadRequest) (*ProjectFinding, error)
+	SelectFindings(context.Context, *FindingSelectionRequest) (*FindingSelectionResponse, error)
+	mustEmbedUnimplementedAllocationServer()
+}
+
+// UnimplementedAllocationServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedAllocationServer struct{}
+
+func (UnimplementedAllocationServer) PlannerOperation(context.Context, *PlannerOperationRequest) (*PlannerOperationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PlannerOperation not implemented")
+}
+func (UnimplementedAllocationServer) GatewayRecovery(context.Context, *GatewayRecoveryRequest) (*GatewayRecoveryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GatewayRecovery not implemented")
+}
+func (UnimplementedAllocationServer) SubmitAuditEvidence(context.Context, *AuditEvidenceRequest) (*AuditEvidenceReceipt, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubmitAuditEvidence not implemented")
+}
+func (UnimplementedAllocationServer) SubmitAuditJudgments(context.Context, *AuditJudgmentsRequest) (*AuditJudgmentsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubmitAuditJudgments not implemented")
+}
+func (UnimplementedAllocationServer) MutateSitemap(context.Context, *SitemapMutationRequest) (*SitemapMutationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method MutateSitemap not implemented")
+}
+func (UnimplementedAllocationServer) SnapshotSitemap(context.Context, *SitemapSnapshotRequest) (*SitemapSnapshotResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SnapshotSitemap not implemented")
+}
+func (UnimplementedAllocationServer) CollectSitemap(context.Context, *SitemapCollectionRequest) (*SitemapMutationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CollectSitemap not implemented")
+}
+func (UnimplementedAllocationServer) ListArtifacts(context.Context, *ArtifactListRequest) (*ArtifactListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListArtifacts not implemented")
+}
+func (UnimplementedAllocationServer) ReadArtifactMetadata(context.Context, *ArtifactReadTarget) (*ArtifactMetadataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReadArtifactMetadata not implemented")
+}
+func (UnimplementedAllocationServer) CheckArtifactAccess(context.Context, *ArtifactReadTarget) (*ArtifactAccessResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CheckArtifactAccess not implemented")
+}
+func (UnimplementedAllocationServer) ListFindings(context.Context, *FindingListRequest) (*FindingListResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListFindings not implemented")
+}
+func (UnimplementedAllocationServer) ReadFinding(context.Context, *FindingReadRequest) (*ProjectFinding, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReadFinding not implemented")
+}
+func (UnimplementedAllocationServer) SelectFindings(context.Context, *FindingSelectionRequest) (*FindingSelectionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SelectFindings not implemented")
+}
+func (UnimplementedAllocationServer) mustEmbedUnimplementedAllocationServer() {}
+func (UnimplementedAllocationServer) testEmbeddedByValue()                    {}
+
+// UnsafeAllocationServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to AllocationServer will
+// result in compilation errors.
+type UnsafeAllocationServer interface {
+	mustEmbedUnimplementedAllocationServer()
+}
+
+func RegisterAllocationServer(s grpc.ServiceRegistrar, srv AllocationServer) {
+	// If the following call panics, it indicates UnimplementedAllocationServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&Allocation_ServiceDesc, srv)
+}
+
+func _Allocation_PlannerOperation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PlannerOperationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AllocationServer).PlannerOperation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Allocation_PlannerOperation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AllocationServer).PlannerOperation(ctx, req.(*PlannerOperationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Allocation_GatewayRecovery_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GatewayRecoveryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AllocationServer).GatewayRecovery(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Allocation_GatewayRecovery_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AllocationServer).GatewayRecovery(ctx, req.(*GatewayRecoveryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Allocation_SubmitAuditEvidence_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuditEvidenceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AllocationServer).SubmitAuditEvidence(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Allocation_SubmitAuditEvidence_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AllocationServer).SubmitAuditEvidence(ctx, req.(*AuditEvidenceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Allocation_SubmitAuditJudgments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuditJudgmentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AllocationServer).SubmitAuditJudgments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Allocation_SubmitAuditJudgments_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AllocationServer).SubmitAuditJudgments(ctx, req.(*AuditJudgmentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Allocation_MutateSitemap_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SitemapMutationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AllocationServer).MutateSitemap(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Allocation_MutateSitemap_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AllocationServer).MutateSitemap(ctx, req.(*SitemapMutationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Allocation_SnapshotSitemap_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SitemapSnapshotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AllocationServer).SnapshotSitemap(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Allocation_SnapshotSitemap_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AllocationServer).SnapshotSitemap(ctx, req.(*SitemapSnapshotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Allocation_CollectSitemap_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SitemapCollectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AllocationServer).CollectSitemap(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Allocation_CollectSitemap_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AllocationServer).CollectSitemap(ctx, req.(*SitemapCollectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Allocation_ListArtifacts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ArtifactListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AllocationServer).ListArtifacts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Allocation_ListArtifacts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AllocationServer).ListArtifacts(ctx, req.(*ArtifactListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Allocation_ReadArtifactMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ArtifactReadTarget)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AllocationServer).ReadArtifactMetadata(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Allocation_ReadArtifactMetadata_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AllocationServer).ReadArtifactMetadata(ctx, req.(*ArtifactReadTarget))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Allocation_CheckArtifactAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ArtifactReadTarget)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AllocationServer).CheckArtifactAccess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Allocation_CheckArtifactAccess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AllocationServer).CheckArtifactAccess(ctx, req.(*ArtifactReadTarget))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Allocation_ListFindings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FindingListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AllocationServer).ListFindings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Allocation_ListFindings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AllocationServer).ListFindings(ctx, req.(*FindingListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Allocation_ReadFinding_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FindingReadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AllocationServer).ReadFinding(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Allocation_ReadFinding_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AllocationServer).ReadFinding(ctx, req.(*FindingReadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Allocation_SelectFindings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FindingSelectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AllocationServer).SelectFindings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Allocation_SelectFindings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AllocationServer).SelectFindings(ctx, req.(*FindingSelectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// Allocation_ServiceDesc is the grpc.ServiceDesc for Allocation service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var Allocation_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "contractor.runtime.v1alpha1.Allocation",
+	HandlerType: (*AllocationServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "PlannerOperation",
+			Handler:    _Allocation_PlannerOperation_Handler,
+		},
+		{
+			MethodName: "GatewayRecovery",
+			Handler:    _Allocation_GatewayRecovery_Handler,
+		},
+		{
+			MethodName: "SubmitAuditEvidence",
+			Handler:    _Allocation_SubmitAuditEvidence_Handler,
+		},
+		{
+			MethodName: "SubmitAuditJudgments",
+			Handler:    _Allocation_SubmitAuditJudgments_Handler,
+		},
+		{
+			MethodName: "MutateSitemap",
+			Handler:    _Allocation_MutateSitemap_Handler,
+		},
+		{
+			MethodName: "SnapshotSitemap",
+			Handler:    _Allocation_SnapshotSitemap_Handler,
+		},
+		{
+			MethodName: "CollectSitemap",
+			Handler:    _Allocation_CollectSitemap_Handler,
+		},
+		{
+			MethodName: "ListArtifacts",
+			Handler:    _Allocation_ListArtifacts_Handler,
+		},
+		{
+			MethodName: "ReadArtifactMetadata",
+			Handler:    _Allocation_ReadArtifactMetadata_Handler,
+		},
+		{
+			MethodName: "CheckArtifactAccess",
+			Handler:    _Allocation_CheckArtifactAccess_Handler,
+		},
+		{
+			MethodName: "ListFindings",
+			Handler:    _Allocation_ListFindings_Handler,
+		},
+		{
+			MethodName: "ReadFinding",
+			Handler:    _Allocation_ReadFinding_Handler,
+		},
+		{
+			MethodName: "SelectFindings",
+			Handler:    _Allocation_SelectFindings_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "runtime.proto",
+}
+
+const (
 	RuntimeLifecycle_Prepare_FullMethodName   = "/contractor.runtime.v1alpha1.RuntimeLifecycle/Prepare"
 	RuntimeLifecycle_Finalize_FullMethodName  = "/contractor.runtime.v1alpha1.RuntimeLifecycle/Finalize"
 	RuntimeLifecycle_Abort_FullMethodName     = "/contractor.runtime.v1alpha1.RuntimeLifecycle/Abort"

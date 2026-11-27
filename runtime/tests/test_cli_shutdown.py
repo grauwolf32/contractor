@@ -79,6 +79,11 @@ class ShutdownRuntime:
                 await owner.step(self.phase)
                 await super().aclose()
 
+        class AllocationConnections(runtime_cli.AllocationConnections):
+            async def aclose(self):
+                await owner.step("allocation-rpc")
+                await super().aclose()
+
         class Transport(InflightTransport):
             async def aclose(self):
                 await owner.step("control-connections")
@@ -136,6 +141,7 @@ class ShutdownRuntime:
         self.transport = Transport()
         self.server = Server()
         monkeypatch.setattr(runtime_cli, "PrivateConnections", Connections)
+        monkeypatch.setattr(runtime_cli, "AllocationConnections", AllocationConnections)
         monkeypatch.setattr(runtime_cli, "ControlRPC", lambda *args: self.transport)
         monkeypatch.setattr(runtime_cli, "AllocationService", Allocation)
         monkeypatch.setattr(runtime_cli, "LeaseWatchdog", Watchdog)
@@ -197,6 +203,7 @@ def test_shutdown_shares_budget_with_outer_resource_owners(
             "control-loop": 2,
             "allocation": 2,
             "listener": 2,
+            "allocation-rpc": 1,
             "artifacts": 1,
             "cache": 1,
         }
@@ -212,6 +219,7 @@ def test_shutdown_shares_budget_with_outer_resource_owners(
         assert runtime.steps[2:] == [
             "allocation",
             "listener",
+            "allocation-rpc",
             "artifacts",
             "cache",
             *(["podman-owner"] if podman else []),
@@ -234,6 +242,7 @@ def test_shutdown_shares_budget_with_outer_resource_owners(
         "watchdog",
         "allocation",
         "listener",
+        "allocation-rpc",
         "artifacts",
         "cache",
         "podman-owner",
@@ -325,7 +334,13 @@ def test_listener_construction_failure_closes_connections_and_outer_resources(
 
         with pytest.raises(ValueError, match="listener construction failed"):
             await runtime.start(server_factory=failed)
-        assert runtime.steps == ["artifacts", "cache", "podman-owner", "control-connections"]
+        assert runtime.steps == [
+            "allocation-rpc",
+            "artifacts",
+            "cache",
+            "podman-owner",
+            "control-connections",
+        ]
         assert not runtime.exits
 
     asyncio.run(scenario())

@@ -7,6 +7,7 @@ from dataclasses import replace
 
 import pytest
 from audit_fixtures import assigned, digest
+from fakes.allocation_rpc import AllocationRPCFixture
 from fakes.clock import advance_clock, run_with_advanceable_clock
 from test_artifacts import TIMESTAMP_HEADERS, json_response
 
@@ -29,7 +30,7 @@ from contractor_runtime.toolsets.audit_results.encoding import (
 from contractor_runtime.toolsets.audit_results.publication import DeterministicAuditResultPublisher
 
 
-class ScriptedArtifactTransport:
+class ScriptedArtifactTransport(AllocationRPCFixture):
     """Exercise real API CAS/receipt checks with controlled lost replies and fencing."""
 
     def __init__(

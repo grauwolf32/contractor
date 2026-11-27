@@ -787,13 +787,13 @@ def test_unknown_correction_cannot_publish_old_result_through_runner(tmp_path):
             ],
             batch=True,
         )
-        request = client.transport.request
+        request = client.transport.submit_audit_judgments
         lost = 0
 
         async def lose_correction_response(*args, **kwargs):
             nonlocal lost
             response = await request(*args, **kwargs)
-            body = json.loads(kwargs["body"])
+            body = args[1]
             if lost < 2 and any(
                 item["conclusion"]["rationale"] == correction.rationale for item in body["items"]
             ):
@@ -801,7 +801,7 @@ def test_unknown_correction_cannot_publish_old_result_through_runner(tmp_path):
                 raise ArtifactTransportError("response lost after commit")
             return response
 
-        client.transport.request = lose_correction_response
+        client.transport.submit_audit_judgments = lose_correction_response
         try:
             completion = await runtime.invoke(stage_request())
             assert completion.failure is None

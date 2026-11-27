@@ -3,7 +3,6 @@ package privateartifacts
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -21,19 +20,6 @@ func exactQuery(raw string, allowed ...string) (url.Values, error) {
 
 func requestMediaType(r *http.Request) (string, error) {
 	return httpx.RequestMediaType(errInvalidRequest, r)
-}
-
-// decodeBoundedJSON strictly decodes exactly one JSON value of at most maximum
-// bytes. Errors carry no body content; callers map them to their own codes.
-func decodeBoundedJSON(w http.ResponseWriter, r *http.Request, maximum int64, target any) error {
-	if r.ContentLength < -1 || r.ContentLength > maximum {
-		return fmt.Errorf("%w: JSON body is too large", errInvalidRequest)
-	}
-	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maximum))
-	if err != nil {
-		return fmt.Errorf("%w: read JSON body", errInvalidRequest)
-	}
-	return decodeRequestJSON(data, target)
 }
 
 func decodeRequestJSON(data []byte, target any) error {

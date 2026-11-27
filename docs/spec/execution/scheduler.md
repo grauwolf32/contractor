@@ -1231,7 +1231,8 @@ model request. Scheduler reconciles the projection independently (SCH-R107).
 **SCH-R112.** A retryable failure must be recorded before its request is
 resent.
 
-**SCH-R168.** The participant protocol has one definition in the Server and
+**SCH-R168.** Runtime participants use `Allocation.GatewayRecovery`; the
+Server-side Planner calls the same domain service directly. The participant protocol has one definition in the Server and
 one in the Runtime, pinned by
 [`gateway-recovery-participant-cases.json`](../../../api/testdata/v1alpha1/gateway-recovery-participant-cases.json):
 the updates `acquire`, `failed`, `succeeded`, `finished` and `released`, of

@@ -476,16 +476,19 @@ class ScriptedTransport:
         self.script = list(script)
         self.calls = 0
 
-    async def request(self, method, path, *, headers, body, max_response_bytes):
-        from contractor_runtime.artifacts import ArtifactHTTPResponse, ArtifactTransportError
+    async def gateway_recovery(self, allocation_id, body):
+        from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
 
         self.calls += 1
         step = self.script.pop(0) if len(self.script) > 1 else self.script[0]
         if step == "transport":
             raise ArtifactTransportError("connection refused")
         if isinstance(step, int):
-            return ArtifactHTTPResponse(step, {}, b"")
-        return ArtifactHTTPResponse(200, {}, step)
+            raise ArtifactAPIError(step, "recovery_unavailable", step >= 500, None)
+        try:
+            return json.loads(step) if isinstance(step, bytes) else step
+        except ValueError:
+            return {}
 
 
 DECISION = json.dumps({"allowed": True, "retryAfterSeconds": 0, "requiresRetry": False}).encode()
@@ -551,6 +554,7 @@ def test_refused_authority_connection_is_retried_as_transport_loss():
     import socket
     import ssl
 
+    from contractor_runtime._allocation_rpc import AllocationConnections
     from contractor_runtime._https import PrivateConnections
     from contractor_runtime.artifacts import MTLSArtifactTransport
     from contractor_runtime.llm.recovery import GatewayRecoveryClient
@@ -575,6 +579,7 @@ def test_refused_authority_connection_is_retried_as_transport_loss():
                 PrivateConnections(ssl.create_default_context(), verify_control_plane_peer),
                 timeout_seconds=3,
                 runtime_instance_id="runtime-1",
+                rpc_connections=AllocationConnections(ssl.create_default_context()),
             ),
             on_retry=causes.append,
             sleep=stop_after_first_retry,
@@ -599,9 +604,9 @@ def test_worker_factory_shares_the_allocation_transport_with_model_recovery(tmp_
             super().__init__([DECISION])
             self.targets = []
 
-        async def request(self, method, path, **arguments):
-            self.targets.append((method, path))
-            return await super().request(method, path, **arguments)
+        async def gateway_recovery(self, allocation_id, body):
+            self.targets.append(allocation_id)
+            return await super().gateway_recovery(allocation_id, body)
 
     class StopBuild(Exception):
         pass
@@ -626,7 +631,7 @@ def test_worker_factory_shares_the_allocation_transport_with_model_recovery(tmp_
             await factory.create(context)
         decision = await built[0].gateway_recovery.update("worker", "req-1", "acquire")
         assert decision.allowed
-        assert transport.targets == [("POST", "/allocations/allocation-1/gateway-recovery")]
+        assert transport.targets == ["allocation-1"]
 
     asyncio.run(scenario())
 
@@ -691,7 +696,13 @@ def test_authority_retries_are_logged_rate_limited_and_counted(caplog):
         client, _ = recovery_client(script, clock, on_retry=causes.append)
         with caplog.at_level("WARNING", logger="contractor_runtime.llm.recovery"):
             await client.update("worker", "req", "acquire")
-        assert causes == ["transport", "transport", "transport", "http_502", "http_502"]
+        assert causes == [
+            "transport",
+            "transport",
+            "transport",
+            "recovery_unavailable",
+            "recovery_unavailable",
+        ]
         records = [
             record for record in caplog.records if "recovery authority" in record.getMessage()
         ]
@@ -712,7 +723,7 @@ def test_authority_retries_are_logged_rate_limited_and_counted(caplog):
         ]
         assert sum(clock.sleeps) > AUTHORITY_RETRY_LOG_INTERVAL_SECONDS
         assert 2 <= len(records) <= 3
-        assert "cause=http_503" in records[-1].getMessage()
+        assert "cause=recovery_unavailable" in records[-1].getMessage()
 
     asyncio.run(scenario())
 
@@ -747,7 +758,7 @@ def test_lost_authority_surfaces_as_typed_recovery_failure():
         metrics.record_model_error(error)
         assert metrics.counters["llm_recovery_authority_retries"] >= 20
         assert (
-            metrics.counters["llm_recovery_authority_retries.http_502"]
+            metrics.counters["llm_recovery_authority_retries.recovery_unavailable"]
             == metrics.counters["llm_recovery_authority_retries"]
         )
         assert (

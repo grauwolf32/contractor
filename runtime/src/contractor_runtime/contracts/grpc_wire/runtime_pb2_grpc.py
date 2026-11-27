@@ -189,6 +189,603 @@ class ControlPlane:
             _registered_method=True)
 
 
+class AllocationStub:
+    """Allocation authority is carried in bounded gRPC metadata so the Server can
+    authenticate the actual TLS principal, process and allocation before decoding
+    a potentially large domain request. Metadata grants no additional authority.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.PlannerOperation = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.Allocation/PlannerOperation',
+                request_serializer=runtime__pb2.PlannerOperationRequest.SerializeToString,
+                response_deserializer=runtime__pb2.PlannerOperationResponse.FromString,
+                _registered_method=True)
+        self.GatewayRecovery = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.Allocation/GatewayRecovery',
+                request_serializer=runtime__pb2.GatewayRecoveryRequest.SerializeToString,
+                response_deserializer=runtime__pb2.GatewayRecoveryResponse.FromString,
+                _registered_method=True)
+        self.SubmitAuditEvidence = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.Allocation/SubmitAuditEvidence',
+                request_serializer=runtime__pb2.AuditEvidenceRequest.SerializeToString,
+                response_deserializer=runtime__pb2.AuditEvidenceReceipt.FromString,
+                _registered_method=True)
+        self.SubmitAuditJudgments = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.Allocation/SubmitAuditJudgments',
+                request_serializer=runtime__pb2.AuditJudgmentsRequest.SerializeToString,
+                response_deserializer=runtime__pb2.AuditJudgmentsResponse.FromString,
+                _registered_method=True)
+        self.MutateSitemap = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.Allocation/MutateSitemap',
+                request_serializer=runtime__pb2.SitemapMutationRequest.SerializeToString,
+                response_deserializer=runtime__pb2.SitemapMutationResponse.FromString,
+                _registered_method=True)
+        self.SnapshotSitemap = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.Allocation/SnapshotSitemap',
+                request_serializer=runtime__pb2.SitemapSnapshotRequest.SerializeToString,
+                response_deserializer=runtime__pb2.SitemapSnapshotResponse.FromString,
+                _registered_method=True)
+        self.CollectSitemap = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.Allocation/CollectSitemap',
+                request_serializer=runtime__pb2.SitemapCollectionRequest.SerializeToString,
+                response_deserializer=runtime__pb2.SitemapMutationResponse.FromString,
+                _registered_method=True)
+        self.ListArtifacts = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.Allocation/ListArtifacts',
+                request_serializer=runtime__pb2.ArtifactListRequest.SerializeToString,
+                response_deserializer=runtime__pb2.ArtifactListResponse.FromString,
+                _registered_method=True)
+        self.ReadArtifactMetadata = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.Allocation/ReadArtifactMetadata',
+                request_serializer=runtime__pb2.ArtifactReadTarget.SerializeToString,
+                response_deserializer=runtime__pb2.ArtifactMetadataResponse.FromString,
+                _registered_method=True)
+        self.CheckArtifactAccess = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.Allocation/CheckArtifactAccess',
+                request_serializer=runtime__pb2.ArtifactReadTarget.SerializeToString,
+                response_deserializer=runtime__pb2.ArtifactAccessResponse.FromString,
+                _registered_method=True)
+        self.ListFindings = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.Allocation/ListFindings',
+                request_serializer=runtime__pb2.FindingListRequest.SerializeToString,
+                response_deserializer=runtime__pb2.FindingListResponse.FromString,
+                _registered_method=True)
+        self.ReadFinding = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.Allocation/ReadFinding',
+                request_serializer=runtime__pb2.FindingReadRequest.SerializeToString,
+                response_deserializer=runtime__pb2.ProjectFinding.FromString,
+                _registered_method=True)
+        self.SelectFindings = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.Allocation/SelectFindings',
+                request_serializer=runtime__pb2.FindingSelectionRequest.SerializeToString,
+                response_deserializer=runtime__pb2.FindingSelectionResponse.FromString,
+                _registered_method=True)
+
+
+class AllocationServicer:
+    """Allocation authority is carried in bounded gRPC metadata so the Server can
+    authenticate the actual TLS principal, process and allocation before decoding
+    a potentially large domain request. Metadata grants no additional authority.
+    """
+
+    def PlannerOperation(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GatewayRecovery(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SubmitAuditEvidence(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SubmitAuditJudgments(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def MutateSitemap(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SnapshotSitemap(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CollectSitemap(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListArtifacts(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ReadArtifactMetadata(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CheckArtifactAccess(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListFindings(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ReadFinding(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SelectFindings(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_AllocationServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'PlannerOperation': grpc.unary_unary_rpc_method_handler(
+                    servicer.PlannerOperation,
+                    request_deserializer=runtime__pb2.PlannerOperationRequest.FromString,
+                    response_serializer=runtime__pb2.PlannerOperationResponse.SerializeToString,
+            ),
+            'GatewayRecovery': grpc.unary_unary_rpc_method_handler(
+                    servicer.GatewayRecovery,
+                    request_deserializer=runtime__pb2.GatewayRecoveryRequest.FromString,
+                    response_serializer=runtime__pb2.GatewayRecoveryResponse.SerializeToString,
+            ),
+            'SubmitAuditEvidence': grpc.unary_unary_rpc_method_handler(
+                    servicer.SubmitAuditEvidence,
+                    request_deserializer=runtime__pb2.AuditEvidenceRequest.FromString,
+                    response_serializer=runtime__pb2.AuditEvidenceReceipt.SerializeToString,
+            ),
+            'SubmitAuditJudgments': grpc.unary_unary_rpc_method_handler(
+                    servicer.SubmitAuditJudgments,
+                    request_deserializer=runtime__pb2.AuditJudgmentsRequest.FromString,
+                    response_serializer=runtime__pb2.AuditJudgmentsResponse.SerializeToString,
+            ),
+            'MutateSitemap': grpc.unary_unary_rpc_method_handler(
+                    servicer.MutateSitemap,
+                    request_deserializer=runtime__pb2.SitemapMutationRequest.FromString,
+                    response_serializer=runtime__pb2.SitemapMutationResponse.SerializeToString,
+            ),
+            'SnapshotSitemap': grpc.unary_unary_rpc_method_handler(
+                    servicer.SnapshotSitemap,
+                    request_deserializer=runtime__pb2.SitemapSnapshotRequest.FromString,
+                    response_serializer=runtime__pb2.SitemapSnapshotResponse.SerializeToString,
+            ),
+            'CollectSitemap': grpc.unary_unary_rpc_method_handler(
+                    servicer.CollectSitemap,
+                    request_deserializer=runtime__pb2.SitemapCollectionRequest.FromString,
+                    response_serializer=runtime__pb2.SitemapMutationResponse.SerializeToString,
+            ),
+            'ListArtifacts': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListArtifacts,
+                    request_deserializer=runtime__pb2.ArtifactListRequest.FromString,
+                    response_serializer=runtime__pb2.ArtifactListResponse.SerializeToString,
+            ),
+            'ReadArtifactMetadata': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReadArtifactMetadata,
+                    request_deserializer=runtime__pb2.ArtifactReadTarget.FromString,
+                    response_serializer=runtime__pb2.ArtifactMetadataResponse.SerializeToString,
+            ),
+            'CheckArtifactAccess': grpc.unary_unary_rpc_method_handler(
+                    servicer.CheckArtifactAccess,
+                    request_deserializer=runtime__pb2.ArtifactReadTarget.FromString,
+                    response_serializer=runtime__pb2.ArtifactAccessResponse.SerializeToString,
+            ),
+            'ListFindings': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListFindings,
+                    request_deserializer=runtime__pb2.FindingListRequest.FromString,
+                    response_serializer=runtime__pb2.FindingListResponse.SerializeToString,
+            ),
+            'ReadFinding': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReadFinding,
+                    request_deserializer=runtime__pb2.FindingReadRequest.FromString,
+                    response_serializer=runtime__pb2.ProjectFinding.SerializeToString,
+            ),
+            'SelectFindings': grpc.unary_unary_rpc_method_handler(
+                    servicer.SelectFindings,
+                    request_deserializer=runtime__pb2.FindingSelectionRequest.FromString,
+                    response_serializer=runtime__pb2.FindingSelectionResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'contractor.runtime.v1alpha1.Allocation', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('contractor.runtime.v1alpha1.Allocation', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class Allocation:
+    """Allocation authority is carried in bounded gRPC metadata so the Server can
+    authenticate the actual TLS principal, process and allocation before decoding
+    a potentially large domain request. Metadata grants no additional authority.
+    """
+
+    @staticmethod
+    def PlannerOperation(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.Allocation/PlannerOperation',
+            runtime__pb2.PlannerOperationRequest.SerializeToString,
+            runtime__pb2.PlannerOperationResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GatewayRecovery(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.Allocation/GatewayRecovery',
+            runtime__pb2.GatewayRecoveryRequest.SerializeToString,
+            runtime__pb2.GatewayRecoveryResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SubmitAuditEvidence(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.Allocation/SubmitAuditEvidence',
+            runtime__pb2.AuditEvidenceRequest.SerializeToString,
+            runtime__pb2.AuditEvidenceReceipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SubmitAuditJudgments(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.Allocation/SubmitAuditJudgments',
+            runtime__pb2.AuditJudgmentsRequest.SerializeToString,
+            runtime__pb2.AuditJudgmentsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def MutateSitemap(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.Allocation/MutateSitemap',
+            runtime__pb2.SitemapMutationRequest.SerializeToString,
+            runtime__pb2.SitemapMutationResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SnapshotSitemap(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.Allocation/SnapshotSitemap',
+            runtime__pb2.SitemapSnapshotRequest.SerializeToString,
+            runtime__pb2.SitemapSnapshotResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CollectSitemap(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.Allocation/CollectSitemap',
+            runtime__pb2.SitemapCollectionRequest.SerializeToString,
+            runtime__pb2.SitemapMutationResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListArtifacts(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.Allocation/ListArtifacts',
+            runtime__pb2.ArtifactListRequest.SerializeToString,
+            runtime__pb2.ArtifactListResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReadArtifactMetadata(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.Allocation/ReadArtifactMetadata',
+            runtime__pb2.ArtifactReadTarget.SerializeToString,
+            runtime__pb2.ArtifactMetadataResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CheckArtifactAccess(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.Allocation/CheckArtifactAccess',
+            runtime__pb2.ArtifactReadTarget.SerializeToString,
+            runtime__pb2.ArtifactAccessResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListFindings(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.Allocation/ListFindings',
+            runtime__pb2.FindingListRequest.SerializeToString,
+            runtime__pb2.FindingListResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReadFinding(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.Allocation/ReadFinding',
+            runtime__pb2.FindingReadRequest.SerializeToString,
+            runtime__pb2.ProjectFinding.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SelectFindings(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.Allocation/SelectFindings',
+            runtime__pb2.FindingSelectionRequest.SerializeToString,
+            runtime__pb2.FindingSelectionResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
 class RuntimeLifecycleStub:
     """Missing associated documentation comment in .proto file."""
 

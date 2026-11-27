@@ -164,9 +164,7 @@ class DeterministicAuditResultPublisher:
                     except ArtifactResponseLimitError:
                         raise AuditResultError("audit_result_size_exceeded") from None
                     except ArtifactAPIError as error:
-                        if not _retryable(error) and not (
-                            error.status_code == 404 and error.code == "artifact_not_found"
-                        ):
+                        if not _retryable(error) and not (error.code == "artifact_not_found"):
                             raise AuditResultError("audit_result_publication_failed") from None
                     except (ArtifactTransportError, TimeoutError):
                         pass
@@ -225,4 +223,4 @@ def _retryable(error: ArtifactAPIError) -> bool:
 
 
 def _reconcilable(error: ArtifactAPIError) -> bool:
-    return (error.status_code == 409 and error.code == "artifact_conflict") or _retryable(error)
+    return (error.code == "artifact_conflict") or _retryable(error)

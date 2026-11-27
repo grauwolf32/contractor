@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -36,7 +37,7 @@ func decodeMessage(message protoreflect.Message) ([]byte, error) {
 			values[key.String()] = value.String()
 			return true
 		})
-		return json.Marshal(values)
+		return contracts.EncodeCompactJSON(values)
 	}
 	if strings.HasPrefix(name, "Nullable") {
 		choice := message.WhichOneof(descriptor.Oneofs().ByName("kind"))
@@ -49,7 +50,7 @@ func decodeMessage(message protoreflect.Message) ([]byte, error) {
 			}
 			return []byte("null"), nil
 		}
-		return decodeMessage(message.Get(choice).Message())
+		return decodeValue(choice, message.Get(choice))
 	}
 	if strings.HasPrefix(name, "ListOf") {
 		field := descriptor.Fields().ByName("values")
@@ -62,7 +63,7 @@ func decodeMessage(message protoreflect.Message) ([]byte, error) {
 			}
 			values[index] = value
 		}
-		return json.Marshal(values)
+		return contracts.EncodeCompactJSON(values)
 	}
 	values := make(map[string]json.RawMessage)
 	var failure error
@@ -78,7 +79,7 @@ func decodeMessage(message protoreflect.Message) ([]byte, error) {
 	if failure != nil {
 		return nil, failure
 	}
-	return json.Marshal(values)
+	return contracts.EncodeCompactJSON(values)
 }
 
 func decodeValue(field protoreflect.FieldDescriptor, value protoreflect.Value) ([]byte, error) {
@@ -86,18 +87,18 @@ func decodeValue(field protoreflect.FieldDescriptor, value protoreflect.Value) (
 	case protoreflect.MessageKind:
 		return decodeMessage(value.Message())
 	case protoreflect.StringKind:
-		return json.Marshal(value.String())
+		return contracts.EncodeCompactJSON(value.String())
 	case protoreflect.BoolKind:
-		return json.Marshal(value.Bool())
+		return contracts.EncodeCompactJSON(value.Bool())
 	case protoreflect.Int64Kind:
-		return json.Marshal(value.Int())
+		return contracts.EncodeCompactJSON(value.Int())
 	case protoreflect.Uint64Kind:
-		return json.Marshal(value.Uint())
+		return contracts.EncodeCompactJSON(value.Uint())
 	case protoreflect.DoubleKind:
 		if math.IsNaN(value.Float()) || math.IsInf(value.Float(), 0) {
 			return nil, ErrInvalid
 		}
-		return json.Marshal(value.Float())
+		return contracts.EncodeCompactJSON(value.Float())
 	default:
 		return nil, ErrInvalid
 	}
@@ -129,7 +130,16 @@ func encodeMessage(data []byte, message protoreflect.Message) error {
 			message.Set(descriptor.Fields().ByName("null"), protoreflect.ValueOfEnum(0))
 			return nil
 		}
-		return encodeMessage(data, message.Mutable(descriptor.Fields().ByName("value")).Message())
+		field := descriptor.Fields().ByName("value")
+		if field.Kind() == protoreflect.MessageKind {
+			return encodeMessage(data, message.Mutable(field).Message())
+		}
+		value, err := encodeScalar(data, field)
+		if err != nil {
+			return err
+		}
+		message.Set(field, value)
+		return nil
 	}
 	if strings.HasPrefix(string(descriptor.Name()), "ListOf") {
 		var values []json.RawMessage

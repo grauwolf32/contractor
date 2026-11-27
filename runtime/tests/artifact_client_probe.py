@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fakes.worker_state import WorkerState
 
+from contractor_runtime._allocation_rpc import AllocationConnections
 from contractor_runtime._https import PrivateConnections
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient, MTLSArtifactTransport
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
@@ -36,17 +37,31 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
         ),
         verify_control_plane_peer,
     )
+    rpc_connections = AllocationConnections(
+        runtime_agent_client_context(
+            ca_file=args.ca, certificate_file=args.certificate, private_key_file=args.private_key
+        )
+    )
     try:
-        return await probe(args, connections)
+        return await probe(args, connections, rpc_connections)
     finally:
+        await rpc_connections.aclose()
         await connections.aclose()
 
 
-async def probe(args: argparse.Namespace, connections: PrivateConnections) -> dict[str, object]:
+async def probe(
+    args: argparse.Namespace,
+    connections: PrivateConnections,
+    rpc_connections: AllocationConnections,
+) -> dict[str, object]:
     client = ArtifactClient(
         args.allocation_id,
         MTLSArtifactTransport(
-            args.api_url, connections, timeout_seconds=3, runtime_instance_id=args.instance_id
+            args.api_url,
+            connections,
+            timeout_seconds=3,
+            runtime_instance_id=args.instance_id,
+            rpc_connections=rpc_connections,
         ),
     )
     if args.mode == "cookies":

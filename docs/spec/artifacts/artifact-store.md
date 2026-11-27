@@ -496,13 +496,14 @@ ID. The principal has no broader scope or role: the check only proves that the
 caller is the process to which Control Plane issued the grant
 ([Control Plane](../execution/control-plane.md)).
 
-**ART-R43.** The allocation remains the path identity, while
-the client repeats its process identity in the bounded
-`X-Contractor-Runtime-Instance-ID` header. The Server validates that header
+**ART-R43.** The allocation is the path identity for remaining payload HTTP
+operations and the required `x-contractor-allocation-id` metadata value for
+allocation RPCs. The client repeats its process identity in the bounded
+`X-Contractor-Runtime-Instance-ID` header/metadata. The Server validates that header
 against the mTLS principal-bound grant before reading a request body.
 
 **ART-R44.** The allocation ID is the only
-authority-bearing path value of the private API: neither URL nor body accepts
+caller-selected scope authority of the private API: neither URL nor body accepts
 a Run, User or Project scope ID. The optional relation `scope=project` is resolved
 by the Server through the current allocation's durable Run, under ART-R135.
 Neither the public nor the private interface lets
@@ -525,7 +526,7 @@ request checks.
 `ETag`; successful writes return the same exact revision in both `ETag` and the
 versioned `ArtifactWriteResult`.
 
-**ART-R47.** `GET /private/v1/allocations/{allocationID}/artifacts`
+**ART-R47.** The allocation `ListArtifacts` RPC
 always requires an integer `limit` in `1..256` (LIM-ART-3) and has two forms;
 there is no unbounded listing.
 
@@ -545,7 +546,7 @@ there is no unbounded listing.
   name, without the model-visibility exclusion and without `nextCursor`.
   Underscores are literal, not SQL wildcards.
 
-Missing or unpaired parameters, duplicates and invalid values are rejected
+Missing or unpaired fields, unknown fields and invalid values are rejected
 with `invalid_request`.
 
 **ART-R48.** The cursor names the last binding of the previous page and is
@@ -570,7 +571,7 @@ ART-R118) bounds those bindings. A test pages 15,000 hidden and 7,000 visible
 bindings through the Server and the Runtime. If listing latency is measured
 to grow with Run size, skip hidden name ranges in the index.
 
-**ART-R116.** `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/metadata`,
+**ART-R116.** The allocation `ReadArtifactMetadata` RPC,
 with the same optional `revision` and the same allocation, Namespace and
 grant checks as the raw read, returns the separate private
 `ArtifactMetadataResult`: required `apiVersion`, exact `artifact`, `mediaType`,
@@ -578,16 +579,17 @@ grant checks as the raw read, returns the separate private
 is an opaque case-sensitive ASCII token (LIM-ART-12), stable for the resolved
 immutable version and identical across its frozen fork bindings. Independent
 versions may use different keys even for equal bytes. Both readers reject
-missing, unknown, duplicate and invalid members strictly; there is no legacy
-response shape. Metadata alone is not a content observation. A verified cache
+missing, unknown and invalid domain members strictly; named JSON documents
+also reject duplicate keys. Native fields follow protobuf wire semantics.
+There is no legacy response shape. Metadata alone is not a content observation. A verified cache
 hit records the consuming allocation's exact binding ref, like a payload read.
 The key grants no authority and only the eligible Runtime archive callers may
 reuse bytes under [RTA-R119](../execution/runtime-agent.md).
 
 **ART-R120.** The private allocation API serves exactly its routes: the
-Artifact list, raw read, metadata read, authority-only read check and write of this section, finding
-proposal submission ([FND-R56](../findings/findings.md)) and Gateway recovery
-participation ([SCH-R168](../execution/scheduler.md)). Another method on one
+raw Artifact read and write of this section and finding
+proposal submission ([FND-R56](../findings/findings.md)). List, metadata and
+authority-only checks use named gRPC operations (CTL-R176). Another method on one
 of their paths is `405 method_not_allowed`, and any other path is
 `404 not_found`. No route defines `HEAD`, so the router answers `HEAD` on a
 `GET` path with `405` itself, after the mTLS and Runtime instance checks
@@ -1214,10 +1216,10 @@ ART-R56, ART-R116, ART-R120):
 | --- | --- |
 | Authentication | mTLS Runtime Agent principal plus `X-Contractor-Runtime-Instance-ID` |
 | Path identity | `allocationID` |
-| List | `GET /private/v1/allocations/{allocationID}/artifacts` with `limit` and optional `namespace` and `cursor` (model-visible pages), or `limit` with `namespace` and `namePrefix` |
+| List | `Allocation.ListArtifacts` with `limit` and optional `namespace` and `cursor` (model-visible pages), or `limit` with `namespace` and `namePrefix` |
 | Raw read | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}` with optional `revision`; explicit Project targets add `scope=project` and `operation` (ART-R135) |
-| Metadata read | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/metadata` with optional `revision` and the same Project-target selectors; JSON `ArtifactMetadataResult` (ART-R116) |
-| Cached-read authorization | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/access?scope=project&operation=...`; `204` with no body, no revision or content lookup (ART-R135) |
+| Metadata read | `Allocation.ReadArtifactMetadata` with typed ArtifactRef and the same Project-target selectors; typed ArtifactMetadataResult (ART-R116) |
+| Cached-read authorization | `Allocation.CheckArtifactAccess` with versionless ArtifactRef, Project relation and operation; empty typed success, no content lookup (ART-R135) |
 | Other methods | `HEAD` and any undeclared method on a route's path: `405 method_not_allowed` before the grant check; any other path: `404 not_found` (ART-R120) |
 | Create precondition | `If-None-Match: *` |
 | Update precondition | exactly one quoted strong `If-Match: "<revision>"` |

@@ -75,24 +75,19 @@ func TestPrivateArtifactMetadataReadSkipsThePayload(t *testing.T) {
 	repository.seed("run-a", "inputs", "source", "revision-a", []byte("run A"))
 	repository.seed("run-a", "inputs", "source", "revision-b", []byte("run A, second"))
 	repository.seed("run-b", "inputs", "source", "revision-c", []byte("run B secret"))
-	handler := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository)
-	read := func(target string) *httptest.ResponseRecorder {
-		t.Helper()
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, trustedRequest(http.MethodGet, target, nil))
-		return response
-	}
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository)}})
+	read := func(target string) *httptest.ResponseRecorder { return fixture.artifactRequest(t, target) }
+
 	for _, test := range []struct{ query, revision, size string }{
 		{"", "revision-b", "13"},
 		{"?revision=revision-a", "revision-a", "5"},
 	} {
 		response := read("/private/v1/allocations/allocation-1/artifacts/inputs/source/metadata" + test.query)
-		want := `{"apiVersion":"contractor/v1alpha1","artifact":{"namespace":"inputs","name":"source","revision":"` +
-			test.revision + `"},"mediaType":"text/plain","size":` + test.size + `,"contentCacheKey":"` + test.revision + `"}`
-		if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "application/json" ||
-			strings.TrimSpace(response.Body.String()) != want {
-			t.Fatalf("metadata read %q = %d %s", test.query, response.Code, response.Body.String())
+		var metadata contracts.ArtifactMetadataResult
+		if err := json.Unmarshal(response.Body.Bytes(), &metadata); err != nil || response.Code != 200 || metadata.Validate() != nil || metadata.Artifact.Revision == nil || *metadata.Artifact.Revision != test.revision || fmt.Sprint(metadata.Size) != test.size || metadata.ContentCacheKey != test.revision {
+			t.Fatalf("metadata=%d %s", response.Code, response.Body.String())
 		}
+
 	}
 	if repository.readCalls != 0 || repository.metadataCalls != 2 {
 		t.Fatalf("metadata reads used %d payload and %d metadata reads", repository.readCalls, repository.metadataCalls)
@@ -111,12 +106,6 @@ func TestPrivateArtifactMetadataReadSkipsThePayload(t *testing.T) {
 		if strings.Contains(response.Body.String(), "secret") {
 			t.Fatalf("metadata read %s disclosed another Run: %s", test.target, response.Body.String())
 		}
-	}
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, trustedRequest(http.MethodPut,
-		"/private/v1/allocations/allocation-1/artifacts/inputs/source/metadata", strings.NewReader("x")))
-	if response.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("metadata PUT = %d %s", response.Code, response.Body.String())
 	}
 }
 
@@ -442,37 +431,20 @@ func TestPrivateArtifactProductionGrantMutationWinsBeforeFence(t *testing.T) {
 func TestPrivateArtifactListIsVersionlessAndMTLSRequired(t *testing.T) {
 	repository := newMemoryRepository()
 	repository.seed("run-a", "analysis", "report", "revision-a", []byte("report"))
-	registry := &fakeRegistry{grant: testGrant("run-a")}
-	handler := newTestHandler(t, registry, repository)
-
-	untrusted := httptest.NewRequest(
-		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?limit=10", nil,
-	)
-	untrustedResponse := httptest.NewRecorder()
-	handler.ServeHTTP(untrustedResponse, untrusted)
-	if untrustedResponse.Code != http.StatusUnauthorized {
-		t.Fatalf("untrusted list status = %d", untrustedResponse.Code)
-	}
-
-	request := trustedRequest(
-		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?namespace=analysis&limit=10", nil,
-	)
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository)}})
+	response := fixture.artifactRequest(t, "/artifacts?namespace=analysis&limit=10")
 	var listed contracts.ArtifactListResult
-	if err := json.Unmarshal(response.Body.Bytes(), &listed); err != nil || response.Code != http.StatusOK || len(listed.Artifacts) != 1 {
-		t.Fatalf("list = status %d, value %+v, error %v", response.Code, listed, err)
-	}
-	if listed.Artifacts[0].Revision != nil {
-		t.Fatalf("list exposed revision: %+v", listed.Artifacts[0])
+	if err := json.Unmarshal(response.Body.Bytes(), &listed); err != nil || response.Code != 200 || len(listed.Artifacts) != 1 || listed.Artifacts[0].Revision != nil {
+		t.Fatalf("list=%d %s", response.Code, response.Body.String())
 	}
 }
 
 func TestPrivateArtifactTrustsIncomingRequestIDOnlyAfterMTLS(t *testing.T) {
 	repository := newMemoryRepository()
+	repository.seed("run-a", "inputs", "source", "revision-a", []byte("value"))
 	handler := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository)
 
-	untrusted := httptest.NewRequest(http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?limit=10", nil)
+	untrusted := httptest.NewRequest(http.MethodGet, "/private/v1/allocations/allocation-1/artifacts/inputs/source", nil)
 	untrusted.Header.Set("X-Request-ID", "attacker-chosen")
 	untrustedResponse := httptest.NewRecorder()
 	handler.ServeHTTP(untrustedResponse, untrusted)
@@ -483,7 +455,7 @@ func TestPrivateArtifactTrustsIncomingRequestIDOnlyAfterMTLS(t *testing.T) {
 			untrustedResponse.Header().Get("X-Request-ID"), untrustedResponse.Body.String())
 	}
 
-	trusted := trustedRequest(http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?limit=10", nil)
+	trusted := trustedRequest(http.MethodGet, "/private/v1/allocations/allocation-1/artifacts/inputs/source", nil)
 	trusted.Header.Set("X-Request-ID", "runtime:request-1")
 	trustedResponse := httptest.NewRecorder()
 	handler.ServeHTTP(trustedResponse, trusted)
@@ -521,7 +493,7 @@ func TestPrivateArtifactGrantBindsPrincipalAndInstanceBeforeBodyRead(t *testing.
 	}
 
 	wrongInstance := trustedRequest(
-		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?limit=10", nil,
+		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts/inputs/source", nil,
 	)
 	wrongInstance.Header.Set(RuntimeInstanceHeader, "runtime-2")
 	wrongResponse := httptest.NewRecorder()

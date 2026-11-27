@@ -206,7 +206,7 @@ def test_small_payload_policy_keeps_metadata_transport_budget(monkeypatch):
         connections = AsyncMock()
         connections.exchange.return_value = _https.HTTPResponse(200, {}, b"{}")
         transport = MTLSArtifactTransport(
-            "https://control.test:8443/private/v1", connections, 7, "runtime-test"
+            "https://control.test:8443/private/v1", connections, 7, "runtime-test", AsyncMock()
         )
         await transport.request(
             "GET",
@@ -236,12 +236,14 @@ def test_fetched_artifact_list_ceiling_controls_client_before_transport(monkeypa
             await client.list_artifact_page(limit=3)
         with pytest.raises(ValueError, match="list limit"):
             await client.list_artifact_prefix("analysis", "report", limit=3)
-        transport.request.assert_not_called()
+        transport.list_artifacts.assert_not_called()
         # Boundary and continuation use the fetched limit without rewriting the cursor.
-        transport.request.side_effect = OSError("observed request")
+        transport.list_artifacts.side_effect = OSError("observed request")
         with pytest.raises(OSError):
             await client.list_artifact_page(limit=2, cursor="next")
-        assert transport.request.call_args.args[1].endswith("limit=2&cursor=next")
+        transport.list_artifacts.assert_awaited_once_with(
+            "allocation-test", {"limit": 2, "cursor": "next"}
+        )
 
     asyncio.run(scenario())
 

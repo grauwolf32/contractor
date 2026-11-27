@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlsplit
 
 import pytest
+from fakes.allocation_rpc import AllocationRPCFixture
 from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from shared_config_defaults import MAX_ARTIFACT_BYTES
@@ -915,7 +916,7 @@ class ArtifactRequestAttempt:
     body: bytes
 
 
-class FaultingArtifactTransport:
+class FaultingArtifactTransport(AllocationRPCFixture):
     """HTTP-shaped fault boundary in front of the production ArtifactClient."""
 
     def __init__(self, backend: FakeArtifactClient) -> None:

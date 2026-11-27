@@ -2000,18 +2000,18 @@ Runtime receives content. The Server derives owner and Project; requests accept 
 Project/Audit/Run IDs. Pause permits reads/collection; terminal cancellation and
 deletion deny new selection. No new authorization token, store or controller exists.
 
-**FND-R225.** `GET /private/v1/allocations/{allocationID}/findings` accepts `limit`
+**FND-R225.** `Allocation.ListFindings` accepts `limit`
 (default 20, 1–100, LIM-FND-26) and `cursor`. It returns bounded current Project
 Finding summaries, `projectRevision` and nullable `nextCursor`. Continuations pin
 the Project revision and containing Project; changed revisions conflict. Each read
 uses indexed, bounded canonical windows and follows empty progress pages.
-`GET .../findings/{findingID}?revision=N` reads one exact current canonical revision;
+`Allocation.ReadFinding` with `findingId` and `revision` reads one exact current canonical revision;
 a stale revision conflicts and a foreign/missing Finding is absent. These are live
 metadata views, not retained snapshots or byte-access grants. No read creates a hold.
 Responses fit LIM-FND-29; cursors retain LIM-FND-30/31. No whole-Project scan or
 lifetime source hydration fills a page.
 
-**FND-R226.** `POST .../finding-selections` accepts a portable `clientKey`, explicit
+**FND-R226.** `Allocation.SelectFindings` accepts a portable `clientKey`, explicit
 `findings` (`findingId`, `revision`) and `receiptIds` arrays. Missing/null arrays are
 invalid; empty arrays explicitly select nothing. At most 128 selectors and 1 MiB
 request metadata use LIM-ACT-2. Finding selection expands its independent Project

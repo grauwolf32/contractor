@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -124,12 +125,23 @@ func newCrossLanguageHarness(
 	grant := testGrant("run-a")
 	grant.RuntimeAgentID = principalID
 	registry := &fakeRegistry{grant: grant}
-	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
-		Registry: registry, Artifacts: artifacts.NewService(repository),
-	})
+	dependencies := Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: registry, Artifacts: artifacts.NewService(repository)}
+	legacy, err := NewHandler(dependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
+	native, err := NewGRPCHandler(dependencies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/contractor.runtime.v1alpha1.Allocation/") {
+			native.ServeHTTP(w, r)
+		} else {
+			legacy.ServeHTTP(w, r)
+		}
+	})
+
 	if wrap != nil {
 		handler = wrap(handler)
 	}
@@ -140,6 +152,7 @@ func newCrossLanguageHarness(
 		t.Fatal(err)
 	}
 	server := httptest.NewUnstartedServer(handler)
+	server.EnableHTTP2 = true
 	server.TLS = tlsConfig
 	server.StartTLS()
 	t.Cleanup(server.Close)

@@ -251,6 +251,70 @@ class ErrorDetail(_message.Message):
     request_id: str
     def __init__(self, code: _Optional[str] = ..., retryable: _Optional[bool] = ..., request_id: _Optional[str] = ...) -> None: ...
 
+class PlannerOperationRequest(_message.Message):
+    __slots__ = ("api_version", "sequence", "name", "arguments")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    SEQUENCE_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    ARGUMENTS_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    sequence: int
+    name: str
+    arguments: PlannerArgumentsDocument
+    def __init__(self, api_version: _Optional[str] = ..., sequence: _Optional[int] = ..., name: _Optional[str] = ..., arguments: _Optional[_Union[PlannerArgumentsDocument, _Mapping]] = ...) -> None: ...
+
+class PlannerOperationResponse(_message.Message):
+    __slots__ = ("api_version", "result", "stop", "escalate", "failure")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    RESULT_FIELD_NUMBER: _ClassVar[int]
+    STOP_FIELD_NUMBER: _ClassVar[int]
+    ESCALATE_FIELD_NUMBER: _ClassVar[int]
+    FAILURE_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    result: PlannerResultDocument
+    stop: bool
+    escalate: bool
+    failure: TerminationError
+    def __init__(self, api_version: _Optional[str] = ..., result: _Optional[_Union[PlannerResultDocument, _Mapping]] = ..., stop: _Optional[bool] = ..., escalate: _Optional[bool] = ..., failure: _Optional[_Union[TerminationError, _Mapping]] = ...) -> None: ...
+
+class PlannerArgumentsDocument(_message.Message):
+    __slots__ = ("json",)
+    JSON_FIELD_NUMBER: _ClassVar[int]
+    json: bytes
+    def __init__(self, json: _Optional[bytes] = ...) -> None: ...
+
+class PlannerResultDocument(_message.Message):
+    __slots__ = ("json",)
+    JSON_FIELD_NUMBER: _ClassVar[int]
+    json: bytes
+    def __init__(self, json: _Optional[bytes] = ...) -> None: ...
+
+class GatewayRecoveryRequest(_message.Message):
+    __slots__ = ("model", "request_id", "action", "code", "retry_after_seconds")
+    MODEL_FIELD_NUMBER: _ClassVar[int]
+    REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
+    ACTION_FIELD_NUMBER: _ClassVar[int]
+    CODE_FIELD_NUMBER: _ClassVar[int]
+    RETRY_AFTER_SECONDS_FIELD_NUMBER: _ClassVar[int]
+    model: str
+    request_id: str
+    action: str
+    code: str
+    retry_after_seconds: float
+    def __init__(self, model: _Optional[str] = ..., request_id: _Optional[str] = ..., action: _Optional[str] = ..., code: _Optional[str] = ..., retry_after_seconds: _Optional[float] = ...) -> None: ...
+
+class GatewayRecoveryResponse(_message.Message):
+    __slots__ = ("allowed", "code", "retry_after_seconds", "requires_retry")
+    ALLOWED_FIELD_NUMBER: _ClassVar[int]
+    CODE_FIELD_NUMBER: _ClassVar[int]
+    RETRY_AFTER_SECONDS_FIELD_NUMBER: _ClassVar[int]
+    REQUIRES_RETRY_FIELD_NUMBER: _ClassVar[int]
+    allowed: bool
+    code: str
+    retry_after_seconds: float
+    requires_retry: bool
+    def __init__(self, allowed: _Optional[bool] = ..., code: _Optional[str] = ..., retry_after_seconds: _Optional[float] = ..., requires_retry: _Optional[bool] = ...) -> None: ...
+
 class StateReadRequest(_message.Message):
     __slots__ = ("allocation_id", "if_revision")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
@@ -751,3 +815,587 @@ class AllocationFinalReport(_message.Message):
     worker: ExecutionReportDocument
     runtime: RuntimeReportDocument
     def __init__(self, report_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., started_at: _Optional[str] = ..., finished_at: _Optional[str] = ..., worker: _Optional[_Union[ExecutionReportDocument, _Mapping]] = ..., runtime: _Optional[_Union[RuntimeReportDocument, _Mapping]] = ...) -> None: ...
+
+class NullableString(_message.Message):
+    __slots__ = ("null", "value")
+    NULL_FIELD_NUMBER: _ClassVar[int]
+    VALUE_FIELD_NUMBER: _ClassVar[int]
+    null: _struct_pb2.NullValue
+    value: str
+    def __init__(self, null: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., value: _Optional[str] = ...) -> None: ...
+
+class ExactArtifact(_message.Message):
+    __slots__ = ("ref", "digest", "media_type", "size_bytes")
+    REF_FIELD_NUMBER: _ClassVar[int]
+    DIGEST_FIELD_NUMBER: _ClassVar[int]
+    MEDIA_TYPE_FIELD_NUMBER: _ClassVar[int]
+    SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    ref: ArtifactRef
+    digest: str
+    media_type: str
+    size_bytes: int
+    def __init__(self, ref: _Optional[_Union[ArtifactRef, _Mapping]] = ..., digest: _Optional[str] = ..., media_type: _Optional[str] = ..., size_bytes: _Optional[int] = ...) -> None: ...
+
+class Material(_message.Message):
+    __slots__ = ("scope_kind", "scope_id", "ref", "digest", "media_type", "size_bytes")
+    SCOPE_KIND_FIELD_NUMBER: _ClassVar[int]
+    SCOPE_ID_FIELD_NUMBER: _ClassVar[int]
+    REF_FIELD_NUMBER: _ClassVar[int]
+    DIGEST_FIELD_NUMBER: _ClassVar[int]
+    MEDIA_TYPE_FIELD_NUMBER: _ClassVar[int]
+    SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    scope_kind: str
+    scope_id: str
+    ref: ArtifactRef
+    digest: str
+    media_type: str
+    size_bytes: int
+    def __init__(self, scope_kind: _Optional[str] = ..., scope_id: _Optional[str] = ..., ref: _Optional[_Union[ArtifactRef, _Mapping]] = ..., digest: _Optional[str] = ..., media_type: _Optional[str] = ..., size_bytes: _Optional[int] = ...) -> None: ...
+
+class ListOfMaterial(_message.Message):
+    __slots__ = ("values",)
+    VALUES_FIELD_NUMBER: _ClassVar[int]
+    values: _containers.RepeatedCompositeFieldContainer[Material]
+    def __init__(self, values: _Optional[_Iterable[_Union[Material, _Mapping]]] = ...) -> None: ...
+
+class ListOfArtifactRef(_message.Message):
+    __slots__ = ("values",)
+    VALUES_FIELD_NUMBER: _ClassVar[int]
+    values: _containers.RepeatedCompositeFieldContainer[ArtifactRef]
+    def __init__(self, values: _Optional[_Iterable[_Union[ArtifactRef, _Mapping]]] = ...) -> None: ...
+
+class AuditEvidenceRequest(_message.Message):
+    __slots__ = ("api_version", "invocation_id", "submission_id", "item_key", "sources", "interpretation", "tested_conditions", "limitations")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    INVOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    SUBMISSION_ID_FIELD_NUMBER: _ClassVar[int]
+    ITEM_KEY_FIELD_NUMBER: _ClassVar[int]
+    SOURCES_FIELD_NUMBER: _ClassVar[int]
+    INTERPRETATION_FIELD_NUMBER: _ClassVar[int]
+    TESTED_CONDITIONS_FIELD_NUMBER: _ClassVar[int]
+    LIMITATIONS_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    invocation_id: str
+    submission_id: str
+    item_key: str
+    sources: ListOfArtifactRef
+    interpretation: str
+    tested_conditions: ListOfString
+    limitations: ListOfString
+    def __init__(self, api_version: _Optional[str] = ..., invocation_id: _Optional[str] = ..., submission_id: _Optional[str] = ..., item_key: _Optional[str] = ..., sources: _Optional[_Union[ListOfArtifactRef, _Mapping]] = ..., interpretation: _Optional[str] = ..., tested_conditions: _Optional[_Union[ListOfString, _Mapping]] = ..., limitations: _Optional[_Union[ListOfString, _Mapping]] = ...) -> None: ...
+
+class AuditEvidenceReceipt(_message.Message):
+    __slots__ = ("api_version", "selected_sources", "material", "sources", "item_key", "replayed")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    SELECTED_SOURCES_FIELD_NUMBER: _ClassVar[int]
+    MATERIAL_FIELD_NUMBER: _ClassVar[int]
+    SOURCES_FIELD_NUMBER: _ClassVar[int]
+    ITEM_KEY_FIELD_NUMBER: _ClassVar[int]
+    REPLAYED_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    selected_sources: ListOfMaterial
+    material: Material
+    sources: ListOfMaterial
+    item_key: str
+    replayed: bool
+    def __init__(self, api_version: _Optional[str] = ..., selected_sources: _Optional[_Union[ListOfMaterial, _Mapping]] = ..., material: _Optional[_Union[Material, _Mapping]] = ..., sources: _Optional[_Union[ListOfMaterial, _Mapping]] = ..., item_key: _Optional[str] = ..., replayed: _Optional[bool] = ...) -> None: ...
+
+class AuditConclusion(_message.Message):
+    __slots__ = ("item_key", "rationale", "tested_conditions", "limitations", "evidence", "verdict")
+    ITEM_KEY_FIELD_NUMBER: _ClassVar[int]
+    RATIONALE_FIELD_NUMBER: _ClassVar[int]
+    TESTED_CONDITIONS_FIELD_NUMBER: _ClassVar[int]
+    LIMITATIONS_FIELD_NUMBER: _ClassVar[int]
+    EVIDENCE_FIELD_NUMBER: _ClassVar[int]
+    VERDICT_FIELD_NUMBER: _ClassVar[int]
+    item_key: str
+    rationale: str
+    tested_conditions: ListOfString
+    limitations: ListOfString
+    evidence: ListOfMaterial
+    verdict: str
+    def __init__(self, item_key: _Optional[str] = ..., rationale: _Optional[str] = ..., tested_conditions: _Optional[_Union[ListOfString, _Mapping]] = ..., limitations: _Optional[_Union[ListOfString, _Mapping]] = ..., evidence: _Optional[_Union[ListOfMaterial, _Mapping]] = ..., verdict: _Optional[str] = ...) -> None: ...
+
+class AuditJudgmentUpdate(_message.Message):
+    __slots__ = ("base_generation", "conclusion")
+    BASE_GENERATION_FIELD_NUMBER: _ClassVar[int]
+    CONCLUSION_FIELD_NUMBER: _ClassVar[int]
+    base_generation: int
+    conclusion: AuditConclusion
+    def __init__(self, base_generation: _Optional[int] = ..., conclusion: _Optional[_Union[AuditConclusion, _Mapping]] = ...) -> None: ...
+
+class ListOfAuditJudgmentUpdate(_message.Message):
+    __slots__ = ("values",)
+    VALUES_FIELD_NUMBER: _ClassVar[int]
+    values: _containers.RepeatedCompositeFieldContainer[AuditJudgmentUpdate]
+    def __init__(self, values: _Optional[_Iterable[_Union[AuditJudgmentUpdate, _Mapping]]] = ...) -> None: ...
+
+class AuditJudgmentsRequest(_message.Message):
+    __slots__ = ("api_version", "invocation_id", "submission_id", "mode", "items")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    INVOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    SUBMISSION_ID_FIELD_NUMBER: _ClassVar[int]
+    MODE_FIELD_NUMBER: _ClassVar[int]
+    ITEMS_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    invocation_id: str
+    submission_id: str
+    mode: str
+    items: ListOfAuditJudgmentUpdate
+    def __init__(self, api_version: _Optional[str] = ..., invocation_id: _Optional[str] = ..., submission_id: _Optional[str] = ..., mode: _Optional[str] = ..., items: _Optional[_Union[ListOfAuditJudgmentUpdate, _Mapping]] = ...) -> None: ...
+
+class AuditGeneration(_message.Message):
+    __slots__ = ("item_key", "generation", "task_id")
+    ITEM_KEY_FIELD_NUMBER: _ClassVar[int]
+    GENERATION_FIELD_NUMBER: _ClassVar[int]
+    TASK_ID_FIELD_NUMBER: _ClassVar[int]
+    item_key: str
+    generation: int
+    task_id: str
+    def __init__(self, item_key: _Optional[str] = ..., generation: _Optional[int] = ..., task_id: _Optional[str] = ...) -> None: ...
+
+class ListOfAuditGeneration(_message.Message):
+    __slots__ = ("values",)
+    VALUES_FIELD_NUMBER: _ClassVar[int]
+    values: _containers.RepeatedCompositeFieldContainer[AuditGeneration]
+    def __init__(self, values: _Optional[_Iterable[_Union[AuditGeneration, _Mapping]]] = ...) -> None: ...
+
+class AuditJudgmentReceipt(_message.Message):
+    __slots__ = ("api_version", "material", "generations", "replayed")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    MATERIAL_FIELD_NUMBER: _ClassVar[int]
+    GENERATIONS_FIELD_NUMBER: _ClassVar[int]
+    REPLAYED_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    material: Material
+    generations: ListOfAuditGeneration
+    replayed: bool
+    def __init__(self, api_version: _Optional[str] = ..., material: _Optional[_Union[Material, _Mapping]] = ..., generations: _Optional[_Union[ListOfAuditGeneration, _Mapping]] = ..., replayed: _Optional[bool] = ...) -> None: ...
+
+class AuditJudgmentStale(_message.Message):
+    __slots__ = ("api_version", "current_generations")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    CURRENT_GENERATIONS_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    current_generations: ListOfAuditGeneration
+    def __init__(self, api_version: _Optional[str] = ..., current_generations: _Optional[_Union[ListOfAuditGeneration, _Mapping]] = ...) -> None: ...
+
+class AuditJudgmentsResponse(_message.Message):
+    __slots__ = ("receipt", "stale")
+    RECEIPT_FIELD_NUMBER: _ClassVar[int]
+    STALE_FIELD_NUMBER: _ClassVar[int]
+    receipt: AuditJudgmentReceipt
+    stale: AuditJudgmentStale
+    def __init__(self, receipt: _Optional[_Union[AuditJudgmentReceipt, _Mapping]] = ..., stale: _Optional[_Union[AuditJudgmentStale, _Mapping]] = ...) -> None: ...
+
+class SitemapProvenance(_message.Message):
+    __slots__ = ("source_id", "kind", "deployment")
+    SOURCE_ID_FIELD_NUMBER: _ClassVar[int]
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    DEPLOYMENT_FIELD_NUMBER: _ClassVar[int]
+    source_id: str
+    kind: str
+    deployment: str
+    def __init__(self, source_id: _Optional[str] = ..., kind: _Optional[str] = ..., deployment: _Optional[str] = ...) -> None: ...
+
+class SitemapSource(_message.Message):
+    __slots__ = ("provenance", "generation", "artifact", "policy_digest")
+    PROVENANCE_FIELD_NUMBER: _ClassVar[int]
+    GENERATION_FIELD_NUMBER: _ClassVar[int]
+    ARTIFACT_FIELD_NUMBER: _ClassVar[int]
+    POLICY_DIGEST_FIELD_NUMBER: _ClassVar[int]
+    provenance: SitemapProvenance
+    generation: int
+    artifact: ExactArtifact
+    policy_digest: str
+    def __init__(self, provenance: _Optional[_Union[SitemapProvenance, _Mapping]] = ..., generation: _Optional[int] = ..., artifact: _Optional[_Union[ExactArtifact, _Mapping]] = ..., policy_digest: _Optional[str] = ...) -> None: ...
+
+class SitemapStructuralParameter(_message.Message):
+    __slots__ = ("name", "allowed")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    ALLOWED_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    allowed: ListOfString
+    def __init__(self, name: _Optional[str] = ..., allowed: _Optional[_Union[ListOfString, _Mapping]] = ...) -> None: ...
+
+class ListOfSitemapStructuralParameter(_message.Message):
+    __slots__ = ("values",)
+    VALUES_FIELD_NUMBER: _ClassVar[int]
+    values: _containers.RepeatedCompositeFieldContainer[SitemapStructuralParameter]
+    def __init__(self, values: _Optional[_Iterable[_Union[SitemapStructuralParameter, _Mapping]]] = ...) -> None: ...
+
+class SitemapEditorRule(_message.Message):
+    __slots__ = ("origin", "method", "path", "pointer", "parameters", "structural")
+    ORIGIN_FIELD_NUMBER: _ClassVar[int]
+    METHOD_FIELD_NUMBER: _ClassVar[int]
+    PATH_FIELD_NUMBER: _ClassVar[int]
+    POINTER_FIELD_NUMBER: _ClassVar[int]
+    PARAMETERS_FIELD_NUMBER: _ClassVar[int]
+    STRUCTURAL_FIELD_NUMBER: _ClassVar[int]
+    origin: str
+    method: str
+    path: str
+    pointer: str
+    parameters: ListOfString
+    structural: ListOfSitemapStructuralParameter
+    def __init__(self, origin: _Optional[str] = ..., method: _Optional[str] = ..., path: _Optional[str] = ..., pointer: _Optional[str] = ..., parameters: _Optional[_Union[ListOfString, _Mapping]] = ..., structural: _Optional[_Union[ListOfSitemapStructuralParameter, _Mapping]] = ...) -> None: ...
+
+class ListOfSitemapEditorRule(_message.Message):
+    __slots__ = ("values",)
+    VALUES_FIELD_NUMBER: _ClassVar[int]
+    values: _containers.RepeatedCompositeFieldContainer[SitemapEditorRule]
+    def __init__(self, values: _Optional[_Iterable[_Union[SitemapEditorRule, _Mapping]]] = ...) -> None: ...
+
+class SitemapEditorSource(_message.Message):
+    __slots__ = ("expected", "rules")
+    EXPECTED_FIELD_NUMBER: _ClassVar[int]
+    RULES_FIELD_NUMBER: _ClassVar[int]
+    expected: SitemapSource
+    rules: ListOfSitemapEditorRule
+    def __init__(self, expected: _Optional[_Union[SitemapSource, _Mapping]] = ..., rules: _Optional[_Union[ListOfSitemapEditorRule, _Mapping]] = ...) -> None: ...
+
+class SitemapEditorMutation(_message.Message):
+    __slots__ = ("operation", "expected_revision", "url", "method", "member_ids", "note", "tags", "marker_id", "source")
+    OPERATION_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
+    URL_FIELD_NUMBER: _ClassVar[int]
+    METHOD_FIELD_NUMBER: _ClassVar[int]
+    MEMBER_IDS_FIELD_NUMBER: _ClassVar[int]
+    NOTE_FIELD_NUMBER: _ClassVar[int]
+    TAGS_FIELD_NUMBER: _ClassVar[int]
+    MARKER_ID_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_FIELD_NUMBER: _ClassVar[int]
+    operation: str
+    expected_revision: str
+    url: str
+    method: str
+    member_ids: ListOfString
+    note: str
+    tags: ListOfString
+    marker_id: str
+    source: SitemapEditorSource
+    def __init__(self, operation: _Optional[str] = ..., expected_revision: _Optional[str] = ..., url: _Optional[str] = ..., method: _Optional[str] = ..., member_ids: _Optional[_Union[ListOfString, _Mapping]] = ..., note: _Optional[str] = ..., tags: _Optional[_Union[ListOfString, _Mapping]] = ..., marker_id: _Optional[str] = ..., source: _Optional[_Union[SitemapEditorSource, _Mapping]] = ...) -> None: ...
+
+class SitemapMutationRequest(_message.Message):
+    __slots__ = ("api_version", "mutation", "idempotency_key")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    MUTATION_FIELD_NUMBER: _ClassVar[int]
+    IDEMPOTENCY_KEY_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    mutation: SitemapEditorMutation
+    idempotency_key: str
+    def __init__(self, api_version: _Optional[str] = ..., mutation: _Optional[_Union[SitemapEditorMutation, _Mapping]] = ..., idempotency_key: _Optional[str] = ...) -> None: ...
+
+class SitemapMutationResult(_message.Message):
+    __slots__ = ("artifact", "replayed", "changed")
+    ARTIFACT_FIELD_NUMBER: _ClassVar[int]
+    REPLAYED_FIELD_NUMBER: _ClassVar[int]
+    CHANGED_FIELD_NUMBER: _ClassVar[int]
+    artifact: ArtifactRef
+    replayed: bool
+    changed: bool
+    def __init__(self, artifact: _Optional[_Union[ArtifactRef, _Mapping]] = ..., replayed: _Optional[bool] = ..., changed: _Optional[bool] = ...) -> None: ...
+
+class SitemapMutationResponse(_message.Message):
+    __slots__ = ("api_version", "result")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    RESULT_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    result: SitemapMutationResult
+    def __init__(self, api_version: _Optional[str] = ..., result: _Optional[_Union[SitemapMutationResult, _Mapping]] = ...) -> None: ...
+
+class SitemapSnapshotSelection(_message.Message):
+    __slots__ = ("revision", "require_referenced_inputs", "groups", "members")
+    REVISION_FIELD_NUMBER: _ClassVar[int]
+    REQUIRE_REFERENCED_INPUTS_FIELD_NUMBER: _ClassVar[int]
+    GROUPS_FIELD_NUMBER: _ClassVar[int]
+    MEMBERS_FIELD_NUMBER: _ClassVar[int]
+    revision: str
+    require_referenced_inputs: bool
+    groups: ListOfString
+    members: ListOfString
+    def __init__(self, revision: _Optional[str] = ..., require_referenced_inputs: _Optional[bool] = ..., groups: _Optional[_Union[ListOfString, _Mapping]] = ..., members: _Optional[_Union[ListOfString, _Mapping]] = ...) -> None: ...
+
+class SitemapSnapshotRequest(_message.Message):
+    __slots__ = ("api_version", "selection", "idempotency_key")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    SELECTION_FIELD_NUMBER: _ClassVar[int]
+    IDEMPOTENCY_KEY_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    selection: SitemapSnapshotSelection
+    idempotency_key: str
+    def __init__(self, api_version: _Optional[str] = ..., selection: _Optional[_Union[SitemapSnapshotSelection, _Mapping]] = ..., idempotency_key: _Optional[str] = ...) -> None: ...
+
+class SitemapSnapshotResult(_message.Message):
+    __slots__ = ("artifact", "replayed")
+    ARTIFACT_FIELD_NUMBER: _ClassVar[int]
+    REPLAYED_FIELD_NUMBER: _ClassVar[int]
+    artifact: ExactArtifact
+    replayed: bool
+    def __init__(self, artifact: _Optional[_Union[ExactArtifact, _Mapping]] = ..., replayed: _Optional[bool] = ...) -> None: ...
+
+class SitemapSnapshotResponse(_message.Message):
+    __slots__ = ("api_version", "result")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    RESULT_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    result: SitemapSnapshotResult
+    def __init__(self, api_version: _Optional[str] = ..., result: _Optional[_Union[SitemapSnapshotResult, _Mapping]] = ...) -> None: ...
+
+class SitemapObservation(_message.Message):
+    __slots__ = ("note", "tags", "url", "method", "outcome", "status", "at", "parameters")
+    NOTE_FIELD_NUMBER: _ClassVar[int]
+    TAGS_FIELD_NUMBER: _ClassVar[int]
+    URL_FIELD_NUMBER: _ClassVar[int]
+    METHOD_FIELD_NUMBER: _ClassVar[int]
+    OUTCOME_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    AT_FIELD_NUMBER: _ClassVar[int]
+    PARAMETERS_FIELD_NUMBER: _ClassVar[int]
+    note: str
+    tags: ListOfString
+    url: str
+    method: str
+    outcome: str
+    status: int
+    at: str
+    parameters: ListOfString
+    def __init__(self, note: _Optional[str] = ..., tags: _Optional[_Union[ListOfString, _Mapping]] = ..., url: _Optional[str] = ..., method: _Optional[str] = ..., outcome: _Optional[str] = ..., status: _Optional[int] = ..., at: _Optional[str] = ..., parameters: _Optional[_Union[ListOfString, _Mapping]] = ...) -> None: ...
+
+class ListOfSitemapObservation(_message.Message):
+    __slots__ = ("values",)
+    VALUES_FIELD_NUMBER: _ClassVar[int]
+    values: _containers.RepeatedCompositeFieldContainer[SitemapObservation]
+    def __init__(self, values: _Optional[_Iterable[_Union[SitemapObservation, _Mapping]]] = ...) -> None: ...
+
+class SitemapCollectionGap(_message.Message):
+    __slots__ = ("reason", "count")
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    COUNT_FIELD_NUMBER: _ClassVar[int]
+    reason: str
+    count: int
+    def __init__(self, reason: _Optional[str] = ..., count: _Optional[int] = ...) -> None: ...
+
+class ListOfSitemapCollectionGap(_message.Message):
+    __slots__ = ("values",)
+    VALUES_FIELD_NUMBER: _ClassVar[int]
+    values: _containers.RepeatedCompositeFieldContainer[SitemapCollectionGap]
+    def __init__(self, values: _Optional[_Iterable[_Union[SitemapCollectionGap, _Mapping]]] = ...) -> None: ...
+
+class SitemapCollectionIngress(_message.Message):
+    __slots__ = ("kind", "observations", "gaps", "artifact")
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    OBSERVATIONS_FIELD_NUMBER: _ClassVar[int]
+    GAPS_FIELD_NUMBER: _ClassVar[int]
+    ARTIFACT_FIELD_NUMBER: _ClassVar[int]
+    kind: str
+    observations: ListOfSitemapObservation
+    gaps: ListOfSitemapCollectionGap
+    artifact: ArtifactRef
+    def __init__(self, kind: _Optional[str] = ..., observations: _Optional[_Union[ListOfSitemapObservation, _Mapping]] = ..., gaps: _Optional[_Union[ListOfSitemapCollectionGap, _Mapping]] = ..., artifact: _Optional[_Union[ArtifactRef, _Mapping]] = ...) -> None: ...
+
+class SitemapCollectionRequest(_message.Message):
+    __slots__ = ("api_version", "input", "automatic", "idempotency_key")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    INPUT_FIELD_NUMBER: _ClassVar[int]
+    AUTOMATIC_FIELD_NUMBER: _ClassVar[int]
+    IDEMPOTENCY_KEY_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    input: SitemapCollectionIngress
+    automatic: bool
+    idempotency_key: str
+    def __init__(self, api_version: _Optional[str] = ..., input: _Optional[_Union[SitemapCollectionIngress, _Mapping]] = ..., automatic: _Optional[bool] = ..., idempotency_key: _Optional[str] = ...) -> None: ...
+
+class ArtifactListRequest(_message.Message):
+    __slots__ = ("namespace", "name_prefix", "limit", "cursor")
+    NAMESPACE_FIELD_NUMBER: _ClassVar[int]
+    NAME_PREFIX_FIELD_NUMBER: _ClassVar[int]
+    LIMIT_FIELD_NUMBER: _ClassVar[int]
+    CURSOR_FIELD_NUMBER: _ClassVar[int]
+    namespace: str
+    name_prefix: str
+    limit: int
+    cursor: str
+    def __init__(self, namespace: _Optional[str] = ..., name_prefix: _Optional[str] = ..., limit: _Optional[int] = ..., cursor: _Optional[str] = ...) -> None: ...
+
+class ArtifactListResponse(_message.Message):
+    __slots__ = ("api_version", "artifacts", "next_cursor")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    ARTIFACTS_FIELD_NUMBER: _ClassVar[int]
+    NEXT_CURSOR_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    artifacts: ListOfArtifactRef
+    next_cursor: str
+    def __init__(self, api_version: _Optional[str] = ..., artifacts: _Optional[_Union[ListOfArtifactRef, _Mapping]] = ..., next_cursor: _Optional[str] = ...) -> None: ...
+
+class ArtifactReadTarget(_message.Message):
+    __slots__ = ("artifact", "scope", "operation")
+    ARTIFACT_FIELD_NUMBER: _ClassVar[int]
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
+    OPERATION_FIELD_NUMBER: _ClassVar[int]
+    artifact: ArtifactRef
+    scope: str
+    operation: str
+    def __init__(self, artifact: _Optional[_Union[ArtifactRef, _Mapping]] = ..., scope: _Optional[str] = ..., operation: _Optional[str] = ...) -> None: ...
+
+class ArtifactMetadataResponse(_message.Message):
+    __slots__ = ("api_version", "artifact", "media_type", "size", "content_cache_key")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    ARTIFACT_FIELD_NUMBER: _ClassVar[int]
+    MEDIA_TYPE_FIELD_NUMBER: _ClassVar[int]
+    SIZE_FIELD_NUMBER: _ClassVar[int]
+    CONTENT_CACHE_KEY_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    artifact: ArtifactRef
+    media_type: str
+    size: int
+    content_cache_key: str
+    def __init__(self, api_version: _Optional[str] = ..., artifact: _Optional[_Union[ArtifactRef, _Mapping]] = ..., media_type: _Optional[str] = ..., size: _Optional[int] = ..., content_cache_key: _Optional[str] = ...) -> None: ...
+
+class ArtifactAccessResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class FindingListRequest(_message.Message):
+    __slots__ = ("limit", "cursor")
+    LIMIT_FIELD_NUMBER: _ClassVar[int]
+    CURSOR_FIELD_NUMBER: _ClassVar[int]
+    limit: int
+    cursor: str
+    def __init__(self, limit: _Optional[int] = ..., cursor: _Optional[str] = ...) -> None: ...
+
+class ProjectFindingSummary(_message.Message):
+    __slots__ = ("finding_id", "project_id", "title", "title_truncated", "subject_kind", "subject_key", "subject_truncated", "severity_suggestion", "state", "analyst_verdict", "analyst_severity", "duplicate_target_id", "revision", "created_at", "updated_at")
+    FINDING_ID_FIELD_NUMBER: _ClassVar[int]
+    PROJECT_ID_FIELD_NUMBER: _ClassVar[int]
+    TITLE_FIELD_NUMBER: _ClassVar[int]
+    TITLE_TRUNCATED_FIELD_NUMBER: _ClassVar[int]
+    SUBJECT_KIND_FIELD_NUMBER: _ClassVar[int]
+    SUBJECT_KEY_FIELD_NUMBER: _ClassVar[int]
+    SUBJECT_TRUNCATED_FIELD_NUMBER: _ClassVar[int]
+    SEVERITY_SUGGESTION_FIELD_NUMBER: _ClassVar[int]
+    STATE_FIELD_NUMBER: _ClassVar[int]
+    ANALYST_VERDICT_FIELD_NUMBER: _ClassVar[int]
+    ANALYST_SEVERITY_FIELD_NUMBER: _ClassVar[int]
+    DUPLICATE_TARGET_ID_FIELD_NUMBER: _ClassVar[int]
+    REVISION_FIELD_NUMBER: _ClassVar[int]
+    CREATED_AT_FIELD_NUMBER: _ClassVar[int]
+    UPDATED_AT_FIELD_NUMBER: _ClassVar[int]
+    finding_id: str
+    project_id: str
+    title: str
+    title_truncated: bool
+    subject_kind: str
+    subject_key: str
+    subject_truncated: bool
+    severity_suggestion: str
+    state: NullableString
+    analyst_verdict: NullableString
+    analyst_severity: NullableString
+    duplicate_target_id: NullableString
+    revision: int
+    created_at: str
+    updated_at: str
+    def __init__(self, finding_id: _Optional[str] = ..., project_id: _Optional[str] = ..., title: _Optional[str] = ..., title_truncated: _Optional[bool] = ..., subject_kind: _Optional[str] = ..., subject_key: _Optional[str] = ..., subject_truncated: _Optional[bool] = ..., severity_suggestion: _Optional[str] = ..., state: _Optional[_Union[NullableString, _Mapping]] = ..., analyst_verdict: _Optional[_Union[NullableString, _Mapping]] = ..., analyst_severity: _Optional[_Union[NullableString, _Mapping]] = ..., duplicate_target_id: _Optional[_Union[NullableString, _Mapping]] = ..., revision: _Optional[int] = ..., created_at: _Optional[str] = ..., updated_at: _Optional[str] = ...) -> None: ...
+
+class ListOfProjectFindingSummary(_message.Message):
+    __slots__ = ("values",)
+    VALUES_FIELD_NUMBER: _ClassVar[int]
+    values: _containers.RepeatedCompositeFieldContainer[ProjectFindingSummary]
+    def __init__(self, values: _Optional[_Iterable[_Union[ProjectFindingSummary, _Mapping]]] = ...) -> None: ...
+
+class FindingListResponse(_message.Message):
+    __slots__ = ("items", "project_revision", "next_cursor")
+    ITEMS_FIELD_NUMBER: _ClassVar[int]
+    PROJECT_REVISION_FIELD_NUMBER: _ClassVar[int]
+    NEXT_CURSOR_FIELD_NUMBER: _ClassVar[int]
+    items: ListOfProjectFindingSummary
+    project_revision: int
+    next_cursor: NullableString
+    def __init__(self, items: _Optional[_Union[ListOfProjectFindingSummary, _Mapping]] = ..., project_revision: _Optional[int] = ..., next_cursor: _Optional[_Union[NullableString, _Mapping]] = ...) -> None: ...
+
+class FindingReadRequest(_message.Message):
+    __slots__ = ("finding_id", "revision")
+    FINDING_ID_FIELD_NUMBER: _ClassVar[int]
+    REVISION_FIELD_NUMBER: _ClassVar[int]
+    finding_id: str
+    revision: int
+    def __init__(self, finding_id: _Optional[str] = ..., revision: _Optional[int] = ...) -> None: ...
+
+class ProjectFinding(_message.Message):
+    __slots__ = ("finding_id", "project_id", "first_receipt_id", "first_proposal", "title", "claim", "state", "analyst_verdict", "analyst_severity", "rationale", "actor_id", "assessed_at", "duplicate_target_id", "revision", "created_at", "updated_at")
+    FINDING_ID_FIELD_NUMBER: _ClassVar[int]
+    PROJECT_ID_FIELD_NUMBER: _ClassVar[int]
+    FIRST_RECEIPT_ID_FIELD_NUMBER: _ClassVar[int]
+    FIRST_PROPOSAL_FIELD_NUMBER: _ClassVar[int]
+    TITLE_FIELD_NUMBER: _ClassVar[int]
+    CLAIM_FIELD_NUMBER: _ClassVar[int]
+    STATE_FIELD_NUMBER: _ClassVar[int]
+    ANALYST_VERDICT_FIELD_NUMBER: _ClassVar[int]
+    ANALYST_SEVERITY_FIELD_NUMBER: _ClassVar[int]
+    RATIONALE_FIELD_NUMBER: _ClassVar[int]
+    ACTOR_ID_FIELD_NUMBER: _ClassVar[int]
+    ASSESSED_AT_FIELD_NUMBER: _ClassVar[int]
+    DUPLICATE_TARGET_ID_FIELD_NUMBER: _ClassVar[int]
+    REVISION_FIELD_NUMBER: _ClassVar[int]
+    CREATED_AT_FIELD_NUMBER: _ClassVar[int]
+    UPDATED_AT_FIELD_NUMBER: _ClassVar[int]
+    finding_id: str
+    project_id: str
+    first_receipt_id: str
+    first_proposal: ExactArtifact
+    title: str
+    claim: FindingClaimDocument
+    state: NullableString
+    analyst_verdict: NullableString
+    analyst_severity: NullableString
+    rationale: NullableString
+    actor_id: NullableString
+    assessed_at: NullableString
+    duplicate_target_id: NullableString
+    revision: int
+    created_at: str
+    updated_at: str
+    def __init__(self, finding_id: _Optional[str] = ..., project_id: _Optional[str] = ..., first_receipt_id: _Optional[str] = ..., first_proposal: _Optional[_Union[ExactArtifact, _Mapping]] = ..., title: _Optional[str] = ..., claim: _Optional[_Union[FindingClaimDocument, _Mapping]] = ..., state: _Optional[_Union[NullableString, _Mapping]] = ..., analyst_verdict: _Optional[_Union[NullableString, _Mapping]] = ..., analyst_severity: _Optional[_Union[NullableString, _Mapping]] = ..., rationale: _Optional[_Union[NullableString, _Mapping]] = ..., actor_id: _Optional[_Union[NullableString, _Mapping]] = ..., assessed_at: _Optional[_Union[NullableString, _Mapping]] = ..., duplicate_target_id: _Optional[_Union[NullableString, _Mapping]] = ..., revision: _Optional[int] = ..., created_at: _Optional[str] = ..., updated_at: _Optional[str] = ...) -> None: ...
+
+class FindingClaimDocument(_message.Message):
+    __slots__ = ("json",)
+    JSON_FIELD_NUMBER: _ClassVar[int]
+    json: bytes
+    def __init__(self, json: _Optional[bytes] = ...) -> None: ...
+
+class FindingRevisionSelection(_message.Message):
+    __slots__ = ("finding_id", "revision")
+    FINDING_ID_FIELD_NUMBER: _ClassVar[int]
+    REVISION_FIELD_NUMBER: _ClassVar[int]
+    finding_id: str
+    revision: int
+    def __init__(self, finding_id: _Optional[str] = ..., revision: _Optional[int] = ...) -> None: ...
+
+class ListOfFindingRevisionSelection(_message.Message):
+    __slots__ = ("values",)
+    VALUES_FIELD_NUMBER: _ClassVar[int]
+    values: _containers.RepeatedCompositeFieldContainer[FindingRevisionSelection]
+    def __init__(self, values: _Optional[_Iterable[_Union[FindingRevisionSelection, _Mapping]]] = ...) -> None: ...
+
+class FindingSelectionRequest(_message.Message):
+    __slots__ = ("client_key", "findings", "receipt_ids")
+    CLIENT_KEY_FIELD_NUMBER: _ClassVar[int]
+    FINDINGS_FIELD_NUMBER: _ClassVar[int]
+    RECEIPT_IDS_FIELD_NUMBER: _ClassVar[int]
+    client_key: str
+    findings: ListOfFindingRevisionSelection
+    receipt_ids: ListOfString
+    def __init__(self, client_key: _Optional[str] = ..., findings: _Optional[_Union[ListOfFindingRevisionSelection, _Mapping]] = ..., receipt_ids: _Optional[_Union[ListOfString, _Mapping]] = ...) -> None: ...
+
+class FindingSelectionResponse(_message.Message):
+    __slots__ = ("artifact", "snapshot_at", "entry_count", "replayed")
+    ARTIFACT_FIELD_NUMBER: _ClassVar[int]
+    SNAPSHOT_AT_FIELD_NUMBER: _ClassVar[int]
+    ENTRY_COUNT_FIELD_NUMBER: _ClassVar[int]
+    REPLAYED_FIELD_NUMBER: _ClassVar[int]
+    artifact: ExactArtifact
+    snapshot_at: str
+    entry_count: int
+    replayed: bool
+    def __init__(self, artifact: _Optional[_Union[ExactArtifact, _Mapping]] = ..., snapshot_at: _Optional[str] = ..., entry_count: _Optional[int] = ..., replayed: _Optional[bool] = ...) -> None: ...

@@ -16,7 +16,7 @@ AUTHORITY_DENIALS = frozenset({"allocation_write_fenced", "artifact_access_denie
 
 
 def definite_write_rejection(error: ArtifactAPIError) -> bool:
-    return error.code in AUTHORITY_DENIALS or not 500 <= error.status_code < 600
+    return error.code in AUTHORITY_DENIALS or not error.server_failure
 
 
 class ArtifactReconciliationFailed(Exception):

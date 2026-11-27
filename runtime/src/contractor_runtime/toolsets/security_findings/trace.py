@@ -163,7 +163,7 @@ class TraceFindingPublisher(FindingPublisher):
         try:
             saved = await client.read_artifact(target, max_bytes=MAX_PROOF_BYTES)
         except ArtifactAPIError as error:
-            if error.status_code != 404:
+            if error.code != "artifact_not_found":
                 raise
             saved = None
         if saved is None:

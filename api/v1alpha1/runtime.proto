@@ -146,6 +146,55 @@ message ErrorDetail {
   optional string request_id = 3;
 }
 
+// Allocation authority is carried in bounded gRPC metadata so the Server can
+// authenticate the actual TLS principal, process and allocation before decoding
+// a potentially large domain request. Metadata grants no additional authority.
+service Allocation {
+  rpc PlannerOperation(PlannerOperationRequest) returns (PlannerOperationResponse);
+  rpc GatewayRecovery(GatewayRecoveryRequest) returns (GatewayRecoveryResponse);
+  rpc SubmitAuditEvidence(AuditEvidenceRequest) returns (AuditEvidenceReceipt);
+  rpc SubmitAuditJudgments(AuditJudgmentsRequest) returns (AuditJudgmentsResponse);
+  rpc MutateSitemap(SitemapMutationRequest) returns (SitemapMutationResponse);
+  rpc SnapshotSitemap(SitemapSnapshotRequest) returns (SitemapSnapshotResponse);
+  rpc CollectSitemap(SitemapCollectionRequest) returns (SitemapMutationResponse);
+  rpc ListArtifacts(ArtifactListRequest) returns (ArtifactListResponse);
+  rpc ReadArtifactMetadata(ArtifactReadTarget) returns (ArtifactMetadataResponse);
+  rpc CheckArtifactAccess(ArtifactReadTarget) returns (ArtifactAccessResponse);
+  rpc ListFindings(FindingListRequest) returns (FindingListResponse);
+  rpc ReadFinding(FindingReadRequest) returns (ProjectFinding);
+  rpc SelectFindings(FindingSelectionRequest) returns (FindingSelectionResponse);
+}
+message PlannerOperationRequest {
+  optional string api_version = 1;
+  optional int64 sequence = 2;
+  optional string name = 3;
+  PlannerArgumentsDocument arguments = 4;
+}
+message PlannerOperationResponse {
+  optional string api_version = 1;
+  PlannerResultDocument result = 2;
+  optional bool stop = 3;
+  optional bool escalate = 4;
+  TerminationError failure = 5;
+}
+// Tool arguments and results are the existing schema-validated domain documents,
+// not encoded HTTP requests or a replacement invocation protocol.
+message PlannerArgumentsDocument { optional bytes json = 1; }
+message PlannerResultDocument { optional bytes json = 1; }
+message GatewayRecoveryRequest {
+  optional string model = 1;
+  optional string request_id = 2;
+  optional string action = 3;
+  optional string code = 4;
+  optional double retry_after_seconds = 5;
+}
+message GatewayRecoveryResponse {
+  optional bool allowed = 1;
+  optional string code = 2;
+  optional double retry_after_seconds = 3;
+  optional bool requires_retry = 4;
+}
+
 service RuntimeLifecycle {
   rpc Prepare(PrepareAllocationRequest) returns (PrepareAllocationResponse);
   rpc Finalize(FinalizeAllocationRequest) returns (AllocationFinalResponse);
@@ -369,4 +418,269 @@ message AllocationFinalReport {
   optional string finished_at = 4;
   ExecutionReportDocument worker = 5;
   RuntimeReportDocument runtime = 6;
+}
+
+// Allocation domain contracts preserve owning validators and receipt identities.
+message NullableString { oneof kind { google.protobuf.NullValue null = 1; string value = 2; } }
+message ExactArtifact {
+  ArtifactRef ref = 1;
+  optional string digest = 2;
+  optional string media_type = 3;
+  optional int64 size_bytes = 4;
+}
+message Material {
+  optional string scope_kind = 1 [json_name = "scope_kind"];
+  optional string scope_id = 2 [json_name = "scope_id"];
+  ArtifactRef ref = 3;
+  optional string digest = 4;
+  optional string media_type = 5 [json_name = "media_type"];
+  optional int64 size_bytes = 6 [json_name = "size_bytes"];
+}
+message ListOfMaterial { repeated Material values = 1; }
+message ListOfArtifactRef { repeated ArtifactRef values = 1; }
+message AuditEvidenceRequest {
+  optional string api_version = 1;
+  optional string invocation_id = 2;
+  optional string submission_id = 3;
+  optional string item_key = 4;
+  ListOfArtifactRef sources = 5;
+  optional string interpretation = 6;
+  ListOfString tested_conditions = 7;
+  ListOfString limitations = 8;
+}
+message AuditEvidenceReceipt {
+  optional string api_version = 1;
+  ListOfMaterial selected_sources = 2;
+  Material material = 3;
+  ListOfMaterial sources = 4;
+  optional string item_key = 5;
+  optional bool replayed = 6;
+}
+message AuditConclusion {
+  optional string item_key = 1 [json_name = "item_key"];
+  optional string rationale = 2;
+  ListOfString tested_conditions = 3 [json_name = "tested_conditions"];
+  ListOfString limitations = 4;
+  ListOfMaterial evidence = 5;
+  optional string verdict = 6;
+}
+message AuditJudgmentUpdate {
+  optional uint64 base_generation = 1;
+  AuditConclusion conclusion = 2;
+}
+message ListOfAuditJudgmentUpdate { repeated AuditJudgmentUpdate values = 1; }
+message AuditJudgmentsRequest {
+  optional string api_version = 1;
+  optional string invocation_id = 2;
+  optional string submission_id = 3;
+  optional string mode = 4;
+  ListOfAuditJudgmentUpdate items = 5;
+}
+message AuditGeneration {
+  optional string item_key = 1;
+  optional uint64 generation = 2;
+  optional string task_id = 3;
+}
+message ListOfAuditGeneration { repeated AuditGeneration values = 1; }
+message AuditJudgmentReceipt {
+  optional string api_version = 1;
+  Material material = 2;
+  ListOfAuditGeneration generations = 3;
+  optional bool replayed = 4;
+}
+message AuditJudgmentStale {
+  optional string api_version = 1;
+  ListOfAuditGeneration current_generations = 2;
+}
+message AuditJudgmentsResponse { oneof result { AuditJudgmentReceipt receipt = 1; AuditJudgmentStale stale = 2; } }
+message SitemapProvenance {
+  optional string source_id = 1;
+  optional string kind = 2;
+  optional string deployment = 3;
+}
+message SitemapSource {
+  SitemapProvenance provenance = 1;
+  optional uint64 generation = 2;
+  ExactArtifact artifact = 3;
+  optional string policy_digest = 4;
+}
+message SitemapStructuralParameter {
+  optional string name = 1;
+  ListOfString allowed = 2;
+}
+message ListOfSitemapStructuralParameter { repeated SitemapStructuralParameter values = 1; }
+message SitemapEditorRule {
+  optional string origin = 1;
+  optional string method = 2;
+  optional string path = 3;
+  optional string pointer = 4;
+  ListOfString parameters = 5;
+  ListOfSitemapStructuralParameter structural = 6;
+}
+message ListOfSitemapEditorRule { repeated SitemapEditorRule values = 1; }
+message SitemapEditorSource {
+  SitemapSource expected = 1;
+  ListOfSitemapEditorRule rules = 2;
+}
+message SitemapEditorMutation {
+  optional string operation = 1;
+  optional string expected_revision = 2;
+  optional string url = 3;
+  optional string method = 4;
+  ListOfString member_ids = 5;
+  optional string note = 6;
+  ListOfString tags = 7;
+  optional string marker_id = 8;
+  SitemapEditorSource source = 9;
+}
+message SitemapMutationRequest {
+  optional string api_version = 1;
+  SitemapEditorMutation mutation = 2;
+  optional string idempotency_key = 3;
+}
+message SitemapMutationResult {
+  ArtifactRef artifact = 1;
+  optional bool replayed = 2;
+  optional bool changed = 3;
+}
+message SitemapMutationResponse {
+  optional string api_version = 1;
+  SitemapMutationResult result = 2;
+}
+message SitemapSnapshotSelection {
+  optional string revision = 1;
+  optional bool require_referenced_inputs = 2;
+  ListOfString groups = 3;
+  ListOfString members = 4;
+}
+message SitemapSnapshotRequest {
+  optional string api_version = 1;
+  SitemapSnapshotSelection selection = 2;
+  optional string idempotency_key = 3;
+}
+message SitemapSnapshotResult {
+  ExactArtifact artifact = 1;
+  optional bool replayed = 2;
+}
+message SitemapSnapshotResponse {
+  optional string api_version = 1;
+  SitemapSnapshotResult result = 2;
+}
+message SitemapObservation {
+  optional string note = 1;
+  ListOfString tags = 2;
+  optional string url = 3;
+  optional string method = 4;
+  optional string outcome = 5;
+  optional int64 status = 6;
+  optional string at = 7;
+  ListOfString parameters = 8;
+}
+message ListOfSitemapObservation { repeated SitemapObservation values = 1; }
+message SitemapCollectionGap {
+  optional string reason = 1;
+  optional uint64 count = 2;
+}
+message ListOfSitemapCollectionGap { repeated SitemapCollectionGap values = 1; }
+message SitemapCollectionIngress {
+  optional string kind = 1;
+  ListOfSitemapObservation observations = 2;
+  ListOfSitemapCollectionGap gaps = 3;
+  ArtifactRef artifact = 4;
+}
+message SitemapCollectionRequest {
+  optional string api_version = 1;
+  SitemapCollectionIngress input = 2;
+  optional bool automatic = 3;
+  optional string idempotency_key = 4;
+}
+message ArtifactListRequest {
+  optional string namespace = 1;
+  optional string name_prefix = 2;
+  optional int64 limit = 3;
+  optional string cursor = 4;
+}
+message ArtifactListResponse {
+  optional string api_version = 1;
+  ListOfArtifactRef artifacts = 2;
+  optional string next_cursor = 3;
+}
+message ArtifactReadTarget {
+  ArtifactRef artifact = 1;
+  optional string scope = 2;
+  optional string operation = 3;
+}
+message ArtifactMetadataResponse {
+  optional string api_version = 1;
+  ArtifactRef artifact = 2;
+  optional string media_type = 3;
+  optional int64 size = 4;
+  optional string content_cache_key = 5;
+}
+message ArtifactAccessResponse {}
+message FindingListRequest {
+  optional int64 limit = 1;
+  optional string cursor = 2;
+}
+message ProjectFindingSummary {
+  optional string finding_id = 1;
+  optional string project_id = 2;
+  optional string title = 3;
+  optional bool title_truncated = 4;
+  optional string subject_kind = 5;
+  optional string subject_key = 6;
+  optional bool subject_truncated = 7;
+  optional string severity_suggestion = 8;
+  NullableString state = 9;
+  NullableString analyst_verdict = 10;
+  NullableString analyst_severity = 11;
+  NullableString duplicate_target_id = 12;
+  optional uint64 revision = 13;
+  optional string created_at = 14;
+  optional string updated_at = 15;
+}
+message ListOfProjectFindingSummary { repeated ProjectFindingSummary values = 1; }
+message FindingListResponse {
+  ListOfProjectFindingSummary items = 1;
+  optional uint64 project_revision = 2;
+  NullableString next_cursor = 3;
+}
+message FindingReadRequest {
+  optional string finding_id = 1;
+  optional uint64 revision = 2;
+}
+message ProjectFinding {
+  optional string finding_id = 1;
+  optional string project_id = 2;
+  optional string first_receipt_id = 3;
+  ExactArtifact first_proposal = 4;
+  optional string title = 5;
+  FindingClaimDocument claim = 6;
+  NullableString state = 7;
+  NullableString analyst_verdict = 8;
+  NullableString analyst_severity = 9;
+  NullableString rationale = 10;
+  NullableString actor_id = 11;
+  NullableString assessed_at = 12;
+  NullableString duplicate_target_id = 13;
+  optional uint64 revision = 14;
+  optional string created_at = 15;
+  optional string updated_at = 16;
+}
+message FindingClaimDocument { optional bytes json = 1; }
+message FindingRevisionSelection {
+  optional string finding_id = 1;
+  optional uint64 revision = 2;
+}
+message ListOfFindingRevisionSelection { repeated FindingRevisionSelection values = 1; }
+message FindingSelectionRequest {
+  optional string client_key = 1;
+  ListOfFindingRevisionSelection findings = 2;
+  ListOfString receipt_ids = 3;
+}
+message FindingSelectionResponse {
+  ExactArtifact artifact = 1;
+  optional string snapshot_at = 2;
+  optional int64 entry_count = 3;
+  optional bool replayed = 4;
 }

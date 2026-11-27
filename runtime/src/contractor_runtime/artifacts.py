@@ -9,6 +9,7 @@ error model and response checks. Finding proposals
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 import re
 from collections.abc import Mapping
@@ -19,7 +20,19 @@ from urllib.parse import quote, urlsplit
 
 from pydantic import Field, ValidationError
 
-from contractor_runtime import _https
+from contractor_runtime import _https, threads
+from contractor_runtime._allocation_errors import (
+    ArtifactAPIError as ArtifactAPIError,
+)
+from contractor_runtime._allocation_errors import (
+    ArtifactClientError as ArtifactClientError,
+)
+from contractor_runtime._allocation_errors import (
+    ArtifactResponseLimitError as ArtifactResponseLimitError,
+)
+from contractor_runtime._allocation_errors import (
+    ArtifactTransportError as ArtifactTransportError,
+)
 from contractor_runtime.contracts import (
     ARTIFACT_LIST_CURSOR_PATTERN,
     ArtifactListResult,
@@ -37,6 +50,7 @@ from contractor_runtime.contracts.planner import MAX_PLANNER_OPERATION_BYTES
 from contractor_runtime.shared_config import artifact_list_max_items, artifact_payload_max_bytes
 
 if TYPE_CHECKING:
+    from contractor_runtime._allocation_rpc import AllocationConnections
     from contractor_runtime.archive_cache import ImmutableArchiveCache
 
 MAX_ARTIFACT_JSON_BYTES = 1 << 20
@@ -58,35 +72,11 @@ RFC3339_UTC_PATTERN = re.compile(
 )
 
 
-class ArtifactClientError(Exception):
-    """Bounded error safe to record in allocation metrics."""
-
-
-class ArtifactTransportError(ArtifactClientError):
-    pass
-
-
-class ArtifactResponseLimitError(ArtifactTransportError):
-    """The response exceeded the caller's byte limit."""
-
-
 # A private Artifact API answer to a CAS write whose binding's retained
 # history needs more maintenance than one Server transaction may do. The write
 # stored nothing and the Server committed one maintenance pass before it
 # answered, so the same write may be sent again (ART-R127).
 ARTIFACT_HISTORY_MAINTENANCE_PENDING = "artifact_history_maintenance_pending"
-
-
-class ArtifactAPIError(ArtifactClientError):
-    def __init__(
-        self, status_code: int, code: str, retryable: bool, request_id: str | None = None
-    ) -> None:
-        super().__init__(f"Artifact API returned HTTP {status_code} ({code})")
-        self.status_code = status_code
-        self.code = code
-        self.retryable = retryable
-        self.request_id = request_id
-        self.retry_after_seconds: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +87,34 @@ class ArtifactHTTPResponse:
 
 
 class ArtifactTransport(Protocol):
+    async def planner_operation(
+        self, allocation_id: str, value: Mapping, *, timeout_seconds: float
+    ) -> Mapping: ...
+
+    async def gateway_recovery(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def submit_audit_evidence(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def submit_audit_judgments(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def mutate_sitemap(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def snapshot_sitemap(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def collect_sitemap(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def list_artifacts(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def read_artifact_metadata(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def check_artifact_access(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def list_findings(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def read_finding(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def select_findings(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
     async def request(
         self,
         method: str,
@@ -264,18 +282,15 @@ class ArtifactClient:
         return result.artifacts
 
     async def _list(self, query: list[tuple[str, str]]) -> ArtifactListResult:
-        path = self._root + "?" + "&".join(f"{key}={quote(value, safe='')}" for key, value in query)
-        response = await self._transport.request(
-            "GET",
-            path,
-            headers={"Accept": "application/json"},
-            body=b"",
-            max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
-        )
-        raise_for_status(response)
-        require_json(response.headers)
+        value = {key: int(item) if key == "limit" else item for key, item in query}
+        response = await self._transport.list_artifacts(self.allocation_id, value)
         try:
-            return decode_private(ArtifactListResult, response.body)
+            return await threads.to_thread_until_done(
+                lambda: decode_private(
+                    ArtifactListResult, json.dumps(response, ensure_ascii=False, allow_nan=False)
+                ),
+                name="artifact-list-validation",
+            )
         except PrivateProtocolDecodeError:
             raise ArtifactTransportError("Artifact API returned an invalid list response") from None
 
@@ -289,18 +304,19 @@ class ArtifactClient:
         the exact revision for invocation provenance.
         """
 
-        path = self._ref_path(ref, target=target, suffix="/metadata")
-        response = await self._transport.request(
-            "GET",
-            path,
-            headers={"Accept": "application/json"},
-            body=b"",
-            max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
-        )
-        raise_for_status(response)
-        require_json(response.headers)
+        self._ref_path(ref, target=target)
+        value = {"artifact": ref.model_dump(mode="json", by_alias=True, exclude_none=True)}
+        if target is not None:
+            value.update(scope="project", operation=target.operation)
+        response = await self._transport.read_artifact_metadata(self.allocation_id, value)
         try:
-            result = decode_private(ArtifactMetadataResult, response.body)
+            result = await threads.to_thread_until_done(
+                lambda: decode_private(
+                    ArtifactMetadataResult,
+                    json.dumps(response, ensure_ascii=False, allow_nan=False),
+                ),
+                name="artifact-metadata-validation",
+            )
         except (PrivateProtocolDecodeError, RecursionError):
             raise ArtifactTransportError(
                 "Artifact API returned invalid artifact metadata"
@@ -373,15 +389,16 @@ class ArtifactClient:
             raise ValueError("artifact read target is invalid")
         if ref.revision is not None:
             raise ValueError("artifact access target must be versionless")
-        response = await self._transport.request(
-            "GET",
-            self._ref_path(ref, target=target, suffix="/access"),
-            headers={"Accept": "application/json"},
-            body=b"",
-            max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
+        self._ref_path(ref, target=target)
+        response = await self._transport.check_artifact_access(
+            self.allocation_id,
+            {
+                "artifact": ref.model_dump(mode="json", by_alias=True, exclude_none=True),
+                "scope": "project",
+                "operation": target.operation,
+            },
         )
-        raise_for_status(response)
-        if response.status_code != 204 or response.body:
+        if response != {}:
             raise ArtifactTransportError("Artifact API returned an invalid access response")
 
     async def write_artifact(
@@ -498,6 +515,7 @@ class MTLSArtifactTransport:
         connections: _https.PrivateConnections,
         timeout_seconds: float,
         runtime_instance_id: str,
+        rpc_connections: AllocationConnections,
     ) -> None:
         parsed = urlsplit(base_url)
         base_path = parsed.path.rstrip("/")
@@ -508,7 +526,7 @@ class MTLSArtifactTransport:
             or parsed.password is not None
             or parsed.query
             or parsed.fragment
-            or not base_path.endswith("/private/v1")
+            or base_path != "/private/v1"
         ):
             raise ValueError(
                 "Artifact API URL must be an HTTPS private/v1 root without credentials"
@@ -527,6 +545,52 @@ class MTLSArtifactTransport:
         self._connections = connections
         self._timeout = timeout_seconds
         self._runtime_instance_id = runtime_instance_id
+        from contractor_runtime._allocation_rpc import AllocationRPC
+
+        self._rpc = AllocationRPC(
+            rpc_connections, f"https://{parsed.netloc}", runtime_instance_id, timeout_seconds
+        )
+
+    async def planner_operation(self, allocation_id, value, *, timeout_seconds):
+        return await self._rpc.planner_operation(
+            allocation_id, value, timeout_seconds=timeout_seconds
+        )
+
+    async def gateway_recovery(self, allocation_id, value):
+        return await self._rpc.gateway_recovery(allocation_id, value)
+
+    async def submit_audit_evidence(self, allocation_id, value):
+        return await self._rpc.submit_audit_evidence(allocation_id, value)
+
+    async def submit_audit_judgments(self, allocation_id, value):
+        return await self._rpc.submit_audit_judgments(allocation_id, value)
+
+    async def mutate_sitemap(self, allocation_id, value):
+        return await self._rpc.mutate_sitemap(allocation_id, value)
+
+    async def snapshot_sitemap(self, allocation_id, value):
+        return await self._rpc.snapshot_sitemap(allocation_id, value)
+
+    async def collect_sitemap(self, allocation_id, value):
+        return await self._rpc.collect_sitemap(allocation_id, value)
+
+    async def list_artifacts(self, allocation_id, value):
+        return await self._rpc.list_artifacts(allocation_id, value)
+
+    async def read_artifact_metadata(self, allocation_id, value):
+        return await self._rpc.read_artifact_metadata(allocation_id, value)
+
+    async def check_artifact_access(self, allocation_id, value):
+        return await self._rpc.check_artifact_access(allocation_id, value)
+
+    async def list_findings(self, allocation_id, value):
+        return await self._rpc.list_findings(allocation_id, value)
+
+    async def read_finding(self, allocation_id, value):
+        return await self._rpc.read_finding(allocation_id, value)
+
+    async def select_findings(self, allocation_id, value):
+        return await self._rpc.select_findings(allocation_id, value)
 
     async def request(
         self,

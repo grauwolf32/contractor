@@ -9,6 +9,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from fakes.allocation_rpc import AllocationRPCFixture
 from fakes.source_selectors import artifact_sources
 from fakes.worker_state import WorkerState
 
@@ -365,7 +366,7 @@ def padded_archive(size, marker):
     return data
 
 
-class SourceAPI:
+class SourceAPI(AllocationRPCFixture):
     """Private API transport: exact source metadata/payload reads plus finding intake."""
 
     def __init__(self, sources):
@@ -375,6 +376,7 @@ class SourceAPI:
         self.intake = FakeFindingClient()
         self.metadata_reads = []
         self.payload_reads = []
+        self.progress = asyncio.Condition()
         self.reported_size = {}
         self.missing = set()
         self.payload_error = None
@@ -396,7 +398,9 @@ class SourceAPI:
         parsed = urlsplit(path)
         revision = parse_qs(parsed.query)["revision"][0]
         if parsed.path.endswith("/metadata"):
-            self.metadata_reads.append(revision)
+            async with self.progress:
+                self.metadata_reads.append(revision)
+                self.progress.notify_all()
             if revision in self.missing:
                 error = {
                     "code": "artifact_not_found",
@@ -418,7 +422,9 @@ class SourceAPI:
             return ArtifactHTTPResponse(
                 200, {"content-type": "application/json"}, json.dumps(metadata).encode()
             )
-        self.payload_reads.append(revision)
+        async with self.progress:
+            self.payload_reads.append(revision)
+            self.progress.notify_all()
         if self.gate is not None:
             await self.gate.wait()
         if self.payload_error is not None:
@@ -513,10 +519,10 @@ def test_concurrent_findings_share_one_exact_source_download():
             asyncio.create_task(submit_code_finding(tool, "1", f"call-{index}"))
             for index in range(30)
         ]
-        for _ in range(1000):
-            if len(api.metadata_reads) == 30:
-                break
-            await asyncio.sleep(0)
+        async with asyncio.timeout(5), api.progress:
+            await api.progress.wait_for(
+                lambda: len(api.metadata_reads) == 30 and bool(api.payload_reads)
+            )
         assert len(api.metadata_reads) == 30 and api.payload_reads == ["1"]
         api.gate.set()
         await asyncio.gather(*calls)

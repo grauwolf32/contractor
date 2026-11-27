@@ -436,7 +436,7 @@ of its Runtime principal (CTL-R124), closing them after active sibling calls fin
 the Scheduler has stopped. An A2A invocation owns the connections of its
 `SendMessage`, its polls and its best-effort `CancelTask` and closes them
 before it returns. The Runtime process owns one gRPC channel for bootstrap, registration and
-heartbeats, and a separate connection set for Artifact API traffic, so a heartbeat never waits
+heartbeats, an allocation-domain channel owner and a separate connection set for Artifact payload traffic, so a heartbeat never waits
 behind an Artifact transfer, and closes them at shutdown after its private
 listener has stopped. Closing ends idle connections at once and a connection
 in use when its exchange ends; an exchange started after its owner closed
@@ -455,7 +455,7 @@ channels carry only their existing calls, so they do not evade the same call
 bound. The Server evicts the least recently used idle endpoint at LIM-CTL-17;
 if all endpoints are borrowed it rejects admission. It closes idle channels
 at LIM-CTL-14 and replaces aged channels before another call at LIM-CTL-15.
-Runtime control serializes calls within their deadlines, never reuses an
+Runtime allocation-domain calls lease at most four exclusive channels, with at most 32 admitted calls including waiters. Channel rotation happens before borrowing an idle channel, so closing or cancelling one call cannot terminate a sibling allocation. Runtime control serializes calls within their deadlines, never reuses an
 idle or aged channel past these bounds, and closes it at the next exchange or
 shutdown. The following connection/framing rules apply to remaining HTTP families.
 
@@ -1914,8 +1914,8 @@ control/A2A addresses remain HTTPS origins; the A2A Agent Card advertises a
 `host:port` gRPC authority and allocation `tenant`. Origins use the bounded
 Runtime endpoint grammar, require HTTPS and have no path except an optional
 root slash; queries, fragments and user information are rejected before
-registration or connection. Allocation Artifact/domain HTTP operations remain
-separate families until their own binding changes. Public HTTP, Gateway and target HTTP are not
+registration or connection. Allocation domain services use CTL-R176; raw
+Artifact payload and finding proposal submission retain their separate binding. Public HTTP, Gateway and target HTTP are not
 part of this private transport boundary.
 
 Protobuf envelopes carry typed identity, authority, lifecycle and presence.
@@ -1951,3 +1951,57 @@ Heartbeat sequences, acknowledgements and echoed acknowledgements remain exact
 Malformed control replies (including oversized untyped receive failures) are
 permanent. Server admission exhaustion carries typed `control_rpc_capacity`
 with `retryable=true`; existing caller backoff and deadline bounds apply.
+
+
+**CTL-R176.** Runtime allocation-domain calls use the named `Allocation`
+protobuf service: PlannerOperation, GatewayRecovery, SubmitAuditEvidence,
+SubmitAuditJudgments, MutateSitemap, SnapshotSitemap, CollectSitemap,
+ListFindings, ReadFinding, SelectFindings, ListArtifacts,
+ReadArtifactMetadata and CheckArtifactAccess. Their former HTTP routes are
+absent. The actual verified TLS Runtime principal, exactly one bounded Runtime
+instance metadata value and one allocation metadata value are checked before
+protobuf decoding; every operation then rechecks its existing grant/fence at
+its domain authority boundary. A request cannot choose a Run or Project ID.
+Missing and foreign grants share `allocation_not_found` / `NotFound`; Planner
+and recovery preserve their existing `allocation_unavailable` /
+`FailedPrecondition` classification. Neither distinguishes another process's
+grant from a nonexistent one. Denied rights within an owned grant retain
+`PermissionDenied` and the owning domain code.
+
+Planner arguments/results and stored finding claim documents retain their named
+JSON document types and existing validators. Lists, identities, pagination,
+preconditions, Audit materials and generation values are typed protobuf fields.
+Nullable finding assessment fields distinguish explicit null from omission.
+Judgment response alternatives are an accepted receipt or typed current
+generations after a stale base; the latter never authorizes an implicit retry.
+
+The existing Planner sequence, Audit submission identities, sitemap mutation
+keys, finding selection key and Artifact revision preconditions remain the
+only reconciliation mechanisms. The binding adds no receipt or execution
+engine. Native retries/hedging are disabled. Process control has its own
+channel and four reserved positions within the shared 32-call Server admission.
+Long domain operations cannot consume those positions. Allocation-domain admission, TLS establishment,
+encoding, request and response all consume the caller's original deadline.
+Closing the owner cancels and joins calls, retires channels and joins TLS
+forwarders before deleting their private socket directories.
+
+LIM-CTL-28/29 bound the allocation channel owner and message envelopes.
+Audit submission still acquires one of the four Artifact transfer permits
+before decoding its up-to-8-MiB document, and releases it before sending the
+small receipt. Socket read/write and storage budgets remain separate. Typed
+ErrorDetail retains stable code, explicit retryability and request ID.
+`storage_transaction_conflict` is retryable `Aborted`; transfer capacity is
+retryable `ResourceExhausted`. Domain validation formerly represented by HTTP
+422 remains permanent `InvalidArgument`, retaining its domain code. Wrapped
+cancellation and deadline causes retain `Cancelled` / `cancelled` and
+`DeadlineExceeded` / `deadline_exceeded` respectively; no raw cause is sent. An existing Artifact
+history retry delay is carried in standard RetryInfo, bounded to 300 seconds
+by the receiver. Malformed status details are permanent protocol failures. For an unconfirmed
+mutation receipt, the existing domain owner may still reconcile the same
+frozen mutation identity within its original attempt/deadline bound; it never
+issues a new semantic mutation or repeats target traffic to repair a receipt.
+
+Boundary decision (2026-11-27): preserve domain ownership and receipts while
+replacing adaptation only. A generic HTTP-over-gRPC tunnel and internal A2A
+removal were rejected. Reopen the named document choices only when their domain
+schemas cease to be dynamic; changing transport alone is insufficient reason.

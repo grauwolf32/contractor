@@ -37,36 +37,51 @@ func (h *handler) withReadTarget(r *http.Request, accessOnly bool, read func(con
 		}
 		ref.Revision = &values[0]
 	}
-	_, scoped := query["scope"]
-	_, operated := query["operation"]
-	if !scoped {
-		if operated || accessOnly {
-			return errInvalidRequest
-		}
-		store, err := h.runStore(r, false)
-		if err != nil {
-			return err
-		}
-		return read(r.Context(), store, ref)
+	var scope, operation *string
+	if values, present := query["scope"]; present {
+		scope = &values[0]
 	}
-	operation := query.Get("operation")
-	if query.Get("scope") != "project" || !operated || !contracts.ValidName(operation) {
-		return errInvalidRequest
+	if values, present := query["operation"]; present {
+		operation = &values[0]
 	}
 	_, identity, err := h.allocationGrant(r)
 	if err != nil {
 		return err
 	}
-	ctx, cancel := artifacttransfer.StorageContext(r.Context())
+	return h.withArtifactTarget(r.Context(), r.PathValue("allocationID"), identity, ref, scope, operation, accessOnly, read)
+}
+
+func (h *handler) withArtifactTarget(ctx context.Context, allocationID string, identity authenticatedRuntime, ref contracts.ArtifactRef, scope, operation *string, accessOnly bool, read func(context.Context, artifacts.ScopedStore, contracts.ArtifactRef) error) error {
+	if ref.Validate() != nil {
+		return errInvalidRequest
+	}
+	if scope == nil {
+		if operation != nil || accessOnly {
+			return errInvalidRequest
+		}
+		grant, err := h.dependencies.Registry.GetGrant(allocationID)
+		if err != nil {
+			return err
+		}
+		store, err := h.runStoreForGrant(allocationID, grant, identity, false)
+		if err != nil {
+			return err
+		}
+		return read(ctx, store, ref)
+	}
+	if *scope != "project" || operation == nil || !contracts.ValidName(*operation) || accessOnly && ref.Revision != nil {
+		return errInvalidRequest
+	}
+	ctx, cancel := artifacttransfer.StorageContext(ctx)
 	defer cancel()
-	return h.dependencies.Registry.WithWriteGrant(r.PathValue("allocationID"), func(grant controlplane.AllocationGrant) error {
-		if grant.AllocationID != r.PathValue("allocationID") || grant.RuntimeAgentID != identity.principalID || grant.RuntimeInstanceID != identity.instanceID {
+	return h.dependencies.Registry.WithWriteGrant(allocationID, func(grant controlplane.AllocationGrant) error {
+		if grant.AllocationID != allocationID || grant.RuntimeAgentID != identity.principalID || grant.RuntimeInstanceID != identity.instanceID {
 			return controlplane.ErrAllocationNotFound
 		}
 		if grant.WriteFenced || grant.Lost {
 			return errAllocationWriteFenced
 		}
-		if grant.ReadPolicy != controlplane.ReadCurrentRun || !permitsProjectRead(grant.ProjectArtifactReads, ref, operation) || h.dependencies.RunProjects == nil || h.dependencies.Projects == nil {
+		if grant.ReadPolicy != controlplane.ReadCurrentRun || !permitsProjectRead(grant.ProjectArtifactReads, ref, *operation) || h.dependencies.RunProjects == nil || h.dependencies.Projects == nil {
 			return errArtifactAccessDenied
 		}
 		owning, err := h.dependencies.RunProjects.ProjectContext(ctx, grant.RunID)
@@ -109,18 +124,4 @@ func permitsProjectRead(targets []controlplane.ProjectArtifactReadTarget, ref co
 		}
 	}
 	return false
-}
-
-// getArtifactAccess verifies only current authority. A previously downloaded
-// immutable view remains usable after the source binding/revision is evicted;
-// this check must not read Artifact metadata, bytes or lineage, or acquire a hold.
-func (h *handler) getArtifactAccess(w http.ResponseWriter, r *http.Request) {
-	err := h.withReadTarget(r, true, func(context.Context, artifacts.ScopedStore, contracts.ArtifactRef) error {
-		w.Header().Set("Cache-Control", "no-store")
-		w.WriteHeader(http.StatusNoContent)
-		return nil
-	})
-	if err != nil {
-		h.handleError(w, err)
-	}
 }

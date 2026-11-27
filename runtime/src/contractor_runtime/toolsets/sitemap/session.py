@@ -125,7 +125,7 @@ class SitemapSession:
             except ArtifactAPIError as error:
                 # Only a missing current binding is an empty domain view.
                 # Project/operation failures have separate Server error codes.
-                if error.status_code != 404 or error.code != "artifact_not_found":
+                if error.code != "artifact_not_found":
                     raise
                 data = (
                     b'{"version":"project-sitemap@1","projection":"sitemap-safe-projection@1",'
@@ -346,7 +346,7 @@ class SitemapSession:
             try:
                 result = await self.client.mutate(prepared, key)
             except ArtifactAPIError as error:
-                if not error.retryable and error.status_code < 500:
+                if not error.retryable and not error.server_failure:
                     self._pending_edit = None
                 raise
             else:

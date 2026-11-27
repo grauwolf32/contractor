@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 import pytest
 from a2a.types import AgentCard
 from fakes.allocation import allocation_context
+from fakes.allocation_rpc import AllocationRPCFixture
 from fakes.process_markers import atomic_marker_source
 from fakes.worker_state import WorkerState
 from google.protobuf.json_format import ParseDict
@@ -61,7 +62,7 @@ def request(spec, *, target="http://fixture.invalid/?secret=canary"):
     )
 
 
-class ArtifactStore:
+class ArtifactStore(AllocationRPCFixture):
     def __init__(self):
         self.values = {}
         self.revisions = {}

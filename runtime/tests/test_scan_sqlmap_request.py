@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from fakes.allocation_rpc import AllocationRPCFixture
 from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.worker_state import WorkerState
 from target_policy_fixtures import SCAN_TEST_POLICY
@@ -23,7 +24,7 @@ from contractor_runtime.workspace import AllocationWorkspace
 REQUEST_REF = {"namespace": "inputs", "name": "request", "revision": "request-1"}
 
 
-class RequestTransport:
+class RequestTransport(AllocationRPCFixture):
     def __init__(
         self, data=None, *, media_type="application/json", revision="request-1", block=False
     ):

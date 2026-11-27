@@ -16,6 +16,7 @@ from urllib.parse import parse_qs, urlsplit
 import jcs
 import pytest
 from fakes import finding_collection
+from fakes.allocation_rpc import AllocationRPCFixture
 from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 
@@ -134,7 +135,7 @@ def _replace_proposal(collection, contents, index, transform):
     collection["documents"].sort(key=lambda doc: doc["id"])
 
 
-class Transport:
+class Transport(AllocationRPCFixture):
     """Real ArtifactClient wire behavior in one allocation, with injected faults."""
 
     def __init__(self, payload):

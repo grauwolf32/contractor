@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+from fakes.allocation_rpc import AllocationRPCFixture
 from fakes.source_selectors import artifact_sources
 from fakes.worker_state import WorkerState
 
@@ -230,7 +231,7 @@ def test_shared_finding_client_reads_independent_selected_http_receipt(capture_n
         )["cases"]
         capture = next(row["value"] for row in cases if row["name"] == capture_name)
 
-        class Transport:
+        class Transport(AllocationRPCFixture):
             async def request(self, method, path, *, headers, body, max_response_bytes):
                 response = _receipt_response(201, replayed=False, request=json.loads(body))
                 receipt = json.loads(response.body)
@@ -350,7 +351,7 @@ class FakeToolContext:
         self.function_call_id = "call-test"
 
 
-class FakeFindingClient:
+class FakeFindingClient(AllocationRPCFixture):
     """Fakes the finding submissions of one allocation.
 
     A test that builds a FindingPublisher uses it as the FindingProposalClient
@@ -404,7 +405,7 @@ class FakeFindingClient:
         return _receipt_response(201, replayed=False, request=self.requests[-1])
 
 
-class LossyFindingTransport:
+class LossyFindingTransport(AllocationRPCFixture):
     def __init__(self) -> None:
         self.bodies: list[bytes] = []
 
