@@ -462,6 +462,13 @@ Run commands from the repository root. Pick checks by the boundary you changed
 
 Notes:
 
+- **Do not monitor healthy test progress.** Run tests with output saved to a
+  log or report, then consume only completion status and the required final
+  coverage/skip summary. Inspect detailed logs only after a failure, timeout
+  or abnormal termination. Do not repeatedly poll logs, count passing cases,
+  read test code to narrate progress, or send per-test progress updates. While
+  tests run, do independent work or wait for completion without analysing
+  intermediate output. User decision 2026-11-27.
 - Database tests need a disposable database whose user can create and drop
   schemas and databases (`CREATEDB`; read-budget tests measure in a database
   of their own, see `docs/testing/README.md`):
