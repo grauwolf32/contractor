@@ -189,6 +189,9 @@ async def run_gateway_case(phase, case):
     "case, reason, has_tools, rejection",
     [
         ("valid", "stop", False, None),
+        ("no_choices", "", False, "invalid"),
+        ("null_message", "", False, "invalid"),
+        ("bad_content", "", False, "invalid"),
         ("tool_empty", "tool_calls", False, "tool_output"),
         ("function_empty", "function_call", False, "tool_output"),
         ("tool_valid", "tool_calls", True, "tool_output"),
@@ -211,6 +214,14 @@ def test_planner_compactor_preserves_provider_outcome_and_usage(case, reason, ha
         value = json.loads(gateway_reply("compactor", "valid"))
         choice = value["choices"][0]
         choice["finish_reason"] = reason or "unknown-provider-reason"
+        if case == "no_choices":
+            value["choices"] = []
+        elif case == "null_message":
+            choice["finish_reason"] = "stop"
+            choice["message"] = None
+        elif case == "bad_content":
+            choice["finish_reason"] = "stop"
+            choice["message"]["content"] = {"invalid": "content"}
         if case == "missing_reason":
             del choice["finish_reason"]
         if case == "refusal":

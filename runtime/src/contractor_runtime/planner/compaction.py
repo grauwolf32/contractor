@@ -332,23 +332,13 @@ class _CompactorModel(OneShotModel):
                 # provider tool call or structured-output repair may enter ADK.
                 yield LlmResponse()
         except GatewayModelError as error:
-            metadata = error.response_metadata
-            if (
-                not valid_token_usage(error.usage_metadata)
-                or not metadata
-                or not (
-                    error.provider_error_type == "EmptyGatewayResponse"
-                    or metadata["tool_calls"]
-                    or metadata["finish_reason"]
-                    in {
-                        "tool_calls",
-                        "function_call",
-                        "length",
-                        "content_filter",
-                    }
-                )
-            ):
+            if not valid_token_usage(error.usage_metadata):
                 raise
+            metadata = error.response_metadata or {"finish_reason": "", "tool_calls": False}
+            if error.provider_error_type != "EmptyGatewayResponse" and not metadata["tool_calls"]:
+                # A parsed envelope with unusable message/content is an invalid
+                # compactor reply. Keep known usage and no provider content.
+                metadata = {**metadata, "finish_reason": ""}
             self._response = LlmResponse(
                 usage_metadata=error.usage_metadata, custom_metadata=metadata
             )
