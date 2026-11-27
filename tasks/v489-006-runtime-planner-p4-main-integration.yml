@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V489-006
+title: Merge the accepted Runtime Planner P4 into main
+milestone: runtime-planner-p3-2026-11
+epic: planner-worker
+kind: chore
+priority: P1
+status: in_progress
+depends_on: [V489-005]
+languages: [markdown, yaml]
+goal: Local main contains the accepted P4 results, indefinite P2 deferral and corrected capacity descriptions through a no-fast-forward merge, preserving the user's portable-kit work and staged delta.
+context:
+  authority: User instruction 2026-11-27 explicitly requests merging the accepted P4 into main.
+  source_head: 1bcc21f9aa9dc34e9ac3d9fdf9aebc9f7455e81b
+  main_before: 9c038839ecc7f6fba3eb4cc2a0519479a34c4503
+  finding: Main is an ancestor of the accepted source. Its generated backlog includes the user's untracked portable task; preserve the raw task and all ten ignored payload files exactly, and regenerate only the derived backlog with that local contribution.
+  boundary: Prepare and check --no-ff in an isolated checkout, then compare-and-swap main and restore only clean changed paths. Keep the protected generated backlog in the working tree until its owner rebuilds it; keep the original empty staged delta. Never stage the user's portable task or payloads.
+  verification_reuse: P4 records 649 Go roots with race/PostgreSQL, 6795 Runtime passes and 136 declared skips, all 71 process roots without skips, wire, architecture, mTLS, full lint and two rejected negative controls. No production/test/contract/build/normative-specification changes beyond this exact accepted source; integration adds delivery metadata only and does not claim a second full test run.
+scope:
+  in:
+    - Local two-parent merge of the pinned accepted source, guarded installation, delivery metadata, source identity and generated-task checks, preservation evidence.
+  out:
+    - New execution logic, P2 recovery, production LocalHost, model calls, deployment, migrations, remote push or changes to the user's portable-kit work.
+acceptance_criteria:
+  - id: A1
+    text: Main contains a two-parent merge with original main first and the pinned accepted source second. All production/test/contract/build and normative-specification files match the accepted source; task graph metadata is checked by its owner.
+  - id: A2
+    text: The raw portable task and ten ignored payload files retain bytes and modes, remain untracked, and no staged delta is introduced. The generated backlog retains the portable task's original local contribution. Installation guards reject concurrent changes.
+  - id: A3
+    text: Task/spec/shared-fixture source/graph/whitespace/identity/ignore/preservation checks pass. Evidence records actual merge and reused P4 verification, with P2 indefinitely deferred and no push or deployment.
+tests:
+  - command: make tasks-backlog
+    covers: [A3]
+  - command: cd runtime && uv run python ../scripts/check_tasks.py
+    covers: [A3]
+  - command: cd runtime && uv run python ../scripts/check_spec.py
+    covers: [A3]
+  - command: cd runtime && uv run python ../scripts/shared_fixture_gate.py --sources-only
+    covers: [A1, A3]
+  - command: cd runtime && uv run python ../scripts/dependencies/build_graph.py --check
+    covers: [A3]
+  - command: git diff --exit-code 1bcc21f9aa9dc34e9ac3d9fdf9aebc9f7455e81b HEAD -- api cmd configs internal runtime ui tests tools scripts make Makefile go.mod go.sum docs/spec
+    covers: [A1]
+  - command: git check-ignore --no-index .portable/example.zip
+    covers: [A2]
+  - command: python3 /private/tmp/contractor-v489-p4-main-4x9o1sze/install-main.py --verify-only
+    covers: [A2]

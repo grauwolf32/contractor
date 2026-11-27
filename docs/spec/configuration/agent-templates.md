@@ -1147,9 +1147,8 @@ enforced independently of Gateway-reported spend and rate state (TPL-R17).
    before Planner starts ([Control Plane](../execution/control-plane.md)).
 7. An AgentTemplate never becomes a physical deployment or long-lived Agent
    identity (TPL-R4).
-8. Runtime Agent and Worker functions execute in one process; one Runtime Agent
-   has at most one active Worker instance
-   ([Control Plane](../execution/control-plane.md)).
+8. Runtime Agent and its allocation-scoped Workers execute in one process;
+   allocation capacity is owned by [Control Plane](../execution/control-plane.md).
 9. Workflow or API input cannot select an executable, module, image or raw
    process arguments ([Control Plane](../execution/control-plane.md)).
 10. Runtime labels configure allocation infrastructure around the resolved

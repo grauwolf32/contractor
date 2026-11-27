@@ -753,10 +753,9 @@ finalize or lease cancellation keeps its existing cancellation owner and does
 not become an executor-authored failed completion.
 
 The separation of allocation, A2A Task and context, Contractor invocation and
-ADK session identities is [WRK-R69](worker.md). One Runtime Agent has one
-active slot, so a Stage with three named Workers needs three Runtime Agent
-processes ([CTL-R112 and CTL-R143](control-plane.md)); one Worker executes at most one Task
-at a time, and draining and fenced allocations reject work
+ADK session identities is [WRK-R69](worker.md). Per-process allocation capacity
+is defined by [CTL-R112](control-plane.md); one Worker executes at most one
+Task at a time, and draining and fenced allocations reject work
 ([CTL-R113 and CTL-R114](control-plane.md)).
 
 ### Finalization and abort

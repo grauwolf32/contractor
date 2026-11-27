@@ -1,0 +1,92 @@
+schema_version: "1.0"
+id: V489-005
+title: Verify Runtime Planner failure boundaries without Stage resume
+milestone: runtime-planner-p3-2026-11
+epic: planner-worker
+kind: chore
+introduced_by: V487-004
+priority: P1
+status: completed
+depends_on: [V489-004]
+languages: [go, python, markdown, yaml]
+goal: Verify that the merged Runtime Planner preserves durable Stage progression and bounded failure handling while a lost Runtime may repeat only the interrupted Stage under Workflow retry policy.
+context:
+  authority: >-
+    User decision 2026-11-27 accepts restarting the interrupted Stage from the
+    beginning after Runtime loss, defers P2 indefinitely, asks whether Stage
+    ordering is stable and assigns P4 integration testing under this contract.
+    Preserve the replaceable PlannerHost boundary and keep code small.
+  proposal: docs/proposals/0058-runtime-planner-and-recovery.md
+  specification:
+    - docs/spec/execution/scheduler.md
+    - docs/spec/execution/planners.md
+    - docs/spec/execution/control-plane.md
+    - docs/spec/execution/runtime-agent.md
+    - docs/spec/configuration/agent-templates.md
+  original_p4: >-
+    Proposal 0058 at b899210ff0a39ff8e8d5ff1a0308083eac323bb4 defines P4 as
+    integration acceptance of lost replies, cancellation, deadlines, different
+    capacity and process failure, with negative controls and explicit skips.
+    Replace its speculative checkpoint/resume scenarios with ordinary existing
+    interruption/retry; P2 is not a prerequisite.
+  test_execution: >-
+    The initial monolithic test-e2e attempt is superseded, not accepted. After
+    the Go and Runtime lanes finished, run the same complete process selection
+    through all three production CI shards in parallel, with separate reports.
+    Accept only their completed gates and verify the union of expected roots.
+  boundary: >-
+    Server/PostgreSQL own Run claims, accepted results and atomic transition
+    decisions. Runtime owns the model loop behind PlannerHost. Live-host
+    sequence replay is not recovery. Retry creates a fresh StageExecution;
+    completed prior Stages remain accepted. External effects inside a repeated
+    Stage can repeat. Automatic retry still requires Workflow policy.
+scope:
+  in:
+    - Record indefinite P2 deferral and the accepted failure contract in the proposal.
+    - Correct stale one-slot-per-process descriptions in Scheduler, Control Plane, Runtime Agent and AgentTemplate specifications and the release comment; preserve owning per-allocation and capacity contracts from V487-004.
+    - Run full Scheduler, RunStore, Control Plane and Planner Go suites against disposable PostgreSQL with race detection, full Runtime, wire, architecture and lint checks.
+    - Run production process suites for Router/Streamline, lost control replies, cancellation, Runtime/Server loss, capacity and allocation isolation; record per-scenario evidence and negative controls.
+    - Add a regression only if the existing real-path tests leave the agreed boundary unproven; update affected release selectors if necessary.
+    - Record headless interface coverage, non-growing production size, limitations and cleanup of owned resources.
+  out:
+    - P2, same-Stage Planner replacement, subtask checkpoint recovery, new stores, leases, transport protocols, production LocalHost, live model calls, deployment or main integration.
+acceptance_criteria:
+  - id: A1
+    text: The dated decision explicitly defers P2 indefinitely and permits a fresh whole-Stage retry only under Workflow policy. Earlier completed Stages and accepted exact outputs survive; no exactly-once guarantee is made for effects inside a repeated Stage.
+  - id: A2
+    text: Real PostgreSQL/race tests prove fresh retry lineage, unique atomic progression, claim fencing, cancellation races, retained outputs and bounded deadline/release behavior. Process tests prove the current Runtime model path, process-loss cleanup and allocation capacities without adopting lost work.
+  - id: A3
+    text: Lost-reply replay, cancellation and headless injection tests pass for the common Planner path. Every expected process root is observed, negative controls reject an invalid outcome, skips are enumerated separately and owned resources are removed.
+  - id: A4
+    text: No recovery machinery or duplicate engine is added, production Go/Python size does not grow, and task/spec/wire/architecture/lint gates pass. Evidence distinguishes freshly executed checks from prior P3 evidence and untested live/platform guarantees.
+tests:
+  - command: go test -json -p 1 -race -count=1 -timeout=20m ./internal/scheduler/... ./internal/runstore/... ./internal/controlplane/... ./internal/planner/...
+    covers: [A2, A3]
+  - command: make test-runtime
+    covers: [A3, A4]
+  - command: make test-release-process-e2e-a
+    covers: [A2, A3]
+  - command: make test-release-process-e2e-b
+    covers: [A2, A3]
+  - command: make test-release-process-e2e-c
+    covers: [A2, A3]
+  - command: make test-wire-cross-language
+    covers: [A3, A4]
+  - command: make verify-architecture
+    covers: [A4]
+  - command: go test -count=1 ./internal/mtls
+    covers: [A4]
+  - command: make lint
+    covers: [A1, A4]
+
+implementation_commit: 4d9275b7775b3b0669ae7fa253b425c3645785a8
+verification:
+  result: passed
+  evidence: tasks/evidence/v489-005-runtime-planner-p4-acceptance.json
+  stage_order: One active Stage per Run and atomic, claim-fenced PostgreSQL progression are covered, including fresh retry lineage, retained earlier outputs, cancellation and terminal replay.
+  acceptance: 649 Go roots with race/PostgreSQL, 6795 Runtime passes with 136 declared skips, all 71 process roots without skips, wire, architecture, mTLS and lint pass. The broken-progression overlay and incomplete-report controls are rejected.
+  headless: Eight passing injected-host cases preserve one model loop and block Server adapter imports. Production LocalHost is outside scope.
+  simplification: No execution logic, tests, stores, leases or engines added. Only a release comment changes in production; Go source shrinks by one comment line. Four stale single-slot descriptions are corrected.
+  p2: Deferred indefinitely by the user's 2026-11-27 decision; ordinary Workflow retry may repeat effects inside the interrupted Stage. Already durable finalizing candidates use existing terminal recovery.
+  cleanup: All owned process groups and Runtime interpreters are gone; owned databases and PostgreSQL cluster removed. Primary files, modes, staged delta and main preserved.
+  delivery: Committed on codex/runtime-planner-p4; not merged into main, pushed or deployed.

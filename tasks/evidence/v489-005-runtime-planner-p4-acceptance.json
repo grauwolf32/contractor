@@ -1,0 +1,470 @@
+{
+  "schema_version": "1.0",
+  "task": "V489-005",
+  "date": "2026-11-27",
+  "result": "passed",
+  "baseline": "9c038839ecc7f6fba3eb4cc2a0519479a34c4503",
+  "authority": "User accepts fresh whole-Stage retry under Workflow policy and defers P2 indefinitely. No same-Stage or subtask resume is required.",
+  "stage_ordering": {
+    "guarantee": "At most one active Stage per Run; completing source, binding outputs, recording its immutable transition and creating/pinning target or terminating Run is one claim-fenced PostgreSQL transaction. Earlier completed Stages/results/exact outputs persist.",
+    "limits": "Runtime loss interrupts current attempt; Workflow retry/escalation/fail policy still applies. A fresh retry may repeat external effects inside the interrupted Stage. A candidate already durable in finalizing completes by existing idempotent terminal recovery without a new Planner invocation. No exactly-once, Planner adoption or subtask recovery claim.",
+    "references": [
+      "SCH-R11",
+      "SCH-R75",
+      "SCH-R77",
+      "SCH-R78",
+      "SCH-R80",
+      "SCH-R96",
+      "SCH-R100",
+      "SCH-R103",
+      "SCH-R114",
+      "PLN-R137",
+      "CTL-R21"
+    ],
+    "fresh_go_proofs": [
+      "TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt",
+      "TestPostgresEscalationProgressionIsAtomicAndOrdinalIsUnique",
+      "TestPostgresClaimLossDuringFinalizationPreventsReportAndProgression",
+      "TestPostgresCancelAndSuccessRaceSerializesOnRunRow",
+      "TestPostgresFailedOrCancelledRunFreezesEarlierOutputs",
+      "TestConfiguredTerminalBudgetsAreSavedAndRecoveryDoesNotRenew",
+      "TestPostgresSchedulerReplaysTerminalCommitAfterTransientPublicationFailure",
+      "TestSchedulerExecutesMultiStageWorkflowSerially",
+      "TestSchedulerRecoversDurableFinalizingCandidateWithoutPlannerInvocation",
+      "TestSchedulerAllocationLossInterruptsOnlyOwningStage",
+      "TestSchedulerRetryExhaustionFailsAfterMaximumAttempts",
+      "TestSchedulerAbortsRunningStageWhenVolatileControlPlaneStateWasLost",
+      "TestReconcileRuntimeRestartWithholdsNewInstanceUntilOldAllocationReleased",
+      "TestPostgresRuntimePlannerOrderedReplayAndRequiredEvent",
+      "TestPostgresRuntimeRouterDispatchHistoryAndReplay",
+      "TestPostgresRuntimePlannerCancellationJoinsAdmittedWorker",
+      "TestPostgresRuntimePlannerClassifiedFailures"
+    ]
+  },
+  "go": {
+    "passed_roots": 649,
+    "test_skips": 0,
+    "test_packages": 10,
+    "packages_without_test_files": [
+      "github.com/grauwolf32/contractor/internal/runstore/runstoretest",
+      "github.com/grauwolf32/contractor/internal/controlplane/controlplanetest",
+      "github.com/grauwolf32/contractor/internal/planner/router"
+    ],
+    "race": true,
+    "real_postgresql": true,
+    "report": "/private/tmp/contractor-v489-p4/go.jsonl",
+    "report_sha256": "771e1020d2e4cd192df4e99e0c9f1769653f60881e5e01ad79572f7569ded78e"
+  },
+  "runtime": {
+    "passed": 6795,
+    "skipped": 136,
+    "failed": 0,
+    "errors": 0,
+    "report": "/private/tmp/contractor-v489-p4/reports/runtime.xml",
+    "report_sha256": "d5aa2b20c8e1a14b7c0c26a2fd894910acc59cee059f7432943e06d850756212",
+    "elapsed_seconds": 553.22,
+    "skipped_by_module": {
+      "tests.test_code_analysis_graph": 1,
+      "tests.test_interactsh_protocol": 1,
+      "tests.test_live_gateway": 4,
+      "tests.test_podman_allocation": 15,
+      "tests.test_podman_capabilities": 34,
+      "tests.test_podman_command_coordination": 13,
+      "tests.test_podman_deployment_integration": 1,
+      "tests.test_podman_execution_integration": 13,
+      "tests.test_podman_network": 9,
+      "tests.test_podman_owner_integration": 3,
+      "tests.test_podman_recovery": 5,
+      "tests.test_podman_release_integration": 5,
+      "tests.test_podman_supervisor": 18,
+      "tests.test_podman_supervisor_integration": 11,
+      "tests.test_podman_workflow": 2,
+      "tests.test_projectfs_local_io": 1
+    },
+    "skip_reasons": {
+      "OPS-R1: Linux byte-exact filename/long-path fixture; excluded from macOS acceptance": 2,
+      "run make test-interactsh-protocol for the pinned upstream server": 1,
+      "live LLM Gateway environment is not configured": 4,
+      "OPS-R1: the allocation-scoped Podman backend needs Linux host capabilities (AF_UNIX SOCK_SEQPACKET socket pairs, pidfd_open)": 94,
+      "explicit real-rootless startup capability gate": 2,
+      "explicit real-rootless deployment/workflow gate": 1,
+      "explicit real-rootless command execution gate": 13,
+      "explicit real-rootless owner-process gate": 3,
+      "explicit real Podman release gate": 5,
+      "explicit real gate: make test-podman-supervisor": 11
+    }
+  },
+  "process": {
+    "passed_roots": 71,
+    "failed": 0,
+    "skipped": 0,
+    "shards": {
+      "a": {
+        "roots": 26,
+        "skipped_tests": 0,
+        "failed_tests": 0,
+        "command": [
+          "make",
+          "test-release-process-e2e-a",
+          "RELEASE_REPORTS=/private/tmp/contractor-v489-p4/process-a-reports"
+        ],
+        "elapsed_seconds": 1083.85,
+        "report": "/private/tmp/contractor-v489-p4/process-a-reports/go-process-a.jsonl",
+        "report_sha256": "8c6fb52eb51853569c44bf72fef69f18f2df0d20a53912ffe82d393710eb5303",
+        "passed_roots": [
+          "TestArtifactFilePublicationAcrossProcesses",
+          "TestArtifactHistoryAcrossProductionProcesses",
+          "TestArtifactImagesAcrossProcesses",
+          "TestAuditBasicExactHandoffAcrossProductionProcesses",
+          "TestAuditCommonObservationProfilesAcrossProductionProcesses",
+          "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+          "TestAuditCompactionLeaseLossAcrossProcesses",
+          "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses",
+          "TestAuditFixedHypothesesAcrossProductionProcesses",
+          "TestAuditHypothesisContinuationAcrossProductionProcesses",
+          "TestAuditIncrementalEvidenceAcrossProcesses",
+          "TestAuditPartialJudgmentsAcrossProcesses",
+          "TestAuditWorkspaceAcrossProductionProcesses",
+          "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses",
+          "TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses",
+          "TestLocalGoToPythonArtifactCopy",
+          "TestMemoryMVPProcesses",
+          "TestOpenAPIPreparedWorkServerOperation",
+          "TestProjectSitemapHTTPCollectionAcrossProductionProcesses",
+          "TestProjectSitemapReportImportsAcrossProductionProcesses",
+          "TestProjectSitemapServerOperationsAcrossProductionProcesses",
+          "TestProjectSitemapToolsAcrossProductionProcesses",
+          "TestRuntimeManagedArtifactWritesAcrossProcesses",
+          "TestRuntimeManagedMaterialVersionsAcrossProcesses",
+          "TestRuntimeManagedSitemapEditsAcrossProcesses",
+          "TestWorkflowMaterialSetsAcrossProductionProcesses"
+        ],
+        "family_validators": "All commands in the production CI shard target passed."
+      },
+      "b": {
+        "roots": 16,
+        "skipped_tests": 0,
+        "failed_tests": 0,
+        "command": [
+          "make",
+          "test-release-process-e2e-b",
+          "RELEASE_REPORTS=/private/tmp/contractor-v489-p4/process-b-reports"
+        ],
+        "elapsed_seconds": 1058.57,
+        "report": "/private/tmp/contractor-v489-p4/process-b-reports/go-process-b.jsonl",
+        "report_sha256": "716b0db27e3b1301bae70c3e9186aab71f26994f3c61d51ed4267f338560e433",
+        "passed_roots": [
+          "TestAuditProgramCatalogReplacementRestartsServer",
+          "TestEngagementHTTPBoundsAcrossProcesses",
+          "TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses",
+          "TestEngagementHTTPLifecycleAcrossProcesses",
+          "TestEngagementHTTPRouteMatrixAcrossProcesses",
+          "TestEngagementHTTPSelectedEvidenceAcrossProcesses",
+          "TestEngagementIdentityLifecycleAcrossProcesses",
+          "TestEngagementIdentitySessionsAcrossProcesses",
+          "TestEngagementOrdinaryRunAcrossProcesses",
+          "TestLabelDrivenRuntimeConfigurationAcrossProcesses",
+          "TestRoutingAndEscalationProductionBoundaries",
+          "TestRunMetadataLabelsAcrossProcesses",
+          "TestRuntimeAdapterSelectionAllowsAdditionalCapabilities",
+          "TestSchedulerConcurrencyAcrossProductionProcesses",
+          "TestTaintAnnotationsAcrossRealRuntimeProcess",
+          "TestWorkerSummarizerProductionBoundaries"
+        ],
+        "family_validators": "All commands in the production CI shard target passed."
+      },
+      "c": {
+        "roots": 29,
+        "skipped_tests": 0,
+        "failed_tests": 0,
+        "command": [
+          "make",
+          "test-release-process-e2e-c",
+          "RELEASE_REPORTS=/private/tmp/contractor-v489-p4/process-c-reports"
+        ],
+        "elapsed_seconds": 2048.74,
+        "report": "/private/tmp/contractor-v489-p4/process-c-reports/go-process-c.jsonl",
+        "report_sha256": "513370f4ef84f705e5f5d3494441d1fbf36c44736ee9fe740b35afc5dc10569e",
+        "passed_roots": [
+          "TestAgentSkillsMVPProcesses",
+          "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",
+          "TestDiscoveryFactsAcrossProcesses",
+          "TestEvalFindingProjectNavigationAcrossProcesses",
+          "TestFactExtractionAcrossProcesses",
+          "TestFactExtractionAuditEvalAcrossProcesses",
+          "TestFindingLocationsAcrossProcesses",
+          "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts",
+          "TestFindingsProducerAndReaderAcrossProcesses",
+          "TestFindingsReaderBoundariesAcrossProcesses",
+          "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses",
+          "TestHeterogeneousRuntimeCapabilityPlacement",
+          "TestIndependentFindingsServersAcrossProcesses",
+          "TestMemorySnapshotAcrossProcesses",
+          "TestNucleiWebWithDeterministicScannerAcrossProcesses",
+          "TestProcessDatabaseIsolation",
+          "TestProductionMemoryTemplatesAcrossProcesses",
+          "TestProjectDocumentOutputLimitRecoveryAcrossProcesses",
+          "TestProjectDocumentResponseRecoveryAcrossProcesses",
+          "TestProjectFactsAcrossProcesses",
+          "TestProjectFindingsReaderAcrossProcesses",
+          "TestProjectWorkspaceLifecycleAcrossProductionProcesses",
+          "TestRuntimeAllocationSlotsAcrossProductionProcesses",
+          "TestRuntimeGuidanceAcrossProductionProcesses",
+          "TestRuntimePlacementAcrossProductionProcesses",
+          "TestRuntimePlacementScannerFixture",
+          "TestTraceFindingCoordinatesAcrossProcesses",
+          "TestWorkerCompactionContinuesIsolatedWorker",
+          "TestWorkerSessionModesAcrossProductionProcesses"
+        ],
+        "family_validators": "All commands in the production CI shard target passed."
+      }
+    }
+  },
+  "headless": {
+    "passed_cases": [
+      "test_planner_loop_runs_with_an_injected_local_host_without_server_bootstrap",
+      "test_planner_core_imports_with_server_adapters_blocked",
+      "test_planner_compacts_with_local_host_and_injected_models_without_server[False-0]",
+      "test_planner_compacts_with_local_host_and_injected_models_without_server[False-101000]",
+      "test_planner_compacts_with_local_host_and_injected_models_without_server[True-0]",
+      "test_planner_compacts_with_local_host_and_injected_models_without_server[True-101000]",
+      "test_router_uses_the_same_loop_with_two_logical_workers_and_local_host[False]",
+      "test_router_uses_the_same_loop_with_two_logical_workers_and_local_host[True]"
+    ],
+    "guarantee": "One common PlannerLoop accepts injected model/PlannerHost, including Router and compaction, without Server bootstrap and with Server adapter imports blocked.",
+    "not_claimed": "A production LocalHost/persistence backend or fully autonomous execution."
+  },
+  "wire": {
+    "result": "passed",
+    "fixtures": 434,
+    "go_shared_tests": 465,
+    "python_shared_tests": 300,
+    "runtime_shared_selected": 1642,
+    "optional_disk_heavy_skipped": 1,
+    "log": "/private/tmp/contractor-v489-p4/wire.log",
+    "log_sha256": "656ac6f9ba3abae9166d75ffcc46f32d2fe43000496ccdae931e0daf226f1f60"
+  },
+  "checks": {
+    "go": {
+      "command": [
+        "python3",
+        "scripts/release_test_reports.py",
+        "run",
+        "--report",
+        "/private/tmp/contractor-v489-p4/go.jsonl",
+        "--timeout-seconds",
+        "2400",
+        "--",
+        "go",
+        "test",
+        "-json",
+        "-p",
+        "1",
+        "-race",
+        "-count=1",
+        "-timeout=20m",
+        "./internal/scheduler/...",
+        "./internal/runstore/...",
+        "./internal/controlplane/...",
+        "./internal/planner/..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 171.65
+    },
+    "runtime": {
+      "command": [
+        "make",
+        "test-runtime",
+        "RELEASE_REPORTS=/private/tmp/contractor-v489-p4/reports"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 553.22
+    },
+    "mtls": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "./internal/mtls"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.24
+    },
+    "architecture": {
+      "command": [
+        "make",
+        "verify-architecture"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.7
+    },
+    "wire": {
+      "command": [
+        "make",
+        "test-wire-cross-language",
+        "RELEASE_REPORTS=/private/tmp/contractor-v489-p4/wire-reports"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 274.99
+    },
+    "lint-final": {
+      "command": [
+        "make",
+        "lint"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 296.06
+    },
+    "process-a": {
+      "command": [
+        "make",
+        "test-release-process-e2e-a",
+        "RELEASE_REPORTS=/private/tmp/contractor-v489-p4/process-a-reports"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1083.85
+    },
+    "process-b": {
+      "command": [
+        "make",
+        "test-release-process-e2e-b",
+        "RELEASE_REPORTS=/private/tmp/contractor-v489-p4/process-b-reports"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1058.57
+    },
+    "process-c": {
+      "command": [
+        "make",
+        "test-release-process-e2e-c",
+        "RELEASE_REPORTS=/private/tmp/contractor-v489-p4/process-c-reports"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2048.74
+    },
+    "lint-metadata": {
+      "command": [
+        "make",
+        "lint"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 284.5
+    }
+  },
+  "negative_controls": [
+    {
+      "result": "rejected as expected",
+      "kind": "Go source overlay, no repository mutation",
+      "mutation": "In CommitTerminationProgression, return nil for a non-nil NextStage after completing the source but before creating target/recording transition.",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "-overlay",
+        "/private/tmp/contractor-v489-p4/negative-progression-overlay.json",
+        "-p",
+        "1",
+        "-race",
+        "-count=1",
+        "-timeout=2m",
+        "./internal/scheduler",
+        "-run",
+        "^TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt$"
+      ],
+      "expected_exit_code": 1,
+      "observed_exit_code": 1,
+      "failed_test": "TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt",
+      "assertion": "retry executions: expected interrupted source plus fresh preparing target; observed source only",
+      "elapsed_seconds": 5.25,
+      "production_source_sha256": "f61f29814c417da7185866e1e18b0d0b4b5528068ce6bef31de669d75cc0fb05",
+      "overlay_source_sha256": "631cc80151958ec479b26c06c18384130957627e423043c896d7fa2c0a793c67"
+    },
+    {
+      "result": "rejected as expected",
+      "kind": "evidence negative control",
+      "mutation": "Remove the terminal pass event for TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt",
+      "reason": "package passed without complete selected execution"
+    }
+  ],
+  "production_delta": {
+    "go_lines": -1,
+    "python_lines": 0,
+    "behavior_changes": false,
+    "explanation": "Replace only a stale three-line one-slot release comment with two lines describing current per-principal eviction; no new tests, engine, store, lease, endpoint or recovery code."
+  },
+  "documentation": "Record indefinite P2 deferral and current failure contract; remove stale single-slot statements in Scheduler, Runtime Agent, Control Plane and AgentTemplate specs, referring to the owning capacity/Worker rules. Generated dependency graph rebuilt by its owner.",
+  "superseded_attempts": [
+    {
+      "step": "lint",
+      "result": "Initial lint reached task checks and rejected stale generated backlog after task scope metadata changed; regenerated via make tasks-backlog and repeated full lint."
+    },
+    {
+      "step": "process",
+      "result": "Initial sequential test-e2e was intentionally stopped with joined process-group cleanup and replaced by all three complete CI shards. Partial execution is excluded from accepted coverage."
+    }
+  ],
+  "cleanup": {
+    "checks": {
+      "owned_test_process_groups_gone": true,
+      "owned_runtime_interpreters_gone": true,
+      "owned_client_sessions_zero": true,
+      "owned_databases_dropped": true,
+      "owned_postgresql_stopped_and_removed": true,
+      "primary_files_bytes_and_modes_preserved": true,
+      "primary_staged_delta_preserved": true,
+      "main_unchanged": true,
+      "production_change_comment_only": true
+    },
+    "dropped_databases": [
+      "contractor_p4",
+      "contractor_process_32b7006497c43728"
+    ],
+    "primary_preserved_files": 12,
+    "owned_process_groups": {
+      "a": {
+        "supervisor_pid": 33490,
+        "test_process_group": 33493
+      },
+      "b": {
+        "supervisor_pid": 33488,
+        "test_process_group": 33491
+      },
+      "c": {
+        "supervisor_pid": 33489,
+        "test_process_group": 33492
+      }
+    },
+    "diagnostics_retained": "/private/tmp/contractor-v489-p4",
+    "note": "Fresh loopback-only cluster belongs exclusively to this P4 lane. The interrupted monolithic process run may leave a contractor_process database; all owned non-template databases are inventoried and dropped after all three completed shard process groups/pools stop. No user database, containers or global engine state touched."
+  },
+  "changed_tracked_source_checksums": {
+    "docs/spec/configuration/agent-templates.md": "0d6cd2c975a0b60ae977febc9ff42fd127fe6e0da584b6ac2ff5bf41a8e6df1e",
+    "docs/spec/execution/control-plane.md": "a461cea0d595843a60b0ce4748449d694504e98e293d8e3bcf7bbbe831f9e19e",
+    "docs/spec/execution/runtime-agent.md": "c42edd0f3c4767a9de2780898d0eb496b3b44b3af7fed2ab595ca9b58e4075b9",
+    "docs/spec/execution/scheduler.md": "4b9619056f16691bf62a5ed6473428710ed768a9137990f73032814c72a5d108",
+    "internal/controlplane/runtime_lifecycle.go": "72d6957aa4ab3de68bd48d8629795e13e0ecc59bb49c50b3f185dafc716540eb"
+  },
+  "not_claimed": [
+    "P2 or same-Stage Planner/Worker/Server recovery",
+    "Production headless backend",
+    "Live model quality or calls",
+    "Unavailable Linux/rootless or optional heavy-I/O coverage",
+    "Full release-verify, deployment, migration of user data, remote push or main integration"
+  ],
+  "delivery": "Isolated codex/runtime-planner-p4 branch; not merged into main.",
+  "implementation_commit": "4d9275b7775b3b0669ae7fa253b425c3645785a8",
+  "task_file": "tasks/done/v489-005-runtime-planner-p4-acceptance.yml",
+  "metadata_validation": {
+    "result": "passed",
+    "command": [
+      "make",
+      "lint"
+    ],
+    "elapsed_seconds": 284.5,
+    "log": "/private/tmp/contractor-v489-p4/lint-metadata.log",
+    "log_sha256": "68b4ca25784cfff00535b32d5b7540c6afe658b39c4db07cec311511b761d96c",
+    "source_identity": "All production, tests, contracts, build/check inputs and normative specifications match the implementation commit; only task completion/proposal link/evidence metadata follow.",
+    "post_metadata_primary_preservation": "All 12 protected files retain bytes/modes; staged delta and main remain unchanged.",
+    "database_scope": "Full metadata lint runs after owned PostgreSQL removal; real PostgreSQL/race and wire checks completed before cleanup."
+  }
+}
