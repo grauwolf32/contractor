@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -246,4 +247,65 @@ func isolatedPlannerPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		t.Fatal(err)
 	}
 	return pool
+}
+
+// Completion belongs to durable Contractor state, independent of the Runtime
+// model loop. Recreating the service must never grant another invocation.
+func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedPlannerPool(t, ctx)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	createPlannerStage(t, ctx, store)
+	service, err := New(store, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, err := service.Begin(ctx, "stage-planner")
+	if err != nil || !started.Invoke {
+		t.Fatalf("Begin = (%+v, %v)", started, err)
+	}
+	if err := service.RecordRequest(ctx, started.Identity, planner.RequestFacts{
+		Bindings: []string{"builder"}, ObjectiveDigest: "sha256:" + strings.Repeat("a", 64),
+		InstructionsDigest: "sha256:" + strings.Repeat("b", 64), ParameterNames: []string{}, Artifacts: map[string]contracts.ArtifactRef{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	revision := "result-r1"
+	result := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "done",
+		Artifacts: map[string]contracts.ArtifactRef{"report": {Namespace: "builder", Name: "report", Revision: &revision}},
+	}
+	completion := planner.Completion{Result: &result}
+	if err := service.Complete(ctx, started.Identity, completion); err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.ListRunEvents(ctx, "run-planner", 0, 20)
+	if err != nil || before.More {
+		t.Fatalf("events: %+v %v", before, err)
+	}
+	restarted, err := New(runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Options{NewID: func(string) (string, error) {
+		t.Error("recovery allocated another identity")
+		return "", errors.New("unexpected new identity")
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recovered, err := restarted.Begin(ctx, "stage-planner")
+	if err != nil || recovered.Invoke || recovered.Identity != started.Identity || recovered.Completion == nil || !reflect.DeepEqual(recovered.Completion.Result, &result) {
+		t.Fatalf("recovery = (%+v, %v)", recovered, err)
+	}
+	*recovered.Completion.Result.Artifacts["report"].Revision = "caller-changed"
+	recovered.Completion.Result.Artifacts["extra"] = contracts.ArtifactRef{}
+	again, err := restarted.Begin(ctx, "stage-planner")
+	if err != nil || again.Invoke || again.Completion == nil || !reflect.DeepEqual(again.Completion.Result, &result) {
+		t.Fatalf("repeat recovery = (%+v, %v)", again, err)
+	}
+	if err := restarted.Complete(ctx, started.Identity, completion); err != nil {
+		t.Fatal(err)
+	}
+	after, err := store.ListRunEvents(ctx, "run-planner", 0, 20)
+	if err != nil || !reflect.DeepEqual(before, after) {
+		t.Fatalf("recovery or replay appended events: %v", err)
+	}
 }

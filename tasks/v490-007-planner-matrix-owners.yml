@@ -1,0 +1,38 @@
+schema_version: '1.0'
+id: V490-007
+title: Restore Planner verification owners after moving model execution
+milestone: server-runtime-grpc-2026-11
+epic: planner-worker
+kind: defect
+introduced_by: V488-002
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python, yaml]
+goal: The complete test gate resolves every Planner matrix owner and verifies current Server operations after the Runtime model-loop move.
+context:
+  authority: 'Agent-proposed prerequisite found during the user-authorized gRPC migration on 2026-11-27; no new product behavior.'
+  severity: medium
+  finding: 'tests/e2e/shared_memory_matrix.yml:25,30 and worker_observations_matrix.yml:95,101,107 reference removed memory_tools_test.go and state_tools_test.go and a removed ADK session test. make test-go fails on main baseline 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b before the migration code runs. Removal commits fcd2e506de884c7d57560cd3ea2bf3f10bd039b4 and c9a6950a0f11b194283dd37be2583adc08be04d3 implement V488-002.'
+  additional_findings: >-
+    tests/faults/matrix.yml references the deleted real-PostgreSQL completion-recovery
+    test; tests/eval/project_workflows/testdata/gateway_model_probe.py:125 omits
+    cost_observer added to WorkerBuildContext by the same V488-002 commit.
+    Restore the actual recovery guarantee and complete the offline fixture.
+  siblings: All matrix references to removed Streamline/Router owners are inspected. Existing tool-declaration tests cover exact selections; missing namespace and advisory-State guarantees are restored at current operation owners.
+scope:
+  in:
+  - Point matrix entries at current executable tests without weakening invariants.
+  - Restore durable completion recovery against PostgreSQL and the offline Gateway model-selection fixture.
+  - Restore missing Memory namespace and advisory State regression cases through current Planner operations.
+  out: [Transport changes, new Planner engine, new persistence mechanisms]
+acceptance_criteria:
+- id: A1
+  text: All hardening matrices resolve existing test owners; the existing missing-owner negative control still fails.
+- id: A2
+  text: Exact Memory tool selections and shared logical namespace remain covered, and advisory State failures cannot alter a completed subtask or expose arbitrary error text.
+tests:
+- command: go test -count=1 ./tests/e2e ./internal/planner/streamline ./internal/planner/session ./tests/faults ./tests/eval/project_workflows
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]
