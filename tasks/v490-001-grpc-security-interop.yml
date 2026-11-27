@@ -1,0 +1,112 @@
+schema_version: '1.0'
+id: V490-001
+title: Prove gRPC peer authentication and A2A interoperability
+milestone: server-runtime-grpc-2026-11
+epic: execution-core
+kind: chore
+priority: P1
+status: pending
+depends_on: []
+languages:
+- go
+- python
+- protobuf
+- markdown
+goal: Prove the selected Go/Python transport preserves the current certificate checks before any protected
+  request and can invoke the same A2A Worker.
+demonstration: A loopback cross-process Go client and Python SDK handler execute an A2A request; a Python client
+  calls a Go service. Negative peers have valid deployment-CA certificates but the wrong role or principal
+  and must receive no protected request.
+context:
+  authority: 'User decision 2026-11-27: plan and implement gRPC for Server/Runtime, preserve A2A. Direct connectivity
+    through the existing overlay is an architectural fact, not new scope. NAT, reverse tunnels and removal
+    of A2A were explicitly rejected. Implementation does not authorize deployment or merging main. The task
+    decomposition and typed protobuf design are agent proposals.'
+  proposal: docs/proposals/0038-server-runtime-transport.md
+  specification:
+  - docs/spec/execution/control-plane.md#CTL-R163
+  - docs/spec/execution/runtime-agent.md#RTA-R75
+  - docs/spec/platform/security.md#SEC-R5
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/persistence.md#PER-R24
+  baseline: main 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b
+  decision_needed: Stock grpcio 1.85.0 sends a request to a CA/hostname-valid peer lacking the Control Plane
+    URI SAN, as reproduced in the attached loopback evidence. User chooses a bounded in-process TLS adapter
+    preserving existing PKI (recommended) or a separately scoped role-constrained PKI change. Do not weaken
+    SEC-R5/CTL-R163 or begin production migration before this is resolved.
+scope:
+  in:
+  - Inspect pinned SDK bindings and supported TLS APIs; record a reproducible loopback authentication probe
+    before selecting transport plumbing.
+  - Keep official A2A operations, tenant allocation binding and existing WorkerCompletion; prove supported
+    Go/Python version pairing.
+  - Record the TLS implementation decision, required/optional protobuf presence, closed enums/unknown fields,
+    message size accounting, error mapping and pinned generation toolchain before production migration.
+  out:
+  - Production cutover belongs to V490-002; no new PKI policy, TLS proxy or native extension without resolving
+    the recorded security choice.
+requirements:
+- id: R1
+  text: Preserve existing component/domain ownership, mTLS role and principal checks, allocation fencing, receipts,
+    canonical JSON digests and effective deadlines. Update each changed owning spec and cross-language fixture
+    in the same implementation.
+- id: R2
+  text: Use standard A2A gRPC, direct overlay connectivity and no legacy fallback. No generic HTTP-over-gRPC
+    tunnel or second workflow execution engine.
+failure_outcomes:
+- operation: Each migrated RPC and stream
+  permanent: Invalid request/identity/permission and deterministic store rejection retain a stable domain code
+    in gRPC details and are never retried. The V490-001 contract defines the status mapping.
+  retryable: Use existing caller attempt/backoff bounds and effective deadline; no blanket automatic replay/hedging.
+    Transport reconnect is not mutation retry.
+  ambiguous: Reuse existing operation-specific receipts, sequence, lifecycle ID or Artifact expected revision.
+    A lost reply is not proof of non-commit; do not resubmit with a new identity.
+  cancelled: The existing operation owner fences, cancels and joins tasks before releasing allocation or transfer
+    resources. RPC cancellation alone is not proof of Worker termination.
+  timeout: Keep request, invocation/Stage, heartbeat lease and finalization/abort budgets separate; a channel
+    reconnect never extends them.
+cardinality:
+- collection: Runtime allocations and in-flight operations
+  expected: 1-4 slots per process; one active A2A Task per Worker
+  maximum: Existing domain bounds in docs/spec/platform/limits.md; process capacity 4, heartbeat reconciliation
+    actions 8, Artifact payload 64 MiB, Server payload transfers 4.
+  bound: Bound pending RPC admission, messages, aggregate bytes and per-stream buffers explicitly in V490-001/owning
+    spec before production implementation. Existing domain limits are not replaced with gRPC defaults.
+lifecycle:
+- entity: gRPC channels and request/stream owners
+  delete: Process shutdown closes owned channels after the Scheduler/Workers stop; releasing one allocation
+    must not kill sibling slots.
+  cascade: Cancel/join active work and release transfer permits through the existing owners.
+  retention: No new durable entity, receipt or queue. Existing report and Artifact retention stays with its
+    domain.
+acceptance_criteria:
+- id: A1
+  text: The probe distinguishes chain/hostname verification from the additional Control Plane URI SAN and expected
+    Runtime SPKI checks; wrong peers receive zero protected bytes.
+- id: A2
+  text: Official SDK A2A SendMessage/GetTask/CancelTask and tenant routing interoperate; loss/cancellation
+    stays bounded and no model is required.
+- id: A3
+  text: The selected security design and binary-vs-JSON validation rules are recorded with evidence. Unsupported
+    stock grpcio behavior is reported as a blocker, never as acceptance.
+tests:
+- command: uv run --no-project --python 3.13 --with grpcio==1.85.0 --with cryptography python tasks/evidence/v490-001-grpc-peer-probe.py
+  covers:
+  - A3
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers:
+  - A3
+- command: make test-e2e
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A3
+verification:
+  status: partial; prerequisite requires user decision
+  evidence: tasks/evidence/v490-001-grpc-peer-probe.json
+  observed: Stock grpcio accepts control_plane and runtime_as_server; rejects wrong hostname and foreign CA.
+    Existing explicit URI role check rejects runtime_as_server. All owned probe resources were removed.
+  unproven: Go/Python A2A interoperability, production security acceptance and migration gates are not yet
+    executed.

@@ -1,0 +1,34 @@
+{
+  "baseline": "9fd3ac96d32c696fa39988df85e32f6bb6d1d83b",
+  "grpcio": "1.85.0",
+  "experiment": "stock Python gRPC validates chain/name, not Contractor URI role",
+  "cases": [
+    {
+      "case": "control_plane",
+      "stock_grpc_result": "accepted",
+      "requests_received": 1,
+      "existing_role_check_accepts": true
+    },
+    {
+      "case": "runtime_as_server",
+      "stock_grpc_result": "accepted",
+      "requests_received": 1,
+      "existing_role_check_accepts": false
+    },
+    {
+      "case": "wrong_hostname",
+      "stock_grpc_result": "UNAVAILABLE",
+      "requests_received": 0,
+      "existing_role_check_accepts": false
+    },
+    {
+      "case": "foreign_ca",
+      "stock_grpc_result": "UNAVAILABLE",
+      "requests_received": 0,
+      "existing_role_check_accepts": false
+    }
+  ],
+  "production_acceptance": "blocked: select a role-preserving transport or explicit PKI change",
+  "scope": "loopback Python grpcio only; no Go/A2A/production interoperability claimed",
+  "cleanup": "all owned listeners/channels/executors closed; temporary PKI deleted"
+}

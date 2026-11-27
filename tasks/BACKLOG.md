@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 10 in progress, 42 pending, 13 deferred. 1725 finished: 1706 completed, 19 archived.
+71 open tasks: 10 in progress, 48 pending, 13 deferred. 1725 finished: 1706 completed, 19 archived.
 
 ## In progress
 
@@ -30,6 +30,10 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
 | [V469-002](v469-002-opencode-audit-runtime.yml) | feature | P1 | V469-001 | Run OpenCode in one retained Audit environment through existing A2A |
+| [V490-001](v490-001-grpc-security-interop.yml) | chore | P1 | — | Prove gRPC peer authentication and A2A interoperability |
+| [V490-002](v490-002-grpc-run-slice.yml) | feature | P1 | V490-001 | Execute a real Run through gRPC control and A2A |
+| [V490-003](v490-003-grpc-control-lifecycle.yml) | feature | P1 | V490-002 | Complete gRPC control lifecycle and failure handling |
+| [V490-006](v490-006-grpc-release.yml) | chore | P1 | V490-005 | Accept the complete gRPC boundary and remove replaced transport |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -65,6 +69,12 @@ the epics are in [epics.yml](epics.yml).
 | [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-015, V410-025 | Discover URL-only targets using HTTP tools and the shared sitemap |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
+
+### Projects, artifacts and lifecycle controls (`projects-artifacts`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V490-005](v490-005-grpc-artifact-streams.yml) | feature | P1 | V490-004 | Transfer Artifact payloads through bounded gRPC streams |
 
 ### Audits (`audits`)
 
@@ -111,6 +121,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016 | Expose HTTP engagement setup and results through existing API and CLI |
+| [V490-004](v490-004-grpc-allocation-services.yml) | feature | P1 | V490-003 | Move allocation domain services to typed gRPC |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -156,7 +167,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 52 | 76 | 44 | 112 |
+| Run execution core (`execution-core`) | 7 | 54 | 76 | 46 | 112 |
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 51 | 62 | 54 | 103 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
@@ -167,12 +178,12 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 22 | 16 | 13 | 30 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 41 | 41 | 21 | 78 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 42 | 41 | 21 | 78 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 23 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
 | Web UI (`ui`) | 1 | 56 | 83 | 34 | 80 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
-| Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
+| Public API and wire contracts (`api-contracts`) | 2 | 3 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 20 |
 | Quality, CI and process (`quality`) | 11 | 1 | 38 | 157 | 32 |

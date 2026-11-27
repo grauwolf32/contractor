@@ -1,0 +1,115 @@
+schema_version: '1.0'
+id: V490-005
+title: Transfer Artifact payloads through bounded gRPC streams
+milestone: server-runtime-grpc-2026-11
+epic: projects-artifacts
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V490-004
+languages:
+- go
+- python
+- protobuf
+- markdown
+goal: Runtime reads and publishes Artifact payloads on gRPC with existing revision checks and bounded memory.
+demonstration: An allocated Worker hydrates an archive and publishes an output through real Server/Runtime/PostgreSQL;
+  interrupted upload leaves no visible partial revision, and lost publication reply reconciles the existing
+  write.
+context:
+  authority: 'User decision 2026-11-27: plan and implement gRPC for Server/Runtime, preserve A2A. Direct connectivity
+    through the existing overlay is an architectural fact, not new scope. NAT, reverse tunnels and removal
+    of A2A were explicitly rejected. Implementation does not authorize deployment or merging main. The task
+    decomposition and typed protobuf design are agent proposals.'
+  proposal: docs/proposals/0038-server-runtime-transport.md
+  specification:
+  - docs/spec/execution/control-plane.md#CTL-R163
+  - docs/spec/execution/runtime-agent.md#RTA-R75
+  - docs/spec/platform/security.md#SEC-R5
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/persistence.md#PER-R24
+  baseline: main 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b
+scope:
+  in:
+  - Use separate data channels and bounded protobuf chunks for read/write; retain existing transfer admission,
+    payload storage, retention and publication owners.
+  - Map If-Match/If-None-Match and exact revision semantics into explicit typed preconditions, with one initial
+    metadata frame and terminal receipt.
+  - Preserve the 64 MiB aggregate ceiling, four Server full-payload transfer slots and metadata/cache-key semantics;
+    do not buffer the whole gRPC stream.
+  - Cover zero-byte payload, short/oversize stream, invalid ordering, cancellation, server-side rejection,
+    fence during upload and lost final reply.
+  out:
+  - No new upload-session table, resumable uploads, blob backend or global max-message increase to 64 MiB.
+    Existing named heavy-I/O fixtures stay opt-in.
+requirements:
+- id: R1
+  text: Preserve existing component/domain ownership, mTLS role and principal checks, allocation fencing, receipts,
+    canonical JSON digests and effective deadlines. Update each changed owning spec and cross-language fixture
+    in the same implementation.
+- id: R2
+  text: Use standard A2A gRPC, direct overlay connectivity and no legacy fallback. No generic HTTP-over-gRPC
+    tunnel or second workflow execution engine.
+failure_outcomes:
+- operation: Each migrated RPC and stream
+  permanent: Invalid request/identity/permission and deterministic store rejection retain a stable domain code
+    in gRPC details and are never retried. The V490-001 contract defines the status mapping.
+  retryable: Use existing caller attempt/backoff bounds and effective deadline; no blanket automatic replay/hedging.
+    Transport reconnect is not mutation retry.
+  ambiguous: Reuse existing operation-specific receipts, sequence, lifecycle ID or Artifact expected revision.
+    A lost reply is not proof of non-commit; do not resubmit with a new identity.
+  cancelled: The existing operation owner fences, cancels and joins tasks before releasing allocation or transfer
+    resources. RPC cancellation alone is not proof of Worker termination.
+  timeout: Keep request, invocation/Stage, heartbeat lease and finalization/abort budgets separate; a channel
+    reconnect never extends them.
+cardinality:
+- collection: Runtime allocations and in-flight operations
+  expected: 1-4 slots per process; one active A2A Task per Worker
+  maximum: Existing domain bounds in docs/spec/platform/limits.md; process capacity 4, heartbeat reconciliation
+    actions 8, Artifact payload 64 MiB, Server payload transfers 4.
+  bound: Bound pending RPC admission, messages, aggregate bytes and per-stream buffers explicitly in V490-001/owning
+    spec before production implementation. Existing domain limits are not replaced with gRPC defaults.
+lifecycle:
+- entity: gRPC channels and request/stream owners
+  delete: Process shutdown closes owned channels after the Scheduler/Workers stop; releasing one allocation
+    must not kill sibling slots.
+  cascade: Cancel/join active work and release transfer permits through the existing owners.
+  retention: No new durable entity, receipt or queue. Existing report and Artifact retention stays with its
+    domain.
+acceptance_criteria:
+- id: A1
+  text: Process and PostgreSQL tests prove byte-exact payloads, CAS conflicts and atomic publication/cleanup
+    for every failure outcome.
+- id: A2
+  text: Bulk transfers cannot queue ahead of heartbeat/abort; bounded chunk/backpressure tests cover aggregate
+    logical limits without implicitly enabling heavy-I/O.
+- id: A3
+  text: Private payload HTTP callers and handlers are removed after migration; public Artifact HTTP semantics
+    and shared storage mechanisms remain intact.
+tests:
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-go
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-e2e
+  covers:
+  - A1
+  - A2
+  - A3

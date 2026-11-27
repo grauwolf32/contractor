@@ -1,4 +1,190 @@
-# Server–Runtime transport and one wire IDL
+# Server ↔ Runtime: переход на gRPC с сохранением A2A
+
+Обновлено 2026-11-27. База: `main @ 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b`.
+Статус: **переход разрешён пользователем; задачи созданы; подтверждена транспортная
+предпосылка mTLS, ожидается выбор решения. Production-переход ещё не выполнен.** Исторический разбор ниже
+сохранён как контекст; его рекомендация оставить HTTP больше не является планом.
+
+## Решения и результат
+
+Пользователь 2026-11-27 поручил спланировать задачи и перевести взаимодействия
+Server ↔ Runtime на gRPC. **A2A сохраняется.** Прямое соединение через overlay —
+уже существующая архитектура, а не новый результат миграции. NAT, исходящий
+управляющий туннель и удаление A2A не входят в работу. Более ранняя идея удалить
+A2A была отменена пользователем. Deployment, live-model experiments и слияние
+в `main` этим поручением не выполняются.
+
+Результат для эксплуатации: существующие Run, Planner, Worker и инструменты
+работают через одну семью RPC-транспортов, без собственного HTTP/1.1 parser в
+Runtime и без дублирующих legacy routes. A2A остаётся стандартным протоколом
+Task/Message/Agent Card, используемым официальными SDK. Protobuf generation
+уменьшает ручное описание форм сообщений; доменные проверки остаются у владельцев.
+Ускорение Run не заявляется: сравнительных измерений нет.
+
+Ниже конкретная декомпозиция и реализация контрактов — **предложение агента**,
+а не отдельные требования пользователя. Неопределённость в TLS решается первой,
+до изменения гарантии или добавления обходного слоя.
+
+## Текущая граница и целевой транспорт
+
+| Направление | Сейчас | План |
+| --- | --- | --- |
+| Runtime → Server: bootstrap, registration, heartbeat | `internal/controlplane/http.go`, `control_client.py` | Именованные unary control RPC |
+| Server → Runtime: prepare/finalize/abort/release/State | `runtime_client*.go`, `runtime_*`, `server.py` | Именованные unary lifecycle/State RPC |
+| Server → Runtime: Planner и Worker invocation | `internal/planner/a2a`, `a2a_server.py`; JSON-RPC | Официальный A2A gRPC binding; Task/context/tenant сохраняются |
+| Runtime → Server: Planner host operations, recovery, findings, Audit, sitemap | `internal/httpapi/privateartifacts` | Именованные allocation-scoped RPC к тем же domain owners |
+| Runtime → Server: Artifact list/metadata/access | Тот же private Artifact handler | Unary RPC, прежние grants, pagination и exact refs |
+| Runtime → Server: Artifact bytes | HTTP body и conditional headers | Поток chunks, явные revision preconditions и terminal receipt |
+
+На базе проверки: Go `a2a-go/v2 v2.7.0`, Python `a2a-sdk 1.1.2`,
+protobuf Go `v1.36.12`, Python `6.33.6`; grpc Go уже косвенная зависимость
+`v1.85.0`, grpcio пока не входит в Runtime lock. Private Artifact handler имеет
+16 route declarations; это не только четыре CRUD-операции над файлами.
+`_https.py` содержит 620 строк собственного HTTPS-клиента. Не весь этот объём
+автоматически исчезнет: решение mTLS ниже определяет оставшуюся TLS-обвязку.
+
+```mermaid
+flowchart LR
+  S["Server: Scheduler, Control Plane, domain owners"] -->|"gRPC lifecycle / State"| R["Runtime: AllocationService"]
+  S -->|"A2A gRPC"| W["Runtime: Planner / Worker"]
+  R -->|"gRPC bootstrap / heartbeat"| S
+  W -->|"gRPC PlannerHost / allocation services"| S
+  W -->|"gRPC Artifact streams: отдельный data channel"| S
+```
+
+Существуют прямые соединения в обе стороны. HTTP/2 multiplexing не превращает
+один клиентский channel в возможность произвольных обратных RPC.
+Public HTTP/WebSocket API, Gateway/target HTTP и OTLP сохраняют свои протоколы.
+
+## Обязательная предпосылка: проверка peer
+
+Нынешний Runtime требует одновременно CA chain, DNS/IP hostname и Control Plane
+URI SAN (`SEC-R5–8`), причём проверка роли происходит до первого request byte
+(`CTL-R163`). Go дополнительно привязывает Runtime endpoint к ожидаемому SPKI
+principal. Сертификат другого Runtime, подписанный тем же CA для того же hostname,
+не должен стать достаточным для выдачи ему control/Artifact данных.
+
+Go TLS позволяет сохранить это через существующий `VerifyConnection`.
+Документированный Python `grpc.ssl_channel_credentials` принимает roots, key и
+certificate chain, но не предоставляет пользовательский peer-verification hook.
+Server-side interceptor с `auth_context` не решает проверку **удалённого Server
+на Python-клиенте**. Отдельный предварительный TLS dial тоже не доказывает
+identity соединения, по которому gRPC затем пошлёт запрос.
+
+[V490-001](../../tasks/v490-001-grpc-security-interop.yml) сначала проверяет это
+на собственных loopback сертификатах. Эксперимент
+[`v490-001-grpc-peer-probe.py`](../../tasks/evidence/v490-001-grpc-peer-probe.py)
+не меняет зависимости проекта и не использует deployment PKI. Его успешное
+воспроизведение ограничения **не является успешной приёмкой транспорта**.
+
+Эксперимент на grpcio 1.85.0 подтвердил ограничение: правильные CA/hostname без
+Control Plane URI SAN допускают запрос. Неверные hostname и CA отвергаются.
+[Результат](../../tasks/evidence/v490-001-grpc-peer-probe.json) не проверяет
+Go/A2A interoperability; это следующая проверка после выбора решения.
+
+Выбор до production implementation:
+
+1. **Сохранить PKI и точные проверки; ограниченный локальный TLS adapter.**
+   Официальный grpcio обслуживает HTTP/2/gRPC, существующий SSLContext проверяет
+   фактическое сетевое соединение и передаёт байты через защищённую локальную
+   границу. Это не NAT-туннель и не отдельный сервис. Но добавляются relay lifecycle,
+   backpressure, локальная authority и проверки отсутствия plaintext listener.
+   Нельзя включать его как незаметную деталь: это дополнительный компонент.
+2. **Изменить PKI так, чтобы штатная проверка цепочки доказывала роль Server.**
+   Например, отдельный доверенный issuer Control Plane с необходимыми issuance
+   ограничениями. Нужны точный trust/issuance design, изменения provision/rotation,
+   спецификации и отрицательные проверки. Простая раздача общего root с двумя
+   intermediate CA не даёт ограничения роли. Это отдельная предпосылка, меняющая
+   существующее правило одной CA и роль URI SAN.
+
+Рекомендация агента для сохранения текущих гарантий — сначала оценить малый TLS
+adapter; если он заметно раздувает транспорт, предпочесть явно согласованный PKI
+design. Не ослаблять проверку до CA+hostname, не использовать небезопасный override,
+не вводить custom native grpcio fork. Итоговый выбор пока открыт.
+
+## Контракт, который нужно сохранить
+
+- A2A использует официальный `.proto`/SDK. Tenant остаётся allocation identity,
+  отдельно от Task/context/invocation. Worker/Planner loops и headless интерфейсы
+  не зависят от транспорта. Streaming/push features не добавляются в этой миграции.
+- Собственные RPC имеют одно описание `.proto`, pinned generation и generated
+  Go/Python types. Нельзя создать универсальный HTTP request envelope или
+  положить весь старый API в `bytes json` и считать ручные DTO удалёнными.
+  JSON остаётся там, где он и есть доменный документ или A2A DataPart.
+- Обязательное presence моделируется явно, включая различие пустой коллекции и
+  отсутствующего значения там, где оно значимо. Closed enum, unknown fields,
+  диапазоны, UTF-8 bytes, blank text и cross-field invariants проверяются на обеих
+  сторонах общими fixtures. Protobuf default values не заменяют required validation.
+- JSON-specific проверки duplicate keys/case aliases/null остаются для JSON
+  документов. Бинарный protobuf имеет собственные правила повторных tags и merge:
+  V490-001 фиксирует точную политику до генерации, не обещая равенства синтаксисов.
+  Не писать второй protobuf parser ради переноса JSON-грамматики.
+- Canonical config digests, signed/hashed JSON и Artifact bytes сохраняются.
+  Детерминированная protobuf serialization не становится canonical digest format.
+  Пределы A2A Struct numbers остаются прежними; transport switch их не снимает.
+- Ошибки сохраняют stable domain code, retryable и requestId в typed details.
+  `InvalidArgument`, `Unauthenticated`, `PermissionDenied`, `FailedPrecondition`,
+  `Aborted`, `ResourceExhausted`, `Unavailable`, `DeadlineExceeded`, `Cancelled`
+  сопоставляются с фактическими исходами, а не только с прежним HTTP status.
+  `Unavailable` после mutation не означает, что запись не состоялась.
+- Нет blanket retries/hedging. Original heartbeat seq/ack, finalize/abort ID,
+  Planner sequence, mutation receipts и Artifact CAS остаются механизмами
+  reconciliation. Новый receipt store и durable message queue не нужны.
+- Channel liveness/PING не продлевает allocation lease. Certificate checks,
+  max connection age, channel admission, message/aggregate limits и deadline
+  ownership фиксируются в owning specs. Heartbeat/control не ждёт bulk transfer.
+- Capacity остаётся 1–4 allocations/process, один A2A Task/Worker. Release одной
+  allocation не закрывает активную работу sibling slots. Disconnect не создаёт
+  same-Stage resume: после потери процесса действует обычный interruption/retry.
+- Artifact storage, authorization, atomic publication, current/exact revision,
+  contentCacheKey и четыре transfer slots сохраняются. Целевой chunk budget
+  предлагается 256 KiB, полный payload по-прежнему ≤64 MiB; перед реализацией число
+  получает один owning limit и fixture. Upload header передаётся один раз, затем
+  упорядоченные chunks и terminal receipt; partial stream не публикует revision.
+
+## Задачи и последовательность
+
+| Задача | Проверяемый результат | Зависит от |
+| --- | --- | --- |
+| [V490-001](../../tasks/v490-001-grpc-security-interop.yml) | Решён TLS prerequisite, официальные SDK совместимы, определены binary validation и generation | — |
+| [V490-002](../../tasks/v490-002-grpc-run-slice.yml) | Первый настоящий Run: registration → prepare → A2A gRPC → finalize/release, плюс cancel | 001 |
+| [V490-003](../../tasks/v490-003-grpc-control-lifecycle.yml) | Полный control/State, четыре slots, lease, shutdown, lost replies и restart | 002 |
+| [V490-004](../../tasks/v490-004-grpc-allocation-services.yml) | Planner callbacks и все allocation domain services на gRPC | 003 |
+| [V490-005](../../tasks/v490-005-grpc-artifact-streams.yml) | Artifact streams с CAS, receipt, bounded memory и cleanup | 004 |
+| [V490-006](../../tasks/v490-006-grpc-release.yml) | Удалён старый транспорт, обновлены consumers/specs/ops, пройден release gate | 005 |
+
+001 — ограниченная проверка предпосылки, не отдельный транспортный framework.
+Первый feature deliverable 002 проходит реальные компоненты до полноценного
+release, а не начинает с массовой генерации всех схем. Сосуществование разных
+**семейств** протоколов между задачами — порядок разработки; переключателя
+old/new для одной операции и legacy fallback не остаётся. Каждая перенесённая
+операция обновляет потребителей и спецификацию сразу. Финальная сборка согласованна
+на обеих сторонах; rolling mixed-version compatibility не добавляется.
+
+Нужны полные suites затронутых packages, real PostgreSQL для persistence,
+process tests для A2A/control, wire, API и architecture checks. Финальный exit —
+`make release-verify`, public API/PostgreSQL и architecture. Named heavy-I/O fixtures
+остаются выключены без явного opt-in пользователя и не считаются passing coverage.
+
+Проверить зависимые планы перед cutover: OpenCode V469 использует существующий
+A2A boundary, который сохраняется; его ссылки на конкретный JSON-RPC adapter
+обновляются по фактическому переносу, без реактивации deferred задач. Runtime
+Planner P2 остаётся отложенным, P3/P4 guarantees не расширяются. Не менять
+параллельный незакоммиченный V486 portable kit в основном checkout; перед
+интеграцией сообщить владельцу об изменившихся bootstrap/probe requirements.
+
+## Источники проверки библиотек
+
+- [Python gRPC credentials API](https://grpc.github.io/grpc/python/grpc.html)
+- [gRPC retry и transparent retry](https://grpc.io/docs/guides/retry/)
+- [gRPC deadlines](https://grpc.io/docs/guides/deadlines/)
+- [Protobuf field presence](https://protobuf.dev/programming-guides/field_presence/)
+- [Protobuf serialization is not canonical](https://protobuf.dev/programming-guides/serialization-not-canonical/)
+- [A2A specification](https://a2a-protocol.org/v1.0.0/specification/)
+
+---
+
+# Historical assessment: 2026-10-23
 
 Proposal 0038 · Status: **Draft; no decision taken.**
 
