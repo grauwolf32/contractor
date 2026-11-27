@@ -81,9 +81,8 @@ func (c *RuntimeControlClient) Abort(
 
 func (c *RuntimeControlClient) Release(ctx context.Context, reservation Reservation) error {
 	if c.transports != nil {
-		// One slot per Runtime Agent: after a release attempt no lifecycle
-		// call of this allocation follows, and a retry or the next allocation
-		// opens and verifies a new connection (CTL-R164).
+		// Retire this principal's cached connections at release (CTL-R164).
+		// Other slots' exchanges finish; later calls verify a new connection.
 		defer c.transports.Evict(reservation.Grant.RuntimeAgentID)
 	}
 	request := control.ReleaseAllocationRequest{

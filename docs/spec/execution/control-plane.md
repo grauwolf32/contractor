@@ -77,8 +77,8 @@ document owns are:
 - **CapabilitySnapshot.** The immutable, positive set of WorkerRuntime,
   Toolset/tool, SandboxProfile and RuntimeAdapter capabilities a Runtime
   Agent proves before its first registration.
-- **Slot.** The single unit of Runtime Agent capacity; one Runtime Agent
-  process has exactly one.
+- **Slot.** One unit of Runtime Agent capacity; the per-process slot count is
+  defined by CTL-R112.
 - **Confirmed control lease.** The liveness lease that advances only through a
   new heartbeat request, acknowledgement and echo round trip.
 - **Observed state.** What a Runtime Agent reports about its slot

@@ -1276,9 +1276,8 @@ invocation and closes them before finalization or abort (SCH-R107).
 
 **SCH-R114.** One WorkflowRun has at most one active StageExecution
 (LIM-SCH-1). Scheduler concurrency exists only across different WorkflowRuns;
-it permits neither concurrent Stages inside one Run nor concurrent Tasks inside
-one Runtime Agent. The production Scheduler admits bounded execution lanes
-across different Runs without changing this rule.
+it permits no concurrent Stages inside one Run. The production Scheduler admits
+bounded execution lanes across different Runs without changing this rule.
 
 **SCH-R115.** At startup the Scheduler reads both durable pool sizes before
 admitting work. Its production loop is a supervisor of two lane pools

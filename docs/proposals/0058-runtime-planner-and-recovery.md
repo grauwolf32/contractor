@@ -1,4 +1,4 @@
-# Planner в Runtime: P3 — единый модельный движок
+# Planner в Runtime: единый движок и приёмка P4
 
 Обновлено 27 ноября 2026. P1 и P3 приняты в локальный `main`.
 P3 слит через `d35ba0bd53bbc801b79996076497b6c45864552a`;
@@ -21,10 +21,11 @@ P3 слит через `d35ba0bd53bbc801b79996076497b6c45864552a`;
 | 2026-11-27 | При обсуждении P2 выбран узкий охват: та же StageExecution, замена Planner при живом Server и сохранении здоровых Workers. |
 | 2026-11-27, последующее решение | **P2 отложить. Спланировать P3: перенос Router в Runtime и удаление заменённого Go-кода.** P3 не зависит от восстановления. Первоначально разрешено планирование. |
 | 2026-11-27, начало реализации | Реализовать P3 по плану и довести до готовности к слиянию, сохранив headless-границу и сокращение кода. |
+| 2026-11-27, после слияния P3 | **P2 отложить на неопределённый срок.** Принять повтор прерванного Stage с начала после потери Runtime; выполнить P4 как приёмку существующего interruption/retry, без восстановления подзадач. |
 
 ## Текущее состояние
 
-Multi-allocation и P1 уже в main. В ветке P3 Streamline и Router используют
+Multi-allocation, P1 и P3 уже в main. Streamline и Router используют
 один Python `PlannerLoop`, включая `compact@1`, Memory и State. Runtime имеет
 1–4 allocation slots на процесс; Planner занимает отдельную allocation.
 Server владеет планом, бюджетами, подтверждением результатов, Artifact refs,
@@ -40,8 +41,9 @@ Production-код Go/Python сокращён на 2 684 строки без уч
 architecture gates первичной приёмки прошли; wire и lint повторены после
 исправлений. Owned test DB/процессы убраны; live модели не запускались.
 
-Потеря Runtime по-прежнему прерывает попытку; retry по Workflow создаёт новую
-StageExecution. Completed Stages сохраняются, план подзадач прерванной попытки
+При потере Runtime неподтверждённая попытка прерывается; допустимый retry
+по Workflow создаёт новую StageExecution. Completed Stages сохраняются, план
+подзадач прерванной попытки
 автоматически не наследуется. Sequence replay живого host не является resume
 ([SCH-R11–12, SCH-R98–103](../spec/execution/scheduler.md),
 [PLN-R135–137](../spec/execution/planners.md)). P3 эти гарантии не меняет.
@@ -185,7 +187,8 @@ flowchart LR
 [V489-002](../../tasks/done/v489-002-runtime-planner-go-removal.yml) архивирована:
 production runner, SDK bridge и regression callers пришлось менять атомарно,
 чтобы не сохранять второй движок ради тестов и пройти lint. Её объём и все
-критерии приёмки перенесены в V489-001; это exit task этапа.
+критерии приёмки перенесены в V489-001. После ревью exit task этапа —
+[V489-003](../../tasks/done/v489-003-runtime-planner-review-fixes.yml).
 
 Owning specs и architecture обновлены вместе с реализацией. Public event/fact
 fields сохранены: старое имя `adk_event` не требует SDK и не меняется ради
@@ -216,17 +219,81 @@ quality отдельно и не является детерминированн
 production кода. Новая очередь, checkpoint store или общий recovery framework
 не нужны ни одной из задач.
 
-## P2 отложен; остальные возможности не назначены
+## P2 отложен на неопределённый срок
 
-P2 не начат, отдельных задач реализации ещё нет. Последний выбранный охват:
-живой Server/host, та же StageExecution, свежий Planner на другом Runtime,
-сохранение здоровых Workers и ожидание уже принятого Worker-вызова. Потеря
-Worker или Server остаётся вне этого охвата. Возврат к P2 — только по новому
-указанию пользователя; готовность P3 не возобновляет его автоматически.
-Причина отложения: пользователь предпочёл сначала убрать дублирующее
-исполнение, не добавляя сложность восстановления без установленной цены повторов.
+Решение пользователя от 27 ноября после слияния P3: при потере Runtime
+допустимо повторить прерванный Stage с начала. P2 не начат и отложен
+**на неопределённый срок**. Его возобновляет только новое указание пользователя;
+готовность P3 или P4 не создаёт зависимости от восстановления.
 
-После P3 возможны production headless, Worker restore, Server restart resume,
+Это существующий контракт, без изменения defaults Workflow. Потеря Runtime
+в `preparing`/`running` без durable candidate прерывает попытку как interrupted;
+объявленная политика выбирает fresh retry,
+эскалацию или отказ Run. Retry не безусловен: учитываются `retryable`,
+`maxAttempts` и отмена. Он создаёт новую StageExecution и новый Planner;
+подзадачи и внешние эффекты прерванного Stage могут выполниться повторно.
+Подтверждённые более ранние Stages, принятые результаты и exact Artifact refs
+сохраняются. Если candidate уже записан в `finalizing`, Server идемпотентно
+дозавершает эту попытку без нового вызова Planner ([SCH-R99](../spec/execution/scheduler.md)).
+Sequence replay действует внутри живого host, а не между попытками.
+
+Порядок исполнения принадлежит Server/PostgreSQL. В одном Run активен максимум
+один Stage; допустимый переход выбирается по pinned Workflow. Завершение
+источника, outputs, неизменное решение перехода и создание следующего Stage
+либо завершение Run — одна транзакция под действующим Run claim
+([SCH-R75–80, SCH-R114–116](../spec/execution/scheduler.md)). Поэтому падение
+процесса не разрешает перепрыгнуть Stage или создать две попытки для одного
+подтверждённого исхода. Это гарантия последовательности и durable progression,
+не exactly-once для действий внутри повторяемого Stage.
+
+```mermaid
+flowchart LR
+  A["Stage A: результат принят"] --> B1["Stage B: попытка 1"]
+  B1 --> Loss["Runtime потерян: interrupted"]
+  Loss --> Policy{"Workflow разрешает retry?"}
+  Policy -->|"да, лимит не исчерпан"| B2["Stage B: новая попытка с начала"]
+  B2 --> C["Stage C: после принятия результата B"]
+  Policy -->|"нет"| End["Объявленная эскалация или отказ Run"]
+```
+
+Ранее обсуждённая замена только Planner с сохранением здоровых Workers и той же
+StageExecution остаётся возможным будущим охватом P2, без задач реализации.
+Новые checkpoints, receipts, leases и восстановление диалога не нужны принятому
+контракту. Повод вернуться к P2 — измеренная неприемлемая стоимость повторов
+или новый пользовательский сценарий, а не завершение текущей серии.
+
+## P4: интеграционная приёмка принятого контракта
+
+Исходный P4 — проверка потери ответов, отмены, deadline, capacity и отказа
+процесса. После отказа от P2 в нём нет требования продолжить живой Planner
+или сохранить завершённые подзадачи прерванного Stage. Проверяем уже
+реализованные гарантии через существующие suites, без нового движка.
+
+| Граница | Ожидаемый исход и проверка |
+| --- | --- |
+| Переход Stage / неоднозначный terminal commit | Реальная PostgreSQL: атомарный переход, fresh attempt lineage, один ordinal, replay без второй публикации, claim fencing. |
+| Потерянный ответ операции Planner | Для Streamline и Router живой host возвращает прежний исход; Worker dispatch и usage не повторяются. |
+| Потеря Runtime / control lease / Server restart | Bounded interruption и cleanup; старые Workers не усыновляются. Workflow policy выбирает новую попытку либо terminal исход. |
+| Отмена и deadline | Join model/Worker/callback, fence до release; late result не оживляет Stage, recovery не продлевает записанные cleanup budgets. |
+| Capacity и изоляция | Отдельный слот Planner; capacity-one fleet, несколько Workers, четыре allocations одного процесса, ожидание пятой и освобождение без остановки соседей. |
+| Headless-граница | Тот же Router/Streamline loop и compaction с внедрённым локальным host/model, без Server bootstrap. Production LocalHost не заявлен. |
+
+Приёмка [V489-005](../../tasks/v489-005-runtime-planner-p4-acceptance.yml)
+завершена в ветке `codex/runtime-planner-p4`, без слияния в main:
+649 Go root tests с race/PostgreSQL, 6 795 Runtime passes / 136 declared skips,
+71 process roots без отказов и пропусков, wire, architecture и lint прошли.
+Отрицательный контроль через Go overlay нарушил создание следующей попытки;
+реальный PostgreSQL-тест обнаружил разрыв перехода. Проверка отчёта также
+отклонила отсутствующее подтверждение этого теста. Owned PostgreSQL и процессы
+убраны, primary working files сохранены. Подробности и ограничения —
+[отчёт P4](../../tasks/evidence/v489-005-runtime-planner-p4-acceptance.json).
+Это новый запуск P4; результаты P3 не подменяют его. Публичные API, схема БД, логика исполнения
+и модели проекта не меняются. Исправляются только устаревшие описания одного
+слота на процесс, включая комментарий release: capacity принадлежит CTL-R112,
+последовательность Stages — SCH-R114, один вызов allocation — WRK-R124. Live quality и недоступные на macOS Linux
+sandbox проверки не входят в детерминированную приёмку.
+
+После P4 возможны production headless, Worker restore, Server restart resume,
 drain/обновления Runtime, pause/suspend, параллельные подзадачи. Это не часть
 текущего плана. Серверный помощник аудитов остаётся предложением пользователя:
 составлять проверки, находить пробелы и объяснять результаты через обычные
