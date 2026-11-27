@@ -1,0 +1,56 @@
+schema_version: '1.0'
+id: V489-004
+title: Merge the accepted Runtime Planner P3 into main
+milestone: runtime-planner-p3-2026-11
+epic: planner-worker
+kind: chore
+priority: P1
+status: completed
+depends_on: [V489-003]
+languages: [markdown, yaml]
+goal: Local main contains the accepted Router Runtime migration and all five review corrections through a two-parent merge, preserving the user's portable-kit work and staged delta.
+context:
+  authority: User instruction 2026-11-27 explicitly requests merging the accepted P3 into main.
+  source_head: d631e1caef3b67584ddf00e23b66a7770c038486
+  main_before: b899210ff0a39ff8e8d5ff1a0308083eac323bb4
+  finding: Main is an ancestor of the accepted source, so production integration needs no conflict resolution. Primary tasks/BACKLOG.md includes an uncommitted portable task whose raw file remains untracked. Preserve that task and ignored portable payloads exactly and reconcile only the generated backlog through its owner.
+  boundary: Prepare --no-ff in an isolated worktree. Verify accepted source identity and metadata before guarded main ref advance and selective restoration excluding protected working files. Preserve the empty staged delta; never stage portable files or their task. The generated backlog retains their local row and counts.
+  verification_reuse: V489-001 and V489-003 record full Go/PostgreSQL/race, Runtime 6795 passed with 136 declared skips, all 71 process roots, wire and lint. The merge adds delivery metadata only; retain exact production/test/contract/build/normative-specification content and reuse those results without claiming a second full run.
+scope:
+  in:
+    - No-fast-forward local main merge, preservation snapshot/guards, metadata and source identity verification, updated delivery state and integration evidence.
+  out:
+    - New implementation, P2 recovery, production LocalHost, live Gateway calls, deployment, migrations, remote push or modification of portable-kit work.
+acceptance_criteria:
+  - id: A1
+    text: Main contains a merge with original main as first parent and the pinned accepted source as second parent. All production/test/contract/build and normative-specification files match the accepted source; generated task dependency metadata is checked by its owner.
+  - id: A2
+    text: The primary portable task and all ten ignored payload files retain bytes and modes; backlog is regenerated with that task's original local contribution. No portable task/payload is committed, no staged delta is introduced and guards reject concurrent changes.
+  - id: A3
+    text: Tasks, specification, shared-fixture source, generated graph, whitespace, source identity and ignore/preservation checks pass; evidence records the actual main merge and reused acceptance without claiming new full testing, push or deployment.
+tests:
+  - command: make tasks-backlog
+    covers: [A3]
+  - command: cd runtime && uv run python ../scripts/check_tasks.py
+    covers: [A3]
+  - command: cd runtime && uv run python ../scripts/check_spec.py
+    covers: [A3]
+  - command: cd runtime && uv run python ../scripts/shared_fixture_gate.py --sources-only
+    covers: [A1, A3]
+  - command: cd runtime && uv run python ../scripts/dependencies/build_graph.py --check
+    covers: [A3]
+  - command: git diff --exit-code d631e1caef3b67584ddf00e23b66a7770c038486 HEAD -- api cmd configs internal runtime ui tests tools scripts make Makefile go.mod go.sum docs/spec
+    covers: [A1]
+  - command: git check-ignore --no-index .portable/example.zip
+    covers: [A2]
+  - command: python3 /private/tmp/contractor-v489-main-merge-qkso3pbf/install-main.py --verify-only
+    covers: [A2]
+
+implementation_commit: d35ba0bd53bbc801b79996076497b6c45864552a
+verification:
+  result: passed
+  evidence: tasks/evidence/v489-004-runtime-planner-main-integration.json
+  delivery: Local main contains P3 through the exact two-parent merge of original main and the accepted source. No push or deployment.
+  source_identity: Production, tests, wire contracts, build/check inputs and normative specifications match accepted P3 byte for byte. Integration changes only delivery metadata; prior full verification is reused rather than claimed as a new full run.
+  primary_work: Portable task and all ten ignored payloads retain hashes and modes. The generated backlog preserves the portable task's local contribution; it and payloads remain untracked, and staged delta remains empty.
+  checks: Task, spec, shared-fixture source, generated graph, whitespace, source identity, ignore and guarded installation/preservation checks passed.

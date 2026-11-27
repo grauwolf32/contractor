@@ -1,0 +1,144 @@
+{
+  "task": "V489-004",
+  "date": "2026-11-27",
+  "result": "passed",
+  "merge_commit": "d35ba0bd53bbc801b79996076497b6c45864552a",
+  "parents": [
+    "b899210ff0a39ff8e8d5ff1a0308083eac323bb4",
+    "d631e1caef3b67584ddf00e23b66a7770c038486"
+  ],
+  "main_before": "b899210ff0a39ff8e8d5ff1a0308083eac323bb4",
+  "accepted_source": "d631e1caef3b67584ddf00e23b66a7770c038486",
+  "accepted_evidence": [
+    "tasks/evidence/v489-001-runtime-router.json",
+    "tasks/evidence/v489-003-runtime-planner-review-fixes.json"
+  ],
+  "verification_reuse": "All production/test/contract/build and normative specification content is byte-identical to accepted P3. Its Go/race/PostgreSQL, 6795 Runtime passes with 136 declared skips, all 71 process roots, wire and lint acceptance is reused; no new full run is claimed.",
+  "primary_before": {
+    "primary": "/Users/ruslan/src/contractor",
+    "main_before": "b899210ff0a39ff8e8d5ff1a0308083eac323bb4",
+    "source_head": "d631e1caef3b67584ddf00e23b66a7770c038486",
+    "protected": [
+      {
+        "path": "tasks/v486-001-portable-linux-kit.yml",
+        "mode": 420,
+        "kind": "file",
+        "bytes": 2796,
+        "sha256": "fec1a80da187967959302f276030ab3f5b91e601982411de12953071cbe73b94"
+      },
+      {
+        "path": "tasks/BACKLOG.md",
+        "mode": 420,
+        "kind": "file",
+        "bytes": 15782,
+        "sha256": "75510ba9bfe4af79f83c46a6bcb6aa3bb8096b9f38058f8cf7f0fb4bd4627366"
+      }
+    ],
+    "portable": [
+      {
+        "path": ".portable/README.md",
+        "mode": 420,
+        "kind": "file",
+        "bytes": 4613,
+        "sha256": "5621b0faa43526a1b9333825a4403db2427edaba67adb32a2cc14ffd8bf78e10"
+      },
+      {
+        "path": ".portable/install.sh",
+        "mode": 493,
+        "kind": "file",
+        "bytes": 2256,
+        "sha256": "bdc8a9cb046613985fc61c10b75883f7a5f828b662b18496e97355d8c7257b9c"
+      },
+      {
+        "path": ".portable/linux-amd64/BUILD.txt",
+        "mode": 420,
+        "kind": "file",
+        "bytes": 2403,
+        "sha256": "520246cfd36eecc43516e414b5e0614a7d8eb04e5de6a00a24d68e073efab5dd"
+      },
+      {
+        "path": ".portable/linux-amd64/SHA256SUMS",
+        "mode": 420,
+        "kind": "file",
+        "bytes": 401,
+        "sha256": "01cb0e061da115a8cfb894a468fe80929d516e78aeffa1373a9ff8a048eac09e"
+      },
+      {
+        "path": ".portable/linux-amd64/parsers.tar.xz",
+        "mode": 420,
+        "kind": "file",
+        "bytes": 2843220,
+        "sha256": "3c84543603e6fef77d47fd14dcae9bf7fd8a48db2fb8c2e17e7dcb415b0d2825"
+      },
+      {
+        "path": ".portable/linux-amd64/python.tar.gz",
+        "mode": 420,
+        "kind": "file",
+        "bytes": 35625145,
+        "sha256": "65d5c786e3cbd67533c346537ad0b8826ef158287b3cebaa34b30558cc330f59"
+      },
+      {
+        "path": ".portable/linux-amd64/runtime-wheels.tar",
+        "mode": 420,
+        "kind": "file",
+        "bytes": 65806336,
+        "sha256": "23d89a85f3ad4e3a6cf0fffa83387c75944ad0c9e49a4da6f578eb330389307f"
+      },
+      {
+        "path": ".portable/linux-amd64/tools.tar.xz",
+        "mode": 420,
+        "kind": "file",
+        "bytes": 92714380,
+        "sha256": "778b278cf66e1acf292e5f58237b44fa6145a4e24c9536e6104cceb73d1c7103"
+      },
+      {
+        "path": ".portable/seed-parser-cache.py",
+        "mode": 420,
+        "kind": "file",
+        "bytes": 1249,
+        "sha256": "f8e7baee7aad2bdd0a1a704eb1b82bc000fbce7bc01477f89d73ec4aeb18f0f8"
+      },
+      {
+        "path": ".portable/smoke.sh",
+        "mode": 493,
+        "kind": "file",
+        "bytes": 2806,
+        "sha256": "4bc257cbf20927bdb3703c464bb60bcff37362d0fb99190932907ed2d37f0041"
+      }
+    ],
+    "staged_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "primary_preservation": {
+    "main_head": "d35ba0bd53bbc801b79996076497b6c45864552a",
+    "portable_task_exact": true,
+    "portable_payload_files_exact": 10,
+    "generated_backlog_preserves_portable_task": true,
+    "staged_delta_preserved": true,
+    "portable_ignored_untracked": true,
+    "accepted_source_identity": true
+  },
+  "preservation_snapshot": "/private/tmp/contractor-v489-main-merge-qkso3pbf",
+  "installer_sha256": "76993ff50ec09ec4d030f1e9b4c75cf0c75ebdf9381ecdba6217362061944272",
+  "checks": [
+    "make tasks-backlog",
+    "check_tasks.py",
+    "check_spec.py",
+    "shared_fixture_gate.py --sources-only",
+    "dependencies/build_graph.py --check",
+    "git diff --exit-code accepted-source HEAD -- core-paths",
+    "git diff --check",
+    "git check-ignore --no-index .portable/example.zip",
+    "guarded installer --verify-only"
+  ],
+  "delivery": {
+    "merged_local_main": true,
+    "pushed": false,
+    "deployed": false
+  },
+  "non_goals": [
+    "P2 recovery",
+    "Production LocalHost",
+    "Live-model quality",
+    "A new full release-verify run"
+  ]
+}
