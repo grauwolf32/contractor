@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V487-004
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V489-004]
 languages: [go, python, markdown, yaml]
 goal: Verify that the merged Runtime Planner preserves durable Stage progression and bounded failure handling while a lost Runtime may repeat only the interrupted Stage under Workflow retry policy.
@@ -78,3 +78,15 @@ tests:
     covers: [A4]
   - command: make lint
     covers: [A1, A4]
+
+implementation_commit: 4d9275b7775b3b0669ae7fa253b425c3645785a8
+verification:
+  result: passed
+  evidence: tasks/evidence/v489-005-runtime-planner-p4-acceptance.json
+  stage_order: One active Stage per Run and atomic, claim-fenced PostgreSQL progression are covered, including fresh retry lineage, retained earlier outputs, cancellation and terminal replay.
+  acceptance: 649 Go roots with race/PostgreSQL, 6795 Runtime passes with 136 declared skips, all 71 process roots without skips, wire, architecture, mTLS and lint pass. The broken-progression overlay and incomplete-report controls are rejected.
+  headless: Eight passing injected-host cases preserve one model loop and block Server adapter imports. Production LocalHost is outside scope.
+  simplification: No execution logic, tests, stores, leases or engines added. Only a release comment changes in production; Go source shrinks by one comment line. Four stale single-slot descriptions are corrected.
+  p2: Deferred indefinitely by the user's 2026-11-27 decision; ordinary Workflow retry may repeat effects inside the interrupted Stage. Already durable finalizing candidates use existing terminal recovery.
+  cleanup: All owned process groups and Runtime interpreters are gone; owned databases and PostgreSQL cluster removed. Primary files, modes, staged delta and main preserved.
+  delivery: Committed on codex/runtime-planner-p4; not merged into main, pushed or deployed.

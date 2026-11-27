@@ -278,7 +278,7 @@ StageExecution остаётся возможным будущим охватом
 | Capacity и изоляция | Отдельный слот Planner; capacity-one fleet, несколько Workers, четыре allocations одного процесса, ожидание пятой и освобождение без остановки соседей. |
 | Headless-граница | Тот же Router/Streamline loop и compaction с внедрённым локальным host/model, без Server bootstrap. Production LocalHost не заявлен. |
 
-Приёмка [V489-005](../../tasks/v489-005-runtime-planner-p4-acceptance.yml)
+Приёмка [V489-005](../../tasks/done/v489-005-runtime-planner-p4-acceptance.yml)
 завершена в ветке `codex/runtime-planner-p4`, без слияния в main:
 649 Go root tests с race/PostgreSQL, 6 795 Runtime passes / 136 declared skips,
 71 process roots без отказов и пропусков, wire, architecture и lint прошли.

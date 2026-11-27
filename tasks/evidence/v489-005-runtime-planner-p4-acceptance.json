@@ -341,6 +341,14 @@
       ],
       "exit_code": 0,
       "elapsed_seconds": 2048.74
+    },
+    "lint-metadata": {
+      "command": [
+        "make",
+        "lint"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 284.5
     }
   },
   "negative_controls": [
@@ -443,5 +451,20 @@
     "Unavailable Linux/rootless or optional heavy-I/O coverage",
     "Full release-verify, deployment, migration of user data, remote push or main integration"
   ],
-  "delivery": "Isolated codex/runtime-planner-p4 branch; not merged into main."
+  "delivery": "Isolated codex/runtime-planner-p4 branch; not merged into main.",
+  "implementation_commit": "4d9275b7775b3b0669ae7fa253b425c3645785a8",
+  "task_file": "tasks/done/v489-005-runtime-planner-p4-acceptance.yml",
+  "metadata_validation": {
+    "result": "passed",
+    "command": [
+      "make",
+      "lint"
+    ],
+    "elapsed_seconds": 284.5,
+    "log": "/private/tmp/contractor-v489-p4/lint-metadata.log",
+    "log_sha256": "68b4ca25784cfff00535b32d5b7540c6afe658b39c4db07cec311511b761d96c",
+    "source_identity": "All production, tests, contracts, build/check inputs and normative specifications match the implementation commit; only task completion/proposal link/evidence metadata follow.",
+    "post_metadata_primary_preservation": "All 12 protected files retain bytes/modes; staged delta and main remain unchanged.",
+    "database_scope": "Full metadata lint runs after owned PostgreSQL removal; real PostgreSQL/race and wire checks completed before cleanup."
+  }
 }
