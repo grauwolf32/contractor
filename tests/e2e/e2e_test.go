@@ -25,14 +25,20 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
+	a2apb "github.com/a2aproject/a2a-go/v2/a2apb/v1"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	grpccredentials "google.golang.org/grpc/credentials"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 const (
@@ -609,6 +615,16 @@ func waitForRuntimeReleased(
 	baseURL, allocationID, workRoot string,
 ) {
 	t.Helper()
+	transport := client.Transport.(*http.Transport)
+	authority, err := mtls.GRPCAuthority(baseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	channel, err := grpc.NewClient(authority, grpc.WithTransportCredentials(grpccredentials.NewTLS(transport.TLSClientConfig)), grpc.WithDisableRetry())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer channel.Close()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		request, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/readyz", nil)
@@ -622,14 +638,10 @@ func waitForRuntimeReleased(
 			}
 			response.Body.Close()
 			if payload.State == "idle" && workRootEmpty(workRoot) {
-				cardURL := baseURL + "/private/v1/allocations/" + url.PathEscape(allocationID) + "/a2a/.well-known/agent-card.json"
-				cardRequest, _ := http.NewRequestWithContext(ctx, http.MethodGet, cardURL, nil)
-				cardResponse, cardErr := client.Do(cardRequest)
-				cardReleased := false
-				if cardErr == nil {
-					cardReleased = cardResponse.StatusCode == http.StatusConflict
-					cardResponse.Body.Close()
-				}
+				callCtx, cancel := context.WithTimeout(ctx, time.Second)
+				_, cardErr := a2apb.NewA2AServiceClient(channel).GetTask(callCtx, &a2apb.GetTaskRequest{Tenant: allocationID, Id: "released-task"})
+				cancel()
+				cardReleased := grpcstatus.Code(cardErr) == codes.FailedPrecondition
 				stateURL := baseURL + "/private/v1/allocations/" + url.PathEscape(allocationID) + "/agent-state"
 				stateRequest, _ := http.NewRequestWithContext(ctx, http.MethodGet, stateURL, nil)
 				stateResponse, stateErr := client.Do(stateRequest)

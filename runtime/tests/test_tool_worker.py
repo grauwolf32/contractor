@@ -7,17 +7,14 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
-import httpx
 import pytest
-from a2a.client import ClientConfig, ClientFactory
 from a2a.types import AgentCard
-from a2a.utils.constants import TransportProtocol
 from fakes.allocation import allocation_context
 from fakes.process_markers import atomic_marker_source
 from fakes.worker_state import WorkerState
 from google.protobuf.json_format import ParseDict
 from target_policy_fixtures import SCAN_TEST_POLICY
-from test_a2a_server import data_request, send
+from test_a2a_server import data_request, native_client, send
 
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.artifacts import (
@@ -36,7 +33,6 @@ from contractor_runtime.contracts import (
 from contractor_runtime.contracts.tool_execution import ToolArgumentBinding
 from contractor_runtime.digests import _agent_template_digest, verify_template_digests
 from contractor_runtime.factories import WorkerBuildContext, built_in_factories
-from contractor_runtime.server import create_app
 from contractor_runtime.state import RuntimeState
 from contractor_runtime.worker.tool_runtime import ToolWorkerRuntimeFactory
 from contractor_runtime.workspace import AllocationWorkspace
@@ -677,18 +673,8 @@ def test_shared_real_allocation_and_a2a_use_scanner_without_model(tmp_path, monk
             factories=factories, state=state, a2a_base_url="https://runtime.example"
         )
         prepared = await service.prepare(spec)
-        app = create_app(state, allocation_service=service, require_verified_peer=False)
         card = ParseDict(prepared.worker_handle.agent_card, AgentCard())
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
-        ) as http:
-            client = ClientFactory(
-                ClientConfig(
-                    streaming=False,
-                    httpx_client=http,
-                    supported_protocol_bindings=[TransportProtocol.JSONRPC],
-                )
-            ).create(card)
+        async with native_client(service, card) as client:
             envelope = data_request(spec.allocation_id)
             ParseDict(
                 request(spec).model_dump(mode="json", by_alias=True, exclude_none=True),
@@ -725,7 +711,6 @@ def test_shared_real_allocation_and_a2a_use_scanner_without_model(tmp_path, monk
             assert snapshot.state.last_completed_invocation.metrics.tool_calls == 1
             assert snapshot.state.metrics.counters.get("model_calls", 0) == 0
             assert snapshot.state.metrics.counters["tool_calls"] == 1
-            await client.close()
         await service.abort(
             AbortAllocationRequest(
                 apiVersion="contractor/v1alpha1",

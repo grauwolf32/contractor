@@ -1,17 +1,20 @@
-"""Allocation-scoped A2A 1.0 JSON-RPC binding for the in-process Worker."""
+"""Allocation-scoped A2A 1.0 gRPC binding for the in-process Worker."""
 
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import uuid
 from dataclasses import dataclass
 from typing import Any, Protocol
+from urllib.parse import urlsplit
 
+import grpc
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.request_handlers import DefaultRequestHandler
-from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes
+from a2a.server.request_handlers.grpc_handler import GrpcHandler
 from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
 from a2a.types import (
     AgentCapabilities,
@@ -28,29 +31,28 @@ from a2a.types import (
     Task,
     TaskState,
     TaskStatus,
+    a2a_pb2,
 )
 from google.protobuf.json_format import MessageToDict, ParseDict
+from google.protobuf.message_factory import GetMessageClass
 from google.protobuf.struct_pb2 import Value
 from pydantic import ValidationError
-from starlette.applications import Starlette
-from starlette.responses import JSONResponse
-from starlette.types import ASGIApp, Receive, Scope, Send
-from starlette.types import Message as ASGIMessage
 
+from contractor_runtime._grpc_metadata import response_request_id
 from contractor_runtime.contracts import (
     StageContentRequest,
     WorkerCompletion,
 )
 from contractor_runtime.contracts.codec import decode_private_value
+from contractor_runtime.contracts.grpc_wire.limits import MAX_A2A_BYTES
+
+logger = logging.getLogger(__name__)
 
 STAGE_CONTENT_MEDIA_TYPE = "application/vnd.contractor.stage-content+json"
 WORKER_COMPLETION_MEDIA_TYPE = "application/vnd.contractor.worker-completion+json"
-# Includes JSON-RPC framing and escaping of the bounded Planner input string.
+# Bounds the official A2A protobuf message, including Planner input.
 # Worker and Planner DTOs retain their smaller independent content bounds.
-MAX_A2A_REQUEST_BYTES = 4 << 20
-ALLOCATION_A2A_PATH = re.compile(
-    r"^/private/v1/allocations/(?P<allocation>[A-Za-z0-9_-]+)/a2a(?P<suffix>/.*)?$"
-)
+MAX_A2A_REQUEST_BYTES = MAX_A2A_BYTES
 
 
 class InvocableWorker(Protocol):
@@ -68,7 +70,7 @@ class InvocableWorker(Protocol):
 
 
 class ActiveA2AProvider(Protocol):
-    async def active_a2a_application(self, allocation_id: str) -> ASGIApp | None: ...
+    async def active_a2a_application(self, allocation_id: str) -> GrpcHandler | None: ...
 
 
 def build_agent_card(
@@ -87,7 +89,7 @@ def build_agent_card(
         supported_interfaces=[
             AgentInterface(
                 url=endpoint,
-                protocol_binding="JSONRPC",
+                protocol_binding="GRPC",
                 protocol_version="1.0",
                 tenant=allocation_id,
             )
@@ -121,16 +123,14 @@ def agent_card_dict(card: AgentCard) -> dict[str, Any]:
     return MessageToDict(card)
 
 
-def build_worker_a2a_application(worker: InvocableWorker, card: AgentCard) -> ASGIApp:
+def build_worker_a2a_application(worker: InvocableWorker, card: AgentCard) -> GrpcHandler:
     executor = ContractorAgentExecutor(worker)
     handler = DefaultRequestHandler(
         agent_executor=executor,
         task_store=InMemoryTaskStore(owner_resolver=lambda _: worker.allocation_id),
         agent_card=card,
     )
-    routes = create_jsonrpc_routes(handler, rpc_url="/")
-    routes.extend(create_agent_card_routes(card, card_url="/.well-known/agent-card.json"))
-    return Starlette(routes=routes)
+    return GrpcHandler(handler)
 
 
 @dataclass
@@ -226,44 +226,73 @@ class ContractorAgentExecutor(AgentExecutor):
             self._worker.cancel_active(invocation.owner)
 
 
-class AllocationA2AGateway:
-    """Dispatch stable allocation URLs to the currently active SDK application."""
+def grpc_endpoint(origin: str) -> str:
+    """Derive native A2A authority only from a validated HTTPS origin."""
+    parsed = urlsplit(origin)
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("A2A gRPC requires an HTTPS origin")
+    host = f"[{parsed.hostname}]" if ":" in parsed.hostname else parsed.hostname
+    return f"{host}:{parsed.port or 443}"
 
-    def __init__(self, fallback: ASGIApp, provider: ActiveA2AProvider) -> None:
-        self._fallback = fallback
-        self._provider = provider
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
-            await self._fallback(scope, receive, send)
-            return
-        match = ALLOCATION_A2A_PATH.fullmatch(scope.get("path", ""))
-        if match is None:
-            await self._fallback(scope, receive, send)
-            return
-        application = await self._provider.active_a2a_application(match.group("allocation"))
-        if application is None:
-            await _gateway_error(
-                scope,
-                receive,
-                send,
-                409,
-                "allocation_not_active",
-                "A2A allocation is stale, draining, or unavailable",
-            )
-            return
-        bounded_receive = await _bounded_receive(scope, receive, send)
-        if bounded_receive is None:
-            return
-        delegated = dict(scope)
-        suffix = match.group("suffix") or "/"
-        delegated["path"] = suffix
-        delegated["raw_path"] = suffix.encode("ascii")
-        base_path = (
-            match.group(0) if match.group("suffix") is None else match.group(0)[: -len(suffix)]
+def register_a2a_gateway(server, provider: ActiveA2AProvider) -> None:
+    """Route official SDK methods by the active allocation's tenant identity."""
+    service = a2a_pb2.DESCRIPTOR.services_by_name["A2AService"]
+
+    async def resolve(request, context):
+        await response_request_id(context)
+        tenant = getattr(request, "tenant", "")
+        if not isinstance(tenant, str) or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", tenant) is None:
+            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "invalid_allocation")
+        try:
+            handler = await provider.active_a2a_application(tenant)
+        except Exception as error:
+            logger.error("A2A routing failed error_type=%s", type(error).__name__)
+            await context.abort(grpc.StatusCode.INTERNAL, "allocation_lookup_failed")
+        if handler is None:
+            await context.abort(grpc.StatusCode.FAILED_PRECONDITION, "allocation_not_active")
+        return handler
+
+    def unary(name):
+        async def call(request, context):
+            handler = await resolve(request, context)
+            return await getattr(handler, name)(request, context)
+
+        return call
+
+    def streaming(name):
+        async def call(request, context):
+            handler = await resolve(request, context)
+            async for item in getattr(handler, name)(request, context):
+                yield item
+
+        return call
+
+    methods = {}
+    for method in service.methods:
+        request_type = GetMessageClass(method.input_type)
+        response_type = GetMessageClass(method.output_type)
+        factory = (
+            grpc.unary_stream_rpc_method_handler
+            if method.server_streaming
+            else grpc.unary_unary_rpc_method_handler
         )
-        delegated["root_path"] = scope.get("root_path", "") + base_path
-        await application(delegated, bounded_receive, send)
+        methods[method.name] = factory(
+            streaming(method.name) if method.server_streaming else unary(method.name),
+            request_deserializer=request_type.FromString,
+            response_serializer=response_type.SerializeToString,
+        )
+    server.add_generic_rpc_handlers(
+        (grpc.method_handlers_generic_handler(service.full_name, methods),)
+    )
 
 
 def _stage_request(context: RequestContext) -> StageContentRequest:
@@ -306,57 +335,3 @@ def _result_message(result: WorkerCompletion, context: RequestContext) -> Messag
         task_id=context.task_id or "",
         context_id=context.context_id or "",
     )
-
-
-async def _bounded_receive(scope: Scope, receive: Receive, send: Send) -> Receive | None:
-    raw_headers = scope.get("headers", [])
-    lengths = [value for name, value in raw_headers if name.lower() == b"content-length"]
-    if len(lengths) > 1:
-        await _gateway_error(scope, receive, send, 400, "invalid_request", "Invalid request")
-        return None
-    if lengths:
-        try:
-            length = int(lengths[0])
-        except ValueError:
-            length = -1
-        if length < 0 or length > MAX_A2A_REQUEST_BYTES:
-            await _gateway_error(
-                scope, receive, send, 413, "request_too_large", "A2A request exceeds its limit"
-            )
-            return None
-    messages: list[ASGIMessage] = []
-    total = 0
-    while True:
-        message = await receive()
-        messages.append(message)
-        if message["type"] != "http.request":
-            break
-        total += len(message.get("body", b""))
-        if total > MAX_A2A_REQUEST_BYTES:
-            await _gateway_error(
-                scope, receive, send, 413, "request_too_large", "A2A request exceeds its limit"
-            )
-            return None
-        if not message.get("more_body", False):
-            break
-
-    async def replay() -> ASGIMessage:
-        if messages:
-            return messages.pop(0)
-        return {"type": "http.disconnect"}
-
-    return replay
-
-
-async def _gateway_error(
-    scope: Scope,
-    receive: Receive,
-    send: Send,
-    status: int,
-    code: str,
-    message: str,
-) -> None:
-    response = JSONResponse(
-        {"code": code, "message": message, "retryable": False}, status_code=status
-    )
-    await response(scope, receive, send)

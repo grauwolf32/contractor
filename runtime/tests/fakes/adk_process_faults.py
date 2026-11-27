@@ -193,6 +193,24 @@ class NativeFaults:
             await self.record("release_finished")
             return result
 
+        active_application = service.active_a2a_application
+        observed_handlers = set()
+
+        async def observed_application(allocation_id):
+            handler = await active_application(allocation_id)
+            if handler is not None and id(handler) not in observed_handlers:
+                observed_handlers.add(id(handler))
+                get_task = handler.GetTask
+
+                async def observed_poll(request, context):
+                    if "a2a_poll_seen" not in self.events:
+                        await self.record("a2a_poll_seen")
+                    return await get_task(request, context)
+
+                handler.GetTask = observed_poll
+            return handler
+
+        service.active_a2a_application = observed_application
         service.abort = observed_abort
         service.release = observed_release
         if self.mode == "native_cleanup_failure_fences_until_release":
@@ -219,28 +237,6 @@ class NativeFaults:
             self._watcher = asyncio.create_task(self.watchdog.run(self._stop))
         self._poller = asyncio.create_task(self._signals())
         await self.record("fault_harness_ready")
-
-    def observe_transport(self, app):
-        async def observed(scope, receive, send):
-            body = bytearray()
-
-            async def incoming():
-                message = await receive()
-                if message["type"] == "http.request":
-                    remaining = max(0, (1 << 20) + 1 - len(body))
-                    body.extend(message.get("body", b"")[:remaining])
-                    if not message.get("more_body", False) and len(body) <= 1 << 20:
-                        try:
-                            method = json.loads(body).get("method")
-                        except (ValueError, AttributeError):
-                            method = None
-                        if method == "GetTask" and "a2a_poll_seen" not in self.events:
-                            await self.record("a2a_poll_seen")
-                return message
-
-            await app(scope, incoming, send)
-
-        return observed
 
     async def _signals(self) -> None:
         handled = set()

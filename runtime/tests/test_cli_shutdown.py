@@ -80,6 +80,9 @@ class ShutdownRuntime:
                 await super().aclose()
 
         class Transport(InflightTransport):
+            async def aclose(self):
+                pass
+
             async def post_json(self, *args):
                 try:
                     return await super().post_json(*args)
@@ -134,6 +137,7 @@ class ShutdownRuntime:
         self.server = Server()
         monkeypatch.setattr(runtime_cli, "PrivateConnections", Connections)
         monkeypatch.setattr(runtime_cli, "MTLSJSONTransport", lambda *args: self.transport)
+        monkeypatch.setattr(runtime_cli, "RegistrationRPC", lambda *args: self.transport)
         monkeypatch.setattr(runtime_cli, "AllocationService", Allocation)
         monkeypatch.setattr(runtime_cli, "LeaseWatchdog", Watchdog)
         monkeypatch.setattr(runtime_cli, "PodmanLifecycle", Lifecycle)

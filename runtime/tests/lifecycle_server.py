@@ -73,13 +73,13 @@ async def serve(args: argparse.Namespace) -> None:
         private_key_file=settings.private_key_file,
     )
     app = create_app(state, allocation_service=service)
-    if faults is not None:
-        app = faults.observe_transport(app)
     server = RuntimeServer(
         create_server_config(
             settings,
             app,
             tls_context,
+            state=state,
+            allocation_service=service,
         )
     )
     loop = asyncio.get_running_loop()

@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"regexp"
-	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/mtls"
 )
 
 var agentStateETagPattern = regexp.MustCompile(`^"contractor-agent-state-v1-[1-9][0-9]*"$`)
@@ -133,24 +132,14 @@ func (c *RuntimeControlClient) workerStateEndpoint(handle contracts.WorkerHandle
 	if !ok {
 		return "", errors.New("WorkerHandle has no exact A2A endpoint")
 	}
-	parsed, err := url.Parse(rawEndpoint)
-	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" ||
-		parsed.Fragment != "" || parsed.RawPath != "" {
+	if current["protocolBinding"] != "GRPC" || current["tenant"] != handle.AllocationID {
+		return "", errors.New("WorkerHandle A2A interface is invalid")
+	}
+	authority, err := mtls.GRPCAuthority("https://" + rawEndpoint)
+	if err != nil || authority != rawEndpoint {
 		return "", errors.New("WorkerHandle A2A endpoint is invalid")
 	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return "", errors.New("WorkerHandle A2A endpoint scheme is invalid")
-	}
-	if c.requireHTTPS && parsed.Scheme != "https" {
-		return "", errors.New("WorkerHandle A2A endpoint must use HTTPS")
-	}
-	suffix := "/private/v1/allocations/" + handle.AllocationID + "/a2a"
-	if !strings.HasSuffix(parsed.Path, suffix) {
-		return "", errors.New("WorkerHandle A2A endpoint does not match allocation")
-	}
-	parsed.Path = strings.TrimSuffix(parsed.Path, suffix) +
-		"/private/v1/allocations/" + handle.AllocationID + "/agent-state"
-	return parsed.String(), nil
+	return "https://" + authority + "/private/v1/allocations/" + handle.AllocationID + "/agent-state", nil
 }
 
 func oneHeaderValue(response *http.Response, name, expected string) bool {

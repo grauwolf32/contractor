@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -42,7 +41,7 @@ func TestSharedCompletionDiagnosticsDecideRuntimeResponses(t *testing.T) {
 		t.Run(item.Name, func(t *testing.T) {
 			finalBody := withCompletion(t, final, item.Value, "report", "worker")
 			stateBody := withCompletion(t, state, item.Value, "state", "metrics")
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+			server := newRuntimeFixture(t, http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				if request.Method == http.MethodGet {
 					w.Header().Set("Cache-Control", "private, no-cache")

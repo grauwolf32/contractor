@@ -1,15 +1,12 @@
 package a2a
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"iter"
-	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	sdk "github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
@@ -26,22 +23,20 @@ func invokeOfficialSDK(t *testing.T, data any, subtaskID string) (contracts.Work
 		_ context.Context, _ *a2asrv.ExecutorContext,
 	) iter.Seq2[sdk.Event, error] {
 		return func(yield func(sdk.Event, error) bool) {
-			part := sdk.NewDataPart(data)
+			raw, _ := json.Marshal(data)
+			var value map[string]any
+			_ = json.Unmarshal(raw, &value)
+			part := sdk.NewDataPart(value)
 			part.MediaType = workerCompletionMediaType
 			message := sdk.NewMessage(sdk.MessageRoleAgent, part)
 			message.TaskID, message.ContextID = "task-1", "context-1"
 			yield(message, nil)
 		}
 	})
-	server := httptest.NewServer(a2asrv.NewJSONRPCHandler(a2asrv.NewHandler(executor)))
-	defer server.Close()
-	invoker, err := New(server.Client(), Options{PollInterval: time.Millisecond})
-	if err != nil {
-		t.Fatal(err)
-	}
+	invoker, handle, _ := nativeSDK(t, executor)
 	request := stageRequest()
 	request.SubtaskID = subtaskID
-	return invoker.Invoke(t.Context(), "builder", workerHandle(server.URL), request)
+	return invoker.Invoke(t.Context(), "builder", handle, request)
 }
 
 // TestSharedWorkerResultCasesPassTheA2ADecodePath sends every shared Worker
@@ -106,22 +101,19 @@ func TestSharedWorkerResultCasesPassTheA2ADecodePath(t *testing.T) {
 // maps the integral doubles of a google.protobuf.Value, as the Python Runtime
 // renders them, to integers, and rejects every integer above 2^53-1, whether
 // written exactly or as the double the Runtime's encoding would round it to.
-func TestInvokerDecodesTheDataPartFromResponseBytes(t *testing.T) {
+func TestInvokerRejectsUnsafeProtobufNumbers(t *testing.T) {
 	encoded, err := json.Marshal(successResult())
 	if err != nil {
 		t.Fatal(err)
 	}
 	for name, raw := range map[string]string{
-		"duplicate top-level key": strings.Replace(string(encoded), `{"apiVersion"`, `{"stateRevision":1,"apiVersion"`, 1),
-		"duplicate nested key":    strings.Replace(string(encoded), `"summarized":false`, `"summarized":true,"summarized":false`, 1),
-		"duplicate escaped key":   strings.Replace(string(encoded), `"invocationId"`, `"invocationId":"other","invocationId"`, 1),
-		"fractional integer":      strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":7.5`, 1),
-		"integer beyond uint64":   strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":1.8446744073709552e+19`, 1),
-		"2^53 as a double":        strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":9007199254740992.0`, 1),
-		"exact 2^53":              strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":9007199254740992`, 1),
-		"exact 2^53+1":            strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":9007199254740993`, 1),
-		"2^64-1":                  strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":18446744073709551615`, 1),
-		"tool calls 2^53":         strings.Replace(string(encoded), `"tools":{}`, `"tools":{"grep":{"calls":9007199254740992.0,"failures":0.0}}`, 1),
+		"fractional integer":    strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":7.5`, 1),
+		"integer beyond uint64": strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":1.8446744073709552e+19`, 1),
+		"2^53 as a double":      strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":9007199254740992.0`, 1),
+		"exact 2^53":            strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":9007199254740992`, 1),
+		"exact 2^53+1":          strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":9007199254740993`, 1),
+		"2^64-1":                strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":18446744073709551615`, 1),
+		"tool calls 2^53":       strings.Replace(string(encoded), `"tools":{}`, `"tools":{"grep":{"calls":9007199254740992.0,"failures":0.0}}`, 1),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if raw == string(encoded) {
@@ -148,17 +140,5 @@ func TestInvokerDecodesTheDataPartFromResponseBytes(t *testing.T) {
 	got, err = invokeOfficialSDK(t, json.RawMessage(pythonRendering), "0")
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("Runtime double rendering = (%+v, %v)", got, err)
-	}
-}
-
-func TestIntegralNumbersRewritesOnlyIntegralDoublesOutsideStrings(t *testing.T) {
-	for input, want := range map[string]string{
-		`{"a":7.0,"b":[1e3,-2.0,0.5],"c":"7.0","d":"\"8.0\\\\","e":12}`: `{"a":7,"b":[1000,-2,0.5],"c":"7.0","d":"\"8.0\\\\","e":12}`,
-		`{"a":18446744073709551615,"b":1.8446744073709552e+19}`:         `{"a":18446744073709551615,"b":1.8446744073709552e+19}`,
-		`{"a":9007199254740992.0,"b":1.5e1,"c":1e400,"d":true}`:         `{"a":9007199254740992,"b":15,"c":1e400,"d":true}`,
-	} {
-		if got := integralNumbers([]byte(input)); !bytes.Equal(got, []byte(want)) {
-			t.Errorf("integralNumbers(%s) = %s, want %s", input, got, want)
-		}
 	}
 }

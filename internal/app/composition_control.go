@@ -80,6 +80,7 @@ func configureControlPlane(
 		cfg.CertificateExpiryWarningWindow, time.Now); err != nil {
 		return controlServices{}, err
 	}
+	privateTLS.NextProtos = []string{"h2", "http/1.1"}
 	// A waiting model Stage retries placement once per Scheduler poll while a
 	// model lane is free; five polls keep its hold across slow attempts and
 	// let it lapse soon after the Stage stops waiting (CTL-R155).

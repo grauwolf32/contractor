@@ -6,10 +6,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -18,119 +14,14 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
 )
 
-func TestPrivateHTTPRequiresVerifiedMTLSAndStrictBody(t *testing.T) {
-	registry := newTestRegistry(t, newTestClock())
-	handler, err := NewHTTPHandler(registry, HTTPOptions{
-		NewRequestID: func() (string, error) { return "control-request-fixed", nil },
-		Principals:   testPrincipalRegistrar{},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	registration := testRegistration("agent-http")
-	if err := registration.Validate(); err != nil {
-		t.Fatalf("test registration is invalid: %v", err)
-	}
-	body, _ := json.Marshal(registration)
-
-	unauthenticated := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/private/v1/agents/register", bytes.NewReader(body))
-	request.Header.Set("Content-Type", "application/json")
-	// An unauthenticated caller cannot choose its logged correlation ID.
-	request.Header.Set("X-Request-ID", "attacker-chosen")
-	handler.ServeHTTP(unauthenticated, request)
-	if unauthenticated.Code != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated status = %d", unauthenticated.Code)
-	}
-	var unauthenticatedError privateErrorResponse
-	if err := json.Unmarshal(unauthenticated.Body.Bytes(), &unauthenticatedError); err != nil ||
-		unauthenticated.Header().Get("X-Request-ID") != "control-request-fixed" ||
-		unauthenticatedError.RequestID != "control-request-fixed" {
-		t.Fatalf("unauthenticated correlation = headers:%v body:%+v error:%v",
-			unauthenticated.Header(), unauthenticatedError, err)
-	}
-
-	trusted := httptest.NewRecorder()
-	request = verifiedRequest(http.MethodPost, "/private/v1/agents/register", body)
-	handler.ServeHTTP(trusted, request)
-	if trusted.Code != http.StatusOK {
-		t.Fatalf("registration status = %d, body %s", trusted.Code, trusted.Body.String())
-	}
-	var response control.AgentRegistrationResponse
-	if err := json.Unmarshal(trusted.Body.Bytes(), &response); err != nil || response.HeartbeatIntervalSeconds != 10 || response.ConfirmedLeaseSeconds != 60 {
-		t.Fatalf("registration response = (%+v, %v)", response, err)
-	}
-	wantPrincipal, _ := mtls.RuntimeAgentID(&x509.Certificate{
-		RawSubjectPublicKeyInfo: []byte("test-runtime-key"),
-	})
-	if response.APIVersion != contracts.APIVersion {
-		t.Fatalf("registration response = %+v", response)
-	}
-	registry.mu.Lock()
-	entry := registry.agents[registration.InstanceID]
-	var principal AuthenticatedPrincipal
-	if entry != nil {
-		principal = clonePrincipal(entry.principal)
-	}
-	registry.mu.Unlock()
-	if principal.RuntimeAgentID != wantPrincipal || principal.LabelRevision != 1 || principal.Labels == nil {
-		t.Fatalf("registration lost Server principal authority: %+v", principal)
-	}
-
-	var incompleteRegistration map[string]any
-	if err := json.Unmarshal(body, &incompleteRegistration); err != nil {
-		t.Fatal(err)
-	}
-	delete(incompleteRegistration, "supportedRuntimeAdapters")
-	incompleteBody, _ := json.Marshal(incompleteRegistration)
-	incomplete := httptest.NewRecorder()
-	handler.ServeHTTP(incomplete, verifiedRequest(http.MethodPost, "/private/v1/agents/register", incompleteBody))
-	if incomplete.Code != http.StatusBadRequest {
-		t.Fatalf("incomplete registration status = %d, body %s", incomplete.Code, incomplete.Body.String())
-	}
-
-	invalidBody := append(bytes.TrimSuffix(body, []byte("}")), []byte(`,"unknown":true}`)...)
-	invalid := httptest.NewRecorder()
-	handler.ServeHTTP(invalid, verifiedRequest(http.MethodPost, "/private/v1/agents/register", invalidBody))
-	if invalid.Code != http.StatusBadRequest {
-		t.Fatalf("unknown field status = %d, body %s", invalid.Code, invalid.Body.String())
-	}
-}
-
-func TestPrivateRegistrationRejectsRemovedInitialLabelsWithoutMutation(t *testing.T) {
-	registry := newTestRegistry(t, newTestClock())
-	handler, err := NewHTTPHandler(registry, HTTPOptions{Principals: testPrincipalRegistrar{}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, err := json.Marshal(testRegistration("agent-http"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	body = append(bytes.TrimSuffix(body, []byte("}")), []byte(`,"initialLabels":["debug"]}`)...)
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, verifiedRequest(http.MethodPost, "/private/v1/agents/register", body))
-	var envelope privateErrorResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
-		t.Fatal(err)
-	}
-	if response.Code != http.StatusBadRequest || envelope.Code != "invalid_request" || envelope.Retryable {
-		t.Fatalf("registration = %d %+v", response.Code, envelope)
-	}
-	if _, err := registry.GetAgent("agent-http"); !errors.Is(err, ErrAgentNotFound) {
-		t.Fatalf("removed field registration mutated registry: %v", err)
-	}
-}
-
 func TestPrivateHeartbeatPathMustMatchBodyAndUnknownAgentReregisters(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
-	handler, _ := NewHTTPHandler(registry, HTTPOptions{Principals: testPrincipalRegistrar{}})
+	handler, _ := NewHTTPHandler(registry, HTTPOptions{})
 	heartbeatBody, _ := json.Marshal(heartbeat("unknown", 1, 0))
 
 	mismatch := httptest.NewRecorder()
@@ -147,57 +38,6 @@ func TestPrivateHeartbeatPathMustMatchBodyAndUnknownAgentReregisters(t *testing.
 	var decoded control.HeartbeatResponse
 	if err := json.Unmarshal(response.Body.Bytes(), &decoded); err != nil || decoded.Action != control.ActionReregister || decoded.AckSeq != 1 {
 		t.Fatalf("unknown instance response = (%+v, %v)", decoded, err)
-	}
-}
-
-func TestPrivateRegistryMTLSRejectsForeignCA(t *testing.T) {
-	trusted := generatePKI(t, "trusted")
-	foreign := generatePKI(t, "foreign")
-	registry := newTestRegistry(t, newTestClock())
-	handler, _ := NewHTTPHandler(registry, HTTPOptions{Principals: testPrincipalRegistrar{}})
-	serverTLS, err := mtls.ControlPlaneServerConfig(trusted.controlPlane)
-	if err != nil {
-		t.Fatal(err)
-	}
-	server := httptest.NewUnstartedServer(handler)
-	server.Config.ErrorLog = log.New(io.Discard, "", 0)
-	server.TLS = serverTLS
-	server.StartTLS()
-	defer server.Close()
-
-	registration := testRegistration("trusted-agent")
-	body, _ := json.Marshal(registration)
-	trustedClientTLS, err := mtls.ControlPlaneEndpointClientConfig(trusted.agent)
-	if err != nil {
-		t.Fatal(err)
-	}
-	trustedClientTLS.ServerName = "127.0.0.1"
-	trustedClient := &http.Client{Transport: &http.Transport{TLSClientConfig: trustedClientTLS}, Timeout: 3 * time.Second}
-	response, err := postJSON(trustedClient, server.URL+"/private/v1/agents/register", body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("trusted mTLS status = %d", response.StatusCode)
-	}
-
-	foreignIdentity := foreign.agent
-	foreignIdentity.CA = trusted.controlPlane.CA
-	foreignClientTLS, err := mtls.ControlPlaneEndpointClientConfig(foreignIdentity)
-	if err != nil {
-		t.Fatal(err)
-	}
-	foreignClientTLS.ServerName = "127.0.0.1"
-	foreignClient := &http.Client{Transport: &http.Transport{TLSClientConfig: foreignClientTLS}, Timeout: 3 * time.Second}
-	foreignRegistration := testRegistration("foreign-agent")
-	foreignBody, _ := json.Marshal(foreignRegistration)
-	if response, err := postJSON(foreignClient, server.URL+"/private/v1/agents/register", foreignBody); err == nil {
-		_ = response.Body.Close()
-		t.Fatal("foreign-CA HTTP client reached the private handler")
-	}
-	if _, err := registry.GetAgent("foreign-agent"); err == nil {
-		t.Fatal("foreign-CA request mutated the registry")
 	}
 }
 
@@ -230,15 +70,6 @@ func (testPrincipalRegistrar) Register(
 	}, nil
 }
 
-func postJSON(client *http.Client, target string, body []byte) (*http.Response, error) {
-	request, err := http.NewRequest(http.MethodPost, target, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	request.Header.Set("Content-Type", "application/json")
-	return client.Do(request)
-}
-
 type pkiFiles struct {
 	controlPlane mtls.Files
 	agent        mtls.Files
@@ -266,45 +97,5 @@ func generatePKI(t *testing.T, name string) pkiFiles {
 	return pkiFiles{
 		controlPlane: mtls.Files{Certificate: controlPlane.Certificate, PrivateKey: controlPlane.PrivateKey, CA: ca.Certificate},
 		agent:        mtls.Files{Certificate: agent.Certificate, PrivateKey: agent.PrivateKey, CA: ca.Certificate},
-	}
-}
-
-// The Runtime stops startup on a registration rejection marked not retryable
-// and retries one marked retryable, ahead of the HTTP status (CTL-R151,
-// RTA-R113), so each rejection class pins its verdict here.
-func TestPrivateRegistrationRejectionsCarryTheRetryVerdict(t *testing.T) {
-	for _, test := range []struct {
-		name      string
-		err       error
-		status    int
-		code      string
-		retryable bool
-	}{
-		{"strict validation", fmt.Errorf("%w: invalid registration", ErrInvalidRequest), http.StatusBadRequest, "invalid_request", false},
-		{"state conflict", ErrRegistrationConflict, http.StatusConflict, "conflict", true},
-		{"internal failure", errors.New("database unavailable"), http.StatusInternalServerError, "internal_error", true},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			handler, err := NewHTTPHandler(newTestRegistry(t, newTestClock()), HTTPOptions{
-				Principals: failingPrincipalRegistrar{err: test.err},
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			body, err := json.Marshal(testRegistration("agent-http"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			response := httptest.NewRecorder()
-			handler.ServeHTTP(response, verifiedRequest(http.MethodPost, "/private/v1/agents/register", body))
-			var envelope privateErrorResponse
-			if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
-				t.Fatal(err)
-			}
-			if response.Code != test.status || envelope.Code != test.code || envelope.Retryable != test.retryable ||
-				envelope.RequestID == "" || envelope.Message == "" {
-				t.Fatalf("rejection = %d %+v", response.Code, envelope)
-			}
-		})
 	}
 }

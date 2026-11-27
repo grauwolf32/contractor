@@ -50,17 +50,10 @@ func inProcessPrincipal(instanceID string) AuthenticatedPrincipal {
 	}
 }
 
-// NewRuntimeControlClient builds a client on an injected HTTP client for
-// focused protocol tests; production uses NewMTLSRuntimeControlClient.
+// NewRuntimeControlClient injects a native fixture's trust roots. Plain HTTP
+// clients remain only for the Worker State family until its separate migration.
 func NewRuntimeControlClient(client *http.Client) (*RuntimeControlClient, error) {
-	if client == nil {
-		return nil, errors.New("HTTP client is required")
-	}
-	clone := *client
-	clone.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
-		return errors.New("Runtime Agent redirects are not allowed")
-	}
-	return &RuntimeControlClient{client: &clone}, nil
+	return fixtureRuntimeClient(client)
 }
 
 // isCompatible keeps focused capability tests on the production predicate.

@@ -5,7 +5,7 @@ description = "Single-slot Python Runtime Agent for Contractor v2"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-  "a2a-sdk[http-server]==1.1.2",
+  "a2a-sdk[http-server,grpc]==1.1.2",
   "cryptography>=45,<51",
   "google-adk==2.15.0",
   "httpx>=0.28,<1",
@@ -34,7 +34,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-  "a2a-sdk[grpc]==1.1.2",
+  "grpcio-tools==1.81.2",
   "h11>=0.16,<0.17",
   "import-linter>=2.15,<3",
   "jsonschema>=4.25,<5",
@@ -58,6 +58,7 @@ addopts = "-q"
 testpaths = ["tests"]
 
 [tool.ruff]
+extend-exclude = ["src/contractor_runtime/contracts/grpc_wire/*_pb2*.py", "src/contractor_runtime/contracts/grpc_wire/*_pb2.pyi"]
 target-version = "py313"
 line-length = 100
 
@@ -90,7 +91,7 @@ containers = ["contractor_runtime"]
 exhaustive = true
 layers = [
   # entry: process entry points and the private HTTP server
-  "__main__ : cli : server",
+  "__main__ : cli : server : grpc_server",
   # orchestration: allocation lifecycle, control-plane client, lease and process state
   "allocation : control_client : lease : state",
   # composition: the toolset/worker factory registry and startup capability discovery
@@ -107,7 +108,7 @@ layers = [
   # subprocess pipes, line splitting, tool metrics and input errors, and the
   # Worker completion protocol; reasoning: the provider-reasoning projection that
   # the terminal summarizer and other model consumers share)
-  "_https : backoff : contracts : core : digests : http_body : log : mtls : probe : reasoning : redaction : shared_config : strict_json : threads",
+  "_grpc_client : _grpc_metadata : _grpc_tls : _https : backoff : contracts : core : digests : http_body : log : mtls : probe : reasoning : redaction : shared_config : strict_json : threads",
 ]
 unmatched_ignore_imports_alerting = "error"
 broken_contract_guidance = """

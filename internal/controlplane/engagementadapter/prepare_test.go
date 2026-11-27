@@ -7,7 +7,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"net"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -17,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
@@ -26,6 +26,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/mtlstest"
+	"github.com/grauwolf32/contractor/internal/runtimewire"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 )
 
 type grantReader struct{ grant controlplane.AllocationGrant }
@@ -58,20 +61,17 @@ func TestSharedEngagementPreparationPreservesAuthorityAndPrivateMaterialLifetime
 			}
 			material := map[string]runtimesettings.HTTPIdentityMaterial{"account-a": {Credential: ref, Fields: map[string]contracts.SecretString{"token": contracts.NewSecretString("private-target-canary")}}}
 			var received atomic.Int32
-			files, principal, server := startRuntimeServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var endpoint string
+			files, principal, server := startRuntimeServer(t, func(ctx context.Context, wire *pb.PrepareAllocationRequest) (*pb.PrepareAllocationResponse, error) {
 				received.Add(1)
 				if mode == "transport-failure" {
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(http.StatusServiceUnavailable)
-					_, _ = w.Write([]byte(`{"code":"unavailable","message":"unavailable","retryable":true,"requestId":"prepare"}`))
-					return
+					return nil, runtimewire.Error(ctx, codes.Unavailable, "unavailable", true)
 				}
 				var request control.PrepareAllocationRequest
-				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-					t.Error(err)
-					return
+				if err := runtimewire.Decode(wire, &request); err != nil {
+					return nil, err
 				}
-				if !strings.HasSuffix(r.URL.Path, "/prepare") || !reflect.DeepEqual(request.Spec.Engagement, projection) {
+				if !reflect.DeepEqual(request.Spec.Engagement, projection) {
 					t.Error("prepare changed trusted projection or RPC")
 				}
 				if mode == "controlled" || mode == "agent-card-secret" {
@@ -83,13 +83,18 @@ func TestSharedEngagementPreparationPreservesAuthorityAndPrivateMaterialLifetime
 				if strings.Contains(string(public), "private-target-canary") {
 					t.Error("private material entered attribution")
 				}
-				card := agentCard("https://"+r.Host+"/private/v1/allocations/"+request.Spec.AllocationID+"/a2a", request.Spec.AllocationID)
+				card := agentCard(endpoint, request.Spec.AllocationID)
 				if mode == "agent-card-secret" {
 					card["description"] = "private-target-canary"
 				}
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(control.PrepareAllocationResponse{APIVersion: contracts.APIVersion, WorkerHandle: contracts.WorkerHandle{AllocationID: request.Spec.AllocationID, AgentTemplateRef: request.Spec.AgentTemplate.Ref, WorkerRuntimeRef: request.Spec.AgentTemplate.Runtime, LeaseExpiresAt: request.Spec.LeaseExpiresAt, AgentCard: card}})
-			}))
+				response := &pb.PrepareAllocationResponse{}
+				err := runtimewire.Encode(control.PrepareAllocationResponse{APIVersion: contracts.APIVersion, WorkerHandle: contracts.WorkerHandle{AllocationID: request.Spec.AllocationID, AgentTemplateRef: request.Spec.AgentTemplate.Ref, WorkerRuntimeRef: request.Spec.AgentTemplate.Runtime, LeaseExpiresAt: request.Spec.LeaseExpiresAt, AgentCard: card}}, response)
+				return response, err
+			})
+			endpoint, err = mtls.GRPCAuthority(server.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
 			reservation := controlplane.Reservation{
 				Grant:      controlplane.AllocationGrant{AllocationID: fixture.AllocationID, RunID: fixture.RunID, StageExecutionID: fixture.StageExecutionID, LogicalAgentName: fixture.LogicalAgentName, Namespace: fixture.Namespace, RuntimeAgentID: principal, RuntimeInstanceID: "instance"},
 				ControlURL: server.URL, A2AURL: server.URL, AgentTemplate: fixture.AgentTemplate, WorkerSessionMode: fixture.WorkerSessionMode, ContextManagement: fixture.ContextManagement, LeaseExpiresAt: fixture.LeaseExpiresAt,
@@ -156,7 +161,7 @@ func TestSharedEngagementPreparationPreservesAuthorityAndPrivateMaterialLifetime
 	}
 }
 
-func startRuntimeServer(t *testing.T, handler http.Handler) (mtls.Files, string, *httptest.Server) {
+func startRuntimeServer(t *testing.T, handler func(context.Context, *pb.PrepareAllocationRequest) (*pb.PrepareAllocationResponse, error)) (mtls.Files, string, *httptest.Server) {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "pki")
 	generator := localpki.Generator{}
@@ -193,7 +198,11 @@ func startRuntimeServer(t *testing.T, handler http.Handler) (mtls.Files, string,
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := httptest.NewUnstartedServer(handler)
+	rpc := grpc.NewServer()
+	pb.RegisterRuntimeLifecycleServer(rpc, &prepareRPCFixture{prepare: handler})
+	t.Cleanup(rpc.Stop)
+	server := httptest.NewUnstartedServer(rpc)
+	server.EnableHTTP2 = true
 	server.TLS = serverTLS
 	server.StartTLS()
 	t.Cleanup(server.Close)
@@ -204,7 +213,7 @@ func agentCard(endpoint, allocationID string) map[string]any {
 	const input = "application/vnd.contractor.stage-content+json"
 	const output = "application/vnd.contractor.worker-completion+json"
 	return map[string]any{
-		"name": "builder", "supportedInterfaces": []any{map[string]any{"url": endpoint, "protocolBinding": "JSONRPC", "protocolVersion": "1.0", "tenant": allocationID}},
+		"name": "builder", "supportedInterfaces": []any{map[string]any{"url": endpoint, "protocolBinding": "GRPC", "protocolVersion": "1.0", "tenant": allocationID}},
 		"defaultInputModes": []any{input}, "defaultOutputModes": []any{output},
 		"skills":               []any{map[string]any{"id": "contractor_stage_content", "inputModes": []any{input}, "outputModes": []any{output}}},
 		"securitySchemes":      map[string]any{"mutualTLS": map[string]any{"mtlsSecurityScheme": map[string]any{}}},
@@ -279,4 +288,13 @@ func TestSharedPreparationDerivesHTTPAuthorityFromActualWorkerTools(t *testing.T
 			}
 		})
 	}
+}
+
+type prepareRPCFixture struct {
+	pb.UnimplementedRuntimeLifecycleServer
+	prepare func(context.Context, *pb.PrepareAllocationRequest) (*pb.PrepareAllocationResponse, error)
+}
+
+func (f *prepareRPCFixture) Prepare(ctx context.Context, request *pb.PrepareAllocationRequest) (*pb.PrepareAllocationResponse, error) {
+	return f.prepare(ctx, request)
 }

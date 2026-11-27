@@ -5,17 +5,19 @@ package controlplane
 import (
 	"context"
 	"errors"
-	"net/http"
 	"reflect"
 	"testing"
 	"time"
 
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
+	"github.com/grauwolf32/contractor/internal/runtimewire"
+	"google.golang.org/grpc/codes"
 )
 
-// The actual Runtime HTTP reader must admit only metadata, preserve replay, and
+// The actual Runtime gRPC reader must admit only metadata, preserve replay, and
 // create no target/model work during prepare. The native harness uses real mTLS
 // and a separate Python Runtime process; its local tool factory records work.
 func TestCrossLanguageMTLSEngagementMetadataPrepare(t *testing.T) {
@@ -48,14 +50,21 @@ func TestCrossLanguageMTLSEngagementMetadataPrepare(t *testing.T) {
 	if err := invalid.Validate(); err != nil {
 		t.Fatalf("invalid process test baseline: %v", err)
 	}
-	projection := *invalid.Engagement
-	projection.HTTP = &engagementcontract.HTTPAssignment{}
-	invalid.Engagement = &projection
-	var rejected control.PrepareAllocationResponse
-	err := h.client.postJSON(h.ctx, h.reservation.ControlURL, invalid.AllocationID, h.reservation.Grant.RuntimeAgentID, "prepare",
-		control.PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: invalid}, &rejected, true)
+	request := &pb.PrepareAllocationRequest{}
+	if err := runtimewire.Encode(control.PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: invalid}, request); err != nil {
+		t.Fatal(err)
+	}
+	defer runtimewire.Clear(request)
+	request.Spec.Engagement.Http = &pb.HTTPAssignment{}
+	channel, release, err := h.client.channels.Borrow(h.ctx, h.reservation.ControlURL, h.reservation.Grant.RuntimeAgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, rpcErr := pb.NewRuntimeLifecycleClient(channel).Prepare(h.ctx, request)
+	release()
+	err = decodeLifecycleError(rpcErr)
 	var apiError *RuntimeAPIError
-	if !errors.As(err, &apiError) || apiError.StatusCode != http.StatusUnprocessableEntity || apiError.Code != "invalid_request" || apiError.Retryable {
+	if !errors.As(err, &apiError) || apiError.RPCStatus != codes.InvalidArgument || apiError.Code != "invalid_request" || apiError.Retryable {
 		t.Fatalf("Runtime accepted target assignment or wrong failure: %v", err)
 	}
 	replay, err := h.client.Prepare(h.ctx, h.reservation, h.settings)

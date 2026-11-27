@@ -10,16 +10,12 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
-	"net/url"
 	"strings"
 	"syscall"
 	"time"
 
 	sdk "github.com/a2aproject/a2a-go/v2/a2a"
-	"github.com/a2aproject/a2a-go/v2/a2aclient"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/planner"
 )
@@ -96,20 +92,6 @@ func validatedPollInterval(options Options) (time.Duration, error) {
 	return options.PollInterval, nil
 }
 
-func sdkClientBuilder(client *http.Client) clientBuilder {
-	return func(ctx context.Context, card *sdk.AgentCard) (protocolClient, error) {
-		factory := a2aclient.NewFactory(
-			a2aclient.WithDefaultsDisabled(),
-			a2aclient.WithJSONRPCTransport(client),
-			a2aclient.WithConfig(a2aclient.Config{
-				AcceptedOutputModes: []string{workerCompletionMediaType},
-				PreferredTransports: []sdk.TransportProtocol{sdk.TransportProtocolJSONRPC},
-			}),
-		)
-		return factory.CreateFromCard(ctx, card)
-	}
-}
-
 func (i *Invoker) Invoke(
 	ctx context.Context,
 	binding string,
@@ -130,30 +112,14 @@ func (i *Invoker) Invoke(
 	if err != nil {
 		return contracts.WorkerCompletion{}, err
 	}
-	// The Worker's result is decoded from the body of the response that
-	// carried it, not from the SDK's float64 values.
-	ctx, _ = withResponseCapture(ctx)
 	builder := i.build
 	if i.tlsConfig != nil {
-		// The invocation owns its connections (CTL-R164): SendMessage, every
-		// GetTask poll and a best-effort CancelTask reuse them, and the
-		// deferred Close, which runs after the CancelTask below, ends them
-		// before Invoke returns.
-		transports, ownerErr := mtls.NewRuntimeAgentTransports(i.tlsConfig, i.timeout)
+		channels, ownerErr := mtls.NewRuntimeChannels(i.tlsConfig)
 		if ownerErr != nil {
-			return contracts.WorkerCompletion{}, planner.NewError(
-				"worker_unavailable", "A2A client is not configured", false, nil,
-			)
+			return contracts.WorkerCompletion{}, planner.NewError("worker_unavailable", "A2A client is not configured", false, nil)
 		}
-		defer transports.Close()
-		transport, bindErr := transports.RoundTripper(handle.RuntimeAgentID)
-		if bindErr != nil {
-			return contracts.WorkerCompletion{}, planner.NewError(
-				"invalid_worker_handle", "Worker handle has no valid Runtime Agent principal", false, nil,
-			)
-		}
-		client := &http.Client{Transport: transport, Timeout: i.timeout}
-		builder = sdkClientBuilder(cloneBoundedHTTPClient(client))
+		defer channels.Close()
+		builder = sdkClientBuilder(channels, handle.RuntimeAgentID, i.timeout)
 	}
 	if builder == nil {
 		return contracts.WorkerCompletion{}, planner.NewError(
@@ -175,7 +141,15 @@ func (i *Invoker) Invoke(
 		_, _ = client.CancelTask(cancelCtx, &sdk.CancelTaskRequest{Tenant: handle.AllocationID, ID: taskID})
 	}()
 
-	part := sdk.NewDataPart(request)
+	encodedRequest, err := json.Marshal(request)
+	if err != nil {
+		return contracts.WorkerCompletion{}, err
+	}
+	var requestValue map[string]any
+	if err := json.Unmarshal(encodedRequest, &requestValue); err != nil {
+		return contracts.WorkerCompletion{}, err
+	}
+	part := sdk.NewDataPart(requestValue)
 	part.MediaType = stageContentMediaType
 	message := sdk.NewMessage(sdk.MessageRoleUser, part)
 	response, sendErr := client.SendMessage(ctx, &sdk.SendMessageRequest{
@@ -208,14 +182,13 @@ func (i *Invoker) resolve(
 ) (contracts.WorkerCompletion, error) {
 	var contextID string
 	delay := i.pollInterval
-	location := resultLocation{wrapped: true, history: -1}
 	for {
 		switch current := response.(type) {
 		case *sdk.Message:
 			if err := validateResultMessageCorrelation(current, "", ""); err != nil {
 				return contracts.WorkerCompletion{}, err
 			}
-			return decodeResultMessage(ctx, current, location)
+			return decodeResultMessage(current)
 		case *sdk.Task:
 			if current == nil || current.ID == "" || current.ContextID == "" {
 				return contracts.WorkerCompletion{}, planner.NewError(
@@ -230,7 +203,7 @@ func (i *Invoker) resolve(
 					"invalid_a2a_response", "Worker changed A2A Task correlation while polling", false, nil,
 				)
 			}
-			message, history, wait, err := taskMessage(current)
+			message, _, wait, err := taskMessage(current)
 			if err != nil {
 				return contracts.WorkerCompletion{}, err
 			}
@@ -238,8 +211,7 @@ func (i *Invoker) resolve(
 				if err := validateResultMessageCorrelation(message, current.ID, current.ContextID); err != nil {
 					return contracts.WorkerCompletion{}, err
 				}
-				location.task, location.history = true, history
-				result, err := decodeResultMessage(ctx, message, location)
+				result, err := decodeResultMessage(message)
 				if err != nil {
 					return contracts.WorkerCompletion{}, err
 				}
@@ -280,7 +252,6 @@ func (i *Invoker) resolve(
 				return contracts.WorkerCompletion{}, transportError(ctx, getErr)
 			}
 			response = next
-			location.wrapped = false
 		default:
 			return contracts.WorkerCompletion{}, planner.NewError(
 				"invalid_a2a_response", "Worker returned an unsupported A2A response", false, nil,
@@ -371,7 +342,7 @@ func validateResultMessageCorrelation(
 	return nil
 }
 
-func decodeCard(handle contracts.WorkerHandle, requireHTTPS bool) (*sdk.AgentCard, error) {
+func decodeCard(handle contracts.WorkerHandle, _ bool) (*sdk.AgentCard, error) {
 	encoded, err := json.Marshal(handle.AgentCard)
 	if err != nil || len(encoded) == 0 || len(encoded) > maxAgentCardBytes {
 		return nil, planner.NewError(
@@ -407,15 +378,9 @@ func decodeCard(handle contracts.WorkerHandle, requireHTTPS bool) (*sdk.AgentCar
 		)
 	}
 	endpoint := card.SupportedInterfaces[0]
-	parsed, parseErr := url.Parse(endpoint.URL)
-	if parseErr != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" ||
-		parsed.Fragment != "" || endpoint.ProtocolBinding != sdk.TransportProtocolJSONRPC ||
-		endpoint.ProtocolVersion != sdk.Version || endpoint.Tenant != handle.AllocationID ||
-		(requireHTTPS && parsed.Scheme != "https") ||
-		(!requireHTTPS && parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return nil, planner.NewError(
-			"invalid_worker_handle", "Worker Agent Card interface is incompatible", false, parseErr,
-		)
+	authority, parseErr := mtls.GRPCAuthority("https://" + endpoint.URL)
+	if parseErr != nil || authority != endpoint.URL || endpoint.ProtocolBinding != sdk.TransportProtocolGRPC || endpoint.ProtocolVersion != sdk.Version || endpoint.Tenant != handle.AllocationID {
+		return nil, planner.NewError("invalid_worker_handle", "Worker Agent Card interface is incompatible", false, parseErr)
 	}
 	return &card, nil
 }
@@ -491,12 +456,8 @@ func taskMessage(task *sdk.Task) (*sdk.Message, int, bool, error) {
 	}
 }
 
-// decodeResultMessage decodes the WorkerCompletion of message, which the SDK
-// read at location in the latest response of ctx, from that response's bytes,
-// so integers keep their digits and duplicate keys are rejected.
-func decodeResultMessage(
-	ctx context.Context, message *sdk.Message, location resultLocation,
-) (contracts.WorkerCompletion, error) {
+// decodeResultMessage validates the SDK's standard protobuf DataPart projection.
+func decodeResultMessage(message *sdk.Message) (contracts.WorkerCompletion, error) {
 	if message == nil || message.Role != sdk.MessageRoleAgent || len(message.Parts) != 1 ||
 		message.Parts[0] == nil {
 		return contracts.WorkerCompletion{}, planner.NewError(
@@ -509,22 +470,19 @@ func decodeResultMessage(
 			"invalid_a2a_response", "Worker response has an incompatible media type", false, nil,
 		)
 	}
-	if _, ok := part.Content.(sdk.Data); !ok {
+	data, ok := part.Content.(sdk.Data)
+	if !ok {
 		return contracts.WorkerCompletion{}, planner.NewError(
 			"invalid_a2a_response", "Worker response must be one Agent DataPart", false, nil,
 		)
 	}
-	var encoded []byte
-	err := errNoResultData
-	if capture := responseCaptureFrom(ctx); capture != nil {
-		encoded, err = resultData(capture.last(), location)
-	}
+	encoded, err := json.Marshal(data.Value)
 	if err != nil || len(encoded) > maxA2AResponseBytes {
 		return contracts.WorkerCompletion{}, planner.NewError(
 			"invalid_a2a_response", "Worker Contractor payload is invalid or oversized", false, err,
 		)
 	}
-	result, err := contracts.DecodePrivateStrict[contracts.WorkerCompletion](integralNumbers(encoded))
+	result, err := contracts.DecodePrivateStrict[contracts.WorkerCompletion](encoded)
 	if err != nil {
 		return contracts.WorkerCompletion{}, planner.NewError(
 			"invalid_worker_result", "Worker returned an invalid WorkerCompletion", false, err,
@@ -534,6 +492,9 @@ func decodeResultMessage(
 }
 
 func transportError(ctx context.Context, cause error) *planner.Error {
+	if errors.Is(cause, sdk.ErrUnauthenticated) || errors.Is(cause, sdk.ErrUnauthorized) {
+		return planner.NewError("invalid_worker_handle", "Worker identity or authority was rejected", false, cause)
+	}
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(cause, context.DeadlineExceeded) {
 		return planner.NewError(
 			"worker_deadline_exceeded", "Worker invocation deadline expired", true, cause,
@@ -547,44 +508,4 @@ func transportError(ctx context.Context, cause error) *planner.Error {
 	return planner.NewError(
 		"worker_unavailable", "Worker A2A endpoint is unavailable", true, cause,
 	)
-}
-
-func cloneBoundedHTTPClient(input *http.Client) *http.Client {
-	result := *input
-	base := input.Transport
-	if base == nil {
-		base = http.DefaultTransport
-	}
-	result.Transport = boundedRoundTripper{base: base, limit: maxA2AResponseBytes}
-	result.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
-		return errors.New("A2A redirects are not allowed")
-	}
-	return &result
-}
-
-type boundedRoundTripper struct {
-	base  http.RoundTripper
-	limit int64
-}
-
-func (t boundedRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
-	outgoing := request.Clone(request.Context())
-	outgoing.Header = request.Header.Clone()
-	outgoing.Header.Set(requestid.Header, requestid.Ensure(request.Context()))
-	response, err := t.base.RoundTrip(outgoing)
-	if err != nil {
-		return nil, err
-	}
-	if response.ContentLength > t.limit {
-		_ = response.Body.Close()
-		return nil, fmt.Errorf("A2A response exceeds its limit")
-	}
-	response.Body = struct {
-		io.Reader
-		io.Closer
-	}{Reader: io.LimitReader(response.Body, t.limit+1), Closer: response.Body}
-	if capture := responseCaptureFrom(request.Context()); capture != nil {
-		response.Body = capture.record(response.Body)
-	}
-	return response, nil
 }

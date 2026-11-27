@@ -4,15 +4,16 @@ package e2e
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/binary"
+	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"sync"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
+	"google.golang.org/protobuf/proto"
 )
 
 // Shorten only the Runtime's confirmed control allowance. This is a fixture
@@ -25,28 +26,34 @@ func (t engagementLeaseTimingTransport) RoundTrip(r *http.Request) (*http.Respon
 		next = http.DefaultTransport
 	}
 	response, err := next.RoundTrip(r)
-	if err != nil || !strings.HasSuffix(r.URL.Path, "/register") || response.StatusCode != 200 {
+	if err != nil || r.URL.Path != runtimepb.ControlPlane_Register_FullMethodName || response.StatusCode != 200 {
 		return response, err
 	}
 	return shortConfirmedControlLease(response)
 }
 
 func shortConfirmedControlLease(response *http.Response) (*http.Response, error) {
-	body, err := io.ReadAll(io.LimitReader(response.Body, 4096))
+	body, err := io.ReadAll(io.LimitReader(response.Body, 4097))
 	_ = response.Body.Close()
 	if err != nil {
 		return nil, err
 	}
-	var reply control.AgentRegistrationResponse
-	if err = json.Unmarshal(body, &reply); err != nil {
+	if len(body) < 5 || len(body) > 4096 || body[0] != 0 || int(binary.BigEndian.Uint32(body[1:5])) != len(body)-5 {
+		return nil, fmt.Errorf("invalid registration gRPC fixture frame")
+	}
+	var reply runtimepb.AgentRegistrationResponse
+	if err = proto.Unmarshal(body[5:], &reply); err != nil {
 		return nil, err
 	}
-	reply.HeartbeatIntervalSeconds = 1
-	reply.ConfirmedLeaseSeconds = 3
-	body, err = json.Marshal(reply)
+	reply.HeartbeatIntervalSeconds = proto.Int64(1)
+	reply.ConfirmedLeaseSeconds = proto.Int64(3)
+	payload, err := proto.Marshal(&reply)
 	if err != nil {
 		return nil, err
 	}
+	body = make([]byte, 5+len(payload))
+	binary.BigEndian.PutUint32(body[1:5], uint32(len(payload)))
+	copy(body[5:], payload)
 	response.Body = io.NopCloser(bytes.NewReader(body))
 	response.ContentLength = int64(len(body))
 	response.Header.Del("Content-Length")

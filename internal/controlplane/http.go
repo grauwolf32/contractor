@@ -10,7 +10,6 @@ import (
 	"mime"
 	"net/http"
 
-	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/helpers/requestid"
@@ -29,7 +28,6 @@ type privateErrorResponse struct {
 type HTTPOptions struct {
 	NewRequestID func() (string, error)
 	Logger       *slog.Logger
-	Principals   PrincipalRegistrar
 }
 
 // Registry is the Runtime Agent registration and heartbeat state the private
@@ -38,10 +36,6 @@ type Registry interface {
 	RegisterAuthenticated(AuthenticatedPrincipal, control.AgentRegistration) (AgentSnapshot, error)
 	RegistrationResponse() control.AgentRegistrationResponse
 	HeartbeatAuthenticated(string, control.AgentHeartbeat) (control.HeartbeatResponse, error)
-}
-
-type PrincipalRegistrar interface {
-	Register(context.Context, string) (agentprincipal.Principal, error)
 }
 
 func NewHTTPHandler(registry Registry, supplied ...HTTPOptions) (http.Handler, error) {
@@ -55,17 +49,12 @@ func NewHTTPHandler(registry Registry, supplied ...HTTPOptions) (http.Handler, e
 	if len(supplied) == 1 {
 		options = supplied[0]
 	}
-	if options.Principals == nil {
-		return nil, errors.New("Runtime Agent principal registrar is required")
-	}
-	handler := &privateHTTPHandler{registry: registry, principals: options.Principals}
+	handler := &privateHTTPHandler{registry: registry}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /private/v1/config", handler.sharedConfig)
 	mux.HandleFunc("/private/v1/config", handler.methodNotAllowed)
-	mux.HandleFunc("POST /private/v1/agents/register", handler.register)
 	mux.HandleFunc("POST /private/v1/agents/{instanceID}/heartbeat", handler.heartbeat)
 	mux.HandleFunc("/private/v1/agents/{instanceID}/heartbeat", handler.methodNotAllowed)
-	mux.HandleFunc("/private/v1/agents/register", handler.methodNotAllowed)
 	mux.HandleFunc("/", handler.notFound)
 	return requestid.Middleware(handler.requireMTLS(mux), requestid.Options{
 		Generator: options.NewRequestID, Logger: options.Logger,
@@ -74,8 +63,7 @@ func NewHTTPHandler(registry Registry, supplied ...HTTPOptions) (http.Handler, e
 }
 
 type privateHTTPHandler struct {
-	registry   Registry
-	principals PrincipalRegistrar
+	registry Registry
 }
 
 type runtimeAgentPrincipalContextKey struct{}
@@ -109,38 +97,6 @@ func (h *privateHTTPHandler) sharedConfig(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writePrivateJSON(w, http.StatusOK, config)
-}
-
-func (h *privateHTTPHandler) register(w http.ResponseWriter, r *http.Request) {
-	if r.URL.RawQuery != "" {
-		h.handleError(w, fmt.Errorf("%w: query parameters are not supported", ErrInvalidRequest))
-		return
-	}
-	registration, err := decodePrivateJSON[control.AgentRegistration](w, r)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	runtimeAgentID, ok := r.Context().Value(runtimeAgentPrincipalContextKey{}).(string)
-	if !ok {
-		h.handleError(w, errors.New("authenticated Runtime Agent principal is unavailable"))
-		return
-	}
-	principal, err := h.principals.Register(r.Context(), runtimeAgentID)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	authenticated := AuthenticatedPrincipal{
-		RuntimeAgentID: principal.RuntimeAgentID,
-		Labels:         principal.Labels, LabelRevision: principal.LabelRevision,
-	}
-	_, err = h.registry.RegisterAuthenticated(authenticated, registration)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	writePrivateJSON(w, http.StatusOK, h.registry.RegistrationResponse())
 }
 
 func (h *privateHTTPHandler) heartbeat(w http.ResponseWriter, r *http.Request) {

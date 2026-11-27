@@ -22,8 +22,16 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/mtlstest"
+	"github.com/grauwolf32/contractor/internal/runtimewire"
 	"github.com/grauwolf32/contractor/internal/telemetry"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	grpccredentials "google.golang.org/grpc/credentials"
+	grpcstatus "google.golang.org/grpc/status"
 
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -505,24 +513,38 @@ func assertDuplicatePrincipalRegistrationRejected(
 	if err := registration.Validate(); err != nil {
 		t.Fatalf("duplicate registration fixture: %v", err)
 	}
-	body, err := json.Marshal(registration)
+	request := &pb.AgentRegistration{}
+	if err := runtimewire.Encode(registration, request); err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := url.Parse(controlPlaneURL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	request, err := http.NewRequest(
-		http.MethodPost, controlPlaneURL+"/private/v1/agents/register", bytes.NewReader(body),
-	)
+	config, err := mtlstest.AgentClientConfig(mtlstest.Files{Certificate: identity.Certificate, PrivateKey: identity.PrivateKey, CA: caFile}, parsed.Hostname())
 	if err != nil {
 		t.Fatal(err)
 	}
-	request.Header.Set("Content-Type", "application/json")
-	response := do(t, newMTLSClient(t, caFile, identity), request, http.StatusConflict)
-	defer response.Body.Close()
-	responseBody, err := io.ReadAll(io.LimitReader(response.Body, 64<<10))
+	authority, err := mtls.GRPCAuthority(controlPlaneURL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	operations.evidence = append(operations.evidence, responseBody)
+	channel, err := grpc.NewClient(authority, grpc.WithTransportCredentials(grpccredentials.NewTLS(config)), grpc.WithDisableRetry())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer channel.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	_, err = pb.NewControlPlaneClient(channel).Register(ctx, request)
+	if grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("duplicate registration: %v", err)
+	}
+	evidence, err := json.Marshal(grpcstatus.Convert(err).Proto())
+	if err != nil {
+		t.Fatal(err)
+	}
+	operations.evidence = append(operations.evidence, evidence)
 }
 
 func assertForeignAgentCannotBorrowAllocation(

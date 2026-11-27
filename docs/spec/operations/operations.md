@@ -297,7 +297,7 @@ durations and bounded counts, not credentials, URLs or secret paths.
 
 **OPS-R15.** Process settings keep separate budgets for:
 
-- individual Runtime and A2A HTTP requests (`runtimeRequestTimeout`);
+- individual Runtime and A2A RPC requests (`runtimeRequestTimeout`);
 - Scheduler store operations (`scheduler.operationTimeout`);
 - the Scheduler claim lease and polling (`scheduler.claimDuration`,
   `scheduler.pollInterval`, `scheduler.leaseScanInterval`);

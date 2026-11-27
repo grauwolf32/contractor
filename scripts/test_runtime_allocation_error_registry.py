@@ -59,13 +59,12 @@ class RuntimeAllocationErrorRegistryTest(unittest.TestCase):
                 path.read_text(), str(path.relative_to(ROOT))
             ).items():
                 codes.setdefault(code, []).extend(positions)
-        # Pin each emitting module, including the lifecycle HTTP handler and
-        # the helper functions that construct rather than raise the error.
+        # Pin preparation/service emitters and helpers which construct rather
+        # than raise the error. Native lifecycle has no URL/body identity pair.
         for code in (
             "invalid_toolset_factory",
             "unsupported_toolset",
             "allocation_conflict",
-            "allocation_id_mismatch",
         ):
             self.assertIn(code, codes)
         registry = (ROOT / "docs/spec/platform/errors.md").read_text()

@@ -1,22 +1,22 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import dataclasses
 import json
 import logging
+import selectors
 import socket
 import ssl
 import subprocess
 import sys
 import threading
 from collections.abc import Mapping
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
 import pytest
 from fakes.allocation import allocation_context
+from test_grpc_interop import go_client as go_client
 
 import contractor_runtime.cli as runtime_cli
 from contractor_runtime._https import decode_private_error
@@ -89,6 +89,9 @@ _LABELS_REJECTED = (
 
 
 class ConfigTransport:
+    async def register(self, payload):
+        return await self.post_json("/private/v1/agents/register", payload)
+
     async def get_json(self, path: str) -> bytes:
         assert path == "/private/v1/config"
         return (Path(__file__).parent / "testdata/shared-config.json").read_bytes()
@@ -124,7 +127,7 @@ def test_permanent_registration_rejection_fails_startup_and_stops_listener(
         )
         monkeypatch.setattr(runtime_cli, "log_runtime_certificate_expiry", lambda *_, **__: None)
 
-        with pytest.raises(RegistrationRejectedError, match="HTTP 400 invalid_request"):
+        with pytest.raises(RegistrationRejectedError, match="status 400 invalid_request"):
             await asyncio.wait_for(
                 runtime_cli.serve(
                     make_settings(tmp_path),
@@ -170,7 +173,7 @@ def test_main_reports_permanent_registration_rejection(
     messages = [record.getMessage() for record in caplog.records]
     assert any(
         "runtime agent failed: Control Plane rejected the Runtime Agent registration "
-        "permanently (HTTP 400 invalid_request, request request_1)" in message
+        "permanently (status 400 invalid_request, request request_1)" in message
         for message in messages
     ), messages
     assert not any("labels cannot be registered" in message for message in messages)
@@ -276,98 +279,70 @@ def test_main_reports_unsafe_work_root_mode_distinctly(
     assert not any("in use" in message for message in messages)
 
 
-def test_process_sigterm_during_real_mtls_heartbeat_exits_cleanly(tmp_path: Path) -> None:
+def test_process_sigterm_during_real_mtls_heartbeat_exits_cleanly(
+    tmp_path: Path, go_client
+) -> None:
     pki = generate_pki(tmp_path / "pki")
-    heartbeat_started = threading.Event()
-    release_heartbeat = threading.Event()
-
-    class Handler(BaseHTTPRequestHandler):
-        protocol_version = "HTTP/1.1"
-
-        def do_GET(self) -> None:
-            assert self.path == "/private/v1/config"
-            encoded = (Path(__file__).parent / "testdata/shared-config.json").read_bytes()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(encoded)))
-            self.end_headers()
-            self.wfile.write(encoded)
-
-        def do_POST(self) -> None:
-            length = int(self.headers["Content-Length"])
-            payload = json.loads(self.rfile.read(length))
-            if self.path == "/private/v1/agents/register":
-                response = {
-                    "apiVersion": "contractor/v1alpha1",
-                    "heartbeatIntervalSeconds": 10,
-                    "confirmedLeaseSeconds": 60,
-                }
-            else:
-                heartbeat_started.set()
-                release_heartbeat.wait(timeout=10)
-                response = {
-                    "allocationActions": [],
-                    "apiVersion": "contractor/v1alpha1",
-                    "ackSeq": payload["heartbeatSeq"],
-                    "action": "continue",
-                }
-            encoded = json.dumps(response, separators=(",", ":")).encode()
-            with contextlib.suppress(BrokenPipeError, ConnectionResetError):
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(encoded)))
-                self.send_header("Connection", "close")
-                self.end_headers()
-                self.wfile.write(encoded)
-
-        def log_message(self, _: str, *__: object) -> None:
-            return
-
-    control_plane = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    control_tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    control_tls.minimum_version = ssl.TLSVersion.TLSv1_3
-    control_tls.verify_mode = ssl.CERT_REQUIRED
-    control_tls.load_verify_locations(cafile=pki["ca"])
-    control_tls.load_cert_chain(
-        certfile=pki["control_plane_certificate"], keyfile=pki["control_plane_key"]
-    )
-    control_plane.socket = control_tls.wrap_socket(control_plane.socket, server_side=True)
-    control_thread = threading.Thread(target=control_plane.serve_forever)
-    control_thread.start()
-    runtime_port = unused_tcp_port()
-    control_port = int(control_plane.server_address[1])
-    process = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "contractor_runtime",
-            "--control-plane-url",
-            f"https://localhost:{control_port}",
-            "--advertised-control-url",
-            f"https://localhost:{runtime_port}",
-            "--advertised-a2a-url",
-            f"https://localhost:{runtime_port}",
-            "--ca-file",
-            str(pki["ca"]),
-            "--certificate-file",
-            str(pki["agent_certificate"]),
-            "--private-key-file",
-            str(pki["agent_key"]),
-            "--listen",
-            f"127.0.0.1:{runtime_port}",
-            "--work-root",
-            str(tmp_path / "work"),
-            "--request-timeout-seconds",
-            "30",
-            "--shutdown-grace-seconds",
-            "2",
-        ],
+    control = subprocess.Popen(
+        [str(go_client)],
+        stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
+    process = None
     try:
-        assert heartbeat_started.wait(timeout=8), "Runtime Agent did not begin its heartbeat"
+        control.stdin.write(
+            json.dumps(
+                {
+                    "CA": str(pki["ca"]),
+                    "Certificate": str(pki["control_plane_certificate"]),
+                    "Key": str(pki["control_plane_key"]),
+                    "Mode": "control-block-heartbeat",
+                }
+            )
+            + "\n"
+        )
+        control.stdin.flush()
+        with selectors.DefaultSelector() as ready:
+            ready.register(control.stdout, selectors.EVENT_READ)
+            assert ready.select(timeout=10), "Control Plane did not start"
+            startup = control.stdout.readline()
+            assert startup, control.stderr.read()
+            control_port = json.loads(startup)["port"]
+            runtime_port = unused_tcp_port()
+            process = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "contractor_runtime",
+                    "--control-plane-url",
+                    f"https://localhost:{control_port}",
+                    "--advertised-control-url",
+                    f"https://localhost:{runtime_port}",
+                    "--advertised-a2a-url",
+                    f"https://localhost:{runtime_port}",
+                    "--ca-file",
+                    str(pki["ca"]),
+                    "--certificate-file",
+                    str(pki["agent_certificate"]),
+                    "--private-key-file",
+                    str(pki["agent_key"]),
+                    "--listen",
+                    f"127.0.0.1:{runtime_port}",
+                    "--work-root",
+                    str(tmp_path / "work"),
+                    "--request-timeout-seconds",
+                    "30",
+                    "--shutdown-grace-seconds",
+                    "2",
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            assert ready.select(timeout=10), "Runtime Agent did not begin its heartbeat"
+            assert json.loads(control.stdout.readline()) == {"heartbeat": True}
         process.terminate()
         try:
             return_code = process.wait(timeout=5)
@@ -375,19 +350,23 @@ def test_process_sigterm_during_real_mtls_heartbeat_exits_cleanly(tmp_path: Path
             process.kill()
             stdout, stderr = process.communicate(timeout=2)
             pytest.fail(f"Runtime Agent ignored SIGTERM\nstdout:\n{stdout}\nstderr:\n{stderr}")
-        assert return_code == 0
         stdout, stderr = process.communicate()
+        assert return_code == 0, stderr
         assert "Traceback" not in stderr
         assert pki["agent_key"].read_text(encoding="utf-8") not in stdout + stderr
     finally:
-        release_heartbeat.set()
-        if process.poll() is None:
+        if process is not None and process.poll() is None:
             process.kill()
             process.wait(timeout=2)
-        control_plane.shutdown()
-        control_plane.server_close()
-        control_thread.join(timeout=3)
-    assert not control_thread.is_alive()
+        control.stdin.close()
+        control.stdin = None
+        try:
+            _out, error = control.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            control.kill()
+            control.communicate(timeout=2)
+            raise
+        assert control.returncode == 0, error
 
 
 class FakeServer:

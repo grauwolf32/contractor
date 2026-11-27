@@ -268,17 +268,15 @@ registration bounds of [CTL-R148](control-plane.md) fails startup readiness
 with a safe discovery error, because Control Plane would reject every
 registration of it (FAIL-CTL-1).
 
-**RTA-R113.** Startup registration retries, with the bounded control backoff,
-only a failure that may clear: a connection error, a timeout, an invalid
-response, or a rejection whose private error envelope says `retryable: true`
-([CTL-R151](control-plane.md)); without that envelope, HTTP 408, 409, 425, 429
-and every 5xx. Any other rejection is permanent: the Runtime Agent ends startup
-with a safe error that names only the HTTP status, the Server's error code and
-its request ID, stops its listener and exits non-zero instead of repeating a
-registration that cannot succeed (FAIL-CTL-1). A running agent's
-re-registration, requested by a heartbeat or after a release, keeps retrying
-(RTA-R28), because the agent may still have to confirm the release of a
-fenced allocation.
+**RTA-R113.** Startup registration uses native gRPC. It retries with bounded
+control backoff only connection failure, timeout, invalid response, or a
+rejection whose validated typed details say `retryable: true` (CTL-R151).
+Without details, `Unavailable`, `DeadlineExceeded`, `ResourceExhausted` and
+`Aborted` are retryable. A failed Control Plane certificate/role check is
+permanent. Other rejections end startup with a safe status, domain code and
+request ID, stop the listener and exit non-zero (FAIL-CTL-1); remote exception
+text is never logged. Running re-registration keeps its existing bounded
+backoff loop (RTA-R28), because fenced allocations may still need release.
 
 **RTA-R7.** The Runtime enables every installed built-in adapter by
 default. An immutable startup allowlist may narrow that installed surface with
@@ -706,7 +704,10 @@ Control Plane certificate; the advertised `tenant` remains only the opaque
 route selector and is never treated as a credential.
 
 **RTA-R75.** The A2A endpoint authenticates the Server as a Control Plane
-peer through mTLS.
+peer through mTLS on the actual connection, using the process-private TLS
+adapter defined by SEC-R5. It delegates official A2A gRPC messages to the SDK
+handler; the Agent Card advertises only `GRPC`, protocol version `1.0`, and
+an authority with an allocation tenant. No JSON-RPC fallback is advertised.
 
 **RTA-R76.** The A2A endpoint validates that `tenant` matches the active
 allocation and lease.
@@ -1208,8 +1209,8 @@ listed in [Control Plane](control-plane.md#invariants); those on the
 ```text
 external Agent Card
   skills = [contractor_stage_content]
-  supportedInterfaces[0].url = https://runtime-agent-7.internal/private/v1/allocations/allocation-123/a2a
-  supportedInterfaces[0].protocolBinding = JSONRPC
+  supportedInterfaces[0].url = runtime-agent-7.internal:443
+  supportedInterfaces[0].protocolBinding = GRPC
   supportedInterfaces[0].protocolVersion = 1.0
   supportedInterfaces[0].tenant = allocation-123
 

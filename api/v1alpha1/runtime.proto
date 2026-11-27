@@ -1,0 +1,307 @@
+syntax = "proto3";
+
+package contractor.runtime.v1alpha1;
+
+option go_package = "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb";
+
+import "google/protobuf/struct.proto";
+
+// Contractor control RPCs. Worker/Planner invocation uses the official
+// lf.a2a.v1.A2AService, not another Contractor invocation protocol.
+service ControlPlane {
+  rpc Register(AgentRegistration) returns (AgentRegistrationResponse);
+}
+
+// Scalar presence and presence-bearing collections are intentional: domain
+// validation must distinguish omission from explicit zero/false/empty values.
+// The JSON projection uses each field's json_name. ListOf*/MapOf* wrappers
+// project to arrays/objects; Nullable* wraps an explicit value or JSON null.
+// Closed value sets and size/grammar constraints remain with domain validators.
+message ListOfString { repeated string values = 1; }
+message ListOfInteger { repeated int64 values = 1; }
+message ListOfToolsetCapability { repeated ToolsetCapability values = 1; }
+message ListOfObservedAllocation { repeated ObservedAllocation values = 1; }
+
+message AgentRegistration {
+  optional string api_version = 1;
+  optional string instance_id = 2;
+  optional string software_version = 3;
+  optional string started_at = 4;
+  optional string control_url = 5;
+  optional string a2a_url = 6;
+  ListOfString supported_runtimes = 7;
+  ListOfToolsetCapability supported_toolsets = 8;
+  ListOfString supported_sandbox_profiles = 9;
+  optional string observed_state = 10;
+  NullableCompletionCapabilities capabilities = 11;
+  ListOfString supported_runtime_adapters = 12;
+  NullableWorkspaceCapabilities workspace_capabilities = 13;
+  ListOfInteger supported_performance_metrics_versions = 14;
+  ListOfString placement_labels = 15;
+  optional int64 allocation_slots = 16;
+  ListOfObservedAllocation allocations = 17;
+}
+
+message AgentRegistrationResponse {
+  optional string api_version = 1;
+  optional int64 heartbeat_interval_seconds = 2;
+  optional int64 confirmed_lease_seconds = 3;
+}
+
+message ToolsetCapability {
+  optional string ref = 1;
+  ListOfString tools = 2;
+}
+
+message ObservedAllocation {
+  optional string allocation_id = 1;
+  optional string observed_state = 2;
+}
+
+message CompletionCapabilities { ListOfString completion_contracts = 1; }
+
+message NullableCompletionCapabilities {
+  oneof kind {
+    CompletionCapabilities value = 1;
+    google.protobuf.NullValue null = 2;
+  }
+}
+
+message WorkspaceCapabilities {
+  optional string storage = 1;
+  ListOfString modes = 2;
+  WorkspaceLimits limits = 3;
+}
+
+message WorkspaceLimits {
+  optional int64 max_files = 1;
+  optional int64 max_expanded_bytes = 2;
+  optional int64 max_managed_text_bytes = 3;
+  optional int64 max_file_bytes = 4;
+}
+
+message NullableWorkspaceCapabilities {
+  oneof kind {
+    WorkspaceCapabilities value = 1;
+    google.protobuf.NullValue null = 2;
+  }
+}
+
+// Stable, bounded details carried in google.rpc.Status. Error messages never
+// contain request payloads, peer certificates, credentials or raw exceptions.
+message ErrorDetail {
+  optional string code = 1;
+  optional bool retryable = 2;
+  optional string request_id = 3;
+}
+
+service RuntimeLifecycle {
+  rpc Prepare(PrepareAllocationRequest) returns (PrepareAllocationResponse);
+  rpc Finalize(FinalizeAllocationRequest) returns (AllocationFinalResponse);
+  rpc Abort(AbortAllocationRequest) returns (AllocationFinalResponse);
+  rpc Release(ReleaseAllocationRequest) returns (ReleaseAllocationResponse);
+}
+message PrepareAllocationRequest {
+  optional string api_version = 1;
+  AllocationSpec spec = 2;
+}
+message PrepareAllocationResponse {
+  optional string api_version = 1;
+  WorkerHandle worker_handle = 2;
+}
+message FinalizeAllocationRequest {
+  optional string api_version = 1;
+  optional string allocation_id = 2;
+  optional string finalization_id = 3;
+  optional string deadline = 4;
+}
+message AbortAllocationRequest {
+  optional string api_version = 1;
+  optional string allocation_id = 2;
+  optional string abort_id = 3;
+  TerminationError reason = 4;
+  optional string deadline = 5;
+}
+message ReleaseAllocationRequest {
+  optional string api_version = 1;
+  optional string allocation_id = 2;
+}
+message ReleaseAllocationResponse {}
+message TerminationError {
+  optional string code = 1;
+  optional string message = 2;
+  optional bool retryable = 3;
+}
+message AllocationSpec {
+  optional string api_version = 1;
+  optional string allocation_id = 2;
+  optional string run_id = 3;
+  optional string stage_execution_id = 4;
+  optional string logical_agent_name = 5;
+  optional string namespace = 6;
+  optional string worker_session_mode = 7;
+  WorkerContextManagement context_management = 8;
+  MapOfString run_metadata_labels = 9;
+  optional string project_id = 10;
+  optional string lease_expires_at = 11;
+  AgentTemplateDocument agent_template = 12;
+  ListOfResolvedSkill resolved_skills = 13;
+  ModelPolicyDocument model_policy = 14;
+  ModelPolicyDocument summarizer_model_policy = 15;
+  ModelPolicyDocument compactor_model_policy = 16;
+  RuntimeSettingsDocument runtime_settings = 17;
+  RuntimeConfigProvenanceDocument resolved_runtime_config_provenance = 18;
+  NullableAllocationWorkspace workspace = 19;
+  NullablePerformanceMetricsRequest performance_metrics = 20;
+  WorkerCompletionContract completion_contract = 21;
+  EngagementAllocation engagement = 22;
+}
+// These are existing versioned domain documents, not RPC envelopes. Their
+// canonical JSON/digests and strict domain parsers remain authoritative.
+message AgentTemplateDocument { optional bytes json = 1; }
+message ModelPolicyDocument { optional bytes json = 1; }
+message RuntimeSettingsDocument { optional bytes json = 1; }
+message RuntimeConfigProvenanceDocument { optional bytes json = 1; }
+message AgentCardDocument { optional bytes json = 1; }
+// Reports retain JSON number literals in tool arguments and the existing
+// optional telemetry salvage rules. Identities and lifecycle are typed above.
+message ExecutionReportDocument { optional bytes json = 1; }
+message RuntimeReportDocument { optional bytes json = 1; }
+message MapOfString { map<string,string> values = 1; }
+message ResolvedInstructions {
+  optional string ref = 1;
+  optional string digest = 2;
+  optional string text = 3;
+}
+message WorkerContextManagement {
+  optional string strategy = 1;
+  ResolvedInstructions instructions = 2;
+  optional bool include_reasoning = 3;
+  optional double context_window_ratio = 4;
+  optional int64 keep_recent_groups = 5;
+  optional int64 max_compactions = 6;
+}
+message ArtifactRef {
+  optional string namespace = 1;
+  optional string name = 2;
+  optional string revision = 3;
+}
+message ResolvedSkill {
+  optional string name = 1;
+  ArtifactRef artifact = 2;
+  optional string package_digest = 3;
+}
+message ListOfResolvedSkill { repeated ResolvedSkill values = 1; }
+message WorkerCompletionContract {
+  optional string kind = 1;
+  ArtifactRef context = 2;
+  ArtifactRef result_artifact = 3;
+}
+message AgentTemplateRef {
+  optional string template_id = 1;
+  optional string version = 2;
+  optional string digest = 3;
+}
+message WorkerRuntimeRef {
+  optional string runtime_id = 1;
+  optional string version = 2;
+}
+message WorkerHandle {
+  optional string allocation_id = 1;
+  AgentTemplateRef agent_template_ref = 2;
+  WorkerRuntimeRef worker_runtime_ref = 3;
+  AgentCardDocument agent_card = 4;
+  optional string lease_expires_at = 5;
+}
+message AllocationWorkspace {
+  optional string mode = 1;
+  ListOfWorkspaceSource sources = 2;
+  NullableWorkspaceState state = 3;
+  NullableWorkspaceExport export = 4;
+}
+message WorkspaceSource {
+  ArtifactRef artifact = 1;
+  optional string target = 2;
+}
+message ListOfWorkspaceSource { repeated WorkspaceSource values = 1; }
+message WorkspaceState { ArtifactRef artifact = 1; }
+message WorkspaceExport {
+  optional string state = 1;
+  optional string diff = 2;
+}
+message NullableAllocationWorkspace {
+  oneof kind { AllocationWorkspace value = 1; google.protobuf.NullValue null = 2; }
+}
+message NullableWorkspaceState {
+  oneof kind { WorkspaceState value = 1; google.protobuf.NullValue null = 2; }
+}
+message NullableWorkspaceExport {
+  oneof kind { WorkspaceExport value = 1; google.protobuf.NullValue null = 2; }
+}
+message PerformanceMetricsRequest {
+  optional int64 version = 1;
+  optional int64 interval_seconds = 2;
+}
+message NullablePerformanceMetricsRequest {
+  oneof kind { PerformanceMetricsRequest value = 1; google.protobuf.NullValue null = 2; }
+}
+message EngagementAllocation {
+  optional string schema = 1;
+  ArtifactRef engagement = 2;
+  optional string engagement_digest = 3;
+  optional string authorized_by = 4;
+  optional string authorized_at = 5;
+  HTTPAssignment http = 6;
+}
+message HTTPAssignment {
+  HTTPLimits limits = 1;
+  optional string adapter = 2;
+  ListOfHTTPRoute routes = 3;
+  ListOfHTTPRoute exclusions = 4;
+  ListOfHTTPIdentity identities = 5;
+  ListOfProtectedDestination protected_destinations = 6;
+}
+message HTTPLimits {
+  optional int64 requests_per_second = 1;
+  optional int64 concurrent_requests = 2;
+  optional int64 request_body_bytes = 3;
+  optional int64 response_body_bytes = 4;
+}
+message HTTPRoute {
+  optional string origin = 1;
+  ListOfString path_prefixes = 2;
+  ListOfString methods = 3;
+  ListOfString address_ranges = 4;
+}
+message HTTPIdentity {
+  optional string id = 1;
+  optional string kind = 2;
+  ListOfString origins = 3;
+  optional string role = 4;
+  optional string tenant = 5;
+  RuntimeCredentialRef credential = 6;
+}
+message RuntimeCredentialRef {
+  optional string credential_id = 1;
+  optional string kind = 2;
+}
+message ProtectedDestination {
+  optional string hostname = 1;
+  ListOfString addresses = 2;
+  optional int64 port = 3;
+}
+message ListOfHTTPRoute { repeated HTTPRoute values = 1; }
+message ListOfHTTPIdentity { repeated HTTPIdentity values = 1; }
+message ListOfProtectedDestination { repeated ProtectedDestination values = 1; }
+message AllocationFinalResponse {
+  optional string api_version = 1;
+  AllocationFinalReport report = 2;
+}
+message AllocationFinalReport {
+  optional string report_id = 1;
+  optional string allocation_id = 2;
+  optional string started_at = 3;
+  optional string finished_at = 4;
+  ExecutionReportDocument worker = 5;
+  RuntimeReportDocument runtime = 6;
+}

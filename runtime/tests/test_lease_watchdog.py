@@ -492,6 +492,9 @@ class GatedRuntimeFactory:
 
 
 class ScriptedTransport:
+    async def register(self, payload):
+        return await self.post_json("/private/v1/agents/register", payload)
+
     def __init__(self, responses: list[Mapping[str, Any] | BaseException]) -> None:
         self.responses = list(responses)
 

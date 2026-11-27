@@ -2,7 +2,8 @@
 
 Обновлено 2026-11-27. База: `main @ 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b`.
 Статус: **переход разрешён пользователем; задачи созданы; подтверждена транспортная
-предпосылка mTLS; пользователь выбрал локальный TLS-адаптер. Production-переход ещё не выполнен.** Исторический разбор ниже
+предпосылка mTLS; пользователь выбрал локальный TLS-адаптер. Первый сквозной путь registration → lifecycle → A2A gRPC
+прошёл real-process проверку; полная приёмка и остальные семейства ещё не завершены.** Исторический разбор ниже
 сохранён как контекст; его рекомендация оставить HTTP больше не является планом.
 
 ## Решения и результат
@@ -106,6 +107,20 @@ design. Не ослаблять проверку до CA+hostname, не испо
 Runtime при сохранении PKI. Локальная граница — Unix sockets в process-owned
 каталоге 0700, без plaintext TCP listener; HTTP/2 и gRPC обрабатывает grpcio.
 Admission, backpressure и shutdown/join входят в обязательную проверку.
+
+## Реализация первого сквозного пути
+
+`api/v1alpha1/runtime.proto` задаёт registration и allocation lifecycle с явным
+presence. Configs, provenance, Agent Card и отчёты представлены именованными
+JSON-документами внутри типизированного envelope: это сохраняет config digest,
+точные значения tool arguments и выборочное отбрасывание повреждённой telemetry.
+Это не универсальный JSON RPC. Старые HTTP registration/lifecycle и JSON-RPC
+A2A handlers удалены; пока не переведённые семейства имеют собственные маршруты.
+
+Проверки прежнего HTTP A2A connection experiment заменяются native gRPC тестами:
+reuse и cancellation в official SDK, bounded admission/idle/age, отсутствие
+mutation replay, реальная проверка SPKI и renewal при новом соединении. HTTP
+framing assertions не переносятся в HTTP/2; ими владеет gRPC implementation.
 
 ## Контракт, который нужно сохранить
 

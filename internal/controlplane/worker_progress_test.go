@@ -3,7 +3,6 @@ package controlplane
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -15,7 +14,7 @@ func TestSharedWorkerProgressProjectsValidatedStateAndRechecksAuthority(t *testi
 	registry := &InMemoryRegistry{allocations: map[string]storedReservation{}}
 	calls := 0
 	loseDuringRead := false
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newRuntimeFixture(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		if !strings.HasSuffix(r.URL.Path, "/allocations/allocation-1/agent-state") {
 			t.Errorf("unexpected State path %s", r.URL.Path)

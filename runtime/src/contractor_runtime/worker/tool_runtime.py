@@ -17,6 +17,7 @@ from contractor_runtime.a2a_server import (
     agent_card_dict,
     build_agent_card,
     build_worker_a2a_application,
+    grpc_endpoint,
 )
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient
 from contractor_runtime.contracts import (
@@ -177,7 +178,7 @@ class ToolWorkerRuntime:
         self._cache: OrderedDict[str, tuple[str, WorkerCompletion]] = OrderedDict()
         card = build_agent_card(
             allocation_id=self.allocation_id,
-            endpoint=f"{context.a2a_base_url.rstrip('/')}/private/v1/allocations/{self.allocation_id}/a2a",
+            endpoint=grpc_endpoint(context.a2a_base_url),
             logical_agent_name=context.logical_agent_name,
             description=context.description,
             version=context.card_version,

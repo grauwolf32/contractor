@@ -10,6 +10,7 @@ import signal
 import time
 from collections.abc import Callable, Sequence
 
+from contractor_runtime._grpc_client import RegistrationRPC
 from contractor_runtime._https import PrivateConnections
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.archive_cache import (
@@ -22,6 +23,7 @@ from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.control_client import (
     ControlClient,
     ControlTransport,
+    ControlTransports,
     MTLSJSONTransport,
     RegistrationRejectedError,
     SharedConfigError,
@@ -153,6 +155,7 @@ async def _bootstrap(
     stop = stop_requested or asyncio.Event()
     runtime_state = state or RuntimeState(allocation_slots=settings.allocation_slots)
     connections = None
+    registration_rpc = None
     loop = asyncio.get_running_loop()
     handled_signals = (signal.SIGINT, signal.SIGTERM)
     if install_signal_handlers:
@@ -166,8 +169,22 @@ async def _bootstrap(
                 private_key_file=settings.private_key_file,
             )
             connections = PrivateConnections(outgoing_tls, verify_control_plane_peer)
-            transport = MTLSJSONTransport(
-                settings.control_plane_url, connections, settings.request_timeout_seconds
+            # ALPN belongs to a protocol's context: sharing the gRPC context
+            # would make the remaining HTTP/1.1 bootstrap/heartbeat calls offer h2.
+            registration_rpc = RegistrationRPC(
+                settings.control_plane_url,
+                runtime_agent_client_context(
+                    ca_file=settings.ca_file,
+                    certificate_file=settings.certificate_file,
+                    private_key_file=settings.private_key_file,
+                ),
+                settings.request_timeout_seconds,
+            )
+            transport = ControlTransports(
+                MTLSJSONTransport(
+                    settings.control_plane_url, connections, settings.request_timeout_seconds
+                ),
+                registration_rpc,
             )
         control = ControlClient(settings, runtime_state, transport)
         if not await control.configure_until_stopped(stop) or stop.is_set():
@@ -185,8 +202,12 @@ async def _bootstrap(
         if install_signal_handlers:
             for handled_signal in handled_signals:
                 loop.remove_signal_handler(handled_signal)
-        if connections is not None:
-            await connections.aclose()
+        try:
+            if registration_rpc is not None:
+                await registration_rpc.aclose()
+        finally:
+            if connections is not None:
+                await connections.aclose()
 
 
 async def _serve_configured(
@@ -321,7 +342,15 @@ async def _serve(
             reconciliation=allocation_service,
         )
         application = create_app(runtime_state, allocation_service=allocation_service)
-        server = server_factory(create_server_config(settings, application, incoming_tls))
+        server = server_factory(
+            create_server_config(
+                settings,
+                application,
+                incoming_tls,
+                state=runtime_state,
+                allocation_service=allocation_service,
+            )
+        )
 
         server_task = asyncio.create_task(server.serve(), name="runtime-private-server")
         registration_task: asyncio.Task[bool] | None = None

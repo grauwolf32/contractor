@@ -41,7 +41,7 @@ func TestInvokerBacksOffPollingOfARunningTask(t *testing.T) {
 		},
 	}
 
-	got, err := invoker.Invoke(t.Context(), "builder", workerHandle("https://runtime.example/a2a"), stageRequest())
+	got, err := invoker.Invoke(t.Context(), "builder", workerHandle("runtime.example:443"), stageRequest())
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("Invoke = (%+v, %v), want %+v", got, err, want)
 	}
@@ -87,7 +87,7 @@ func TestInvokerKeepsALongerConfiguredPollInterval(t *testing.T) {
 			return ctx.Err()
 		},
 	}
-	if _, err := invoker.Invoke(ctx, "builder", workerHandle("https://runtime.example/a2a"), stageRequest()); err == nil {
+	if _, err := invoker.Invoke(ctx, "builder", workerHandle("runtime.example:443"), stageRequest()); err == nil {
 		t.Fatal("cancelled invocation returned a result")
 	}
 	if want := []time.Duration{5 * time.Second, 5 * time.Second, 5 * time.Second, 5 * time.Second}; !reflect.DeepEqual(delays, want) {

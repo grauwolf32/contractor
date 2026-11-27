@@ -14,6 +14,7 @@ from typing import Any, Protocol
 from urllib.parse import quote, urlsplit
 
 from contractor_runtime import _https
+from contractor_runtime._grpc_client import ControlRPCError, RegistrationRPC
 from contractor_runtime.backoff import bounded_backoff
 from contractor_runtime.contracts import (
     AgentRegistrationResponse,
@@ -37,6 +38,8 @@ CONTROL_RETRY_BACKOFF_CEILING_SECONDS = 5.0
 
 
 class ControlTransport(Protocol):
+    async def register(self, payload: Mapping[str, Any]) -> Mapping[str, Any] | bytes: ...
+
     async def get_json(self, path: str) -> Mapping[str, Any] | bytes: ...
 
     async def post_json(
@@ -100,8 +103,8 @@ class RegistrationRejectedError(ControlClientError):
     registration that cannot succeed (RTA-R113).
     """
 
-    def __init__(self, error: ControlHTTPError) -> None:
-        reason = f"HTTP {error.status_code}"
+    def __init__(self, error: ControlHTTPError | ControlRPCError) -> None:
+        reason = f"status {error.status_code}"
         if error.code is not None:
             reason += f" {error.code}, request {error.request_id}"
         super().__init__(
@@ -201,6 +204,23 @@ class MTLSJSONTransport:
         return _https.encode_request("POST", self._base_path + path, headers, body)
 
 
+class ControlTransports:
+    """Select one transport per operation family during the private API cutover."""
+
+    def __init__(self, http: MTLSJSONTransport, registration: RegistrationRPC) -> None:
+        self._http = http
+        self._registration = registration
+
+    async def register(self, payload):
+        return await self._registration.register(payload)
+
+    async def get_json(self, path):
+        return await self._http.get_json(path)
+
+    async def post_json(self, path, payload):
+        return await self._http.post_json(path, payload)
+
+
 class ControlClient:
     """Register the process and exchange one sequenced heartbeat at a time."""
 
@@ -292,8 +312,7 @@ class ControlClient:
     async def register(self) -> AgentRegistrationResponse:
         registration = await self._state.registration(self._settings)
         sent_at = self._watchdog.now() if self._watchdog is not None else None
-        raw = await self._transport.post_json(
-            "/private/v1/agents/register",
+        raw = await self._transport.register(
             registration.model_dump(mode="json", by_alias=True, exclude_none=True),
         )
         try:
@@ -334,12 +353,12 @@ class ControlClient:
                 return True
             except asyncio.CancelledError:
                 raise
-            except ControlHTTPError as error:
+            except (ControlHTTPError, ControlRPCError) as error:
                 if error.permanent:
                     raise RegistrationRejectedError(error) from None
                 failures += 1
                 logger.warning(
-                    "Control Plane registration failed (HTTP %d %s)",
+                    "Control Plane registration failed (status %s %s)",
                     error.status_code,
                     error.code or "without an error code",
                 )

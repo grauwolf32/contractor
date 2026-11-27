@@ -39,7 +39,7 @@ def _trusted_agent_card_values(
         ("url",): (endpoint,),
         ("protocolVersion",): ("1.0",),
         ("supportedInterfaces", "0", "url"): (endpoint,),
-        ("supportedInterfaces", "0", "protocolBinding"): ("JSONRPC",),
+        ("supportedInterfaces", "0", "protocolBinding"): ("GRPC",),
         ("supportedInterfaces", "0", "protocolVersion"): ("1.0",),
         ("supportedInterfaces", "0", "tenant"): (allocation_id,),
         ("defaultInputModes", "0"): (

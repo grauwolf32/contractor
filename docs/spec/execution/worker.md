@@ -24,7 +24,7 @@ It leaves to other documents:
 
 - the Runtime Agent process and its one exclusive slot, the Worker runtime's
   deployment dependencies and credential boundary, A2A transport, allocation
-  and lease checks, the Agent Card, A2A Task handling and the HTTP handler
+  and lease checks, the Agent Card, A2A Task handling and the gRPC handler
   beside the allocation lifecycle routes: [Runtime Agent](runtime-agent.md);
 - the private control protocol, including the allocation-correlated
   agent-state transport: [Control Plane](control-plane.md);

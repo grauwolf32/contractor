@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/runtimewire"
+	"golang.org/x/net/http2"
 )
 
 type backgroundRunner interface {
@@ -67,7 +69,12 @@ func ServeSystem(
 	privateServer := &http.Server{
 		Handler: privateHandler, ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout: mtls.PrivateListenerIdleTimeout, BaseContext: baseContext,
+		MaxHeaderBytes: runtimewire.MaxMetadataBytes,
 	}
+	if err := http2.ConfigureServer(privateServer, &http2.Server{MaxConcurrentStreams: runtimewire.MaxConcurrentRPCs}); err != nil {
+		return fmt.Errorf("configure private HTTP/2 listener: %w", err)
+	}
+
 	schedulerContext, cancelScheduler := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancelScheduler()
 

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/helpers/secretmatch"
+	"github.com/grauwolf32/contractor/internal/mtls"
 )
 
 func (c *RuntimeControlClient) Prepare(
@@ -82,7 +82,7 @@ func (c *RuntimeControlClient) prepareAllocation(ctx context.Context, reservatio
 		return contracts.WorkerHandle{}, err
 	}
 	var response control.PrepareAllocationResponse
-	if err := c.postJSON(
+	if err := c.callLifecycle(
 		ctx, reservation.ControlURL, reservation.Grant.AllocationID,
 		reservation.Grant.RuntimeAgentID, "prepare", request, &response, true,
 	); err != nil {
@@ -197,8 +197,7 @@ func collectUntrustedCardText(
 // which the Python Runtime's Worker handle check shares.
 func workerCardTrustedValues(reservation Reservation) map[string][]string {
 	grant := reservation.Grant
-	endpoint := strings.TrimRight(reservation.A2AURL, "/") +
-		"/private/v1/allocations/" + grant.AllocationID + "/a2a"
+	endpoint, _ := mtls.GRPCAuthority(reservation.A2AURL)
 	return map[string][]string{
 		`["name"]`:                          {grant.LogicalAgentName, "Contractor Worker " + grant.LogicalAgentName},
 		`["description"]`:                   {reservation.AgentTemplate.Description},
@@ -206,7 +205,7 @@ func workerCardTrustedValues(reservation Reservation) map[string][]string {
 		`["url"]`:                           {endpoint},
 		`["protocolVersion"]`:               {"1.0"},
 		`["supportedInterfaces","0","url"]`: {endpoint},
-		`["supportedInterfaces","0","protocolBinding"]`: {"JSONRPC"},
+		`["supportedInterfaces","0","protocolBinding"]`: {"GRPC"},
 		`["supportedInterfaces","0","protocolVersion"]`: {"1.0"},
 		`["supportedInterfaces","0","tenant"]`:          {grant.AllocationID},
 		`["defaultInputModes","0"]`:                     {stageContentMediaType, "application/json"},
@@ -235,7 +234,7 @@ func validateA2AAgentCard(card map[string]any, allocationID, registeredURL strin
 		return errors.New("Runtime Agent returned an incompatible A2A Agent Card")
 	}
 	current, ok := interfaces[0].(map[string]any)
-	if !ok || current["protocolBinding"] != "JSONRPC" || current["protocolVersion"] != "1.0" ||
+	if !ok || current["protocolBinding"] != "GRPC" || current["protocolVersion"] != "1.0" ||
 		current["tenant"] != allocationID {
 		return errors.New("Runtime Agent returned an incompatible A2A Agent Card")
 	}
@@ -292,17 +291,8 @@ func oneStringValue(value any, expected string) bool {
 }
 
 func isExpectedA2AEndpoint(cardURL, registeredURL, allocationID string) bool {
-	card, cardErr := url.Parse(cardURL)
-	registered, registeredErr := url.Parse(registeredURL)
-	if cardErr != nil || registeredErr != nil || !card.IsAbs() || !registered.IsAbs() ||
-		card.User != nil || card.RawQuery != "" || card.Fragment != "" ||
-		registered.User != nil || registered.RawQuery != "" || registered.Fragment != "" ||
-		!runtimePathIDPattern.MatchString(allocationID) {
-		return false
-	}
-	expected := strings.TrimRight(registeredURL, "/") +
-		"/private/v1/allocations/" + allocationID + "/a2a"
-	return cardURL == expected
+	expected, err := mtls.GRPCAuthority(registeredURL)
+	return err == nil && runtimePathIDPattern.MatchString(allocationID) && cardURL == expected
 }
 
 // Python datetime and PostgreSQL both retain microseconds. Normalize private

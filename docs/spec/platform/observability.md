@@ -61,7 +61,7 @@ Terms are collected in the [glossary](../glossary.md); this document owns the
 following ones.
 
 - **Request ID.** The bounded `X-Request-ID` value that correlates one HTTP
-  request across hops and diagnostics.
+  request or RPC across hops and diagnostics.
 - **Execution report.** The framework-neutral `ExecutionReport` that a Planner
   or an in-process Worker runtime produces: aggregate metrics, tool-call records
   and errors.
@@ -260,7 +260,8 @@ flowchart LR
 ### Request correlation
 
 **OBS-R1.** Every public and private HTTP response carries one bounded
-`X-Request-ID` (LIM-OBS-1).
+`X-Request-ID` (LIM-OBS-1). Native private gRPC responses use the same
+bounded value in `x-request-id` initial metadata.
 
 **OBS-R2.** Public ingress always generates its own request ID.
 
@@ -275,7 +276,8 @@ unauthenticated caller cannot choose its logged ID.
 
 **OBS-R5.** REST error objects repeat the request ID as `requestId`
 ([Public API](../api/public-api.md)). A2A keeps its protocol error envelope and
-carries correlation in the HTTP header.
+carries correlation in gRPC metadata. Contractor gRPC failures repeat it
+in typed `ErrorDetail.request_id`.
 
 ### Server-side diagnostics
 

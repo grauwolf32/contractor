@@ -29,6 +29,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannera2a "github.com/grauwolf32/contractor/internal/planner/a2a"
+	"google.golang.org/grpc/codes"
 )
 
 // These are component cross-process tests: real ADK/Gateway HTTP/mTLS/A2A,
@@ -278,7 +279,7 @@ func startNativeHarness(t *testing.T, mode string, configure ...func(*nativeHarn
 		}
 		_, err := client.Prepare(ctx, reservation, settings)
 		var api *RuntimeAPIError
-		if !errors.As(err, &api) || api.StatusCode != http.StatusServiceUnavailable || api.Code != "allocation_preparation_failed" || !api.Retryable {
+		if !errors.As(err, &api) || api.RPCStatus != codes.Unavailable || api.Code != "allocation_preparation_failed" || !api.Retryable {
 			t.Fatalf("injected partial prepare = %v", err)
 		}
 		value := h.wait("prepare_failure_injected")
@@ -295,9 +296,7 @@ func startNativeHarness(t *testing.T, mode string, configure ...func(*nativeHarn
 		}
 		failedHandle := contracts.WorkerHandle{
 			AllocationID: reservation.Grant.AllocationID, RuntimeAgentID: principal,
-			AgentCard: map[string]any{"supportedInterfaces": []any{map[string]any{
-				"url": endpoint + "/private/v1/allocations/" + reservation.Grant.AllocationID + "/a2a",
-			}}},
+			AgentCard: testAgentCard("builder", reservation.Grant.AllocationID, endpoint),
 		}
 		_, stateErr := client.ReadWorkerState(ctx, failedHandle, "")
 		var stateFailure *reporting.WorkerStateReadError
@@ -650,7 +649,7 @@ func testNativeADKProcessFault(t *testing.T, mode string) {
 		_, err = h.client.Prepare(h.ctx, other, h.settings)
 		h.client.grantReader = &projectionGrantReader{grant: h.reservation.Grant}
 		api = nil
-		if !errors.As(err, &api) || api.StatusCode != http.StatusConflict || api.Code != "allocation_conflict" || api.Retryable {
+		if !errors.As(err, &api) || api.RPCStatus != codes.FailedPrecondition || api.Code != "allocation_conflict" || api.Retryable {
 			t.Fatalf("failed cleanup did not reject another allocation deterministically: %v", err)
 		}
 		if _, err := h.client.ReadWorkerState(h.ctx, h.handle, ""); err == nil {

@@ -11,7 +11,7 @@ import (
 
 func TestStartupConfigRequiresMTLSWithoutRegisteringPrincipal(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
-	handler, err := NewHTTPHandler(registry, HTTPOptions{Principals: failingPrincipalRegistrar{err: ErrInvalidRequest}})
+	handler, err := NewHTTPHandler(registry, HTTPOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

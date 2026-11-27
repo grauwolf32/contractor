@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
@@ -148,7 +149,7 @@ func configureHTTP(
 	}
 
 	controlHandler, err := controlplane.NewHTTPHandler(
-		control.registry, controlplane.HTTPOptions{Logger: logger, Principals: control.principals},
+		control.registry, controlplane.HTTPOptions{Logger: logger},
 	)
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure private Control Plane API: %w", err)
@@ -163,7 +164,18 @@ func configureHTTP(
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure private Artifact API: %w", err)
 	}
-	privateHandler := newPrivateHandler(controlHandler, artifactHandler)
+	legacyFamilies := newPrivateHandler(controlHandler, artifactHandler)
+	rpcHandler, err := controlplane.NewGRPCHandler(control.registry, control.principals)
+	if err != nil {
+		return serverHandlers{}, fmt.Errorf("configure private Control Plane gRPC: %w", err)
+	}
+	privateHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
+			rpcHandler.ServeHTTP(w, r)
+			return
+		}
+		legacyFamilies.ServeHTTP(w, r)
+	})
 	processHandler, instrumentedPrivate, _ := instrumentPerformance(
 		cfg.PerformanceMetrics, NewReadyHandler(pool.Ping, publicHandler), privateHandler,
 		func() *performance.Collector { return performanceCollector },

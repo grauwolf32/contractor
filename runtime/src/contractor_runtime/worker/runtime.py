@@ -24,6 +24,7 @@ from contractor_runtime.a2a_server import (
     agent_card_dict,
     build_agent_card,
     build_worker_a2a_application,
+    grpc_endpoint,
 )
 from contractor_runtime.adapters import RuntimeInstrumentation
 from contractor_runtime.adapters.instrumentation import end_isolated_span, start_isolated_span
@@ -274,9 +275,7 @@ class AdkWorkerRuntime:
             observe_cancellation=self._raise_observed_tool_cancellation,
             fence=self._fence_compacted_session,
         )
-        endpoint = (
-            f"{context.a2a_base_url.rstrip('/')}/private/v1/allocations/{context.allocation_id}/a2a"
-        )
+        endpoint = grpc_endpoint(context.a2a_base_url)
         self._card = build_agent_card(
             allocation_id=context.allocation_id,
             endpoint=endpoint,

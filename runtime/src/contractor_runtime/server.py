@@ -6,34 +6,32 @@ import asyncio
 import contextlib
 import logging
 import math
+import os
 import re
 import ssl
+import tempfile
 import uuid
 from collections.abc import Generator, Mapping
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
+import grpc
 import uvicorn
-from pydantic import ValidationError
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
-from uvicorn.protocols.http.h11_impl import H11Protocol
 
+from contractor_runtime._grpc_tls import TLSForwarder
 from contractor_runtime._https import PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS
-from contractor_runtime.a2a_server import AllocationA2AGateway
+from contractor_runtime.a2a_server import MAX_A2A_REQUEST_BYTES, register_a2a_gateway
 from contractor_runtime.allocation import AllocationError, AllocationService
-from contractor_runtime.contracts import (
-    AbortAllocationRequest,
-    FinalizeAllocationRequest,
-    PrepareAllocationRequest,
-    PrivateProtocolDecodeError,
-    ReleaseAllocationRequest,
-    WireModel,
-    decode_private,
-)
-from contractor_runtime.mtls import verify_control_plane_peer
+from contractor_runtime.contracts.grpc_wire import runtime_pb2_grpc
+from contractor_runtime.contracts.grpc_wire.limits import MAX_CONCURRENT_RPCS, MAX_METADATA_BYTES
+from contractor_runtime.core.async_tasks import join_owned_task
+from contractor_runtime.grpc_server import LifecycleHandler
 from contractor_runtime.settings import Settings
 from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.state import ProcessState, RuntimeState
@@ -44,41 +42,6 @@ VERIFIED_PEER_EXTENSION = "contractor.mtls.peer_certificate"
 MAX_LIFECYCLE_REQUEST_BYTES = 1 << 20
 REQUEST_ID_HEADER = b"x-request-id"
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
-
-
-class VerifiedMTLSH11Protocol(H11Protocol):
-    """Reject non-Control-Plane TLS peers before parsing an HTTP request."""
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        self._verified_peer: Mapping[str, Any] | None = None
-        super().__init__(*args, **kwargs)
-        application = self.app
-
-        async def inject_verified_peer(scope: Scope, receive: Receive, send: Send) -> None:
-            if self._verified_peer is None:
-                raise RuntimeError("HTTP dispatch attempted without a verified mTLS peer")
-            copied = dict(scope)
-            extensions = dict(copied.get("extensions", {}))
-            extensions[VERIFIED_PEER_EXTENSION] = self._verified_peer
-            copied["extensions"] = extensions
-            await application(copied, receive, send)
-
-        self.app = inject_verified_peer
-
-    def connection_made(self, transport: asyncio.Transport) -> None:
-        super().connection_made(transport)
-        ssl_object = transport.get_extra_info("ssl_object")
-        try:
-            if not isinstance(ssl_object, ssl.SSLObject | ssl.SSLSocket):
-                raise ssl.SSLCertVerificationError("private listener requires TLS")
-            verify_control_plane_peer(ssl_object)
-            certificate = ssl_object.getpeercert()
-            if not certificate:
-                raise ssl.SSLCertVerificationError("private listener requires a peer certificate")
-            self._verified_peer = certificate
-        except ssl.SSLError:
-            logger.warning("rejected private connection with invalid Control Plane identity")
-            transport.abort()
 
 
 class VerifiedPeerMiddleware:
@@ -181,18 +144,6 @@ def create_app(
             status_code=200 if ready else 503,
         )
 
-    async def prepare(request: Request) -> Response:
-        return await lifecycle_call(request, PrepareAllocationRequest, "prepare")
-
-    async def finalize(request: Request) -> Response:
-        return await lifecycle_call(request, FinalizeAllocationRequest, "finalize")
-
-    async def abort(request: Request) -> Response:
-        return await lifecycle_call(request, AbortAllocationRequest, "abort")
-
-    async def release(request: Request) -> Response:
-        return await lifecycle_call(request, ReleaseAllocationRequest, "release")
-
     async def agent_state(request: Request) -> Response:
         await runtime_state.record_route_dispatch()
         if request.method != "GET":
@@ -260,65 +211,6 @@ def create_app(
                 headers={"Cache-Control": "no-store"},
             )
 
-    async def lifecycle_call[RequestModel: WireModel](
-        request: Request,
-        model: type[RequestModel],
-        operation: str,
-    ) -> Response:
-        await runtime_state.record_route_dispatch()
-        if allocation_service is None:
-            return await lifecycle_unavailable_without_dispatch(request)
-        try:
-            value = await _decode_request(request, model)
-            allocation_id = (
-                value.spec.allocation_id
-                if isinstance(value, PrepareAllocationRequest)
-                else value.allocation_id
-            )
-            if request.path_params["allocation_id"] != allocation_id:
-                raise AllocationError(
-                    "allocation_id_mismatch",
-                    "path allocation ID does not match the request body",
-                    retryable=False,
-                    status_code=409,
-                )
-            if operation == "prepare":
-                result = await allocation_service.prepare(value.spec)
-            elif operation == "finalize":
-                result = await allocation_service.finalize(value)
-            elif operation == "abort":
-                result = await allocation_service.abort(value)
-            else:
-                await allocation_service.release(value)
-                return Response(status_code=204)
-            return JSONResponse(result.model_dump(mode="json", by_alias=True, exclude_none=True))
-        except ValidationError:
-            return JSONResponse(
-                {
-                    "code": "invalid_request",
-                    "message": "request does not match the allocation lifecycle contract",
-                    "retryable": False,
-                    "requestId": request.state.request_id,
-                },
-                status_code=422,
-            )
-        except AllocationError as error:
-            return JSONResponse(
-                {**error.payload(), "requestId": request.state.request_id},
-                status_code=error.status_code,
-            )
-        except Exception as error:
-            request.state.error_type = type(error).__name__
-            return JSONResponse(
-                {
-                    "code": "internal_error",
-                    "message": "allocation lifecycle operation failed",
-                    "retryable": True,
-                    "requestId": request.state.request_id,
-                },
-                status_code=500,
-            )
-
     async def lifecycle_unavailable_without_dispatch(request: Request) -> JSONResponse:
         return JSONResponse(
             {
@@ -335,34 +227,12 @@ def create_app(
             Route("/healthz", health, methods=["GET"]),
             Route("/readyz", readiness, methods=["GET"]),
             Route(
-                "/private/v1/allocations/{allocation_id}/prepare",
-                prepare,
-                methods=["POST"],
-            ),
-            Route(
-                "/private/v1/allocations/{allocation_id}/finalize",
-                finalize,
-                methods=["POST"],
-            ),
-            Route(
-                "/private/v1/allocations/{allocation_id}/abort",
-                abort,
-                methods=["POST"],
-            ),
-            Route(
-                "/private/v1/allocations/{allocation_id}/release",
-                release,
-                methods=["POST"],
-            ),
-            Route(
                 "/private/v1/allocations/{allocation_id}/agent-state",
                 agent_state,
                 methods=["GET"],
             ),
         ]
     )
-    if allocation_service is not None:
-        application = AllocationA2AGateway(application, allocation_service)
     if require_verified_peer:
         application = VerifiedPeerMiddleware(application)
     return CorrelationIDMiddleware(application)
@@ -396,71 +266,171 @@ def _agent_state_request_has_body(request: Request) -> bool:
         return True
 
 
-async def _decode_request[RequestModel: WireModel](
-    request: Request, model: type[RequestModel]
-) -> RequestModel:
-    content_types = request.headers.getlist("content-type")
-    if content_types != ["application/json"]:
-        raise _invalid_request()
-    content_length = request.headers.get("content-length")
-    if content_length is not None:
-        try:
-            parsed_length = int(content_length)
-            if parsed_length < 0 or parsed_length > MAX_LIFECYCLE_REQUEST_BYTES:
-                raise _invalid_request()
-        except ValueError:
-            raise _invalid_request() from None
-    body = bytearray()
-    async for chunk in request.stream():
-        body.extend(chunk)
-        if len(body) > MAX_LIFECYCLE_REQUEST_BYTES:
-            raise _invalid_request()
-    if not body:
-        raise _invalid_request()
-    # The same strict private codec as registration and heartbeat: duplicate
-    # keys (for example a second secret-bearing RuntimeSettings member), a
-    # foreign apiVersion and non-standard JSON constants are all rejected.
-    try:
-        return decode_private(model, bytes(body))
-    except PrivateProtocolDecodeError:
-        raise _invalid_request() from None
-
-
-def _invalid_request() -> AllocationError:
-    return AllocationError(
-        "invalid_request",
-        "request does not match the allocation lifecycle contract",
-        retryable=False,
-        status_code=422,
-    )
+@dataclass(frozen=True)
+class ServerConfig:
+    settings: Settings
+    application: ASGIApp
+    tls_context: ssl.SSLContext
+    state: RuntimeState
+    allocation_service: AllocationService | None
+    timeout_keep_alive: float = PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS
 
 
 def create_server_config(
-    settings: Settings,
-    application: ASGIApp,
-    tls_context: ssl.SSLContext,
-) -> uvicorn.Config:
-    return uvicorn.Config(
-        application,
-        host=settings.host,
-        port=settings.port,
-        http=VerifiedMTLSH11Protocol,
-        ws="none",
-        lifespan="off",
-        access_log=False,
-        log_config=None,
-        proxy_headers=False,
-        # The Control Plane reuses verified connections for less than this
-        # listener keeps an idle one open (CTL-R165).
-        timeout_keep_alive=PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS,
-        timeout_graceful_shutdown=max(1, math.ceil(settings.shutdown_grace_seconds)),
-        ssl_context_factory=lambda _config, _default: tls_context,
+    settings, application, tls_context, *, state=None, allocation_service=None
+):
+    return ServerConfig(
+        settings, application, tls_context, state or RuntimeState(), allocation_service
     )
 
 
-class RuntimeServer(uvicorn.Server):
-    """Uvicorn server whose signals are coordinated by the process runner."""
-
+class _LocalHTTPServer(uvicorn.Server):
     @contextlib.contextmanager
     def capture_signals(self) -> Generator[None]:
         yield
+
+
+class RuntimeServer:
+    """Own native grpcio and temporary HTTP families behind one TLS front door."""
+
+    def __init__(self, config: ServerConfig):
+        self.config = config
+        self.started = False
+        self._exit = asyncio.Event()
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._should_exit = False
+        self._force_exit = False
+
+    @property
+    def should_exit(self):
+        return self._should_exit
+
+    @should_exit.setter
+    def should_exit(self, value):
+        self._should_exit = value
+        if value:
+            self._signal_exit()
+
+    @property
+    def force_exit(self):
+        return self._force_exit
+
+    @force_exit.setter
+    def force_exit(self, value):
+        self._force_exit = value
+        if value:
+            self._signal_exit()
+
+    def _signal_exit(self):
+        if self._loop is None:
+            self._exit.set()
+        else:
+            self._loop.call_soon_threadsafe(self._exit.set)
+
+    async def serve(self):
+        self._loop = asyncio.get_running_loop()
+        config = self.config
+        settings = config.settings
+        with tempfile.TemporaryDirectory(prefix="ct-grpc-", dir="/tmp") as directory:
+            grpc_path = Path(directory) / "runtime.sock"
+            http_path = Path(directory) / "http.sock"
+            server = grpc.aio.server(
+                maximum_concurrent_rpcs=MAX_CONCURRENT_RPCS,
+                options=(
+                    ("grpc.max_receive_message_length", MAX_A2A_REQUEST_BYTES),
+                    ("grpc.max_send_message_length", MAX_A2A_REQUEST_BYTES),
+                    ("grpc.max_metadata_size", MAX_METADATA_BYTES),
+                    ("grpc.max_concurrent_streams", MAX_CONCURRENT_RPCS),
+                    ("grpc.max_connection_idle_ms", 60_000),
+                    ("grpc.server_handshake_timeout_ms", 5_000),
+                ),
+            )
+            if config.allocation_service is not None:
+                runtime_pb2_grpc.add_RuntimeLifecycleServicer_to_server(
+                    LifecycleHandler(config.state, config.allocation_service), server
+                )
+                register_a2a_gateway(server, config.allocation_service)
+            server.add_insecure_port(f"unix:{grpc_path}")
+
+            # Only this process can enter the local backend. The TLS front door
+            # verified the actual peer before opening its Unix connection.
+            async def verified_backend(scope, receive, send):
+                copied = dict(scope)
+                copied["extensions"] = {
+                    **scope.get("extensions", {}),
+                    VERIFIED_PEER_EXTENSION: True,
+                }
+                await config.application(copied, receive, send)
+
+            http = _LocalHTTPServer(
+                uvicorn.Config(
+                    verified_backend,
+                    uds=str(http_path),
+                    http="h11",
+                    ws="none",
+                    lifespan="off",
+                    access_log=False,
+                    log_config=None,
+                    proxy_headers=False,
+                    timeout_keep_alive=config.timeout_keep_alive,
+                    timeout_graceful_shutdown=max(1, math.ceil(settings.shutdown_grace_seconds)),
+                )
+            )
+            forwarder = TLSForwarder()
+            http_task = None
+            watchers = []
+            try:
+                await server.start()
+                os.chmod(grpc_path, 0o600)
+                http_task = asyncio.create_task(http.serve(), name="runtime-local-http")
+                while not http.started:
+                    if http_task.done():
+                        await http_task
+                        raise RuntimeError("private HTTP backend stopped before startup")
+                    await asyncio.sleep(0)
+                os.chmod(http_path, 0o600)
+                await forwarder.listen(
+                    settings.host,
+                    settings.port,
+                    config.tls_context,
+                    {"h2": grpc_path, "http/1.1": http_path},
+                )
+                self.started = True
+                watchers = [
+                    asyncio.create_task(self._exit.wait()),
+                    asyncio.create_task(server.wait_for_termination()),
+                    asyncio.create_task(forwarder.serve_forever()),
+                ]
+                done, _ = await asyncio.wait(
+                    [*watchers, http_task],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for task in done:
+                    await task
+                if not self._exit.is_set():
+                    raise RuntimeError("private Runtime listener stopped unexpectedly")
+            finally:
+                self.started = False
+
+                async def cleanup():
+                    try:
+                        await forwarder.close()
+                    finally:
+                        try:
+                            await server.stop(0)
+                            await server.wait_for_termination()
+                        finally:
+                            http.should_exit = True
+                            try:
+                                if http_task is not None:
+                                    await http_task
+                            finally:
+                                for task in watchers:
+                                    task.cancel()
+                                await asyncio.gather(*watchers, return_exceptions=True)
+
+                owner = asyncio.create_task(cleanup(), name="runtime-listener-close")
+                interrupted = await join_owned_task(owner)
+                owner.result()
+                if interrupted:
+                    raise asyncio.CancelledError

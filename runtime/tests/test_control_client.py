@@ -403,16 +403,16 @@ def private_error(code: str, *, retryable: bool) -> bytes:
 @pytest.mark.parametrize(
     ("status", "body", "reason"),
     [
-        (400, private_error("invalid_request", retryable=False), "HTTP 400 invalid_request"),
+        (400, private_error("invalid_request", retryable=False), "status 400 invalid_request"),
         (
             400,
             private_error("invalid_request", retryable=False),
-            "HTTP 400 invalid_request",
+            "status 400 invalid_request",
         ),
         # The Server's flag decides over the status class.
-        (503, private_error("internal_error", retryable=False), "HTTP 503 internal_error"),
-        (404, b"not found", "HTTP 404)"),
-        (403, b"", "HTTP 403)"),
+        (503, private_error("internal_error", retryable=False), "status 503 internal_error"),
+        (404, b"not found", "status 404)"),
+        (403, b"", "status 403)"),
     ],
 )
 def test_permanent_registration_rejection_stops_without_retrying(
@@ -448,13 +448,13 @@ def test_permanent_registration_rejection_stops_without_retrying(
 @pytest.mark.parametrize(
     ("status", "body", "logged"),
     [
-        (503, private_error("internal_error", retryable=True), "HTTP 503 internal_error"),
-        (409, private_error("conflict", retryable=True), "HTTP 409 conflict"),
+        (503, private_error("internal_error", retryable=True), "status 503 internal_error"),
+        (409, private_error("conflict", retryable=True), "status 409 conflict"),
         # The Server's flag decides over the status class.
-        (400, private_error("invalid_request", retryable=True), "HTTP 400 invalid_request"),
-        (502, b"<html>bad gateway</html>", "HTTP 502 without an error code"),
-        (429, b"", "HTTP 429 without an error code"),
-        (408, b"", "HTTP 408 without an error code"),
+        (400, private_error("invalid_request", retryable=True), "status 400 invalid_request"),
+        (502, b"<html>bad gateway</html>", "status 502 without an error code"),
+        (429, b"", "status 429 without an error code"),
+        (408, b"", "status 408 without an error code"),
     ],
 )
 def test_retryable_registration_rejection_backs_off_and_registers(
@@ -549,6 +549,9 @@ def test_control_loop_skips_backoff_when_request_sets_stop(
         delays: list[float] = []
 
         class StoppingTransport:
+            async def register(self, payload):
+                return await self.post_json("/private/v1/agents/register", payload)
+
             async def post_json(self, _: str, __: Mapping[str, Any]) -> bytes:
                 stop.set()
                 raise TimeoutError()
@@ -565,7 +568,7 @@ def test_control_loop_skips_backoff_when_request_sets_stop(
     asyncio.run(scenario())
 
 
-def test_real_mtls_control_transport_registers_and_heartbeats(
+def test_real_mtls_control_transport_reuses_heartbeat_connection(
     tmp_path: Path,
     runtime_capabilities: CapabilitySnapshot,
 ) -> None:
@@ -599,10 +602,8 @@ def test_real_mtls_control_transport_registers_and_heartbeats(
                     payload = json.loads(await reader.readexactly(int(headers["content-length"])))
                     received.append(payload)
                     received_request_ids.append(headers["x-request-id"])
-                    if request_line.startswith(b"POST /private/v1/agents/register "):
-                        response = registration_response()
-                    else:
-                        response = heartbeat_response(payload["heartbeatSeq"])
+                    assert b"/heartbeat " in request_line
+                    response = heartbeat_response(payload["heartbeatSeq"])
                     encoded = json.dumps(response, separators=(",", ":")).encode()
                     writer.write(
                         b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
@@ -634,27 +635,30 @@ def test_real_mtls_control_transport_registers_and_heartbeats(
         transport = MTLSJSONTransport(settings.control_plane_url, connections, 2)
         state = RuntimeState(instance_id="runtime-real-mtls", capabilities=runtime_capabilities)
         client = ControlClient(settings, state, transport)
+        await state.mark_registered()
         try:
-            await client.register()
             for _ in range(9):
                 await client.heartbeat_once()
         finally:
             await connections.aclose()
             server.close()
             await server.wait_closed()
-        assert [item.get("heartbeatSeq") for item in received[1:]] == list(range(1, 10))
-        assert [item.get("echoedAckSeq") for item in received[1:]] == list(range(9))
-        # Registration and nine heartbeats share one verified connection
+        assert [item.get("heartbeatSeq") for item in received] == list(range(1, 10))
+        assert [item.get("echoedAckSeq") for item in received] == list(range(9))
+        # Nine heartbeats share one verified connection
         # (CTL-R163); the transport used to open one connection per call.
         assert accepted == [0]
-        assert len(received_request_ids) == 10
+        assert len(received_request_ids) == 9
         assert all(value.startswith("request_") for value in received_request_ids)
-        assert len(set(received_request_ids)) == 10
+        assert len(set(received_request_ids)) == 9
 
     asyncio.run(scenario())
 
 
 class FakeTransport:
+    async def register(self, payload):
+        return await self.post_json("/private/v1/agents/register", payload)
+
     def __init__(self, responses: list[Mapping[str, Any] | bytes | BaseException]) -> None:
         self.responses = list(responses)
         self.requests: list[tuple[str, Mapping[str, Any]]] = []
@@ -668,6 +672,9 @@ class FakeTransport:
 
 
 class WaitingTransport:
+    async def register(self, payload):
+        return await self.post_json("/private/v1/agents/register", payload)
+
     def __init__(self) -> None:
         self.started = asyncio.Event()
 

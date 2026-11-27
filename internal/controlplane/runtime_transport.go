@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/grpc/codes"
 	"io"
 	"mime"
 	"net/http"
@@ -12,7 +13,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -23,64 +23,17 @@ const maxRuntimeResponseBytes = 1 << 20
 var runtimePathIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 type RuntimeAPIError struct {
+	RPCStatus  codes.Code
 	StatusCode int
 	Code       string
 	Retryable  bool
 }
 
 func (e *RuntimeAPIError) Error() string {
+	if e.RPCStatus != codes.OK {
+		return fmt.Sprintf("Runtime Agent returned gRPC %s (%s)", e.RPCStatus, e.Code)
+	}
 	return fmt.Sprintf("Runtime Agent returned HTTP %d (%s)", e.StatusCode, e.Code)
-}
-
-func (c *RuntimeControlClient) postJSON(
-	ctx context.Context,
-	baseURL string,
-	allocationID string,
-	runtimeAgentID string,
-	operation string,
-	request any,
-	response contracts.Validatable,
-	validateResponse bool,
-) error {
-	target, err := c.endpoint(baseURL, allocationID, operation)
-	if err != nil {
-		return err
-	}
-	body, err := encodeLifecycleRequest(request)
-	if err != nil {
-		return fmt.Errorf("encode Runtime Agent request: %w", err)
-	}
-	defer clear(body)
-	httpResponse, err := c.do(ctx, target, body, runtimeAgentID)
-	if err != nil {
-		return err
-	}
-	defer httpResponse.Body.Close()
-	if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 300 {
-		return decodeRuntimeError(httpResponse)
-	}
-	if err := requireJSONContentType(httpResponse); err != nil {
-		return err
-	}
-	data, err := readBoundedRuntimeBody(httpResponse.Body)
-	if err != nil {
-		return err
-	}
-	if err := contracts.DecodePrivate(data, response); err != nil {
-		return errors.New("Runtime Agent returned an invalid lifecycle response")
-	}
-	if validateResponse {
-		if err := response.Validate(); err != nil {
-			return errors.New("Runtime Agent returned a lifecycle response that violates the contract")
-		}
-	}
-	return nil
-}
-
-func (c *RuntimeControlClient) do(
-	ctx context.Context, target string, body []byte, runtimeAgentID string,
-) (*http.Response, error) {
-	return c.doRequest(ctx, http.MethodPost, target, body, runtimeAgentID, nil)
 }
 
 func (c *RuntimeControlClient) doRequest(

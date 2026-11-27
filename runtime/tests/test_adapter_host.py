@@ -536,14 +536,14 @@ def test_shared_agent_card_scan_shares_the_trusted_table_and_production_card() -
         logical_agent_name="builder",
         description="Builds a requested artifact",
         version="1",
-        endpoint="https://runtime.example/private/v1/allocations/allocation-1/a2a",
+        endpoint="runtime.example:443",
     )
     trusted = _trusted_agent_card_values(
         allocation_id="allocation-1",
         logical_agent_name="builder",
         description="Builds a requested artifact",
         version="1",
-        endpoint="https://runtime.example/private/v1/allocations/allocation-1/a2a",
+        endpoint="runtime.example:443",
     )
     assert trusted == {
         tuple(entry["path"]): tuple(render_card_value(entry["values"], placeholders))
@@ -551,7 +551,7 @@ def test_shared_agent_card_scan_shares_the_trusted_table_and_production_card() -
     }
     card = build_agent_card(
         allocation_id="allocation-1",
-        endpoint="https://runtime.example/private/v1/allocations/allocation-1/a2a",
+        endpoint="runtime.example:443",
         logical_agent_name="builder",
         description="Builds a requested artifact",
         version="1",
@@ -580,7 +580,7 @@ def test_shared_worker_handle_secret_scan_shared_cases(
             logical_agent_name=spec.logical_agent_name,
             description=spec.agent_template.description,
             version=spec.agent_template.ref.version,
-            endpoint=f"https://runtime.example/private/v1/allocations/{spec.allocation_id}/a2a",
+            endpoint="runtime.example:443",
         )
         secret = render_card_value(case["secret"], placeholders)
         spec.runtime_settings.telemetry.headers["X-Scope-OrgID"] = SecretStr(secret)

@@ -15,11 +15,13 @@ import (
 	"testing"
 	"time"
 
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/mtlstest"
+	"google.golang.org/grpc"
 )
 
 // TestRuntimeControlClientReusesOneVerifiedConnectionUntilRelease drives the
@@ -71,7 +73,9 @@ func TestRuntimeControlClientReusesOneVerifiedConnectionUntilRelease(t *testing.
 		return nil
 	}
 	var accepted, closed atomic.Int64
-	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+	rpc := grpc.NewServer()
+	defer rpc.Stop()
+	fixture := &runtimeFixture{documents: http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		requests.Add(1)
 		_, _ = io.Copy(io.Discard, request.Body)
 		if stringsHasSuffix(request.URL.Path, "/release") {
@@ -82,13 +86,16 @@ func TestRuntimeControlClientReusesOneVerifiedConnectionUntilRelease(t *testing.
 		_ = json.NewEncoder(w).Encode(reporting.AllocationFinalResponse{
 			APIVersion: contracts.APIVersion, Report: testExecutionReport("allocation_reuse"),
 		})
-	}))
+	})}
+	pb.RegisterRuntimeLifecycleServer(rpc, fixture)
+	server := httptest.NewUnstartedServer(rpc)
+	agentTLS.NextProtos = []string{"h2"}
 	server.TLS = &tls.Config{MinVersion: tls.VersionTLS13, GetConfigForClient: func(*tls.ClientHelloInfo) (*tls.Config, error) {
 		current := agentTLS.Clone()
 		current.Certificates = []tls.Certificate{*presented.Load()}
 		return current, nil
 	}}
-	server.EnableHTTP2 = false
+	server.EnableHTTP2 = true
 	server.Config.ErrorLog = log.New(io.Discard, "", 0)
 	server.Config.ConnState = func(_ net.Conn, state http.ConnState) {
 		switch state {
@@ -99,6 +106,7 @@ func TestRuntimeControlClientReusesOneVerifiedConnectionUntilRelease(t *testing.
 		}
 	}
 	server.StartTLS()
+	fixture.origin = server.URL
 	defer server.Close()
 
 	client, err := NewMTLSRuntimeControlClient(mtls.Files{

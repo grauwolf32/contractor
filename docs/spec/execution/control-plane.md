@@ -343,13 +343,19 @@ field. Missing required current fields, including required arrays, and unknown
 fields fail strict validation rather than selecting another protocol; there is
 no legacy registration fallback.
 
-**CTL-R8.** Canonical JSON schemas live in
+**CTL-R8.** Native control and lifecycle RPC shapes are generated from
+[`runtime.proto`](../../../api/v1alpha1/runtime.proto). Domain JSON schemas live in
 [`api/v1alpha1`](../../../api/v1alpha1/) and shared valid/invalid fixtures in
 [`api/testdata/v1alpha1`](../../../api/testdata/v1alpha1/). Go/Python wire
-parity checks use this single catalog, and strict Go/Python DTOs, JSON schemas
-and fixtures must change together.
+parity checks use this single catalog, and generated stubs, strict Go/Python
+domain DTOs, JSON schemas and fixtures must change together. Generation uses
+pinned tools and is checked for drift.
 
-**CTL-R149.** The Server decodes every private message it receives
+**CTL-R149.** Protobuf messages reject unknown fields recursively and project
+explicit presence into the domain decoder; required values cannot disappear
+into protobuf defaults. Standard protobuf singular-field/merge semantics apply,
+without an additional binary parser. JSON document and A2A DataPart consumers
+retain the strict JSON rules below. The Server decodes every private message it receives
 (registration, heartbeat, lifecycle responses, Worker State and the
 `WorkerCompletion` a Worker returns over A2A) with one strict decoder. Besides
 duplicate keys, case aliases, unknown members and trailing data, it rejects a
@@ -409,7 +415,7 @@ Server/Runtime builds rather than a silent downgrade to an older shape.
 
 ### Private connection reuse
 
-**CTL-R163.** The Server and the Runtime Agent reuse verified private HTTPS
+**CTL-R163.** The Server and the Runtime Agent reuse verified private TLS
 connections instead of opening one per request. Every new connection
 completes TLS 1.3 with full certificate verification, without session
 resumption, and passes the caller's peer check before its first request byte:
@@ -425,13 +431,13 @@ request names (CTL-R17, CTL-R18).
 
 **CTL-R164.** Each set of reusable connections has one owner, which closes it,
 and no connection outlives its owner. The Server's Runtime control client is
-owned by the Server process: releasing an allocation closes the connections
-of its Runtime principal (CTL-R124), and Server shutdown closes the rest after
+owned by the Server process: releasing an allocation retires the channels
+of its Runtime principal (CTL-R124), closing them after active sibling calls finish, and Server shutdown closes the rest after
 the Scheduler has stopped. An A2A invocation owns the connections of its
 `SendMessage`, its polls and its best-effort `CancelTask` and closes them
-before it returns. The Runtime process owns one set for registration and
-heartbeats and another for Artifact API traffic, so a heartbeat never waits
-behind an Artifact transfer, and closes both at shutdown after its private
+before it returns. The Runtime process owns a gRPC registration channel, a separate HTTP set for
+bootstrap/heartbeats and another for Artifact API traffic, so a heartbeat never waits
+behind an Artifact transfer, and closes them at shutdown after its private
 listener has stopped. Closing ends idle connections at once and a connection
 in use when its exchange ends; an exchange started after its owner closed
 fails without opening a connection. Invalidation follows from the keys: a
@@ -441,7 +447,19 @@ registered again close at release or after the idle bound. A process
 loads its own certificate, key and trusted CA at startup, so a change to them
 takes effect at restart, which closes every set.
 
-**CTL-R165.** Reuse is bounded on both sides. A private listener closes a
+**CTL-R165.** Reuse is bounded on both sides. For native gRPC, an owner admits
+at most LIM-CTL-16 concurrent calls per principal and endpoint, using one
+current HTTP/2 channel. Exhaustion returns `ResourceExhausted` within the
+caller's deadline rather than creating an unbounded waiting queue. Retired
+channels carry only their existing calls, so they do not evade the same call
+bound. The Server evicts the least recently used idle endpoint at LIM-CTL-17;
+if all endpoints are borrowed it rejects admission. It closes idle channels
+at LIM-CTL-14 and replaces aged channels before another call at LIM-CTL-15.
+Runtime registration serializes calls within their deadlines, never reuses an
+idle or aged channel past these bounds, and closes it at the next exchange or
+shutdown. The following connection/framing rules apply to remaining HTTP families.
+
+Reuse is bounded on both sides. A private listener closes a
 keep-alive connection that stays idle for LIM-CTL-13; a client keeps an idle
 connection for reuse for at most LIM-CTL-14, which is shorter, so a client
 normally never writes to a connection the listener already closed. No request
@@ -466,7 +484,11 @@ shared values, which
 pins.
 
 **CTL-R166.** Reuse changes neither request deadlines, error classification
-nor retry semantics (FAIL-CTL-11). A request's deadline covers waiting for a
+nor retry semantics (FAIL-CTL-11). Native gRPC retries and hedging are disabled;
+reconnection is not authorization to replay a mutation. Lifecycle cancellation and
+transport/protocol failure retire the affected generation without interrupting
+borrowed sibling calls. A2A cancellation uses its invocation-owned channel
+before that owner closes. Remaining HTTP families use the framing rules below. A request's deadline covers waiting for a
 connection, connecting, peer verification and the response, and a peer that
 fails verification fails the request before any request byte with the error
 it caused before reuse. A connection is closed instead of reused after a
@@ -502,12 +524,14 @@ Control Plane reconnects, but does not reuse it after its own restart.
 authentication credential; mTLS authenticates the agent and derives its stable
 principal.
 
-**CTL-R151.** Control Plane answers a rejected private request with the JSON
-envelope `code`, `message`, `retryable` and `requestId`. `retryable` is its
+**CTL-R151.** Control Plane answers a rejected gRPC request with a status and
+one typed `ErrorDetail` containing `code`, `retryable` and `requestId`.
+Remaining HTTP families use the JSON envelope `code`, `message`, `retryable`
+and `requestId`. `retryable` is its
 verdict on whether the same request can succeed later: a registration that
 fails strict validation (`invalid_request`) is not retryable; a conflict with the
 current Runtime Agent state and an internal failure are. The Runtime Agent
-follows the flag ahead of the HTTP status and never logs `message`
+follows the flag ahead of the transport status and never logs remote error text
 ([RTA-R113](runtime-agent.md)).
 
 **CTL-R13.** For the live instance, Control Plane records the last
@@ -1878,3 +1902,36 @@ projection, not a statement that every slot has that state. Principal
 availability is `available` while compatible free slots remain even if other
 allocations run. Runtime process metrics keep their `runtime_process` scope;
 overlapping allocation intervals cannot be summed as independent process use.
+
+
+### Native control and lifecycle binding
+
+**CTL-R175.** Registration and allocation Prepare, Finalize, Abort and Release
+use named unary protobuf RPCs; A2A uses its official gRPC service. Their former
+HTTP/JSON-RPC routes are absent and are not transport fallbacks. Registered
+control/A2A addresses remain HTTPS origins; the A2A Agent Card advertises a
+`host:port` gRPC authority and allocation `tenant`. Bootstrap, heartbeat, Worker
+State and allocation Artifact/domain HTTP operations remain separate families
+until their own binding changes. Public HTTP, Gateway and target HTTP are not
+part of this private transport boundary.
+
+Protobuf envelopes carry typed identity, authority, lifecycle and presence.
+AgentTemplate, ModelPolicy, RuntimeSettings, config provenance, Agent Card and
+Worker/Runtime report subdocuments retain their named JSON document types and
+existing validators. This preserves canonical config digests, exact numeric
+report content and isolated telemetry salvage (CTL-R136, OBS-R36); it does not
+permit an arbitrary method/path/JSON envelope. Secret Prepare bytes are cleared
+after the call; their diagnostic representation remains redacted.
+
+A control/lifecycle message and its domain projection are bounded by
+LIM-CTL-20, A2A envelopes by LIM-CTL-21, metadata by LIM-CTL-22. Both receivers
+bound aggregate admission with LIM-CTL-23 before application decoding. Caller
+deadlines include admission, connection, TLS and response; domain finalization,
+lease and Stage deadlines remain separate. Invalid input is `InvalidArgument`,
+missing TLS identity `Unauthenticated`, state conflicts `FailedPrecondition`,
+retryable storage transaction conflicts `Aborted`, exhausted admission
+`ResourceExhausted`, unavailable infrastructure `Unavailable`, cancellation
+`Cancelled` and timeout `DeadlineExceeded`. Existing error codes and explicit
+retryability are carried in details; malformed details fail closed. No error
+status proves that a mutation did not commit: existing lifecycle identities
+and receipts remain authoritative.

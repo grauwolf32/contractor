@@ -261,8 +261,8 @@ cases:
   - id: correlated-secret-bearing-failure
     category: attack
     phase: preparing
-    boundary: runtime-http
+    boundary: runtime-grpc
     fault: An internal failure and raw request path contain a recognizable injected secret.
     expected: Response and logs omit the secret while both retain the same bounded correlation ID.
     requirements: [R6]
-    test: {source: runtime/tests/test_app.py, symbol: test_internal_failure_is_correlated_and_does_not_log_injected_secret}
+    test: {source: runtime/tests/test_grpc_server.py, symbol: test_lifecycle_internal_failure_is_correlated_without_secret_logs}

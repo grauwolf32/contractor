@@ -48,7 +48,9 @@ func newSitemapPublicationProxy(t *testing.T, target, caFile string, runtimeIden
 		if err != nil {
 			t.Fatal(err)
 		}
-		proxy.clients[string(pair.Certificate[0])] = newMTLSClient(t, caFile, identity)
+		client := newMTLSClient(t, caFile, identity)
+		client.Transport.(*http.Transport).ForceAttemptHTTP2 = true
+		proxy.clients[string(pair.Certificate[0])] = client
 		if proxy.faultIdentity == "" {
 			proxy.faultIdentity = string(pair.Certificate[0])
 		}
@@ -66,6 +68,7 @@ func newSitemapPublicationProxy(t *testing.T, target, caFile string, runtimeIden
 		t.Fatal("invalid private proxy CA")
 	}
 	proxy.server = httptest.NewUnstartedServer(http.HandlerFunc(proxy.serveHTTP))
+	proxy.server.EnableHTTP2 = true
 	proxy.server.TLS = &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{certificate}, ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: roots}
 	proxy.server.StartTLS()
 	t.Cleanup(func() {
@@ -161,8 +164,14 @@ func (p *sitemapPublicationProxy) serveHTTP(w http.ResponseWriter, r *http.Reque
 			w.Header().Add(name, value)
 		}
 	}
+	for name := range response.Trailer {
+		w.Header().Add("Trailer", name)
+	}
 	w.WriteHeader(response.StatusCode)
 	_, _ = io.Copy(w, response.Body)
+	for name, values := range response.Trailer {
+		w.Header()[name] = values
+	}
 }
 
 func (p *sitemapPublicationProxy) verify(t *testing.T) {

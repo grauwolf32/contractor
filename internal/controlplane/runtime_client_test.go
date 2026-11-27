@@ -138,7 +138,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	settings := testRuntimeSettings()
 	lease := time.Date(2026, 8, 29, 13, 0, 0, 0, time.UTC)
 	var received control.PrepareAllocationRequest
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+	server := newRuntimeFixture(t, http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost || request.URL.Path != "/private/v1/allocations/allocation_1/prepare" {
 			t.Errorf("unexpected request %s %s", request.Method, request.URL.Path)
 		}
@@ -157,7 +157,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 				WorkerRuntimeRef: template.Runtime, LeaseExpiresAt: lease,
 				AgentCard: testAgentCard(
 					"builder", "allocation_1",
-					serverURL(request)+"/private/v1/allocations/allocation_1/a2a",
+					serverURL(request),
 				),
 			},
 		}
@@ -241,14 +241,14 @@ func TestRuntimeControlClientPrepareRejectsSecretBearingHandle(t *testing.T) {
 	template := testTemplate(t)
 	settings := testRuntimeSettings()
 	lease := wireTime(time.Now().Add(time.Minute).UTC())
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+	server := newRuntimeFixture(t, http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		response := control.PrepareAllocationResponse{
 			APIVersion: contracts.APIVersion,
 			WorkerHandle: contracts.WorkerHandle{
 				AllocationID: "allocation_1", AgentTemplateRef: template.Ref,
 				WorkerRuntimeRef: template.Runtime, LeaseExpiresAt: lease,
 				AgentCard: testAgentCard(
-					settings.LLMGatewayToken.Reveal(), "allocation_1", serverURL(request)+"/a2a",
+					settings.LLMGatewayToken.Reveal(), "allocation_1", serverURL(request),
 				),
 			},
 		}
@@ -282,7 +282,7 @@ func TestWorkerHandleAcceptsOriginalLeaseOnRenewedPrepare(t *testing.T) {
 		WorkerRuntimeRef: template.Runtime, LeaseExpiresAt: original,
 		AgentCard: testAgentCard(
 			"builder", "allocation_1",
-			"https://runtime.example/private/v1/allocations/allocation_1/a2a",
+			"https://runtime.example",
 		),
 	}
 	if err := validateWorkerHandle(handle, reservation, testRuntimeSettings()); err != nil {
@@ -303,7 +303,7 @@ func TestWorkerHandleSecretScanIgnoresFixedCardAndReservationStrings(t *testing.
 		"allocation_1", "builder", "https://runtime.example", "https://runtime.example", template, lease,
 	)
 	card := testAgentCard("builder", "allocation_1",
-		"https://runtime.example/private/v1/allocations/allocation_1/a2a")
+		"https://runtime.example")
 	card["version"] = template.Ref.Version
 	card["description"] = template.Description
 	skill := card["skills"].([]any)[0].(map[string]any)
@@ -316,7 +316,7 @@ func TestWorkerHandleSecretScanIgnoresFixedCardAndReservationStrings(t *testing.
 		AllocationID: reservation.Grant.AllocationID, AgentTemplateRef: template.Ref,
 		WorkerRuntimeRef: template.Runtime, AgentCard: card, LeaseExpiresAt: lease,
 	}
-	for _, value := range []string{"1", "1.0", "JSONRPC", "contractor", "stage", "adk"} {
+	for _, value := range []string{"1", "1.0", "GRPC", "contractor", "stage", "adk"} {
 		t.Run(value, func(t *testing.T) {
 			settings := testRuntimeSettings()
 			settings.Telemetry = &runtimesettings.TelemetrySettings{
@@ -395,7 +395,7 @@ func TestWorkerHandleSecretScanDoesNotMatchShortCredentialAgainstJSONKeys(t *tes
 		WorkerRuntimeRef: template.Runtime, LeaseExpiresAt: lease,
 		AgentCard: testAgentCard(
 			"builder", "allocation_1",
-			"https://runtime.example/private/v1/allocations/allocation_1/a2a",
+			"https://runtime.example",
 		),
 	}
 	if err := validateWorkerHandle(handle, reservation, settings); err != nil {
@@ -439,7 +439,7 @@ func TestSharedWorkerHandleSecretScanSharedCases(t *testing.T) {
 		"{logicalAgentName}", reservation.Grant.LogicalAgentName,
 		"{description}", template.Description,
 		"{version}", template.Ref.Version,
-		"{endpoint}", "https://runtime.example/private/v1/allocations/allocation_1/a2a",
+		"{endpoint}", "runtime.example:443",
 	)
 
 	want := make(map[string][]string, len(fixture.TrustedValues))
@@ -553,7 +553,7 @@ func TestSharedRuntimeControlClientReadsWorkerStateAndRevalidatesETag(t *testing
 	fixture := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json")
 	const etag = `"contractor-agent-state-v1-7"`
 	var requests atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+	server := newRuntimeFixture(t, http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		requests.Add(1)
 		if request.Method != http.MethodGet ||
 			request.URL.Path != "/private/v1/allocations/allocation_1/agent-state" {
@@ -611,7 +611,7 @@ func TestSharedRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testi
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			server := newRuntimeFixture(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				if test.cache != "" {
 					w.Header().Set("Cache-Control", test.cache)
 				}
@@ -639,7 +639,7 @@ func TestSharedRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testi
 
 	client, _ := NewRuntimeControlClient(&http.Client{})
 	_, err := client.ReadWorkerState(
-		context.Background(), stateWorkerHandle("http://127.0.0.1:1", "allocation_1"), "",
+		context.Background(), stateWorkerHandle("https://127.0.0.1:1", "allocation_1"), "",
 	)
 	var typed *reporting.WorkerStateReadError
 	if !errors.As(err, &typed) || typed.Code != "worker_state_transport_failed" ||
@@ -664,7 +664,7 @@ func TestSharedRuntimeControlClientRejectsCaseAliasesAndDuplicateKeys(t *testing
 			if name != "valid" && body == string(state) {
 				t.Fatal("mutation did not apply")
 			}
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			server := newRuntimeFixture(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Cache-Control", "private, no-cache")
 				w.Header().Set("ETag", `"contractor-agent-state-v1-7"`)
 				w.Header().Set("Content-Type", "application/json")
@@ -702,7 +702,7 @@ func TestSharedRuntimeControlClientRejectsCaseAliasesAndDuplicateKeys(t *testing
 			if name != "valid" && body == string(encoded) {
 				t.Fatal("mutation did not apply")
 			}
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			server := newRuntimeFixture(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = io.WriteString(w, body)
 			}))
@@ -724,7 +724,7 @@ func TestSharedRuntimeControlClientRejectsCaseAliasesAndDuplicateKeys(t *testing
 
 func TestRuntimeControlClientRejectsMismatchedWorkerStateEndpointBeforeRequest(t *testing.T) {
 	var requests atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	server := newRuntimeFixture(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		requests.Add(1)
 	}))
 	defer server.Close()
@@ -743,7 +743,7 @@ func TestRuntimeControlClientRejectsMismatchedWorkerStateEndpointBeforeRequest(t
 
 func TestValidateA2AAgentCardRequiresMutualTLS(t *testing.T) {
 	registeredURL := "https://runtime.example"
-	endpoint := "https://runtime.example/private/v1/allocations/allocation_1/a2a"
+	endpoint := "https://runtime.example"
 	card := testAgentCard("builder", "allocation_1", endpoint)
 	delete(card, "securityRequirements")
 
@@ -769,7 +769,7 @@ func TestRuntimeControlClientFinalizeAndReleaseProtocol(t *testing.T) {
 	template := testTemplate(t)
 	lease := time.Now().Add(time.Minute).UTC()
 	var operations []string
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+	server := newRuntimeFixture(t, http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		operations = append(operations, request.URL.Path)
 		if stringsHasSuffix(request.URL.Path, "/release") {
 			w.WriteHeader(http.StatusNoContent)
@@ -807,7 +807,7 @@ func TestRuntimeControlClientRetainsCompactUTF8Telemetry(t *testing.T) {
 	if err != nil || len(escaped) <= 4096 {
 		t.Fatalf("test case must exceed the HTML-escaped argument limit: %d, %v", len(escaped), err)
 	}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+	server := newRuntimeFixture(t, http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(reporting.AllocationFinalResponse{
 			APIVersion: contracts.APIVersion, Report: report,
@@ -846,7 +846,7 @@ func testReservation(
 ) Reservation {
 	return Reservation{
 		Grant: AllocationGrant{
-			AllocationID: allocationID, RuntimeAgentID: strings.Repeat("a", 64),
+			AllocationID: allocationID, RuntimeAgentID: fixturePrincipal(controlURL),
 			RuntimeInstanceID: "runtime_" + logicalName,
 			RunID:             "run_1", StageExecutionID: "stage_1", LogicalAgentName: logicalName,
 			Namespace: logicalName, ReadPolicy: ReadCurrentRun, WritePolicy: WriteInputsAndIntermediates,
@@ -887,7 +887,7 @@ func TestRuntimeResourcesAreIsolatedFromLifecycleTruth(t *testing.T) {
 			if test.resources != "" {
 				body = strings.Replace(body, `"runtime":{`, `"runtime":{"resources":`+test.resources+`,`, 1)
 			}
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			server := newRuntimeFixture(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = io.WriteString(w, body)
 			}))
@@ -1013,7 +1013,7 @@ func TestRuntimeAdapterMetricsAreFilteredAgainstPinnedReservation(t *testing.T) 
 }
 
 func serverURL(request *http.Request) string {
-	return "http://" + request.Host
+	return "https://" + request.Host
 }
 
 func TestRuntimeSettingSecretsIncludesProjectOriginAuthorization(t *testing.T) {
@@ -1030,10 +1030,13 @@ func TestRuntimeSettingSecretsIncludesProjectOriginAuthorization(t *testing.T) {
 }
 
 func testAgentCard(name, allocationID, endpoint string) map[string]any {
+	if authority, err := mtls.GRPCAuthority(endpoint); err == nil {
+		endpoint = authority
+	}
 	return map[string]any{
 		"name": name,
 		"supportedInterfaces": []any{map[string]any{
-			"url": endpoint, "protocolBinding": "JSONRPC", "protocolVersion": "1.0",
+			"url": endpoint, "protocolBinding": "GRPC", "protocolVersion": "1.0",
 			"tenant": allocationID,
 		}},
 		"defaultInputModes":  []any{stageContentMediaType},
@@ -1060,7 +1063,7 @@ func stateWorkerHandle(baseURL, allocationID string) contracts.WorkerHandle {
 		AllocationID: allocationID,
 		AgentCard: testAgentCard(
 			"worker", allocationID,
-			strings.TrimRight(baseURL, "/")+"/private/v1/allocations/"+allocationID+"/a2a",
+			baseURL,
 		),
 	}
 }

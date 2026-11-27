@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
@@ -92,14 +91,14 @@ func TestAuditCompletionPrepareSendsPinnedContract(t *testing.T) {
 	binding := completionBinding(t)
 	lease := time.Now().Add(time.Minute).UTC().Truncate(time.Microsecond)
 	var received control.PrepareAllocationRequest
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newRuntimeFixture(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
 			t.Error(err)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(control.PrepareAllocationResponse{APIVersion: contracts.APIVersion, WorkerHandle: contracts.WorkerHandle{
 			AllocationID: "allocation", AgentTemplateRef: binding.AgentTemplate.Ref, WorkerRuntimeRef: binding.AgentTemplate.Runtime, LeaseExpiresAt: lease,
-			AgentCard: testAgentCard("checker", "allocation", serverURL(r)+"/private/v1/allocations/allocation/a2a")}})
+			AgentCard: testAgentCard("checker", "allocation", serverURL(r))}})
 	}))
 	defer server.Close()
 	reservation := testReservation("allocation", "checker", server.URL, server.URL, binding.AgentTemplate, lease)
