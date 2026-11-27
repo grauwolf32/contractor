@@ -72,7 +72,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V490-005](v490-005-grpc-artifact-streams.yml) | feature | P1 | V490-004 | Transfer Artifact payloads through bounded gRPC streams |
+| [V490-005](v490-005-grpc-artifact-streams.yml) | feature | P1 | V490-004 | Transfer Artifact and finding evidence payloads through bounded gRPC streams |
 
 ### Audits (`audits`)
 

@@ -1,6 +1,6 @@
 schema_version: '1.0'
 id: V490-005
-title: Transfer Artifact payloads through bounded gRPC streams
+title: Transfer Artifact and finding evidence payloads through bounded gRPC streams
 milestone: server-runtime-grpc-2026-11
 epic: projects-artifacts
 kind: feature
@@ -13,10 +13,11 @@ languages:
 - python
 - protobuf
 - markdown
-goal: Runtime reads and publishes Artifact payloads on gRPC with existing revision checks and bounded memory.
+goal: Runtime reads and publishes Artifact payloads and submits findings with selected evidence on gRPC
+  with existing revision checks, receipts and bounded memory.
 demonstration: An allocated Worker hydrates an archive and publishes an output through real Server/Runtime/PostgreSQL;
   interrupted upload leaves no visible partial revision, and lost publication reply reconciles the existing
-  write.
+  write. Finding submission with captured HTTP evidence reuses its original receipt after a lost reply.
 context:
   authority: 'User decision 2026-11-27: plan and implement gRPC for Server/Runtime, preserve A2A. Direct connectivity
     through the existing overlay is an architectural fact, not new scope. NAT, reverse tunnels and removal
@@ -42,6 +43,12 @@ context:
     the existing payload. Constant-memory storage would require a separate
     streaming storage/validation change; it is not a user requirement for this
     transport migration. Reopen only for a separately requested storage outcome.
+    Further decomposition correction: findingintake.MaxRequestBytes already
+    permits 64 MiB including captured HTTP evidence under Artifact transfer
+    admission. Migrate that submission here, instead of enlarging the control
+    or allocation unary limit. Use a typed submission header and bounded
+    chunks for its named proposal/evidence documents, preserving their domain
+    decoding, aggregate size checks and the existing receipt/fence order.
 scope:
   in:
   - Use separate data channels and bounded protobuf chunks for read/write; retain existing transfer admission,
@@ -53,6 +60,9 @@ scope:
     without queuing all protobuf messages or adding another full transport copy.
   - Cover zero-byte payload, short/oversize stream, invalid ordering, cancellation, server-side rejection,
     fence during upload and lost final reply.
+  - Migrate finding proposal submission, including its optional captured HTTP evidence, through the
+    same bounded bulk admission and chunk handling. Keep typed invocation/submission identity,
+    exact evidence refs, replay-before-write-fence behavior and the current domain owners.
   out:
   - No new upload-session table, resumable uploads, blob backend or global max-message increase to 64 MiB.
     Existing named heavy-I/O fixtures stay opt-in.
