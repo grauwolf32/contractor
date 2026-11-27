@@ -32,6 +32,16 @@ context:
   - docs/spec/platform/failure-model.md
   - docs/spec/platform/persistence.md#PER-R24
   baseline: main 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b
+  boundary_decision: >-
+    Agent proposal correction 2026-11-27: artifacttransfer.Transfer.ReadBody and
+    privateartifacts.putArtifact already assemble one bounded payload before
+    Artifacts.PreparePayload. Preserve that domain/storage boundary and its four
+    transfer permits. Decode incoming chunks directly into one declared-length
+    payload buffer (at most 64 MiB), without retaining a collection of protobuf
+    frames or assembling a second complete transport copy. Outgoing chunks read
+    the existing payload. Constant-memory storage would require a separate
+    streaming storage/validation change; it is not a user requirement for this
+    transport migration. Reopen only for a separately requested storage outcome.
 scope:
   in:
   - Use separate data channels and bounded protobuf chunks for read/write; retain existing transfer admission,
@@ -39,7 +49,8 @@ scope:
   - Map If-Match/If-None-Match and exact revision semantics into explicit typed preconditions, with one initial
     metadata frame and terminal receipt.
   - Preserve the 64 MiB aggregate ceiling, four Server full-payload transfer slots and metadata/cache-key semantics;
-    do not buffer the whole gRPC stream.
+    use the existing single bounded domain payload buffer and bounded chunk/backpressure handling,
+    without queuing all protobuf messages or adding another full transport copy.
   - Cover zero-byte payload, short/oversize stream, invalid ordering, cancellation, server-side rejection,
     fence during upload and lost final reply.
   out:
