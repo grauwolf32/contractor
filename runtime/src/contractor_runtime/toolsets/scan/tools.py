@@ -333,14 +333,14 @@ class _ScanSession:
         """Admit a create-only output only while its binding does not exist.
 
         A metadata read (ART-R116) answers this without downloading an
-        existing payload. Only 404 admits the output; any other failure is
+        existing payload. Only artifact_not_found admits the output; any other failure is
         unavailable, never a guess that the name is free.
         """
 
         try:
             await self.artifact_client.read_artifact_metadata(ref)
         except ArtifactAPIError as error:
-            if error.status_code != 404:
+            if error.code != "artifact_not_found":
                 raise ScannerUnavailable("scan_artifact_unavailable") from None
         except Exception:
             raise ScannerUnavailable("scan_artifact_unavailable") from None

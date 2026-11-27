@@ -88,7 +88,7 @@ class ArtifactStore(AllocationRPCFixture):
             if exact is not None and current is not None and exact != current[2]:
                 current = self.revisions.get((*key, exact))
             if current is None:
-                return self.response(404, {"code": "not_found", "retryable": False})
+                return self.response(404, {"code": "artifact_not_found", "retryable": False})
             data, media_type, revision = current
             if suffix:
                 # ART-R116: the exact ref, media type and size, never the payload.
@@ -137,6 +137,8 @@ class ArtifactStore(AllocationRPCFixture):
 
     @staticmethod
     def response(status, data, media_type="application/json", revision="revision-0"):
+        if status >= 400 and isinstance(data, dict):
+            data = {"message": "fixture rejection", "requestId": "request-fixture", **data}
         payload = data if isinstance(data, bytes) else json.dumps(data).encode()
         return ArtifactHTTPResponse(
             status,

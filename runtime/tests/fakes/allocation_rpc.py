@@ -7,8 +7,41 @@ production uses AllocationConnections and the native interop suites cover it.
 import json
 from urllib.parse import quote, urlencode
 
-from contractor_runtime.artifacts import ArtifactTransportError, raise_for_status, require_json
+import grpc
+
+from contractor_runtime.artifacts import (
+    ArtifactAPIError,
+    ArtifactTransportError,
+    raise_for_status,
+    require_json,
+)
 from contractor_runtime.strict_json import strict_json_loads
+
+
+def raise_rpc_status(response):
+    try:
+        raise_for_status(response)
+    except ArtifactAPIError as error:
+        status = {
+            400: grpc.StatusCode.INVALID_ARGUMENT,
+            401: grpc.StatusCode.UNAUTHENTICATED,
+            403: grpc.StatusCode.PERMISSION_DENIED,
+            404: grpc.StatusCode.NOT_FOUND,
+            409: grpc.StatusCode.FAILED_PRECONDITION,
+            412: grpc.StatusCode.FAILED_PRECONDITION,
+            413: grpc.StatusCode.RESOURCE_EXHAUSTED,
+            422: grpc.StatusCode.INVALID_ARGUMENT,
+            429: grpc.StatusCode.RESOURCE_EXHAUSTED,
+            500: grpc.StatusCode.INTERNAL,
+            502: grpc.StatusCode.UNAVAILABLE,
+            503: grpc.StatusCode.UNAVAILABLE,
+            504: grpc.StatusCode.DEADLINE_EXCEEDED,
+        }.get(error.status_code, grpc.StatusCode.UNKNOWN)
+        if error.code == "artifact_transfer_capacity":
+            status = grpc.StatusCode.RESOURCE_EXHAUSTED
+        elif error.code == "storage_transaction_conflict":
+            status = grpc.StatusCode.ABORTED
+        raise ArtifactAPIError(status, error.code, error.retryable, error.request_id) from None
 
 
 class AllocationRPCFixture:
@@ -25,7 +58,7 @@ class AllocationRPCFixture:
             else json.dumps(value, separators=(",", ":"), ensure_ascii=False).encode(),
             max_response_bytes=maximum,
         )
-        raise_for_status(response)
+        raise_rpc_status(response)
         require_json(response.headers)
         try:
             return strict_json_loads(response.body)
@@ -59,7 +92,7 @@ class AllocationRPCFixture:
             body=b"",
             max_response_bytes=1 << 20,
         )
-        raise_for_status(response)
+        raise_rpc_status(response)
         if response.status_code != 204 or response.body:
             raise ArtifactTransportError("invalid access response")
         return {}

@@ -389,7 +389,7 @@ class ToolWorkerRuntime:
                 async with asyncio.timeout(self._context.runtime_settings.request_timeout_seconds):
                     value = await self._client.read_artifact(receipt, max_bytes=MAX_RECEIPT_BYTES)
             except ArtifactAPIError as failure:
-                if failure.status_code != 404:
+                if failure.code != "artifact_not_found":
                     raise ToolWorkerError("tool_outcome_unknown") from None
                 value = None
             if value is not None:

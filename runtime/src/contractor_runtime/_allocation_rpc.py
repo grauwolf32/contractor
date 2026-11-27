@@ -19,7 +19,7 @@ from contractor_runtime._grpc_client import IDLE_SECONDS, LIFETIME_SECONDS, _err
 from contractor_runtime._grpc_tls import TLSForwarder
 from contractor_runtime.contracts.base import parse_private_rpc_origin
 from contractor_runtime.contracts.grpc_wire import codec, runtime_pb2, runtime_pb2_grpc
-from contractor_runtime.contracts.grpc_wire.limits import MAX_METADATA_BYTES
+from contractor_runtime.contracts.grpc_wire.limits import METADATA_OPTIONS
 from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.threads import to_thread_until_done
 
@@ -177,7 +177,16 @@ class AllocationConnections:
                             correlation,
                         ) from None
                     failure = _error(error, correlation, allow_retry_info=True)
-                    if failure.code == "transport_unavailable" and failure.retryable:
+                    if failure.code == "transport_unavailable" and (
+                        failure.retryable
+                        or failure.status_code
+                        in {
+                            grpc.StatusCode.UNKNOWN,
+                            grpc.StatusCode.INTERNAL,
+                            grpc.StatusCode.DATA_LOSS,
+                            grpc.StatusCode.CANCELLED,
+                        }
+                    ):
                         if failure.status_code == grpc.StatusCode.RESOURCE_EXHAUSTED:
                             raise ArtifactAPIError(
                                 grpc.StatusCode.INTERNAL, "invalid_response", False, correlation
@@ -233,7 +242,7 @@ class AllocationConnections:
                         ("grpc.enable_retries", 0),
                         ("grpc.max_send_message_length", limit),
                         ("grpc.max_receive_message_length", limit),
-                        ("grpc.max_metadata_size", MAX_METADATA_BYTES),
+                        *METADATA_OPTIONS,
                     ),
                 )
             except BaseException:

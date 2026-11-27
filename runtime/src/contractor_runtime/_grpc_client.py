@@ -26,7 +26,7 @@ from contractor_runtime.contracts import (
     decode_private,
 )
 from contractor_runtime.contracts.grpc_wire import codec, runtime_pb2, runtime_pb2_grpc
-from contractor_runtime.contracts.grpc_wire.limits import MAX_CONTROL_BYTES, MAX_METADATA_BYTES
+from contractor_runtime.contracts.grpc_wire.limits import MAX_CONTROL_BYTES, METADATA_OPTIONS
 from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.threads import to_thread_until_done
 
@@ -156,7 +156,7 @@ class ControlRPC:
                 ("grpc.enable_retries", 0),
                 ("grpc.max_send_message_length", MAX_CONTROL_BYTES),
                 ("grpc.max_receive_message_length", MAX_CONTROL_BYTES),
-                ("grpc.max_metadata_size", MAX_METADATA_BYTES),
+                *METADATA_OPTIONS,
             ),
         )
         self._created = now

@@ -510,7 +510,7 @@ Assembled from every document.
 | `invalid_error_response` | gRPC peer status | no | Typed private RPC details are malformed, ambiguous or outside the current contract. | [CTL-R175](../execution/control-plane.md) |
 | `allocation_rpc_capacity` | `ResourceExhausted` | yes | Bounded process allocation RPC admission is exhausted; no automatic mutation replay. | [CTL-R176](../execution/control-plane.md) |
 | `control_rpc_capacity` | `ResourceExhausted` | yes | Bounded private control RPC admission is exhausted. | [CTL-R175](../execution/control-plane.md) |
-| `transport_unavailable` | gRPC peer status | contextual | Safe fallback when no typed detail exists; retryability follows the RPC status, never automatic mutation replay. | [CTL-R175](../execution/control-plane.md) |
+| `transport_unavailable` | gRPC peer status | contextual | Safe fallback when no typed detail exists; classification follows the RPC status and binding. Untyped allocation stream loss is unconfirmed delivery for the existing receipt owner, never automatic transport replay. | [CTL-R175](../execution/control-plane.md) |
 | `allocation_cleanup_failed` | 503 | yes | Private allocation release could not confirm cleanup; the slot stays fenced and cleanup may be retried. | [RTA-R51](../execution/runtime-agent.md) |
 | `allocation_conflict` | 409 | no | Private lifecycle request conflicts with the active slot, allocation identity, specification or recorded operation. | [ERR-R24](errors.md) |
 | `allocation_fence_failed` | — | yes | The Scheduler could not write-fence the Stage's allocations before finalization; the Stage ends through bounded aborting with an interrupted StageTermination. | [SCH-R184](../execution/scheduler.md) |

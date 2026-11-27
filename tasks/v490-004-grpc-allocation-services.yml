@@ -59,6 +59,18 @@ context:
     Runtime still raises its existing audit_result_stale outcome; no implicit
     content retry or ownership change is introduced. Reopen the binding only
     if a concrete caller requires another native conflict representation.
+    The grpcio 1.85.4 channel-argument contract identifies max_metadata_size
+    as a probabilistic soft threshold; all Python native endpoints also set
+    absolute_max_metadata_size to the existing 16 KiB ceiling. This enforces
+    LIM-CTL-22 rather than widening its accepted range. Source:
+    https://github.com/grpc/grpc/blob/v1.85.4/include/grpc/impl/channel_arg_names.h
+    Full-process regression correction 2026-11-28: metadata consumers recognize
+    artifact_not_found rather than an HTTP status; native fixture errors expose
+    grpc.StatusCode and complete safe error details. The sitemap fault proxy
+    decodes named protobuf messages and resets the committed HTTP/2 reply.
+    Untyped Internal/Unknown/DataLoss/remote-Cancelled stream loss remains
+    ambiguous for the existing bounded receipt/sequence owner, while typed
+    rejections keep their explicit class. No transport replay is added.
 scope:
   in:
   - Migrate Planner operations, gateway recovery, Audit evidence/judgments, finding reads/selections,

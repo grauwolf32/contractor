@@ -1,6 +1,7 @@
 """Native allocation channels preserve PKI, admission and joined lifetimes."""
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import grpc
@@ -15,6 +16,75 @@ from contractor_runtime._allocation_rpc import AllocationConnections, Allocation
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
 from contractor_runtime.contracts.grpc_wire import runtime_pb2 as pb
 from contractor_runtime.contracts.grpc_wire import runtime_pb2_grpc as rpc
+from contractor_runtime.contracts.grpc_wire.limits import MAX_METADATA_BYTES
+from contractor_runtime.planner.server_host import ServerPlannerHost
+
+
+def test_untyped_stream_loss_reconciles_the_original_planner_sequence(pki):
+    class LostReply(Operations):
+        def __init__(self):
+            super().__init__()
+            self.requests = []
+
+        async def PlannerOperation(self, request, context):
+            self.requests.append(request.SerializeToString())
+            if len(self.requests) == 1:
+                # An HTTP/2 stream reset can surface as untyped INTERNAL. It
+                # establishes no domain rejection and proves no non-commit.
+                await context.abort(grpc.StatusCode.INTERNAL, "untrusted reset diagnostic")
+            return await super().PlannerOperation(request, context)
+
+    async def scenario():
+        service = LostReply()
+        server, origin = await serve(pki, service)
+        owner = AllocationConnections(runtime_context(pki))
+        try:
+            host = ServerPlannerHost(
+                "allocation-1",
+                AllocationRPC(owner, origin, "runtime-1", 3),
+                deadline=datetime.now(UTC) + timedelta(seconds=10),
+            )
+            result = await host.execute("before_model", {})
+            assert not result.stop
+            assert len(service.requests) == 2 and service.requests[0] == service.requests[1]
+        finally:
+            await owner.aclose()
+            await server.stop(0)
+
+    asyncio.run(scenario())
+
+
+def test_native_metadata_ceiling_remains_hard_above_the_soft_threshold(pki, monkeypatch):
+    class MetadataReply(Operations):
+        async def PlannerOperation(self, request, context):
+            await context.send_initial_metadata((("x-padding", "x" * (MAX_METADATA_BYTES + 1024)),))
+            return await super().PlannerOperation(request, context)
+
+    channel_factory = grpc.aio.insecure_channel
+
+    def relaxed_soft_threshold(target, *, options):
+        # Distinguish a hard cap from grpcio's probabilistic soft rejection:
+        # without the hard cap this native peer response is always accepted.
+        options = {**dict(options), "grpc.max_metadata_size": 64 << 10}
+        return channel_factory(target, options=tuple(options.items()))
+
+    monkeypatch.setattr(grpc.aio, "insecure_channel", relaxed_soft_threshold)
+
+    async def scenario():
+        server, origin = await serve(pki, MetadataReply())
+        owner = AllocationConnections(runtime_context(pki))
+        try:
+            with pytest.raises(ArtifactAPIError) as failure:
+                await AllocationRPC(owner, origin, "runtime-1", 3).planner_operation(
+                    "allocation-1", operation(), timeout_seconds=3
+                )
+            assert failure.value.code == "invalid_response"
+            assert not failure.value.retryable and not owner._connections
+        finally:
+            await owner.aclose()
+            await server.stop(0)
+
+    asyncio.run(scenario())
 
 
 class Operations(rpc.AllocationServicer):

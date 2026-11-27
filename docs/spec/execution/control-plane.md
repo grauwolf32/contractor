@@ -1928,7 +1928,9 @@ after the call; their diagnostic representation remains redacted.
 
 A control/lifecycle message and its domain projection are bounded by
 LIM-CTL-20 (except the State response envelope, LIM-CTL-27), A2A envelopes
-by LIM-CTL-21, metadata by LIM-CTL-22. Both receivers
+by LIM-CTL-21, metadata by LIM-CTL-22. Python grpcio sets both its soft
+metadata threshold and absolute hard limit to that ceiling; probabilistic
+soft rejection alone does not enforce it. Both receivers
 bound aggregate admission with LIM-CTL-23 before application decoding. Caller
 deadlines include admission, connection, TLS and response; domain finalization,
 lease and Stage deadlines remain separate. Invalid input is `InvalidArgument`,
@@ -2000,6 +2002,10 @@ by the receiver. Malformed status details are permanent protocol failures. For a
 mutation receipt, the existing domain owner may still reconcile the same
 frozen mutation identity within its original attempt/deadline bound; it never
 issues a new semantic mutation or repeats target traffic to repair a receipt.
+An untyped stream-loss status (`Internal`, `Unknown`, `DataLoss` or remote
+`Cancelled`) proves no domain rejection or non-commit. The allocation transport
+reports that ambiguity to the existing receipt/sequence owner. Valid typed
+errors preserve their explicit retryability; the transport never replays a call.
 
 Boundary decision (2026-11-27): preserve domain ownership and receipts while
 replacing adaptation only. A generic HTTP-over-gRPC tunnel and internal A2A

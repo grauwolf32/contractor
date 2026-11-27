@@ -31,8 +31,8 @@ from contractor_runtime.allocation import AllocationService
 from contractor_runtime.contracts.grpc_wire import runtime_pb2_grpc
 from contractor_runtime.contracts.grpc_wire.limits import (
     MAX_CONCURRENT_RPCS,
-    MAX_METADATA_BYTES,
     MAX_STATE_MESSAGE_BYTES,
+    METADATA_OPTIONS,
 )
 from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.grpc_server import LifecycleHandler
@@ -244,7 +244,7 @@ class RuntimeServer:
                 options=(
                     ("grpc.max_receive_message_length", MAX_A2A_REQUEST_BYTES),
                     ("grpc.max_send_message_length", MAX_STATE_MESSAGE_BYTES),
-                    ("grpc.max_metadata_size", MAX_METADATA_BYTES),
+                    *METADATA_OPTIONS,
                     ("grpc.max_concurrent_streams", MAX_CONCURRENT_RPCS),
                     ("grpc.max_connection_idle_ms", 60_000),
                     ("grpc.server_handshake_timeout_ms", 5_000),
