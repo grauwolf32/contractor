@@ -7,10 +7,11 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import httpx
+import grpc
 import pytest
 from fakes.allocation import allocation_context
 from fakes.model import text_result
+from fakes.state_rpc import state_client
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 from referencing import Registry, Resource
@@ -24,7 +25,6 @@ from contractor_runtime.contracts import (
     WorkerAllocationMetricsState,
     WorkerCompletionDiagnostics,
 )
-from contractor_runtime.server import create_app
 from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.worker.sessions import WorkerSessionLifecycleError
 
@@ -119,16 +119,13 @@ def test_shared_completion_diagnostics_gate_the_agent_state_endpoint(
         state, service = await make_service(tmp_path, runtime_capabilities)
         await service.prepare(make_spec())
         worker_state = allocation_context(service).worker_state
-        app = create_app(state, allocation_service=service, require_verified_peer=False)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
-        ) as client:
+        async with state_client(state, service) as client:
             for case in CASES:
                 worker_state._state["metrics"]["completion"] = copy.deepcopy(case["value"])
-                response = await client.get("/private/v1/allocations/allocation-1/agent-state")
+                response = await client.read()
                 if case["valid"]:
-                    assert response.status_code == 200, case["name"]
-                    served_snapshot = response.json()
+                    assert response.status == grpc.StatusCode.OK, case["name"]
+                    served_snapshot = response.value()
                     validator = Draft202012Validator(
                         SCHEMAS["agent-state.schema.json"], registry=REGISTRY
                     )
@@ -136,9 +133,9 @@ def test_shared_completion_diagnostics_gate_the_agent_state_endpoint(
                     served = served_snapshot["state"]["metrics"]["completion"]
                     assert served == case["value"], case["name"]
                 else:
-                    assert response.status_code == 503, case["name"]
-                    assert response.json()["code"] == "agent_state_unavailable", case["name"]
-                    assert response.json()["retryable"] is False, case["name"]
+                    assert response.status == grpc.StatusCode.UNAVAILABLE, case["name"]
+                    assert response.error.code == "agent_state_unavailable", case["name"]
+                    assert response.error.retryable is False, case["name"]
 
     asyncio.run(scenario())
 

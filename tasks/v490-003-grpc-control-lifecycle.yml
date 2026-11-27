@@ -5,7 +5,7 @@ milestone: server-runtime-grpc-2026-11
 epic: execution-core
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V490-002
 languages:
@@ -32,6 +32,18 @@ context:
   - docs/spec/platform/failure-model.md
   - docs/spec/platform/persistence.md#PER-R24
   baseline: main 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b
+  boundary_decision: >-
+    Implementation choice 2026-11-27: ReadState preserves the existing
+    AgentStateSnapshot JSON report boundary and 4 MiB document ceiling. A typed
+    allocation/conditional-revision request and revision/snapshot-or-not-modified
+    response replace HTTP validators; a 1 KiB protobuf envelope allowance does
+    not raise the document or A2A ceiling. The Server derives its existing cache
+    ETag locally. Bootstrap and heartbeat share one process-owned control channel,
+    isolated from Artifact traffic; permanent replies enter the existing joined
+    shutdown owner. Origin validation reuses the common bounded endpoint grammar
+    and rejects paths before registration or connecting. Shared fixtures pin
+    exact uint64 sequences, origin grammar and independent byte limits. Reopen
+    the JSON report boundary only with a separately requested report redesign.
 scope:
   in:
   - Cover shared config bootstrap, registration, heartbeat, prepare, finalize, abort, release and conditional

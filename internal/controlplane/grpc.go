@@ -2,12 +2,14 @@ package controlplane
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
 
 	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -18,7 +20,16 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
+
+// Registry owns process registration and sequenced heartbeat reconciliation.
+type Registry interface {
+	RegisterAuthenticated(AuthenticatedPrincipal, control.AgentRegistration) (AgentSnapshot, error)
+	RegistrationResponse() control.AgentRegistrationResponse
+	HeartbeatAuthenticated(string, control.AgentHeartbeat) (control.HeartbeatResponse, error)
+}
 
 type PrincipalRegistrar interface {
 	Register(context.Context, string) (agentprincipal.Principal, error)
@@ -46,18 +57,18 @@ type controlRPCServer struct {
 	principals PrincipalRegistrar
 }
 
-func (h *controlRPCServer) Register(ctx context.Context, request *pb.AgentRegistration) (*pb.AgentRegistrationResponse, error) {
+func authenticatedControlRPC(ctx context.Context) (context.Context, string, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
-		return nil, runtimewire.Error(ctx, codes.Unauthenticated, "mtls_required", false)
+		return ctx, "", runtimewire.Error(ctx, codes.Unauthenticated, "mtls_required", false)
 	}
 	tls, ok := p.AuthInfo.(credentials.TLSInfo)
 	if !ok {
-		return nil, runtimewire.Error(ctx, codes.Unauthenticated, "mtls_required", false)
+		return ctx, "", runtimewire.Error(ctx, codes.Unauthenticated, "mtls_required", false)
 	}
 	identity, err := mtls.RuntimeAgentIDFromConnection(&tls.State)
 	if err != nil {
-		return nil, runtimewire.Error(ctx, codes.Unauthenticated, "mtls_required", false)
+		return ctx, "", runtimewire.Error(ctx, codes.Unauthenticated, "mtls_required", false)
 	}
 	correlation := requestid.Ensure(ctx)
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
@@ -68,6 +79,53 @@ func (h *controlRPCServer) Register(ctx context.Context, request *pb.AgentRegist
 	}
 	ctx = requestid.With(ctx, correlation)
 	_ = grpc.SetHeader(ctx, metadata.Pairs("x-request-id", correlation))
+	return ctx, identity, nil
+}
+
+func (h *controlRPCServer) Bootstrap(ctx context.Context, request *pb.BootstrapRequest) (*pb.SharedConfig, error) {
+	ctx, _, err := authenticatedControlRPC(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request == nil || len(request.ProtoReflect().GetUnknown()) != 0 {
+		return nil, runtimewire.Error(ctx, codes.InvalidArgument, "invalid_request", false)
+	}
+	config, err := control.DefaultSharedConfig()
+	if err != nil {
+		return nil, controlRPCError(ctx, err)
+	}
+	response := new(pb.SharedConfig)
+	if err := runtimewire.Encode(config, response); err != nil {
+		return nil, runtimewire.Error(ctx, codes.Internal, "invalid_response", false)
+	}
+	return response, nil
+}
+
+func (h *controlRPCServer) Heartbeat(ctx context.Context, request *pb.AgentHeartbeat) (*pb.HeartbeatResponse, error) {
+	ctx, identity, err := authenticatedControlRPC(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var heartbeat control.AgentHeartbeat
+	if request == nil || runtimewire.Decode(request, &heartbeat) != nil || heartbeat.Validate() != nil {
+		return nil, runtimewire.Error(ctx, codes.InvalidArgument, "invalid_request", false)
+	}
+	result, err := h.registry.HeartbeatAuthenticated(identity, heartbeat)
+	if err != nil {
+		return nil, controlRPCError(ctx, err)
+	}
+	response := new(pb.HeartbeatResponse)
+	if err := runtimewire.Encode(result, response); err != nil {
+		return nil, runtimewire.Error(ctx, codes.Internal, "invalid_response", false)
+	}
+	return response, nil
+}
+
+func (h *controlRPCServer) Register(ctx context.Context, request *pb.AgentRegistration) (*pb.AgentRegistrationResponse, error) {
+	ctx, identity, err := authenticatedControlRPC(ctx)
+	if err != nil {
+		return nil, err
+	}
 	registration, err := runtimewire.Registration(request)
 	if err != nil {
 		return nil, runtimewire.Error(ctx, codes.InvalidArgument, "invalid_request", false)
@@ -85,7 +143,7 @@ func (h *controlRPCServer) Register(ctx context.Context, request *pb.AgentRegist
 	}
 	response, err := runtimewire.RegistrationResponse(h.registry.RegistrationResponse())
 	if err != nil {
-		return nil, runtimewire.Error(ctx, codes.Internal, "internal_error", false)
+		return nil, runtimewire.Error(ctx, codes.Internal, "invalid_response", false)
 	}
 	return response, nil
 }
@@ -122,6 +180,11 @@ func (h *boundedControlRPC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/grpc")
 		w.Header().Set("Grpc-Status", "8")
 		w.Header().Set("Grpc-Message", "control_rpc_capacity")
+		failure := runtimewire.Error(r.Context(), codes.ResourceExhausted, "control_rpc_capacity", true)
+		details, err := proto.Marshal(status.Convert(failure).Proto())
+		if err == nil {
+			w.Header().Set("Grpc-Status-Details-Bin", base64.RawStdEncoding.EncodeToString(details))
+		}
 		w.WriteHeader(http.StatusOK)
 	}
 }

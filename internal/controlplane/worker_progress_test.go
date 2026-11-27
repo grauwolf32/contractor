@@ -30,7 +30,7 @@ func TestSharedWorkerProgressProjectsValidatedStateAndRechecksAuthority(t *testi
 		_, _ = w.Write(fixture)
 	}))
 	defer server.Close()
-	registry.allocations["allocation-1"] = storedReservation{reservation: Reservation{ControlURL: server.URL, Grant: AllocationGrant{AllocationID: "allocation-1", RunID: "run", StageExecutionID: "stage", LogicalAgentName: "worker", RuntimeInstanceID: "instance"}}}
+	registry.allocations["allocation-1"] = storedReservation{reservation: Reservation{ControlURL: server.URL, Grant: AllocationGrant{AllocationID: "allocation-1", RunID: "run", StageExecutionID: "stage", LogicalAgentName: "worker", RuntimeInstanceID: "instance", RuntimeAgentID: fixturePrincipal(server.URL)}}}
 	client, _ := NewRuntimeControlClient(server.Client())
 	reader := NewWorkerProgressReader(registry, client)
 	for _, run := range []string{"foreign", "run"} {

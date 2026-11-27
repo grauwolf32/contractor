@@ -880,7 +880,7 @@ func TestSchedulerQueueResidenceDoesNotConsumeExecutionDeadline(t *testing.T) {
 func TestSchedulerPreparationFailureInterruptsWithoutPlanner(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	harness.workers.prepareError = &controlplane.RuntimeAPIError{
-		StatusCode: 503, Code: "worker_prepare_failed", Retryable: true,
+		Code: "worker_prepare_failed", Retryable: true,
 	}
 
 	worked, err := harness.scheduler.RunOnce(context.Background())

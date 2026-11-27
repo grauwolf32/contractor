@@ -292,7 +292,7 @@ func oneStringValue(value any, expected string) bool {
 
 func isExpectedA2AEndpoint(cardURL, registeredURL, allocationID string) bool {
 	expected, err := mtls.GRPCAuthority(registeredURL)
-	return err == nil && runtimePathIDPattern.MatchString(allocationID) && cardURL == expected
+	return err == nil && contracts.ValidateResourceID("allocationId", allocationID) == nil && cardURL == expected
 }
 
 // Python datetime and PostgreSQL both retain microseconds. Normalize private

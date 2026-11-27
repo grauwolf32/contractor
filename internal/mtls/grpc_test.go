@@ -2,6 +2,7 @@ package mtls
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
@@ -9,10 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/mtlstest"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -45,6 +48,9 @@ func nativeChannelFixture(t *testing.T) (*RuntimeChannels, string, string, *atom
 			return nil, err
 		}
 		calls.Add(1)
+		if value.Value == "oversized-metadata" {
+			_ = grpc.SetHeader(ctx, metadata.Pairs("oversized", strings.Repeat("x", privateRPCMetadataBytes)))
+		}
 		if value.Value == "lost-reply" {
 			return nil, status.Error(codes.Unavailable, "reply unavailable")
 		}
@@ -194,5 +200,32 @@ func TestRuntimeChannelsCloseIdleAndEvictLeastRecentlyUsed(t *testing.T) {
 	}
 	if _, exists := owner.entries[principal+"@runtime-0.example:443"]; exists {
 		t.Fatal("oldest idle endpoint retained")
+	}
+}
+
+func TestSharedRuntimeChannelMetadataBound(t *testing.T) {
+	var limits struct {
+		MetadataBytes uint32 `json:"metadataBytes"`
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "grpc-limits.json"), &limits); err != nil {
+		t.Fatal(err)
+	}
+	if limits.MetadataBytes != privateRPCMetadataBytes {
+		t.Fatal("metadata bound differs from wire contract")
+	}
+	owner, origin, principal, calls := nativeChannelFixture(t)
+	channel, release, err := owner.Borrow(t.Context(), origin, principal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	if err := invokeNative(t, channel, "ordinary"); err != nil {
+		t.Fatal(err)
+	}
+	if err := invokeNative(t, channel, "oversized-metadata"); err == nil {
+		t.Fatal("unbounded response metadata accepted")
+	}
+	if calls.Load() != 2 {
+		t.Fatal("metadata failure replayed mutation")
 	}
 }

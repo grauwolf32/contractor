@@ -1,6 +1,7 @@
 {
   "controlMessageBytes": 1048576,
   "a2aMessageBytes": 4194304,
+  "stateMessageBytes": 4195328,
   "metadataBytes": 16384,
   "concurrentRPCs": 32
 }

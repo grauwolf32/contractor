@@ -1,4 +1,4 @@
-"""Private mTLS ASGI server and allocation lifecycle routes."""
+"""Verified private TLS listener for native RPCs and operational HTTP probes."""
 
 from __future__ import annotations
 
@@ -20,26 +20,28 @@ import grpc
 import uvicorn
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from contractor_runtime._grpc_tls import TLSForwarder
 from contractor_runtime._https import PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS
 from contractor_runtime.a2a_server import MAX_A2A_REQUEST_BYTES, register_a2a_gateway
-from contractor_runtime.allocation import AllocationError, AllocationService
+from contractor_runtime.allocation import AllocationService
 from contractor_runtime.contracts.grpc_wire import runtime_pb2_grpc
-from contractor_runtime.contracts.grpc_wire.limits import MAX_CONCURRENT_RPCS, MAX_METADATA_BYTES
+from contractor_runtime.contracts.grpc_wire.limits import (
+    MAX_CONCURRENT_RPCS,
+    MAX_METADATA_BYTES,
+    MAX_STATE_MESSAGE_BYTES,
+)
 from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.grpc_server import LifecycleHandler
 from contractor_runtime.settings import Settings
-from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.state import ProcessState, RuntimeState
 
 logger = logging.getLogger(__name__)
 
 VERIFIED_PEER_EXTENSION = "contractor.mtls.peer_certificate"
-MAX_LIFECYCLE_REQUEST_BYTES = 1 << 20
 REQUEST_ID_HEADER = b"x-request-id"
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
@@ -144,93 +146,10 @@ def create_app(
             status_code=200 if ready else 503,
         )
 
-    async def agent_state(request: Request) -> Response:
-        await runtime_state.record_route_dispatch()
-        if request.method != "GET":
-            return Response(status_code=405, headers={"Allow": "GET"})
-        if _agent_state_request_has_body(request):
-            return JSONResponse(
-                {
-                    "code": "invalid_request",
-                    "message": "Agent State request must not contain a body",
-                    "retryable": False,
-                    "requestId": request.state.request_id,
-                },
-                status_code=422,
-                headers={"Cache-Control": "no-store"},
-            )
-        if allocation_service is None:
-            return await lifecycle_unavailable_without_dispatch(request)
-        try:
-            conditional_values = request.headers.getlist("if-none-match")
-            conditional = conditional_values[0] if len(conditional_values) == 1 else None
-            snapshot = await allocation_service.agent_state_snapshot(
-                request.path_params["allocation_id"], if_none_match=conditional
-            )
-            if snapshot is None:
-                return Response(
-                    status_code=304,
-                    headers={"Cache-Control": "private, no-cache", "ETag": conditional},
-                )
-            encoded_text = await asyncio.to_thread(
-                snapshot.model_dump_json,
-                by_alias=True,
-            )
-            encoded = encoded_text.encode("utf-8")
-            if len(encoded) > get_shared_config().worker_state_max_bytes:
-                raise AllocationError(
-                    "agent_state_unavailable",
-                    "allocation Worker State is unavailable",
-                    retryable=False,
-                    status_code=503,
-                )
-            etag = f'"contractor-agent-state-v1-{snapshot.state.state_revision}"'
-            headers = {
-                "Cache-Control": "private, no-cache",
-                "ETag": etag,
-            }
-            if request.headers.getlist("if-none-match") == [etag]:
-                return Response(status_code=304, headers=headers)
-            return Response(content=encoded, media_type="application/json", headers=headers)
-        except AllocationError as error:
-            return JSONResponse(
-                {**error.payload(), "requestId": request.state.request_id},
-                status_code=error.status_code,
-                headers={"Cache-Control": "no-store"},
-            )
-        except Exception as error:
-            request.state.error_type = type(error).__name__
-            return JSONResponse(
-                {
-                    "code": "internal_error",
-                    "message": "Agent State snapshot could not be processed",
-                    "retryable": True,
-                    "requestId": request.state.request_id,
-                },
-                status_code=500,
-                headers={"Cache-Control": "no-store"},
-            )
-
-    async def lifecycle_unavailable_without_dispatch(request: Request) -> JSONResponse:
-        return JSONResponse(
-            {
-                "code": "allocation_service_unavailable",
-                "message": "allocation lifecycle service is not configured",
-                "retryable": True,
-                "requestId": request.state.request_id,
-            },
-            status_code=503,
-        )
-
     application: ASGIApp = Starlette(
         routes=[
             Route("/healthz", health, methods=["GET"]),
             Route("/readyz", readiness, methods=["GET"]),
-            Route(
-                "/private/v1/allocations/{allocation_id}/agent-state",
-                agent_state,
-                methods=["GET"],
-            ),
         ]
     )
     if require_verified_peer:
@@ -250,20 +169,6 @@ def _request_id(scope: Scope) -> str:
     if len(values) == 1 and REQUEST_ID_PATTERN.fullmatch(values[0]) is not None:
         return values[0]
     return f"request_{uuid.uuid4().hex}"
-
-
-def _agent_state_request_has_body(request: Request) -> bool:
-    if request.headers.getlist("transfer-encoding"):
-        return True
-    lengths = request.headers.getlist("content-length")
-    if not lengths:
-        return False
-    if len(lengths) != 1:
-        return True
-    try:
-        return int(lengths[0]) != 0
-    except ValueError:
-        return True
 
 
 @dataclass(frozen=True)
@@ -338,7 +243,7 @@ class RuntimeServer:
                 maximum_concurrent_rpcs=MAX_CONCURRENT_RPCS,
                 options=(
                     ("grpc.max_receive_message_length", MAX_A2A_REQUEST_BYTES),
-                    ("grpc.max_send_message_length", MAX_A2A_REQUEST_BYTES),
+                    ("grpc.max_send_message_length", MAX_STATE_MESSAGE_BYTES),
                     ("grpc.max_metadata_size", MAX_METADATA_BYTES),
                     ("grpc.max_concurrent_streams", MAX_CONCURRENT_RPCS),
                     ("grpc.max_connection_idle_ms", 60_000),

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ import (
 	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/mtls"
+	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -190,11 +192,72 @@ func TestPrivateGRPCAdmissionRejectsBeforeReadingRequest(t *testing.T) {
 	if response.Code != http.StatusOK || response.Header().Get("Grpc-Status") != "8" {
 		t.Fatalf("admission response: %d %s", response.Code, response.Header().Get("Grpc-Status"))
 	}
+	encoded, err := base64.RawStdEncoding.DecodeString(response.Header().Get("Grpc-Status-Details-Bin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wireStatus statuspb.Status
+	if err := proto.Unmarshal(encoded, &wireStatus); err != nil {
+		t.Fatal(err)
+	}
+	details := status.FromProto(&wireStatus).Details()
+	if wireStatus.Code != int32(codes.ResourceExhausted) || len(details) != 1 {
+		t.Fatalf("admission details: %v", &wireStatus)
+	}
+	detail, ok := details[0].(*pb.ErrorDetail)
+	if !ok || detail.GetCode() != "control_rpc_capacity" || !detail.GetRetryable() || detail.GetRequestId() == "" {
+		t.Fatalf("admission retry verdict: %v", details)
+	}
 	<-permits
 	called := false
 	h.next = http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true })
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/", nil))
 	if !called || len(permits) != 31 {
 		t.Fatal("permit was not released")
+	}
+}
+
+func TestHeartbeatRPCPreservesPrincipalAndSequenceAuthority(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	handler := &controlRPCServer{registry: registry, principals: testPrincipalRegistrar{}}
+	ctx := registrationPeerContext()
+	if _, err := handler.Register(ctx, registrationRPCFixture()); err != nil {
+		t.Fatal(err)
+	}
+	request := &pb.AgentHeartbeat{ApiVersion: proto.String(contracts.APIVersion), InstanceId: proto.String("agent-grpc"), HeartbeatSeq: proto.Uint64(1), EchoedAckSeq: proto.Uint64(0), ObservedState: proto.String("idle"), Allocations: &pb.ListOfObservedAllocation{}}
+	if _, err := handler.Heartbeat(context.Background(), request); status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("unverified heartbeat: %v", err)
+	}
+	for _, mutate := range []func(*pb.AgentHeartbeat){
+		func(v *pb.AgentHeartbeat) { v.HeartbeatSeq = nil },
+		func(v *pb.AgentHeartbeat) { v.EchoedAckSeq = nil },
+		func(v *pb.AgentHeartbeat) { v.Allocations = nil },
+		func(v *pb.AgentHeartbeat) { v.ProtoReflect().SetUnknown([]byte{0xf8, 0x07, 1}) },
+	} {
+		invalid := proto.Clone(request).(*pb.AgentHeartbeat)
+		mutate(invalid)
+		if _, err := handler.Heartbeat(ctx, invalid); status.Code(err) != codes.InvalidArgument {
+			t.Fatalf("malformed heartbeat: %v", err)
+		}
+	}
+	response, err := handler.Heartbeat(ctx, request)
+	if err != nil || response.GetAckSeq() != 1 || response.GetAction() != "continue" {
+		t.Fatalf("heartbeat: %v, %v", response, err)
+	}
+	// Exact re-delivery uses the original sequence, without a new lease authority.
+	replay, err := handler.Heartbeat(ctx, request)
+	if err != nil || !proto.Equal(response, replay) {
+		t.Fatalf("heartbeat replay: %v, %v", replay, err)
+	}
+	foreign := &x509.Certificate{RawSubjectPublicKeyInfo: []byte("foreign-runtime-key")}
+	foreignCtx := peer.NewContext(context.Background(), &peer.Peer{AuthInfo: credentials.TLSInfo{State: tls.ConnectionState{PeerCertificates: []*x509.Certificate{foreign}, VerifiedChains: [][]*x509.Certificate{{foreign}}}}})
+	response, err = handler.Heartbeat(foreignCtx, request)
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("foreign heartbeat: %v, %v", response, err)
+	}
+	request.InstanceId = proto.String("stale-instance")
+	response, err = handler.Heartbeat(ctx, request)
+	if err != nil || response.GetAction() != "reregister" {
+		t.Fatalf("stale heartbeat: %v, %v", response, err)
 	}
 }

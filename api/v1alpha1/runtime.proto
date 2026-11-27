@@ -9,8 +9,59 @@ import "google/protobuf/struct.proto";
 // Contractor control RPCs. Worker/Planner invocation uses the official
 // lf.a2a.v1.A2AService, not another Contractor invocation protocol.
 service ControlPlane {
+  rpc Bootstrap(BootstrapRequest) returns (SharedConfig);
   rpc Register(AgentRegistration) returns (AgentRegistrationResponse);
+  rpc Heartbeat(AgentHeartbeat) returns (HeartbeatResponse);
 }
+
+message BootstrapRequest {}
+message SharedConfig {
+  optional string api_version = 1;
+  optional int64 version = 2;
+  SharedLimits limits = 3;
+  optional string digest = 4;
+}
+message SharedLimits {
+  optional int64 git_import_url_max_bytes = 1;
+  optional int64 run_metadata_max_labels = 2;
+  optional int64 run_metadata_key_max_bytes = 3;
+  optional int64 run_metadata_value_max_bytes = 4;
+  optional int64 audit_max_labels = 5;
+  optional int64 http_request_body_max_bytes = 6;
+  optional int64 http_response_body_max_bytes = 7;
+  optional int64 http_header_block_max_bytes = 8;
+  optional int64 worker_result_max_bytes = 9;
+  optional int64 worker_completion_max_bytes = 10;
+  optional int64 worker_failure_message_max_bytes = 11;
+  optional int64 worker_result_max_artifacts = 12;
+  optional int64 worker_observation_max_tools = 13;
+  optional int64 worker_workspace_max_files_read = 14;
+  optional int64 worker_state_max_bytes = 15;
+  optional int64 worker_state_workspace_max_paths = 16;
+  optional int64 worker_state_workspace_paths_max_bytes = 17;
+  optional int64 artifact_payload_max_bytes = 18;
+  optional int64 public_page_max_items = 19;
+  optional int64 artifact_list_max_items = 20;
+}
+message AgentHeartbeat {
+  optional string api_version = 1;
+  optional string instance_id = 2;
+  optional uint64 heartbeat_seq = 3;
+  optional uint64 echoed_ack_seq = 4;
+  optional string observed_state = 5;
+  ListOfObservedAllocation allocations = 6;
+}
+message HeartbeatResponse {
+  optional string api_version = 1;
+  optional uint64 ack_seq = 2;
+  optional string action = 3;
+  ListOfAllocationAction allocation_actions = 4;
+}
+message AllocationAction {
+  optional string allocation_id = 1;
+  optional string action = 2;
+}
+message ListOfAllocationAction { repeated AllocationAction values = 1; }
 
 // Scalar presence and presence-bearing collections are intentional: domain
 // validation must distinguish omission from explicit zero/false/empty values.
@@ -100,7 +151,21 @@ service RuntimeLifecycle {
   rpc Finalize(FinalizeAllocationRequest) returns (AllocationFinalResponse);
   rpc Abort(AbortAllocationRequest) returns (AllocationFinalResponse);
   rpc Release(ReleaseAllocationRequest) returns (ReleaseAllocationResponse);
+  rpc ReadState(StateReadRequest) returns (StateReadResponse);
 }
+message StateReadRequest {
+  optional string allocation_id = 1;
+  optional uint64 if_revision = 2;
+}
+message StateReadResponse {
+  optional uint64 revision = 1;
+  oneof result {
+    AgentStateDocument snapshot = 2;
+    StateNotModified not_modified = 3;
+  }
+}
+message StateNotModified {}
+message AgentStateDocument { optional bytes json = 1; }
 message PrepareAllocationRequest {
   optional string api_version = 1;
   AllocationSpec spec = 2;

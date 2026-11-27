@@ -148,12 +148,6 @@ func configureHTTP(
 		return serverHandlers{}, fmt.Errorf("configure public API: %w", err)
 	}
 
-	controlHandler, err := controlplane.NewHTTPHandler(
-		control.registry, controlplane.HTTPOptions{Logger: logger},
-	)
-	if err != nil {
-		return serverHandlers{}, fmt.Errorf("configure private Control Plane API: %w", err)
-	}
 	artifactHandler, err := privateartifacts.NewHandler(privateartifacts.Dependencies{Transfers: storage,
 		PlannerOperations: workflows.plannerOperations,
 		Registry:          control.registry, Artifacts: catalogs.artifacts, AuditEvidence: audits.service, AuditJudgments: audits.service, Findings: catalogs.findings, ProjectFindings: collectionPublisher, GatewayRecovery: workflows.gatewayRecovery, Logger: logger,
@@ -164,18 +158,11 @@ func configureHTTP(
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure private Artifact API: %w", err)
 	}
-	legacyFamilies := newPrivateHandler(controlHandler, artifactHandler)
 	rpcHandler, err := controlplane.NewGRPCHandler(control.registry, control.principals)
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure private Control Plane gRPC: %w", err)
 	}
-	privateHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
-			rpcHandler.ServeHTTP(w, r)
-			return
-		}
-		legacyFamilies.ServeHTTP(w, r)
-	})
+	privateHandler := newPrivateHandler(rpcHandler, artifactHandler)
 	processHandler, instrumentedPrivate, _ := instrumentPerformance(
 		cfg.PerformanceMetrics, NewReadyHandler(pool.Ping, publicHandler), privateHandler,
 		func() *performance.Collector { return performanceCollector },
@@ -190,4 +177,16 @@ func configureHTTP(
 		runners = append(runners, performanceDiagnostics)
 	}
 	return serverHandlers{public: processHandler, private: instrumentedPrivate, runners: runners}, nil
+}
+
+func newPrivateHandler(rpc, artifacts http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
+			rpc.ServeHTTP(w, r)
+		} else if strings.HasPrefix(r.URL.Path, "/private/v1/allocations/") {
+			artifacts.ServeHTTP(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
 }

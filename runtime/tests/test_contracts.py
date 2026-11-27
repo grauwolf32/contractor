@@ -1218,3 +1218,14 @@ def test_shared_runtime_endpoint_boundaries():
         else:
             with pytest.raises(ValueError):
                 _require_runtime_endpoint("endpoint", case["url"])
+
+
+def test_shared_private_rpc_origins():
+    from contractor_runtime.contracts.base import parse_private_rpc_origin
+
+    cases = json.loads((FIXTURES / "private-rpc-origin-cases.json").read_bytes())
+    for value in cases["valid"]:
+        assert parse_private_rpc_origin("endpoint", value).scheme == "https"
+    for value in cases["invalid"]:
+        with pytest.raises(ValueError):
+            parse_private_rpc_origin("endpoint", value)

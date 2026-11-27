@@ -73,6 +73,11 @@ def _encode(value: Any, message: Message) -> None:
         if field.type == FieldDescriptor.TYPE_MESSAGE:
             _encode(item, getattr(message, field.name))
         else:
+            if (
+                field.type in {FieldDescriptor.TYPE_INT64, FieldDescriptor.TYPE_UINT64}
+                and type(item) is not int
+            ):
+                raise InvalidWireValue
             setattr(message, field.name, item)
 
 

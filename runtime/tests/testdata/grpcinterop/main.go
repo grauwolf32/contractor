@@ -19,6 +19,7 @@ import (
 	sdk "github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
 	a2agrpc "github.com/a2aproject/a2a-go/v2/a2agrpc/v1"
+	"github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -220,26 +221,18 @@ func serveControl(cfg config) error {
 	if err != nil {
 		return err
 	}
-	httpFamilies, err := controlplane.NewHTTPHandler(registry, controlplane.HTTPOptions{})
-	if err != nil {
-		return err
-	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return err
 	}
 	defer listener.Close()
 	server := &http.Server{TLSConfig: tlsConfig, ReadHeaderTimeout: 5 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
-			rpc.ServeHTTP(w, r)
-			return
-		}
-		if cfg.Mode == "control-block-heartbeat" && strings.HasSuffix(r.URL.Path, "/heartbeat") {
+		if cfg.Mode == "control-block-heartbeat" && r.URL.Path == runtimepb.ControlPlane_Heartbeat_FullMethodName {
 			_ = json.NewEncoder(os.Stdout).Encode(map[string]bool{"heartbeat": true})
 			<-r.Context().Done()
 			return
 		}
-		httpFamilies.ServeHTTP(w, r)
+		rpc.ServeHTTP(w, r)
 	})}
 	if err := http2.ConfigureServer(server, &http2.Server{MaxConcurrentStreams: 32}); err != nil {
 		return err

@@ -14,8 +14,8 @@ import socket
 import ssl
 from collections.abc import Mapping
 from pathlib import Path
-from urllib.parse import urlsplit
 
+from contractor_runtime.contracts.base import parse_private_rpc_origin
 from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.mtls import verify_control_plane_peer
 from contractor_runtime.threads import consume_task_exception
@@ -77,17 +77,7 @@ class TLSForwarder:
         if self._closed or self._server is not None:
             raise RuntimeError("invalid TLS connector lifecycle")
         _private_directory(path.parent)
-        target = urlsplit(origin)
-        if (
-            target.scheme != "https"
-            or not target.hostname
-            or target.username is not None
-            or target.password is not None
-            or target.path not in {"", "/"}
-            or target.query
-            or target.fragment
-        ):
-            raise ValueError("gRPC requires an HTTPS origin without a path or credentials")
+        target = parse_private_rpc_origin("Control Plane endpoint", origin)
         port = target.port or 443
         context.set_alpn_protocols(["h2"])
 

@@ -6,9 +6,10 @@ from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
-import httpx
+import grpc
 import pytest
 from fakes.allocation import allocation_context
+from fakes.state_rpc import state_client
 from test_allocation import NOW, make_service, make_spec
 
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -17,10 +18,8 @@ from contractor_runtime.contracts import (
     AgentStateSnapshot,
     FinalizeAllocationRequest,
 )
-from contractor_runtime.server import create_app
 from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
 
-STATE_PATH = "/private/v1/allocations/allocation-1/agent-state"
 SECRET = "recognizable-agent-state-secret"
 
 
@@ -53,42 +52,26 @@ def test_agent_state_endpoint_returns_exact_snapshot_and_etag(
             metrics=invocation.snapshot(),
         )
 
-        app = create_app(state, allocation_service=service, require_verified_peer=False)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app),
-            base_url="https://runtime.example",
-        ) as client:
-            first = await client.get(
-                STATE_PATH,
-                headers={"X-Request-ID": "state-read-1"},
-            )
-            assert first.status_code == 200
-            assert first.headers["cache-control"] == "private, no-cache"
-            assert first.headers["etag"] == (
-                f'"contractor-agent-state-v1-{completed["stateRevision"]}"'
-            )
-            assert first.headers["x-request-id"] == "state-read-1"
-            snapshot = AgentStateSnapshot.model_validate_json(first.content)
+        async with state_client(state, service) as client:
+            first = await client.read(request_id="state-read-1")
+            assert first.status == grpc.StatusCode.OK
+
+            assert first.revision == (completed["stateRevision"])
+            assert first.request_id == "state-read-1"
+            snapshot = AgentStateSnapshot.model_validate_json(first.document)
             assert snapshot.state.state_revision == completed["stateRevision"]
             assert snapshot.state.last_completed_invocation is not None
             assert snapshot.state.last_completed_invocation.subtask_id == "1"
-            assert "allocation-1" not in first.text
-            assert SECRET not in first.text
+            assert "allocation-1" not in first.document.decode()
+            assert SECRET not in first.document.decode()
 
-            unchanged = await client.get(
-                STATE_PATH,
-                headers={"If-None-Match": first.headers["etag"]},
-            )
-            assert unchanged.status_code == 304
-            assert unchanged.content == b""
-            assert unchanged.headers["etag"] == first.headers["etag"]
-            assert unchanged.headers["cache-control"] == "private, no-cache"
+            unchanged = await client.read(revision=first.revision)
+            assert unchanged.not_modified
+            assert unchanged.document == b""
+            assert unchanged.revision == first.revision
 
-            nonmatching = await client.get(
-                STATE_PATH,
-                headers={"If-None-Match": '"contractor-agent-state-v1-1"'},
-            )
-            assert nonmatching.status_code == 200
+            nonmatching = await client.read(revision=1)
+            assert nonmatching.status == grpc.StatusCode.OK
 
     asyncio.run(scenario())
 
@@ -101,22 +84,10 @@ def test_agent_state_endpoint_is_read_only_and_lifecycle_bound(
         state, service = await make_service(tmp_path, runtime_capabilities)
         spec = make_spec()
         await service.prepare(spec)
-        app = create_app(state, allocation_service=service, require_verified_peer=False)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app),
-            base_url="https://runtime.example",
-        ) as client:
-            wrong = await client.get("/private/v1/allocations/another-allocation/agent-state")
-            assert wrong.status_code == 404
-            assert wrong.json()["code"] == "allocation_not_found"
-
-            with_body = await client.request("GET", STATE_PATH, content=b"{}")
-            assert with_body.status_code == 422
-            assert with_body.json()["code"] == "invalid_request"
-
-            for method in ("HEAD", "POST", "PUT", "PATCH", "DELETE"):
-                rejected = await client.request(method, STATE_PATH, content=b"{}")
-                assert rejected.status_code == 405, (method, rejected.text)
+        async with state_client(state, service) as client:
+            wrong = await client.read("another-allocation")
+            assert wrong.status == grpc.StatusCode.NOT_FOUND
+            assert wrong.error.code == "allocation_not_found"
 
             await service.finalize(
                 FinalizeAllocationRequest(
@@ -126,11 +97,10 @@ def test_agent_state_endpoint_is_read_only_and_lifecycle_bound(
                     deadline=NOW + timedelta(seconds=30),
                 )
             )
-            stopped = await client.get(STATE_PATH)
-            assert stopped.status_code == 409
-            assert stopped.json()["code"] == "agent_state_unavailable"
-            assert stopped.json()["retryable"] is True
-            assert stopped.headers["cache-control"] == "no-store"
+            stopped = await client.read()
+            assert stopped.status == grpc.StatusCode.FAILED_PRECONDITION
+            assert stopped.error.code == "agent_state_unavailable"
+            assert stopped.error.retryable is True
 
     asyncio.run(scenario())
 
@@ -147,7 +117,7 @@ def test_agent_state_endpoint_classifies_snapshot_failures(
         elif failure == "oversized":
             # Exercise the wire-size guard after the model has validated the snapshot.
             monkeypatch.setattr(
-                "contractor_runtime.server.get_shared_config",
+                "contractor_runtime.grpc_server.get_shared_config",
                 lambda: SimpleNamespace(worker_state_max_bytes=1),
             )
         else:
@@ -158,17 +128,14 @@ def test_agent_state_endpoint_classifies_snapshot_failures(
             monkeypatch.setattr(
                 allocation_context(service).worker, "agent_state_snapshot", unavailable
             )
-        app = create_app(state, allocation_service=service, require_verified_peer=False)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
-        ) as client:
+        async with state_client(state, service) as client:
             for _ in range(2):
-                response = await client.get(STATE_PATH)
-                assert response.status_code == 503
-                assert response.json()["code"] == "agent_state_unavailable"
-                assert response.json()["retryable"] is (failure == "infrastructure")
-                assert response.headers["cache-control"] == "no-store"
-                assert SECRET not in response.text
+                response = await client.read()
+                assert response.status == grpc.StatusCode.UNAVAILABLE
+                assert response.error.code == "agent_state_unavailable"
+                assert response.error.retryable is (failure == "infrastructure")
+
+                assert SECRET not in str(response.error) + response.document.decode()
 
     asyncio.run(scenario())
 
@@ -191,7 +158,6 @@ def test_agent_state_snapshot_races_remain_revision_consistent_and_nonblocking(
             subtask_id="2",
             metrics=metrics.snapshot(),
         )
-        app = create_app(state, allocation_service=service, require_verified_peer=False)
         heartbeat = 0
         stop_heartbeat = asyncio.Event()
 
@@ -210,20 +176,17 @@ def test_agent_state_snapshot_races_remain_revision_consistent_and_nonblocking(
                 heartbeat += 1
                 await asyncio.sleep(0)
 
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app),
-            base_url="https://runtime.example",
-        ) as client:
+        async with state_client(state, service) as client:
             ticker = asyncio.create_task(tick())
 
             async def read_many() -> list[int]:
                 revisions: list[int] = []
                 for _ in range(40):
-                    response = await client.get(STATE_PATH)
-                    assert response.status_code == 200
-                    snapshot = AgentStateSnapshot.model_validate_json(response.content)
+                    response = await client.read()
+                    assert response.status == grpc.StatusCode.OK
+                    snapshot = AgentStateSnapshot.model_validate_json(response.document)
                     revisions.append(snapshot.state.state_revision)
-                    assert len(response.content) <= 4 * 1024 * 1024
+                    assert len(response.document) <= 4 * 1024 * 1024
                 return revisions
 
             observed = await asyncio.gather(publish(), read_many(), read_many(), read_many())
@@ -251,13 +214,10 @@ def test_large_unchanged_state_revalidation_runs_no_full_snapshot_work(
                 "read_file", arguments={"index": index, "safe": "x" * 3500}, duration_ms=index
             )
         await store.sync_metrics()
-        app = create_app(state, allocation_service=service, require_verified_peer=False)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
-        ) as client:
-            first = await client.get(STATE_PATH)
-            assert first.status_code == 200
-            assert len(first.content) > 3_000_000
+        async with state_client(state, service) as client:
+            first = await client.read()
+            assert first.status == grpc.StatusCode.OK
+            assert len(first.document) > 3_000_000
 
             def unexpected(*args, **kwargs):
                 raise RuntimeError("unchanged revision repeated full snapshot work")
@@ -268,18 +228,15 @@ def test_large_unchanged_state_revalidation_runs_no_full_snapshot_work(
                 patch.setattr("contractor_runtime.worker.state._agent_state_snapshot", unexpected)
                 patch.setattr(AgentStateSnapshot, "model_dump_json", unexpected)
                 for _ in range(3):
-                    response = await client.get(
-                        STATE_PATH, headers={"If-None-Match": first.headers["etag"]}
-                    )
-                    assert response.status_code == 304
-                    assert response.content == b""
-                    assert response.headers["etag"] == first.headers["etag"]
-                    assert response.headers["cache-control"] == "private, no-cache"
+                    response = await client.read(revision=first.revision)
+                    assert response.not_modified
+                    assert response.document == b""
+                    assert response.revision == first.revision
 
             await store.sync_metrics()
-            changed = await client.get(STATE_PATH, headers={"If-None-Match": first.headers["etag"]})
-            assert changed.status_code == 200
-            assert changed.headers["etag"] != first.headers["etag"]
+            changed = await client.read(revision=first.revision)
+            assert changed.status == grpc.StatusCode.OK
+            assert changed.revision != first.revision
 
     asyncio.run(scenario())
 
@@ -302,16 +259,13 @@ def test_fresh_and_changed_conditional_revisions_must_pass_validation(
         state, service = await make_service(tmp_path, runtime_capabilities)
         await service.prepare(make_spec())
         store = allocation_context(service).worker_state
-        app = create_app(state, allocation_service=service, require_verified_peer=False)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
-        ) as client:
-            guessed = '"contractor-agent-state-v1-1"'
-            first = await client.get(STATE_PATH, headers={"If-None-Match": guessed})
-            assert first.status_code == 304
+        async with state_client(state, service) as client:
+            guessed = 1
+            first = await client.read(revision=guessed)
+            assert first.not_modified
             assert validations == [1]
-            repeated = await client.get(STATE_PATH, headers={"If-None-Match": guessed})
-            assert repeated.status_code == 304
+            repeated = await client.read(revision=guessed)
+            assert repeated.not_modified
             assert validations == [1]
 
             changed = await store.sync_metrics()
@@ -319,11 +273,9 @@ def test_fresh_and_changed_conditional_revisions_must_pass_validation(
             # Fault injection into a new revision must never be hidden by the
             # preceding revision's successful validation, even with a guessed ETag.
             store._state["currentInvocation"] = {"unknown": True}
-            invalid = await client.get(
-                STATE_PATH, headers={"If-None-Match": f'"contractor-agent-state-v1-{revision}"'}
-            )
-            assert invalid.status_code == 503
-            assert invalid.json()["retryable"] is False
+            invalid = await client.read(revision=revision)
+            assert invalid.status == grpc.StatusCode.UNAVAILABLE
+            assert invalid.error.retryable is False
             assert validations == [1, revision]
             assert await store.validated_state_revision() is None
 
@@ -339,12 +291,9 @@ def test_conditional_state_reuse_is_bound_to_the_live_allocation(
     async def scenario():
         state, service = await make_service(tmp_path, runtime_capabilities)
         await service.prepare(make_spec())
-        app = create_app(state, allocation_service=service, require_verified_peer=False)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
-        ) as client:
-            first = await client.get(STATE_PATH)
-            assert first.status_code == 200
+        async with state_client(state, service) as client:
+            first = await client.read()
+            assert first.status == grpc.StatusCode.OK
             if terminal == "draining":
                 await state.begin_draining("allocation-1")
             else:
@@ -370,39 +319,16 @@ def test_conditional_state_reuse_is_bound_to_the_live_allocation(
                 return original(snapshot)
 
             monkeypatch.setattr(state_module, "_agent_state_snapshot", counted)
-            response = await client.get(
-                STATE_PATH, headers={"If-None-Match": first.headers["etag"]}
-            )
+            response = await client.read(revision=first.revision)
             if terminal == "replaced":
-                assert response.status_code == 304
+                assert response.not_modified
                 assert calls == [1]  # Same revision number, a different owner: validate again.
             else:
-                assert response.status_code == (404 if terminal == "released" else 409)
+                assert response.status == (
+                    grpc.StatusCode.NOT_FOUND
+                    if terminal == "released"
+                    else grpc.StatusCode.FAILED_PRECONDITION
+                )
                 assert calls == []
-
-    asyncio.run(scenario())
-
-
-@pytest.mark.parametrize("kind", ["duplicate", "weak", "wildcard"])
-def test_early_revalidation_preserves_exact_single_etag_matching(
-    tmp_path, runtime_capabilities, kind
-):
-    async def scenario():
-        state, service = await make_service(tmp_path, runtime_capabilities)
-        await service.prepare(make_spec())
-        app = create_app(state, allocation_service=service, require_verified_peer=False)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
-        ) as client:
-            first = await client.get(STATE_PATH)
-            tag = first.headers["etag"]
-            values = {
-                "duplicate": [("If-None-Match", tag), ("If-None-Match", tag)],
-                "weak": [("If-None-Match", f"W/{tag}")],
-                "wildcard": [("If-None-Match", "*")],
-            }
-            response = await client.get(STATE_PATH, headers=values[kind])
-            assert response.status_code == 200
-            assert response.content == first.content
 
     asyncio.run(scenario())

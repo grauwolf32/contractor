@@ -19,7 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ControlPlane_Register_FullMethodName = "/contractor.runtime.v1alpha1.ControlPlane/Register"
+	ControlPlane_Bootstrap_FullMethodName = "/contractor.runtime.v1alpha1.ControlPlane/Bootstrap"
+	ControlPlane_Register_FullMethodName  = "/contractor.runtime.v1alpha1.ControlPlane/Register"
+	ControlPlane_Heartbeat_FullMethodName = "/contractor.runtime.v1alpha1.ControlPlane/Heartbeat"
 )
 
 // ControlPlaneClient is the client API for ControlPlane service.
@@ -29,7 +31,9 @@ const (
 // Contractor control RPCs. Worker/Planner invocation uses the official
 // lf.a2a.v1.A2AService, not another Contractor invocation protocol.
 type ControlPlaneClient interface {
+	Bootstrap(ctx context.Context, in *BootstrapRequest, opts ...grpc.CallOption) (*SharedConfig, error)
 	Register(ctx context.Context, in *AgentRegistration, opts ...grpc.CallOption) (*AgentRegistrationResponse, error)
+	Heartbeat(ctx context.Context, in *AgentHeartbeat, opts ...grpc.CallOption) (*HeartbeatResponse, error)
 }
 
 type controlPlaneClient struct {
@@ -40,10 +44,30 @@ func NewControlPlaneClient(cc grpc.ClientConnInterface) ControlPlaneClient {
 	return &controlPlaneClient{cc}
 }
 
+func (c *controlPlaneClient) Bootstrap(ctx context.Context, in *BootstrapRequest, opts ...grpc.CallOption) (*SharedConfig, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SharedConfig)
+	err := c.cc.Invoke(ctx, ControlPlane_Bootstrap_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *controlPlaneClient) Register(ctx context.Context, in *AgentRegistration, opts ...grpc.CallOption) (*AgentRegistrationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AgentRegistrationResponse)
 	err := c.cc.Invoke(ctx, ControlPlane_Register_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneClient) Heartbeat(ctx context.Context, in *AgentHeartbeat, opts ...grpc.CallOption) (*HeartbeatResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HeartbeatResponse)
+	err := c.cc.Invoke(ctx, ControlPlane_Heartbeat_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +81,9 @@ func (c *controlPlaneClient) Register(ctx context.Context, in *AgentRegistration
 // Contractor control RPCs. Worker/Planner invocation uses the official
 // lf.a2a.v1.A2AService, not another Contractor invocation protocol.
 type ControlPlaneServer interface {
+	Bootstrap(context.Context, *BootstrapRequest) (*SharedConfig, error)
 	Register(context.Context, *AgentRegistration) (*AgentRegistrationResponse, error)
+	Heartbeat(context.Context, *AgentHeartbeat) (*HeartbeatResponse, error)
 	mustEmbedUnimplementedControlPlaneServer()
 }
 
@@ -68,8 +94,14 @@ type ControlPlaneServer interface {
 // pointer dereference when methods are called.
 type UnimplementedControlPlaneServer struct{}
 
+func (UnimplementedControlPlaneServer) Bootstrap(context.Context, *BootstrapRequest) (*SharedConfig, error) {
+	return nil, status.Error(codes.Unimplemented, "method Bootstrap not implemented")
+}
 func (UnimplementedControlPlaneServer) Register(context.Context, *AgentRegistration) (*AgentRegistrationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Register not implemented")
+}
+func (UnimplementedControlPlaneServer) Heartbeat(context.Context, *AgentHeartbeat) (*HeartbeatResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Heartbeat not implemented")
 }
 func (UnimplementedControlPlaneServer) mustEmbedUnimplementedControlPlaneServer() {}
 func (UnimplementedControlPlaneServer) testEmbeddedByValue()                      {}
@@ -92,6 +124,24 @@ func RegisterControlPlaneServer(s grpc.ServiceRegistrar, srv ControlPlaneServer)
 	s.RegisterService(&ControlPlane_ServiceDesc, srv)
 }
 
+func _ControlPlane_Bootstrap_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BootstrapRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServer).Bootstrap(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlane_Bootstrap_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServer).Bootstrap(ctx, req.(*BootstrapRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ControlPlane_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AgentRegistration)
 	if err := dec(in); err != nil {
@@ -110,6 +160,24 @@ func _ControlPlane_Register_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ControlPlane_Heartbeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AgentHeartbeat)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServer).Heartbeat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlane_Heartbeat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServer).Heartbeat(ctx, req.(*AgentHeartbeat))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ControlPlane_ServiceDesc is the grpc.ServiceDesc for ControlPlane service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -118,8 +186,16 @@ var ControlPlane_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*ControlPlaneServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "Bootstrap",
+			Handler:    _ControlPlane_Bootstrap_Handler,
+		},
+		{
 			MethodName: "Register",
 			Handler:    _ControlPlane_Register_Handler,
+		},
+		{
+			MethodName: "Heartbeat",
+			Handler:    _ControlPlane_Heartbeat_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -127,10 +203,11 @@ var ControlPlane_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	RuntimeLifecycle_Prepare_FullMethodName  = "/contractor.runtime.v1alpha1.RuntimeLifecycle/Prepare"
-	RuntimeLifecycle_Finalize_FullMethodName = "/contractor.runtime.v1alpha1.RuntimeLifecycle/Finalize"
-	RuntimeLifecycle_Abort_FullMethodName    = "/contractor.runtime.v1alpha1.RuntimeLifecycle/Abort"
-	RuntimeLifecycle_Release_FullMethodName  = "/contractor.runtime.v1alpha1.RuntimeLifecycle/Release"
+	RuntimeLifecycle_Prepare_FullMethodName   = "/contractor.runtime.v1alpha1.RuntimeLifecycle/Prepare"
+	RuntimeLifecycle_Finalize_FullMethodName  = "/contractor.runtime.v1alpha1.RuntimeLifecycle/Finalize"
+	RuntimeLifecycle_Abort_FullMethodName     = "/contractor.runtime.v1alpha1.RuntimeLifecycle/Abort"
+	RuntimeLifecycle_Release_FullMethodName   = "/contractor.runtime.v1alpha1.RuntimeLifecycle/Release"
+	RuntimeLifecycle_ReadState_FullMethodName = "/contractor.runtime.v1alpha1.RuntimeLifecycle/ReadState"
 )
 
 // RuntimeLifecycleClient is the client API for RuntimeLifecycle service.
@@ -141,6 +218,7 @@ type RuntimeLifecycleClient interface {
 	Finalize(ctx context.Context, in *FinalizeAllocationRequest, opts ...grpc.CallOption) (*AllocationFinalResponse, error)
 	Abort(ctx context.Context, in *AbortAllocationRequest, opts ...grpc.CallOption) (*AllocationFinalResponse, error)
 	Release(ctx context.Context, in *ReleaseAllocationRequest, opts ...grpc.CallOption) (*ReleaseAllocationResponse, error)
+	ReadState(ctx context.Context, in *StateReadRequest, opts ...grpc.CallOption) (*StateReadResponse, error)
 }
 
 type runtimeLifecycleClient struct {
@@ -191,6 +269,16 @@ func (c *runtimeLifecycleClient) Release(ctx context.Context, in *ReleaseAllocat
 	return out, nil
 }
 
+func (c *runtimeLifecycleClient) ReadState(ctx context.Context, in *StateReadRequest, opts ...grpc.CallOption) (*StateReadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StateReadResponse)
+	err := c.cc.Invoke(ctx, RuntimeLifecycle_ReadState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RuntimeLifecycleServer is the server API for RuntimeLifecycle service.
 // All implementations must embed UnimplementedRuntimeLifecycleServer
 // for forward compatibility.
@@ -199,6 +287,7 @@ type RuntimeLifecycleServer interface {
 	Finalize(context.Context, *FinalizeAllocationRequest) (*AllocationFinalResponse, error)
 	Abort(context.Context, *AbortAllocationRequest) (*AllocationFinalResponse, error)
 	Release(context.Context, *ReleaseAllocationRequest) (*ReleaseAllocationResponse, error)
+	ReadState(context.Context, *StateReadRequest) (*StateReadResponse, error)
 	mustEmbedUnimplementedRuntimeLifecycleServer()
 }
 
@@ -220,6 +309,9 @@ func (UnimplementedRuntimeLifecycleServer) Abort(context.Context, *AbortAllocati
 }
 func (UnimplementedRuntimeLifecycleServer) Release(context.Context, *ReleaseAllocationRequest) (*ReleaseAllocationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Release not implemented")
+}
+func (UnimplementedRuntimeLifecycleServer) ReadState(context.Context, *StateReadRequest) (*StateReadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReadState not implemented")
 }
 func (UnimplementedRuntimeLifecycleServer) mustEmbedUnimplementedRuntimeLifecycleServer() {}
 func (UnimplementedRuntimeLifecycleServer) testEmbeddedByValue()                          {}
@@ -314,6 +406,24 @@ func _RuntimeLifecycle_Release_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RuntimeLifecycle_ReadState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StateReadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RuntimeLifecycleServer).ReadState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RuntimeLifecycle_ReadState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RuntimeLifecycleServer).ReadState(ctx, req.(*StateReadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RuntimeLifecycle_ServiceDesc is the grpc.ServiceDesc for RuntimeLifecycle service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -336,6 +446,10 @@ var RuntimeLifecycle_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Release",
 			Handler:    _RuntimeLifecycle_Release_Handler,
+		},
+		{
+			MethodName: "ReadState",
+			Handler:    _RuntimeLifecycle_ReadState_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

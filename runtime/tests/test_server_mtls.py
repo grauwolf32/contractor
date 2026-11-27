@@ -59,7 +59,7 @@ def test_ca_valid_non_control_plane_peer_is_rejected_before_dispatch(tmp_path: P
                 port,
                 agent_context,
                 "GET",
-                "/private/v1/allocations/a/agent-state",
+                "/readyz",
                 body=None,
             )
         assert asyncio.run(state.snapshot()).route_dispatches == 0
@@ -71,12 +71,12 @@ def test_ca_valid_non_control_plane_peer_is_rejected_before_dispatch(tmp_path: P
             port,
             control_plane_context,
             "GET",
-            "/private/v1/allocations/a/agent-state",
+            "/readyz",
             body=None,
         )
         assert status == 503
-        assert b"allocation_service_unavailable" in body
-        assert asyncio.run(state.snapshot()).route_dispatches == 1
+        assert b"not_ready" in body
+        assert asyncio.run(state.snapshot()).route_dispatches == 0
     finally:
         server.should_exit = True
         thread.join(timeout=5)

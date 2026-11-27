@@ -10,7 +10,7 @@ import signal
 import time
 from collections.abc import Callable, Sequence
 
-from contractor_runtime._grpc_client import RegistrationRPC
+from contractor_runtime._grpc_client import ControlRPC
 from contractor_runtime._https import PrivateConnections
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.archive_cache import (
@@ -23,8 +23,6 @@ from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.control_client import (
     ControlClient,
     ControlTransport,
-    ControlTransports,
-    MTLSJSONTransport,
     RegistrationRejectedError,
     SharedConfigError,
 )
@@ -154,8 +152,7 @@ async def _bootstrap(
 ) -> None:
     stop = stop_requested or asyncio.Event()
     runtime_state = state or RuntimeState(allocation_slots=settings.allocation_slots)
-    connections = None
-    registration_rpc = None
+    control_rpc = None
     loop = asyncio.get_running_loop()
     handled_signals = (signal.SIGINT, signal.SIGTERM)
     if install_signal_handlers:
@@ -163,15 +160,7 @@ async def _bootstrap(
             loop.add_signal_handler(handled_signal, stop.set)
     try:
         if transport is None:
-            outgoing_tls = runtime_agent_client_context(
-                ca_file=settings.ca_file,
-                certificate_file=settings.certificate_file,
-                private_key_file=settings.private_key_file,
-            )
-            connections = PrivateConnections(outgoing_tls, verify_control_plane_peer)
-            # ALPN belongs to a protocol's context: sharing the gRPC context
-            # would make the remaining HTTP/1.1 bootstrap/heartbeat calls offer h2.
-            registration_rpc = RegistrationRPC(
+            control_rpc = ControlRPC(
                 settings.control_plane_url,
                 runtime_agent_client_context(
                     ca_file=settings.ca_file,
@@ -180,12 +169,7 @@ async def _bootstrap(
                 ),
                 settings.request_timeout_seconds,
             )
-            transport = ControlTransports(
-                MTLSJSONTransport(
-                    settings.control_plane_url, connections, settings.request_timeout_seconds
-                ),
-                registration_rpc,
-            )
+            transport = control_rpc
         control = ControlClient(settings, runtime_state, transport)
         if not await control.configure_until_stopped(stop) or stop.is_set():
             return
@@ -202,12 +186,8 @@ async def _bootstrap(
         if install_signal_handlers:
             for handled_signal in handled_signals:
                 loop.remove_signal_handler(handled_signal)
-        try:
-            if registration_rpc is not None:
-                await registration_rpc.aclose()
-        finally:
-            if connections is not None:
-                await connections.aclose()
+        if control_rpc is not None:
+            await control_rpc.aclose()
 
 
 async def _serve_configured(

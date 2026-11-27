@@ -76,11 +76,6 @@ func (c *RuntimeControlClient) Abort(
 }
 
 func (c *RuntimeControlClient) Release(ctx context.Context, reservation Reservation) error {
-	if c.transports != nil {
-		// Retire this principal's cached connections at release (CTL-R164).
-		// Other slots' exchanges finish; later calls verify a new connection.
-		defer c.transports.Evict(reservation.Grant.RuntimeAgentID)
-	}
 	request := control.ReleaseAllocationRequest{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 	}

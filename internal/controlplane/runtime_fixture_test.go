@@ -9,8 +9,10 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -37,22 +39,15 @@ func fixturePrincipal(origin string) string {
 	}
 	return strings.Repeat("a", 64)
 }
-func newRuntimeFixture(t *testing.T, documents http.Handler) *httptest.Server {
+func newRuntimeFixture(t *testing.T, documents http.Handler, options ...func(*runtimeFixture)) *httptest.Server {
 	t.Helper()
-	rpc := grpc.NewServer(grpc.MaxSendMsgSize(2 << 20))
+	rpc := grpc.NewServer(grpc.MaxSendMsgSize(runtimewire.MaxStateMessageBytes + (1 << 20)))
 	fixture := &runtimeFixture{documents: documents}
+	for _, option := range options {
+		option(fixture)
+	}
 	pb.RegisterRuntimeLifecycleServer(rpc, fixture)
-	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
-			rpc.ServeHTTP(w, r)
-			return
-		}
-		if r.Method == http.MethodGet {
-			documents.ServeHTTP(w, r)
-			return
-		}
-		http.NotFound(w, r)
-	}))
+	server := httptest.NewUnstartedServer(rpc)
 	server.EnableHTTP2 = true
 	server.StartTLS()
 	fixture.origin = server.URL
@@ -75,6 +70,7 @@ type runtimeFixture struct {
 	pb.UnimplementedRuntimeLifecycleServer
 	documents http.Handler
 	origin    string
+	state     func(context.Context, *pb.StateReadRequest) (*pb.StateReadResponse, error)
 }
 
 func (f *runtimeFixture) document(ctx context.Context, op, id string, value contracts.Validatable) ([]byte, error) {
@@ -156,6 +152,29 @@ func (f *runtimeFixture) Release(ctx context.Context, request *pb.ReleaseAllocat
 	}
 	return result, nil
 }
+func (f *runtimeFixture) ReadState(ctx context.Context, request *pb.StateReadRequest) (*pb.StateReadResponse, error) {
+	if f.state != nil {
+		return f.state(ctx, request)
+	}
+	documentRequest := httptest.NewRequest(http.MethodGet, f.origin+"/private/v1/allocations/"+request.GetAllocationId()+"/agent-state", nil).WithContext(ctx)
+	if request.IfRevision != nil {
+		documentRequest.Header.Set("If-None-Match", fmt.Sprintf(`"contractor-agent-state-v1-%d"`, request.GetIfRevision()))
+	}
+	response := httptest.NewRecorder()
+	f.documents.ServeHTTP(response, documentRequest)
+	if response.Code >= 400 {
+		return nil, runtimewire.Error(ctx, codes.NotFound, "allocation_not_found", false)
+	}
+	revision, _ := strconv.ParseUint(strings.TrimSuffix(strings.TrimPrefix(response.Header().Get("ETag"), `"contractor-agent-state-v1-`), `"`), 10, 64)
+	result := &pb.StateReadResponse{Revision: proto.Uint64(revision)}
+	if response.Code == http.StatusNotModified {
+		result.Result = &pb.StateReadResponse_NotModified{NotModified: &pb.StateNotModified{}}
+	} else {
+		result.Result = &pb.StateReadResponse_Snapshot{Snapshot: &pb.AgentStateDocument{Json: response.Body.Bytes()}}
+	}
+	return result, nil
+}
+
 func finalDocument(raw []byte) *pb.AllocationFinalResponse {
 	// Decode only the envelope, retaining received report document bytes so the
 	// production decoder, not this fixture, decides telemetry salvage and bounds.
@@ -181,7 +200,7 @@ func finalDocument(raw []byte) *pb.AllocationFinalResponse {
 	}}
 }
 func fixtureRuntimeClient(client *http.Client) (*RuntimeControlClient, error) {
-	result := &RuntimeControlClient{client: client, timeout: 3 * time.Second}
+	result := &RuntimeControlClient{timeout: 3 * time.Second}
 	if tr, ok := client.Transport.(*http.Transport); ok && tr.TLSClientConfig != nil {
 		channels, err := mtls.NewRuntimeChannels(tr.TLSClientConfig)
 		if err != nil {
@@ -190,6 +209,13 @@ func fixtureRuntimeClient(client *http.Client) (*RuntimeControlClient, error) {
 		result.channels = channels
 		if register, ok := runtimeFixtureCleanup.Load(client); ok {
 			register.(func(func()))(result.Close)
+		}
+	}
+	if result.channels == nil {
+		var err error
+		result.channels, err = mtls.NewRuntimeChannels(&tls.Config{MinVersion: tls.VersionTLS13})
+		if err != nil {
+			return nil, err
 		}
 	}
 	return result, nil

@@ -264,7 +264,18 @@ func startNativeHarness(t *testing.T, mode string, configure ...func(*nativeHarn
 	if mode == "native_failed_prepare_rollback" {
 		// Observe listener readiness without consuming the one failing Prepare.
 		for {
-			response, readyErr := client.doRequest(ctx, http.MethodGet, endpoint+"/healthz", nil, principal, nil)
+			request, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"/healthz", nil)
+			readyTLS, tlsErr := mtls.ControlPlaneEndpointClientConfig(files)
+			if tlsErr != nil {
+				t.Fatal(tlsErr)
+			}
+			readyTLS, tlsErr = mtls.BindRuntimeAgentPrincipal(readyTLS, principal)
+			if tlsErr != nil {
+				t.Fatal(tlsErr)
+			}
+			transport := &http.Transport{TLSClientConfig: readyTLS, DisableKeepAlives: true}
+			response, readyErr := (&http.Client{Transport: transport}).Do(request)
+			transport.CloseIdleConnections()
 			if readyErr == nil {
 				_ = response.Body.Close()
 				if response.StatusCode == http.StatusOK {
@@ -300,7 +311,7 @@ func startNativeHarness(t *testing.T, mode string, configure ...func(*nativeHarn
 		}
 		_, stateErr := client.ReadWorkerState(ctx, failedHandle, "")
 		var stateFailure *reporting.WorkerStateReadError
-		if !errors.As(stateErr, &stateFailure) || stateFailure.StatusCode != http.StatusNotFound || stateFailure.Code != "allocation_not_found" || stateFailure.Retryable {
+		if !errors.As(stateErr, &stateFailure) || stateFailure.Code != "allocation_not_found" || stateFailure.Retryable {
 			t.Fatalf("failed prepare Worker State read = %v", stateErr)
 		}
 		reservation.Grant.AllocationID = "allocation_after_failed_prepare"

@@ -73,8 +73,8 @@ def test_real_cli_startup_registration_sample_artifact_and_release(tmp_path, mon
                 self.ready = asyncio.Event()
                 self.registration = None
 
-            async def post_json(self, path, payload):
-                if path.endswith("/register"):
+            async def exchange(self, path, payload):
+                if path == "register":
                     self.registration = payload
                     assert "podman@1" in payload["supportedSandboxProfiles"]
                     assert {"ref": "code-execution@1", "tools": ["exec_command"]} in payload[

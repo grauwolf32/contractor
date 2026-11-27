@@ -134,3 +134,33 @@ def test_lifecycle_internal_failure_is_correlated_without_secret_logs(caplog):
         asyncio.run(scenario())
     assert "failure-request-1" in caplog.text
     assert injected not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "fault",
+    ["missing-allocation", "empty-allocation", "invalid-allocation", "zero-revision", "unknown"],
+)
+def test_state_rejects_invalid_request_before_snapshot(fault):
+    class Service:
+        async def agent_state_snapshot(self, *args, **kwargs):
+            raise AssertionError("invalid State read dispatched")
+
+    async def scenario():
+        request = pb.StateReadRequest(allocation_id="allocation-1")
+        if fault == "missing-allocation":
+            request.ClearField("allocation_id")
+        elif fault == "empty-allocation":
+            request.allocation_id = ""
+        elif fault == "invalid-allocation":
+            request.allocation_id = "../foreign"
+        elif fault == "zero-revision":
+            request.if_revision = 0
+        else:
+            request.MergeFromString(b"\xf8\x07\x01")
+        async with lifecycle_client(Service()) as (client, _):
+            with pytest.raises(grpc.aio.AioRpcError) as caught:
+                await client.ReadState(request, timeout=3)
+            error = _error(caught.value, "fallback")
+            assert error.code == "invalid_request" and error.permanent
+
+    asyncio.run(scenario())

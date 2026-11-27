@@ -1094,7 +1094,7 @@ observed lower bounds, and no projection may claim exact unread coverage.
 **WRK-R100.** The complete encoded `AgentStateSnapshot` containing
 Contractor State is capped at 4 MiB (LIM-WRK-17). State admission
 reserves the fixed envelope overhead rather than allowing a valid State value
-to become an oversized HTTP response.
+to become an oversized RPC response.
 
 **WRK-R101.** The per-section bounds are maxima, not reservations:
 optional path and detail admission stops earlier and marks the corresponding
@@ -1194,15 +1194,15 @@ Runtime process and is destroyed with the Worker or on release. Durable metrics
 use the bounded final report; durable domain state uses ArtifactStore and
 MemoryTools (LIFE-WRK-3).
 
-### Private agent-state endpoint
+### Private State RPC
 
-The read-only allocation-correlated route is transported by the private control
+The read-only allocation-correlated RPC is transported by the private control
 protocol ([Control Plane](control-plane.md)); it is neither an A2A operation
 nor a public or generic state API. Its schema and lifecycle are defined here.
 
 **WRK-R112.** The Python Runtime Agent exposes
-`GET /private/v1/allocations/{allocation_id}/agent-state`. Its exact successful
-JSON body is `AgentStateSnapshot` ([Interfaces](#interfaces)), and unknown fields
+`RuntimeLifecycle.ReadState`. Its successful snapshot document is
+`AgentStateSnapshot` ([Interfaces](#interfaces)), and unknown fields
 are rejected.
 
 **WRK-R113.** The response deliberately does not repeat
@@ -1210,40 +1210,41 @@ are rejected.
 identity, while `state.state_revision` establishes snapshot identity.
 
 **WRK-R114.** The Worker implementation returns a framework-neutral
-`AgentStateSnapshot`; the HTTP layer never reaches directly into the ADK
+`AgentStateSnapshot`; the RPC layer never reaches directly into the ADK
 Session. The handler itself is owned by [Runtime Agent](runtime-agent.md).
 
 The endpoint:
 
 - **WRK-R115.** accepts only a Control Plane mTLS peer
   ([Control Plane](control-plane.md));
-- **WRK-R116.** has no request body and no model- or user-provided
-  state key;
-- **WRK-R117.** returns the whole exportable Contractor State and the
-  strong ETag `"contractor-agent-state-v1-<stateRevision>"`, derived only from
-  its positive revision; the ETag format is its own independently versioned
+- **WRK-R116.** accepts only the typed allocation ID and optional positive
+  conditional revision, with no model- or user-provided state key;
+- **WRK-R117.** returns the whole exportable Contractor State and its typed
+  positive revision. The Server derives the strong ETag
+  `"contractor-agent-state-v1-<stateRevision>"` only from that revision;
+  the ETag format is its own independently versioned
   `v1` cache contract;
-- **WRK-R118.** honors a matching `If-None-Match` with `304` and no body,
+- **WRK-R118.** honors a matching `ifRevision` with a typed not-modified
+  marker and no snapshot,
   for bounded Server-side caching. An unchanged revision that already passed
   full wire validation may be revalidated without another deep copy, JSON
   encoding or schema validation. The State owner remembers at most one
   validated revision, invalidates it atomically on each committed mutation,
   and never retains a payload cache. A new or not-yet-validated revision must
-  pass the full validation and response-size checks before `200` or `304`.
+  pass the full validation and response-size checks before returning a snapshot or a not-modified marker.
   Conditional reuse still requires the exact allocation's live Worker;
-- **WRK-R119.** sends `Cache-Control: private, no-cache`, so revision
-  revalidation remains usable without accepting an unvalidated cached body,
-  and a body no larger than 4 MiB including the response envelope
-  (LIM-WRK-17);
+- **WRK-R119.** requires revision revalidation before reuse of a cached
+  snapshot. The complete AgentStateSnapshot JSON document stays within
+  4 MiB (LIM-WRK-17); its separate protobuf envelope is bounded by LIM-CTL-27;
 - **WRK-R120.** is available for the active allocation while its Worker
   State exists;
 - **WRK-R121.** returns the closed, safe `allocation_not_found` or
   `agent_state_unavailable` errors for stale, preparing,
   draining-with-destroyed-State or released slots. A missing, preparing or
-  draining Worker returns retryable `409 agent_state_unavailable`; a snapshot
+  draining Worker returns retryable `FailedPrecondition agent_state_unavailable`; a snapshot
   that fails its own validation or exceeds LIM-WRK-17 returns non-retryable
-  `503 agent_state_unavailable`. Other temporary snapshot infrastructure
-  failures return retryable `503 agent_state_unavailable`. Invalid snapshots
+  `Unavailable agent_state_unavailable`. Other temporary snapshot infrastructure
+  failures return retryable `Unavailable agent_state_unavailable`. Invalid snapshots
   are never served partially;
 - **WRK-R122.** never persists, mutates, resumes or reconstructs
   State.
@@ -1757,13 +1758,12 @@ class WorkerCompletion(BaseModel):
     state_revision: int
 ```
 
-### Agent-state endpoint
+### Agent-state RPC
 
-```http
-GET /private/v1/allocations/{allocation_id}/agent-state
-```
+`RuntimeLifecycle.ReadState(StateReadRequest) → StateReadResponse` carries
+the validated revision and a snapshot or not-modified result.
 
-Exact successful JSON body:
+Exact snapshot JSON document:
 
 ```python
 class AgentStateSnapshot(BaseModel):
@@ -2058,7 +2058,7 @@ failure before commit closes the pending attempt as failed. A later main
 failure never undoes a committed checkpoint or changes the Run's outcome.
 Terminal summarizer state remains independent. Each mutation uses the existing
 State revision/validation boundary and invalidates conditional-read eligibility;
-unchanged wire-validated revisions retain the no-copy 304 path.
+unchanged wire-validated revisions retain the no-copy not-modified path.
 
 **WRK-R197.** Before and after prompt observations name the actual main-request
 context generation. The after observation has no prompt-token value until a

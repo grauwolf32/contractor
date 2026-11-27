@@ -51,8 +51,8 @@ func TestEngagementPreparationFailureRetainsSafeRetryClass(t *testing.T) {
 		{"storage-conflict", &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}, true},
 		{"connection", pgconn.ErrConnClosed, true},
 		{"unknown", errors.New("opaque infrastructure error"), true},
-		{"runtime-permanent", &controlplane.RuntimeAPIError{StatusCode: 422, Code: "unsupported_toolset", Retryable: false}, false},
-		{"runtime-temporary", &controlplane.RuntimeAPIError{StatusCode: 503, Code: "agent_state_unavailable", Retryable: true}, true},
+		{"runtime-permanent", &controlplane.RuntimeAPIError{Code: "unsupported_toolset", Retryable: false}, false},
+		{"runtime-temporary", &controlplane.RuntimeAPIError{Code: "agent_state_unavailable", Retryable: true}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -77,7 +77,7 @@ func TestSchedulerMissingEngagementCredentialDoesNotConsumeRetries(t *testing.T)
 		err  error
 	}{
 		{"none", nil},
-		{"runtime-api", &controlplane.RuntimeAPIError{StatusCode: 503, Code: "cleanup_unavailable", Retryable: true}},
+		{"runtime-api", &controlplane.RuntimeAPIError{Code: "cleanup_unavailable", Retryable: true}},
 		{"deadline", context.DeadlineExceeded},
 		{"cancelled", context.Canceled},
 	} {

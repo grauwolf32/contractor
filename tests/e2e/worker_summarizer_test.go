@@ -18,13 +18,19 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
+	"github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimewire"
 	"github.com/grauwolf32/contractor/internal/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/proto"
 )
 
 type summarizerProcessExpectation struct {
@@ -449,22 +455,27 @@ func assertRequestedSummarizerState(
 	runtimeBaseURL, allocationID string,
 ) {
 	t.Helper()
-	target := runtimeBaseURL + "/private/v1/allocations/" +
-		url.PathEscape(allocationID) + "/agent-state"
-	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
-	response, err := client.Do(request)
+	authority, err := mtls.GRPCAuthority(runtimeBaseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := client.Transport.(*http.Transport)
+	channel, err := grpc.NewClient(authority, grpc.WithTransportCredentials(credentials.NewTLS(transport.TLSClientConfig)), grpc.WithDisableRetry())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer channel.Close()
+	response, err := runtimepb.NewRuntimeLifecycleClient(channel).ReadState(ctx, &runtimepb.StateReadRequest{AllocationId: proto.String(allocationID)}, grpc.MaxCallRecvMsgSize(runtimewire.MaxStateMessageBytes))
 	if err != nil {
 		t.Fatalf("read active summarizer State: %v", err)
 	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("read active summarizer State = HTTP %d", response.StatusCode)
+	result, err := runtimewire.WorkerStateResult(response, 0)
+	if err != nil {
+		t.Fatalf("decode active summarizer State: %v", err)
 	}
-	var snapshot reporting.AgentStateSnapshot
-	body := copyBounded(response.Body)
-	if err := json.Unmarshal([]byte(body), &snapshot); err != nil || snapshot.Validate() != nil {
-		t.Fatalf("decode active summarizer State = (%v, %s)", err, body)
-	}
+	snapshot := result.Snapshot
+	body := string(response.GetSnapshot().GetJson())
+
 	if snapshot.State.CurrentInvocation == nil ||
 		snapshot.State.CurrentInvocation.Summarizer.Phase != "requested" ||
 		snapshot.State.CurrentInvocation.Summarizer.RequestStateRevision == nil ||

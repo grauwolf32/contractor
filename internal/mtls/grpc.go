@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -59,10 +59,11 @@ func NewRuntimeChannels(base *tls.Config) (*RuntimeChannels, error) {
 // GRPCAuthority accepts only an HTTPS origin. Paths cannot silently disappear
 // when an advertised control endpoint becomes a native gRPC authority.
 func GRPCAuthority(origin string) (string, error) {
-	parsed, err := url.Parse(origin)
-	if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
-		return "", errors.New("gRPC endpoint must be an HTTPS origin")
+	parsed, err := contracts.ParsePrivateRPCOrigin("gRPC endpoint", origin)
+	if err != nil {
+		return "", err
 	}
+
 	port := parsed.Port()
 	if port == "" {
 		port = "443"
@@ -85,7 +86,7 @@ func (o *RuntimeChannels) Borrow(ctx context.Context, origin, principal string) 
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.closed {
-		return nil, nil, ErrRuntimeAgentTransportsClosed
+		return nil, nil, ErrRuntimeChannelsClosed
 	}
 	key := principal + "@" + authority
 	now := o.now()
@@ -122,7 +123,7 @@ func (o *RuntimeChannels) Borrow(ctx context.Context, origin, principal string) 
 	}
 	if e.current == nil {
 		rejected := new(atomic.Bool)
-		conn, err := grpc.NewClient(authority, grpc.WithTransportCredentials(&verifiedRPCCredentials{TransportCredentials: credentials.NewTLS(bound), rejected: rejected}), grpc.WithDisableRetry(), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(1<<20), grpc.MaxCallSendMsgSize(1<<20)))
+		conn, err := grpc.NewClient(authority, grpc.WithTransportCredentials(&verifiedRPCCredentials{TransportCredentials: credentials.NewTLS(bound), rejected: rejected}), grpc.WithDisableRetry(), grpc.WithMaxHeaderListSize(privateRPCMetadataBytes), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(1<<20), grpc.MaxCallSendMsgSize(1<<20)))
 		if err != nil {
 			return nil, nil, err
 		}

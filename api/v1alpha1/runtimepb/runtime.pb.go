@@ -22,6 +22,554 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type BootstrapRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BootstrapRequest) Reset() {
+	*x = BootstrapRequest{}
+	mi := &file_runtime_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BootstrapRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BootstrapRequest) ProtoMessage() {}
+
+func (x *BootstrapRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BootstrapRequest.ProtoReflect.Descriptor instead.
+func (*BootstrapRequest) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{0}
+}
+
+type SharedConfig struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion    *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	Version       *int64                 `protobuf:"varint,2,opt,name=version,proto3,oneof" json:"version,omitempty"`
+	Limits        *SharedLimits          `protobuf:"bytes,3,opt,name=limits,proto3" json:"limits,omitempty"`
+	Digest        *string                `protobuf:"bytes,4,opt,name=digest,proto3,oneof" json:"digest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SharedConfig) Reset() {
+	*x = SharedConfig{}
+	mi := &file_runtime_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SharedConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SharedConfig) ProtoMessage() {}
+
+func (x *SharedConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SharedConfig.ProtoReflect.Descriptor instead.
+func (*SharedConfig) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SharedConfig) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *SharedConfig) GetVersion() int64 {
+	if x != nil && x.Version != nil {
+		return *x.Version
+	}
+	return 0
+}
+
+func (x *SharedConfig) GetLimits() *SharedLimits {
+	if x != nil {
+		return x.Limits
+	}
+	return nil
+}
+
+func (x *SharedConfig) GetDigest() string {
+	if x != nil && x.Digest != nil {
+		return *x.Digest
+	}
+	return ""
+}
+
+type SharedLimits struct {
+	state                             protoimpl.MessageState `protogen:"open.v1"`
+	GitImportUrlMaxBytes              *int64                 `protobuf:"varint,1,opt,name=git_import_url_max_bytes,json=gitImportUrlMaxBytes,proto3,oneof" json:"git_import_url_max_bytes,omitempty"`
+	RunMetadataMaxLabels              *int64                 `protobuf:"varint,2,opt,name=run_metadata_max_labels,json=runMetadataMaxLabels,proto3,oneof" json:"run_metadata_max_labels,omitempty"`
+	RunMetadataKeyMaxBytes            *int64                 `protobuf:"varint,3,opt,name=run_metadata_key_max_bytes,json=runMetadataKeyMaxBytes,proto3,oneof" json:"run_metadata_key_max_bytes,omitempty"`
+	RunMetadataValueMaxBytes          *int64                 `protobuf:"varint,4,opt,name=run_metadata_value_max_bytes,json=runMetadataValueMaxBytes,proto3,oneof" json:"run_metadata_value_max_bytes,omitempty"`
+	AuditMaxLabels                    *int64                 `protobuf:"varint,5,opt,name=audit_max_labels,json=auditMaxLabels,proto3,oneof" json:"audit_max_labels,omitempty"`
+	HttpRequestBodyMaxBytes           *int64                 `protobuf:"varint,6,opt,name=http_request_body_max_bytes,json=httpRequestBodyMaxBytes,proto3,oneof" json:"http_request_body_max_bytes,omitempty"`
+	HttpResponseBodyMaxBytes          *int64                 `protobuf:"varint,7,opt,name=http_response_body_max_bytes,json=httpResponseBodyMaxBytes,proto3,oneof" json:"http_response_body_max_bytes,omitempty"`
+	HttpHeaderBlockMaxBytes           *int64                 `protobuf:"varint,8,opt,name=http_header_block_max_bytes,json=httpHeaderBlockMaxBytes,proto3,oneof" json:"http_header_block_max_bytes,omitempty"`
+	WorkerResultMaxBytes              *int64                 `protobuf:"varint,9,opt,name=worker_result_max_bytes,json=workerResultMaxBytes,proto3,oneof" json:"worker_result_max_bytes,omitempty"`
+	WorkerCompletionMaxBytes          *int64                 `protobuf:"varint,10,opt,name=worker_completion_max_bytes,json=workerCompletionMaxBytes,proto3,oneof" json:"worker_completion_max_bytes,omitempty"`
+	WorkerFailureMessageMaxBytes      *int64                 `protobuf:"varint,11,opt,name=worker_failure_message_max_bytes,json=workerFailureMessageMaxBytes,proto3,oneof" json:"worker_failure_message_max_bytes,omitempty"`
+	WorkerResultMaxArtifacts          *int64                 `protobuf:"varint,12,opt,name=worker_result_max_artifacts,json=workerResultMaxArtifacts,proto3,oneof" json:"worker_result_max_artifacts,omitempty"`
+	WorkerObservationMaxTools         *int64                 `protobuf:"varint,13,opt,name=worker_observation_max_tools,json=workerObservationMaxTools,proto3,oneof" json:"worker_observation_max_tools,omitempty"`
+	WorkerWorkspaceMaxFilesRead       *int64                 `protobuf:"varint,14,opt,name=worker_workspace_max_files_read,json=workerWorkspaceMaxFilesRead,proto3,oneof" json:"worker_workspace_max_files_read,omitempty"`
+	WorkerStateMaxBytes               *int64                 `protobuf:"varint,15,opt,name=worker_state_max_bytes,json=workerStateMaxBytes,proto3,oneof" json:"worker_state_max_bytes,omitempty"`
+	WorkerStateWorkspaceMaxPaths      *int64                 `protobuf:"varint,16,opt,name=worker_state_workspace_max_paths,json=workerStateWorkspaceMaxPaths,proto3,oneof" json:"worker_state_workspace_max_paths,omitempty"`
+	WorkerStateWorkspacePathsMaxBytes *int64                 `protobuf:"varint,17,opt,name=worker_state_workspace_paths_max_bytes,json=workerStateWorkspacePathsMaxBytes,proto3,oneof" json:"worker_state_workspace_paths_max_bytes,omitempty"`
+	ArtifactPayloadMaxBytes           *int64                 `protobuf:"varint,18,opt,name=artifact_payload_max_bytes,json=artifactPayloadMaxBytes,proto3,oneof" json:"artifact_payload_max_bytes,omitempty"`
+	PublicPageMaxItems                *int64                 `protobuf:"varint,19,opt,name=public_page_max_items,json=publicPageMaxItems,proto3,oneof" json:"public_page_max_items,omitempty"`
+	ArtifactListMaxItems              *int64                 `protobuf:"varint,20,opt,name=artifact_list_max_items,json=artifactListMaxItems,proto3,oneof" json:"artifact_list_max_items,omitempty"`
+	unknownFields                     protoimpl.UnknownFields
+	sizeCache                         protoimpl.SizeCache
+}
+
+func (x *SharedLimits) Reset() {
+	*x = SharedLimits{}
+	mi := &file_runtime_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SharedLimits) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SharedLimits) ProtoMessage() {}
+
+func (x *SharedLimits) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SharedLimits.ProtoReflect.Descriptor instead.
+func (*SharedLimits) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SharedLimits) GetGitImportUrlMaxBytes() int64 {
+	if x != nil && x.GitImportUrlMaxBytes != nil {
+		return *x.GitImportUrlMaxBytes
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetRunMetadataMaxLabels() int64 {
+	if x != nil && x.RunMetadataMaxLabels != nil {
+		return *x.RunMetadataMaxLabels
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetRunMetadataKeyMaxBytes() int64 {
+	if x != nil && x.RunMetadataKeyMaxBytes != nil {
+		return *x.RunMetadataKeyMaxBytes
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetRunMetadataValueMaxBytes() int64 {
+	if x != nil && x.RunMetadataValueMaxBytes != nil {
+		return *x.RunMetadataValueMaxBytes
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetAuditMaxLabels() int64 {
+	if x != nil && x.AuditMaxLabels != nil {
+		return *x.AuditMaxLabels
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetHttpRequestBodyMaxBytes() int64 {
+	if x != nil && x.HttpRequestBodyMaxBytes != nil {
+		return *x.HttpRequestBodyMaxBytes
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetHttpResponseBodyMaxBytes() int64 {
+	if x != nil && x.HttpResponseBodyMaxBytes != nil {
+		return *x.HttpResponseBodyMaxBytes
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetHttpHeaderBlockMaxBytes() int64 {
+	if x != nil && x.HttpHeaderBlockMaxBytes != nil {
+		return *x.HttpHeaderBlockMaxBytes
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetWorkerResultMaxBytes() int64 {
+	if x != nil && x.WorkerResultMaxBytes != nil {
+		return *x.WorkerResultMaxBytes
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetWorkerCompletionMaxBytes() int64 {
+	if x != nil && x.WorkerCompletionMaxBytes != nil {
+		return *x.WorkerCompletionMaxBytes
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetWorkerFailureMessageMaxBytes() int64 {
+	if x != nil && x.WorkerFailureMessageMaxBytes != nil {
+		return *x.WorkerFailureMessageMaxBytes
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetWorkerResultMaxArtifacts() int64 {
+	if x != nil && x.WorkerResultMaxArtifacts != nil {
+		return *x.WorkerResultMaxArtifacts
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetWorkerObservationMaxTools() int64 {
+	if x != nil && x.WorkerObservationMaxTools != nil {
+		return *x.WorkerObservationMaxTools
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetWorkerWorkspaceMaxFilesRead() int64 {
+	if x != nil && x.WorkerWorkspaceMaxFilesRead != nil {
+		return *x.WorkerWorkspaceMaxFilesRead
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetWorkerStateMaxBytes() int64 {
+	if x != nil && x.WorkerStateMaxBytes != nil {
+		return *x.WorkerStateMaxBytes
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetWorkerStateWorkspaceMaxPaths() int64 {
+	if x != nil && x.WorkerStateWorkspaceMaxPaths != nil {
+		return *x.WorkerStateWorkspaceMaxPaths
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetWorkerStateWorkspacePathsMaxBytes() int64 {
+	if x != nil && x.WorkerStateWorkspacePathsMaxBytes != nil {
+		return *x.WorkerStateWorkspacePathsMaxBytes
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetArtifactPayloadMaxBytes() int64 {
+	if x != nil && x.ArtifactPayloadMaxBytes != nil {
+		return *x.ArtifactPayloadMaxBytes
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetPublicPageMaxItems() int64 {
+	if x != nil && x.PublicPageMaxItems != nil {
+		return *x.PublicPageMaxItems
+	}
+	return 0
+}
+
+func (x *SharedLimits) GetArtifactListMaxItems() int64 {
+	if x != nil && x.ArtifactListMaxItems != nil {
+		return *x.ArtifactListMaxItems
+	}
+	return 0
+}
+
+type AgentHeartbeat struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	ApiVersion    *string                   `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	InstanceId    *string                   `protobuf:"bytes,2,opt,name=instance_id,json=instanceId,proto3,oneof" json:"instance_id,omitempty"`
+	HeartbeatSeq  *uint64                   `protobuf:"varint,3,opt,name=heartbeat_seq,json=heartbeatSeq,proto3,oneof" json:"heartbeat_seq,omitempty"`
+	EchoedAckSeq  *uint64                   `protobuf:"varint,4,opt,name=echoed_ack_seq,json=echoedAckSeq,proto3,oneof" json:"echoed_ack_seq,omitempty"`
+	ObservedState *string                   `protobuf:"bytes,5,opt,name=observed_state,json=observedState,proto3,oneof" json:"observed_state,omitempty"`
+	Allocations   *ListOfObservedAllocation `protobuf:"bytes,6,opt,name=allocations,proto3" json:"allocations,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AgentHeartbeat) Reset() {
+	*x = AgentHeartbeat{}
+	mi := &file_runtime_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentHeartbeat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentHeartbeat) ProtoMessage() {}
+
+func (x *AgentHeartbeat) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentHeartbeat.ProtoReflect.Descriptor instead.
+func (*AgentHeartbeat) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *AgentHeartbeat) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *AgentHeartbeat) GetInstanceId() string {
+	if x != nil && x.InstanceId != nil {
+		return *x.InstanceId
+	}
+	return ""
+}
+
+func (x *AgentHeartbeat) GetHeartbeatSeq() uint64 {
+	if x != nil && x.HeartbeatSeq != nil {
+		return *x.HeartbeatSeq
+	}
+	return 0
+}
+
+func (x *AgentHeartbeat) GetEchoedAckSeq() uint64 {
+	if x != nil && x.EchoedAckSeq != nil {
+		return *x.EchoedAckSeq
+	}
+	return 0
+}
+
+func (x *AgentHeartbeat) GetObservedState() string {
+	if x != nil && x.ObservedState != nil {
+		return *x.ObservedState
+	}
+	return ""
+}
+
+func (x *AgentHeartbeat) GetAllocations() *ListOfObservedAllocation {
+	if x != nil {
+		return x.Allocations
+	}
+	return nil
+}
+
+type HeartbeatResponse struct {
+	state             protoimpl.MessageState  `protogen:"open.v1"`
+	ApiVersion        *string                 `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	AckSeq            *uint64                 `protobuf:"varint,2,opt,name=ack_seq,json=ackSeq,proto3,oneof" json:"ack_seq,omitempty"`
+	Action            *string                 `protobuf:"bytes,3,opt,name=action,proto3,oneof" json:"action,omitempty"`
+	AllocationActions *ListOfAllocationAction `protobuf:"bytes,4,opt,name=allocation_actions,json=allocationActions,proto3" json:"allocation_actions,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *HeartbeatResponse) Reset() {
+	*x = HeartbeatResponse{}
+	mi := &file_runtime_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HeartbeatResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HeartbeatResponse) ProtoMessage() {}
+
+func (x *HeartbeatResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HeartbeatResponse.ProtoReflect.Descriptor instead.
+func (*HeartbeatResponse) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *HeartbeatResponse) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *HeartbeatResponse) GetAckSeq() uint64 {
+	if x != nil && x.AckSeq != nil {
+		return *x.AckSeq
+	}
+	return 0
+}
+
+func (x *HeartbeatResponse) GetAction() string {
+	if x != nil && x.Action != nil {
+		return *x.Action
+	}
+	return ""
+}
+
+func (x *HeartbeatResponse) GetAllocationActions() *ListOfAllocationAction {
+	if x != nil {
+		return x.AllocationActions
+	}
+	return nil
+}
+
+type AllocationAction struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AllocationId  *string                `protobuf:"bytes,1,opt,name=allocation_id,json=allocationId,proto3,oneof" json:"allocation_id,omitempty"`
+	Action        *string                `protobuf:"bytes,2,opt,name=action,proto3,oneof" json:"action,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AllocationAction) Reset() {
+	*x = AllocationAction{}
+	mi := &file_runtime_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AllocationAction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllocationAction) ProtoMessage() {}
+
+func (x *AllocationAction) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllocationAction.ProtoReflect.Descriptor instead.
+func (*AllocationAction) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *AllocationAction) GetAllocationId() string {
+	if x != nil && x.AllocationId != nil {
+		return *x.AllocationId
+	}
+	return ""
+}
+
+func (x *AllocationAction) GetAction() string {
+	if x != nil && x.Action != nil {
+		return *x.Action
+	}
+	return ""
+}
+
+type ListOfAllocationAction struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []*AllocationAction    `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfAllocationAction) Reset() {
+	*x = ListOfAllocationAction{}
+	mi := &file_runtime_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfAllocationAction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfAllocationAction) ProtoMessage() {}
+
+func (x *ListOfAllocationAction) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfAllocationAction.ProtoReflect.Descriptor instead.
+func (*ListOfAllocationAction) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ListOfAllocationAction) GetValues() []*AllocationAction {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
 // Scalar presence and presence-bearing collections are intentional: domain
 // validation must distinguish omission from explicit zero/false/empty values.
 // The JSON projection uses each field's json_name. ListOf*/MapOf* wrappers
@@ -36,7 +584,7 @@ type ListOfString struct {
 
 func (x *ListOfString) Reset() {
 	*x = ListOfString{}
-	mi := &file_runtime_proto_msgTypes[0]
+	mi := &file_runtime_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -48,7 +596,7 @@ func (x *ListOfString) String() string {
 func (*ListOfString) ProtoMessage() {}
 
 func (x *ListOfString) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[0]
+	mi := &file_runtime_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61,7 +609,7 @@ func (x *ListOfString) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOfString.ProtoReflect.Descriptor instead.
 func (*ListOfString) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{0}
+	return file_runtime_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListOfString) GetValues() []string {
@@ -80,7 +628,7 @@ type ListOfInteger struct {
 
 func (x *ListOfInteger) Reset() {
 	*x = ListOfInteger{}
-	mi := &file_runtime_proto_msgTypes[1]
+	mi := &file_runtime_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -92,7 +640,7 @@ func (x *ListOfInteger) String() string {
 func (*ListOfInteger) ProtoMessage() {}
 
 func (x *ListOfInteger) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[1]
+	mi := &file_runtime_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -105,7 +653,7 @@ func (x *ListOfInteger) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOfInteger.ProtoReflect.Descriptor instead.
 func (*ListOfInteger) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{1}
+	return file_runtime_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ListOfInteger) GetValues() []int64 {
@@ -124,7 +672,7 @@ type ListOfToolsetCapability struct {
 
 func (x *ListOfToolsetCapability) Reset() {
 	*x = ListOfToolsetCapability{}
-	mi := &file_runtime_proto_msgTypes[2]
+	mi := &file_runtime_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -136,7 +684,7 @@ func (x *ListOfToolsetCapability) String() string {
 func (*ListOfToolsetCapability) ProtoMessage() {}
 
 func (x *ListOfToolsetCapability) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[2]
+	mi := &file_runtime_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -149,7 +697,7 @@ func (x *ListOfToolsetCapability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOfToolsetCapability.ProtoReflect.Descriptor instead.
 func (*ListOfToolsetCapability) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{2}
+	return file_runtime_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListOfToolsetCapability) GetValues() []*ToolsetCapability {
@@ -168,7 +716,7 @@ type ListOfObservedAllocation struct {
 
 func (x *ListOfObservedAllocation) Reset() {
 	*x = ListOfObservedAllocation{}
-	mi := &file_runtime_proto_msgTypes[3]
+	mi := &file_runtime_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -180,7 +728,7 @@ func (x *ListOfObservedAllocation) String() string {
 func (*ListOfObservedAllocation) ProtoMessage() {}
 
 func (x *ListOfObservedAllocation) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[3]
+	mi := &file_runtime_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -193,7 +741,7 @@ func (x *ListOfObservedAllocation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOfObservedAllocation.ProtoReflect.Descriptor instead.
 func (*ListOfObservedAllocation) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{3}
+	return file_runtime_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ListOfObservedAllocation) GetValues() []*ObservedAllocation {
@@ -228,7 +776,7 @@ type AgentRegistration struct {
 
 func (x *AgentRegistration) Reset() {
 	*x = AgentRegistration{}
-	mi := &file_runtime_proto_msgTypes[4]
+	mi := &file_runtime_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -240,7 +788,7 @@ func (x *AgentRegistration) String() string {
 func (*AgentRegistration) ProtoMessage() {}
 
 func (x *AgentRegistration) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[4]
+	mi := &file_runtime_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -253,7 +801,7 @@ func (x *AgentRegistration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentRegistration.ProtoReflect.Descriptor instead.
 func (*AgentRegistration) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{4}
+	return file_runtime_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *AgentRegistration) GetApiVersion() string {
@@ -386,7 +934,7 @@ type AgentRegistrationResponse struct {
 
 func (x *AgentRegistrationResponse) Reset() {
 	*x = AgentRegistrationResponse{}
-	mi := &file_runtime_proto_msgTypes[5]
+	mi := &file_runtime_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -398,7 +946,7 @@ func (x *AgentRegistrationResponse) String() string {
 func (*AgentRegistrationResponse) ProtoMessage() {}
 
 func (x *AgentRegistrationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[5]
+	mi := &file_runtime_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -411,7 +959,7 @@ func (x *AgentRegistrationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentRegistrationResponse.ProtoReflect.Descriptor instead.
 func (*AgentRegistrationResponse) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{5}
+	return file_runtime_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *AgentRegistrationResponse) GetApiVersion() string {
@@ -445,7 +993,7 @@ type ToolsetCapability struct {
 
 func (x *ToolsetCapability) Reset() {
 	*x = ToolsetCapability{}
-	mi := &file_runtime_proto_msgTypes[6]
+	mi := &file_runtime_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -457,7 +1005,7 @@ func (x *ToolsetCapability) String() string {
 func (*ToolsetCapability) ProtoMessage() {}
 
 func (x *ToolsetCapability) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[6]
+	mi := &file_runtime_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -470,7 +1018,7 @@ func (x *ToolsetCapability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolsetCapability.ProtoReflect.Descriptor instead.
 func (*ToolsetCapability) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{6}
+	return file_runtime_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ToolsetCapability) GetRef() string {
@@ -497,7 +1045,7 @@ type ObservedAllocation struct {
 
 func (x *ObservedAllocation) Reset() {
 	*x = ObservedAllocation{}
-	mi := &file_runtime_proto_msgTypes[7]
+	mi := &file_runtime_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -509,7 +1057,7 @@ func (x *ObservedAllocation) String() string {
 func (*ObservedAllocation) ProtoMessage() {}
 
 func (x *ObservedAllocation) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[7]
+	mi := &file_runtime_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -522,7 +1070,7 @@ func (x *ObservedAllocation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ObservedAllocation.ProtoReflect.Descriptor instead.
 func (*ObservedAllocation) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{7}
+	return file_runtime_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ObservedAllocation) GetAllocationId() string {
@@ -548,7 +1096,7 @@ type CompletionCapabilities struct {
 
 func (x *CompletionCapabilities) Reset() {
 	*x = CompletionCapabilities{}
-	mi := &file_runtime_proto_msgTypes[8]
+	mi := &file_runtime_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -560,7 +1108,7 @@ func (x *CompletionCapabilities) String() string {
 func (*CompletionCapabilities) ProtoMessage() {}
 
 func (x *CompletionCapabilities) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[8]
+	mi := &file_runtime_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -573,7 +1121,7 @@ func (x *CompletionCapabilities) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompletionCapabilities.ProtoReflect.Descriptor instead.
 func (*CompletionCapabilities) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{8}
+	return file_runtime_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CompletionCapabilities) GetCompletionContracts() *ListOfString {
@@ -596,7 +1144,7 @@ type NullableCompletionCapabilities struct {
 
 func (x *NullableCompletionCapabilities) Reset() {
 	*x = NullableCompletionCapabilities{}
-	mi := &file_runtime_proto_msgTypes[9]
+	mi := &file_runtime_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -608,7 +1156,7 @@ func (x *NullableCompletionCapabilities) String() string {
 func (*NullableCompletionCapabilities) ProtoMessage() {}
 
 func (x *NullableCompletionCapabilities) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[9]
+	mi := &file_runtime_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -621,7 +1169,7 @@ func (x *NullableCompletionCapabilities) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NullableCompletionCapabilities.ProtoReflect.Descriptor instead.
 func (*NullableCompletionCapabilities) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{9}
+	return file_runtime_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *NullableCompletionCapabilities) GetKind() isNullableCompletionCapabilities_Kind {
@@ -676,7 +1224,7 @@ type WorkspaceCapabilities struct {
 
 func (x *WorkspaceCapabilities) Reset() {
 	*x = WorkspaceCapabilities{}
-	mi := &file_runtime_proto_msgTypes[10]
+	mi := &file_runtime_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -688,7 +1236,7 @@ func (x *WorkspaceCapabilities) String() string {
 func (*WorkspaceCapabilities) ProtoMessage() {}
 
 func (x *WorkspaceCapabilities) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[10]
+	mi := &file_runtime_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -701,7 +1249,7 @@ func (x *WorkspaceCapabilities) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceCapabilities.ProtoReflect.Descriptor instead.
 func (*WorkspaceCapabilities) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{10}
+	return file_runtime_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *WorkspaceCapabilities) GetStorage() string {
@@ -737,7 +1285,7 @@ type WorkspaceLimits struct {
 
 func (x *WorkspaceLimits) Reset() {
 	*x = WorkspaceLimits{}
-	mi := &file_runtime_proto_msgTypes[11]
+	mi := &file_runtime_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -749,7 +1297,7 @@ func (x *WorkspaceLimits) String() string {
 func (*WorkspaceLimits) ProtoMessage() {}
 
 func (x *WorkspaceLimits) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[11]
+	mi := &file_runtime_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -762,7 +1310,7 @@ func (x *WorkspaceLimits) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceLimits.ProtoReflect.Descriptor instead.
 func (*WorkspaceLimits) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{11}
+	return file_runtime_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *WorkspaceLimits) GetMaxFiles() int64 {
@@ -806,7 +1354,7 @@ type NullableWorkspaceCapabilities struct {
 
 func (x *NullableWorkspaceCapabilities) Reset() {
 	*x = NullableWorkspaceCapabilities{}
-	mi := &file_runtime_proto_msgTypes[12]
+	mi := &file_runtime_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -818,7 +1366,7 @@ func (x *NullableWorkspaceCapabilities) String() string {
 func (*NullableWorkspaceCapabilities) ProtoMessage() {}
 
 func (x *NullableWorkspaceCapabilities) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[12]
+	mi := &file_runtime_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -831,7 +1379,7 @@ func (x *NullableWorkspaceCapabilities) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NullableWorkspaceCapabilities.ProtoReflect.Descriptor instead.
 func (*NullableWorkspaceCapabilities) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{12}
+	return file_runtime_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *NullableWorkspaceCapabilities) GetKind() isNullableWorkspaceCapabilities_Kind {
@@ -888,7 +1436,7 @@ type ErrorDetail struct {
 
 func (x *ErrorDetail) Reset() {
 	*x = ErrorDetail{}
-	mi := &file_runtime_proto_msgTypes[13]
+	mi := &file_runtime_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -900,7 +1448,7 @@ func (x *ErrorDetail) String() string {
 func (*ErrorDetail) ProtoMessage() {}
 
 func (x *ErrorDetail) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[13]
+	mi := &file_runtime_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -913,7 +1461,7 @@ func (x *ErrorDetail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ErrorDetail.ProtoReflect.Descriptor instead.
 func (*ErrorDetail) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{13}
+	return file_runtime_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ErrorDetail) GetCode() string {
@@ -937,6 +1485,228 @@ func (x *ErrorDetail) GetRequestId() string {
 	return ""
 }
 
+type StateReadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AllocationId  *string                `protobuf:"bytes,1,opt,name=allocation_id,json=allocationId,proto3,oneof" json:"allocation_id,omitempty"`
+	IfRevision    *uint64                `protobuf:"varint,2,opt,name=if_revision,json=ifRevision,proto3,oneof" json:"if_revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StateReadRequest) Reset() {
+	*x = StateReadRequest{}
+	mi := &file_runtime_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StateReadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StateReadRequest) ProtoMessage() {}
+
+func (x *StateReadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StateReadRequest.ProtoReflect.Descriptor instead.
+func (*StateReadRequest) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *StateReadRequest) GetAllocationId() string {
+	if x != nil && x.AllocationId != nil {
+		return *x.AllocationId
+	}
+	return ""
+}
+
+func (x *StateReadRequest) GetIfRevision() uint64 {
+	if x != nil && x.IfRevision != nil {
+		return *x.IfRevision
+	}
+	return 0
+}
+
+type StateReadResponse struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Revision *uint64                `protobuf:"varint,1,opt,name=revision,proto3,oneof" json:"revision,omitempty"`
+	// Types that are valid to be assigned to Result:
+	//
+	//	*StateReadResponse_Snapshot
+	//	*StateReadResponse_NotModified
+	Result        isStateReadResponse_Result `protobuf_oneof:"result"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StateReadResponse) Reset() {
+	*x = StateReadResponse{}
+	mi := &file_runtime_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StateReadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StateReadResponse) ProtoMessage() {}
+
+func (x *StateReadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StateReadResponse.ProtoReflect.Descriptor instead.
+func (*StateReadResponse) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *StateReadResponse) GetRevision() uint64 {
+	if x != nil && x.Revision != nil {
+		return *x.Revision
+	}
+	return 0
+}
+
+func (x *StateReadResponse) GetResult() isStateReadResponse_Result {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+func (x *StateReadResponse) GetSnapshot() *AgentStateDocument {
+	if x != nil {
+		if x, ok := x.Result.(*StateReadResponse_Snapshot); ok {
+			return x.Snapshot
+		}
+	}
+	return nil
+}
+
+func (x *StateReadResponse) GetNotModified() *StateNotModified {
+	if x != nil {
+		if x, ok := x.Result.(*StateReadResponse_NotModified); ok {
+			return x.NotModified
+		}
+	}
+	return nil
+}
+
+type isStateReadResponse_Result interface {
+	isStateReadResponse_Result()
+}
+
+type StateReadResponse_Snapshot struct {
+	Snapshot *AgentStateDocument `protobuf:"bytes,2,opt,name=snapshot,proto3,oneof"`
+}
+
+type StateReadResponse_NotModified struct {
+	NotModified *StateNotModified `protobuf:"bytes,3,opt,name=not_modified,json=notModified,proto3,oneof"`
+}
+
+func (*StateReadResponse_Snapshot) isStateReadResponse_Result() {}
+
+func (*StateReadResponse_NotModified) isStateReadResponse_Result() {}
+
+type StateNotModified struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StateNotModified) Reset() {
+	*x = StateNotModified{}
+	mi := &file_runtime_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StateNotModified) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StateNotModified) ProtoMessage() {}
+
+func (x *StateNotModified) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StateNotModified.ProtoReflect.Descriptor instead.
+func (*StateNotModified) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{23}
+}
+
+type AgentStateDocument struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Json          []byte                 `protobuf:"bytes,1,opt,name=json,proto3,oneof" json:"json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AgentStateDocument) Reset() {
+	*x = AgentStateDocument{}
+	mi := &file_runtime_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentStateDocument) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentStateDocument) ProtoMessage() {}
+
+func (x *AgentStateDocument) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentStateDocument.ProtoReflect.Descriptor instead.
+func (*AgentStateDocument) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *AgentStateDocument) GetJson() []byte {
+	if x != nil {
+		return x.Json
+	}
+	return nil
+}
+
 type PrepareAllocationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ApiVersion    *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
@@ -947,7 +1717,7 @@ type PrepareAllocationRequest struct {
 
 func (x *PrepareAllocationRequest) Reset() {
 	*x = PrepareAllocationRequest{}
-	mi := &file_runtime_proto_msgTypes[14]
+	mi := &file_runtime_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -959,7 +1729,7 @@ func (x *PrepareAllocationRequest) String() string {
 func (*PrepareAllocationRequest) ProtoMessage() {}
 
 func (x *PrepareAllocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[14]
+	mi := &file_runtime_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -972,7 +1742,7 @@ func (x *PrepareAllocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PrepareAllocationRequest.ProtoReflect.Descriptor instead.
 func (*PrepareAllocationRequest) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{14}
+	return file_runtime_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *PrepareAllocationRequest) GetApiVersion() string {
@@ -999,7 +1769,7 @@ type PrepareAllocationResponse struct {
 
 func (x *PrepareAllocationResponse) Reset() {
 	*x = PrepareAllocationResponse{}
-	mi := &file_runtime_proto_msgTypes[15]
+	mi := &file_runtime_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1011,7 +1781,7 @@ func (x *PrepareAllocationResponse) String() string {
 func (*PrepareAllocationResponse) ProtoMessage() {}
 
 func (x *PrepareAllocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[15]
+	mi := &file_runtime_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1024,7 +1794,7 @@ func (x *PrepareAllocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PrepareAllocationResponse.ProtoReflect.Descriptor instead.
 func (*PrepareAllocationResponse) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{15}
+	return file_runtime_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *PrepareAllocationResponse) GetApiVersion() string {
@@ -1053,7 +1823,7 @@ type FinalizeAllocationRequest struct {
 
 func (x *FinalizeAllocationRequest) Reset() {
 	*x = FinalizeAllocationRequest{}
-	mi := &file_runtime_proto_msgTypes[16]
+	mi := &file_runtime_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1065,7 +1835,7 @@ func (x *FinalizeAllocationRequest) String() string {
 func (*FinalizeAllocationRequest) ProtoMessage() {}
 
 func (x *FinalizeAllocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[16]
+	mi := &file_runtime_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1078,7 +1848,7 @@ func (x *FinalizeAllocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FinalizeAllocationRequest.ProtoReflect.Descriptor instead.
 func (*FinalizeAllocationRequest) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{16}
+	return file_runtime_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *FinalizeAllocationRequest) GetApiVersion() string {
@@ -1122,7 +1892,7 @@ type AbortAllocationRequest struct {
 
 func (x *AbortAllocationRequest) Reset() {
 	*x = AbortAllocationRequest{}
-	mi := &file_runtime_proto_msgTypes[17]
+	mi := &file_runtime_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1134,7 +1904,7 @@ func (x *AbortAllocationRequest) String() string {
 func (*AbortAllocationRequest) ProtoMessage() {}
 
 func (x *AbortAllocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[17]
+	mi := &file_runtime_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1147,7 +1917,7 @@ func (x *AbortAllocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AbortAllocationRequest.ProtoReflect.Descriptor instead.
 func (*AbortAllocationRequest) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{17}
+	return file_runtime_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *AbortAllocationRequest) GetApiVersion() string {
@@ -1195,7 +1965,7 @@ type ReleaseAllocationRequest struct {
 
 func (x *ReleaseAllocationRequest) Reset() {
 	*x = ReleaseAllocationRequest{}
-	mi := &file_runtime_proto_msgTypes[18]
+	mi := &file_runtime_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1207,7 +1977,7 @@ func (x *ReleaseAllocationRequest) String() string {
 func (*ReleaseAllocationRequest) ProtoMessage() {}
 
 func (x *ReleaseAllocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[18]
+	mi := &file_runtime_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1220,7 +1990,7 @@ func (x *ReleaseAllocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseAllocationRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseAllocationRequest) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{18}
+	return file_runtime_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ReleaseAllocationRequest) GetApiVersion() string {
@@ -1245,7 +2015,7 @@ type ReleaseAllocationResponse struct {
 
 func (x *ReleaseAllocationResponse) Reset() {
 	*x = ReleaseAllocationResponse{}
-	mi := &file_runtime_proto_msgTypes[19]
+	mi := &file_runtime_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1257,7 +2027,7 @@ func (x *ReleaseAllocationResponse) String() string {
 func (*ReleaseAllocationResponse) ProtoMessage() {}
 
 func (x *ReleaseAllocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[19]
+	mi := &file_runtime_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1270,7 +2040,7 @@ func (x *ReleaseAllocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseAllocationResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseAllocationResponse) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{19}
+	return file_runtime_proto_rawDescGZIP(), []int{30}
 }
 
 type TerminationError struct {
@@ -1284,7 +2054,7 @@ type TerminationError struct {
 
 func (x *TerminationError) Reset() {
 	*x = TerminationError{}
-	mi := &file_runtime_proto_msgTypes[20]
+	mi := &file_runtime_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1296,7 +2066,7 @@ func (x *TerminationError) String() string {
 func (*TerminationError) ProtoMessage() {}
 
 func (x *TerminationError) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[20]
+	mi := &file_runtime_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1309,7 +2079,7 @@ func (x *TerminationError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminationError.ProtoReflect.Descriptor instead.
 func (*TerminationError) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{20}
+	return file_runtime_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *TerminationError) GetCode() string {
@@ -1363,7 +2133,7 @@ type AllocationSpec struct {
 
 func (x *AllocationSpec) Reset() {
 	*x = AllocationSpec{}
-	mi := &file_runtime_proto_msgTypes[21]
+	mi := &file_runtime_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1375,7 +2145,7 @@ func (x *AllocationSpec) String() string {
 func (*AllocationSpec) ProtoMessage() {}
 
 func (x *AllocationSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[21]
+	mi := &file_runtime_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1388,7 +2158,7 @@ func (x *AllocationSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocationSpec.ProtoReflect.Descriptor instead.
 func (*AllocationSpec) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{21}
+	return file_runtime_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *AllocationSpec) GetApiVersion() string {
@@ -1556,7 +2326,7 @@ type AgentTemplateDocument struct {
 
 func (x *AgentTemplateDocument) Reset() {
 	*x = AgentTemplateDocument{}
-	mi := &file_runtime_proto_msgTypes[22]
+	mi := &file_runtime_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1568,7 +2338,7 @@ func (x *AgentTemplateDocument) String() string {
 func (*AgentTemplateDocument) ProtoMessage() {}
 
 func (x *AgentTemplateDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[22]
+	mi := &file_runtime_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1581,7 +2351,7 @@ func (x *AgentTemplateDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentTemplateDocument.ProtoReflect.Descriptor instead.
 func (*AgentTemplateDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{22}
+	return file_runtime_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *AgentTemplateDocument) GetJson() []byte {
@@ -1600,7 +2370,7 @@ type ModelPolicyDocument struct {
 
 func (x *ModelPolicyDocument) Reset() {
 	*x = ModelPolicyDocument{}
-	mi := &file_runtime_proto_msgTypes[23]
+	mi := &file_runtime_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1612,7 +2382,7 @@ func (x *ModelPolicyDocument) String() string {
 func (*ModelPolicyDocument) ProtoMessage() {}
 
 func (x *ModelPolicyDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[23]
+	mi := &file_runtime_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1625,7 +2395,7 @@ func (x *ModelPolicyDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelPolicyDocument.ProtoReflect.Descriptor instead.
 func (*ModelPolicyDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{23}
+	return file_runtime_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ModelPolicyDocument) GetJson() []byte {
@@ -1644,7 +2414,7 @@ type RuntimeSettingsDocument struct {
 
 func (x *RuntimeSettingsDocument) Reset() {
 	*x = RuntimeSettingsDocument{}
-	mi := &file_runtime_proto_msgTypes[24]
+	mi := &file_runtime_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1656,7 +2426,7 @@ func (x *RuntimeSettingsDocument) String() string {
 func (*RuntimeSettingsDocument) ProtoMessage() {}
 
 func (x *RuntimeSettingsDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[24]
+	mi := &file_runtime_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1669,7 +2439,7 @@ func (x *RuntimeSettingsDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeSettingsDocument.ProtoReflect.Descriptor instead.
 func (*RuntimeSettingsDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{24}
+	return file_runtime_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *RuntimeSettingsDocument) GetJson() []byte {
@@ -1688,7 +2458,7 @@ type RuntimeConfigProvenanceDocument struct {
 
 func (x *RuntimeConfigProvenanceDocument) Reset() {
 	*x = RuntimeConfigProvenanceDocument{}
-	mi := &file_runtime_proto_msgTypes[25]
+	mi := &file_runtime_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1700,7 +2470,7 @@ func (x *RuntimeConfigProvenanceDocument) String() string {
 func (*RuntimeConfigProvenanceDocument) ProtoMessage() {}
 
 func (x *RuntimeConfigProvenanceDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[25]
+	mi := &file_runtime_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1713,7 +2483,7 @@ func (x *RuntimeConfigProvenanceDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeConfigProvenanceDocument.ProtoReflect.Descriptor instead.
 func (*RuntimeConfigProvenanceDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{25}
+	return file_runtime_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *RuntimeConfigProvenanceDocument) GetJson() []byte {
@@ -1732,7 +2502,7 @@ type AgentCardDocument struct {
 
 func (x *AgentCardDocument) Reset() {
 	*x = AgentCardDocument{}
-	mi := &file_runtime_proto_msgTypes[26]
+	mi := &file_runtime_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1744,7 +2514,7 @@ func (x *AgentCardDocument) String() string {
 func (*AgentCardDocument) ProtoMessage() {}
 
 func (x *AgentCardDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[26]
+	mi := &file_runtime_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1757,7 +2527,7 @@ func (x *AgentCardDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentCardDocument.ProtoReflect.Descriptor instead.
 func (*AgentCardDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{26}
+	return file_runtime_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *AgentCardDocument) GetJson() []byte {
@@ -1778,7 +2548,7 @@ type ExecutionReportDocument struct {
 
 func (x *ExecutionReportDocument) Reset() {
 	*x = ExecutionReportDocument{}
-	mi := &file_runtime_proto_msgTypes[27]
+	mi := &file_runtime_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1790,7 +2560,7 @@ func (x *ExecutionReportDocument) String() string {
 func (*ExecutionReportDocument) ProtoMessage() {}
 
 func (x *ExecutionReportDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[27]
+	mi := &file_runtime_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1803,7 +2573,7 @@ func (x *ExecutionReportDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecutionReportDocument.ProtoReflect.Descriptor instead.
 func (*ExecutionReportDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{27}
+	return file_runtime_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ExecutionReportDocument) GetJson() []byte {
@@ -1822,7 +2592,7 @@ type RuntimeReportDocument struct {
 
 func (x *RuntimeReportDocument) Reset() {
 	*x = RuntimeReportDocument{}
-	mi := &file_runtime_proto_msgTypes[28]
+	mi := &file_runtime_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1834,7 +2604,7 @@ func (x *RuntimeReportDocument) String() string {
 func (*RuntimeReportDocument) ProtoMessage() {}
 
 func (x *RuntimeReportDocument) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[28]
+	mi := &file_runtime_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1847,7 +2617,7 @@ func (x *RuntimeReportDocument) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeReportDocument.ProtoReflect.Descriptor instead.
 func (*RuntimeReportDocument) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{28}
+	return file_runtime_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *RuntimeReportDocument) GetJson() []byte {
@@ -1866,7 +2636,7 @@ type MapOfString struct {
 
 func (x *MapOfString) Reset() {
 	*x = MapOfString{}
-	mi := &file_runtime_proto_msgTypes[29]
+	mi := &file_runtime_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1878,7 +2648,7 @@ func (x *MapOfString) String() string {
 func (*MapOfString) ProtoMessage() {}
 
 func (x *MapOfString) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[29]
+	mi := &file_runtime_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1891,7 +2661,7 @@ func (x *MapOfString) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MapOfString.ProtoReflect.Descriptor instead.
 func (*MapOfString) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{29}
+	return file_runtime_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *MapOfString) GetValues() map[string]string {
@@ -1912,7 +2682,7 @@ type ResolvedInstructions struct {
 
 func (x *ResolvedInstructions) Reset() {
 	*x = ResolvedInstructions{}
-	mi := &file_runtime_proto_msgTypes[30]
+	mi := &file_runtime_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1924,7 +2694,7 @@ func (x *ResolvedInstructions) String() string {
 func (*ResolvedInstructions) ProtoMessage() {}
 
 func (x *ResolvedInstructions) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[30]
+	mi := &file_runtime_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1937,7 +2707,7 @@ func (x *ResolvedInstructions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolvedInstructions.ProtoReflect.Descriptor instead.
 func (*ResolvedInstructions) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{30}
+	return file_runtime_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ResolvedInstructions) GetRef() string {
@@ -1975,7 +2745,7 @@ type WorkerContextManagement struct {
 
 func (x *WorkerContextManagement) Reset() {
 	*x = WorkerContextManagement{}
-	mi := &file_runtime_proto_msgTypes[31]
+	mi := &file_runtime_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1987,7 +2757,7 @@ func (x *WorkerContextManagement) String() string {
 func (*WorkerContextManagement) ProtoMessage() {}
 
 func (x *WorkerContextManagement) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[31]
+	mi := &file_runtime_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2000,7 +2770,7 @@ func (x *WorkerContextManagement) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkerContextManagement.ProtoReflect.Descriptor instead.
 func (*WorkerContextManagement) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{31}
+	return file_runtime_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *WorkerContextManagement) GetStrategy() string {
@@ -2056,7 +2826,7 @@ type ArtifactRef struct {
 
 func (x *ArtifactRef) Reset() {
 	*x = ArtifactRef{}
-	mi := &file_runtime_proto_msgTypes[32]
+	mi := &file_runtime_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2068,7 +2838,7 @@ func (x *ArtifactRef) String() string {
 func (*ArtifactRef) ProtoMessage() {}
 
 func (x *ArtifactRef) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[32]
+	mi := &file_runtime_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2081,7 +2851,7 @@ func (x *ArtifactRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtifactRef.ProtoReflect.Descriptor instead.
 func (*ArtifactRef) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{32}
+	return file_runtime_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ArtifactRef) GetNamespace() string {
@@ -2116,7 +2886,7 @@ type ResolvedSkill struct {
 
 func (x *ResolvedSkill) Reset() {
 	*x = ResolvedSkill{}
-	mi := &file_runtime_proto_msgTypes[33]
+	mi := &file_runtime_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2128,7 +2898,7 @@ func (x *ResolvedSkill) String() string {
 func (*ResolvedSkill) ProtoMessage() {}
 
 func (x *ResolvedSkill) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[33]
+	mi := &file_runtime_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2141,7 +2911,7 @@ func (x *ResolvedSkill) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolvedSkill.ProtoReflect.Descriptor instead.
 func (*ResolvedSkill) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{33}
+	return file_runtime_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ResolvedSkill) GetName() string {
@@ -2174,7 +2944,7 @@ type ListOfResolvedSkill struct {
 
 func (x *ListOfResolvedSkill) Reset() {
 	*x = ListOfResolvedSkill{}
-	mi := &file_runtime_proto_msgTypes[34]
+	mi := &file_runtime_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2186,7 +2956,7 @@ func (x *ListOfResolvedSkill) String() string {
 func (*ListOfResolvedSkill) ProtoMessage() {}
 
 func (x *ListOfResolvedSkill) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[34]
+	mi := &file_runtime_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2199,7 +2969,7 @@ func (x *ListOfResolvedSkill) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOfResolvedSkill.ProtoReflect.Descriptor instead.
 func (*ListOfResolvedSkill) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{34}
+	return file_runtime_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ListOfResolvedSkill) GetValues() []*ResolvedSkill {
@@ -2220,7 +2990,7 @@ type WorkerCompletionContract struct {
 
 func (x *WorkerCompletionContract) Reset() {
 	*x = WorkerCompletionContract{}
-	mi := &file_runtime_proto_msgTypes[35]
+	mi := &file_runtime_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2232,7 +3002,7 @@ func (x *WorkerCompletionContract) String() string {
 func (*WorkerCompletionContract) ProtoMessage() {}
 
 func (x *WorkerCompletionContract) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[35]
+	mi := &file_runtime_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2245,7 +3015,7 @@ func (x *WorkerCompletionContract) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkerCompletionContract.ProtoReflect.Descriptor instead.
 func (*WorkerCompletionContract) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{35}
+	return file_runtime_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *WorkerCompletionContract) GetKind() string {
@@ -2280,7 +3050,7 @@ type AgentTemplateRef struct {
 
 func (x *AgentTemplateRef) Reset() {
 	*x = AgentTemplateRef{}
-	mi := &file_runtime_proto_msgTypes[36]
+	mi := &file_runtime_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2292,7 +3062,7 @@ func (x *AgentTemplateRef) String() string {
 func (*AgentTemplateRef) ProtoMessage() {}
 
 func (x *AgentTemplateRef) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[36]
+	mi := &file_runtime_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2305,7 +3075,7 @@ func (x *AgentTemplateRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentTemplateRef.ProtoReflect.Descriptor instead.
 func (*AgentTemplateRef) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{36}
+	return file_runtime_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *AgentTemplateRef) GetTemplateId() string {
@@ -2339,7 +3109,7 @@ type WorkerRuntimeRef struct {
 
 func (x *WorkerRuntimeRef) Reset() {
 	*x = WorkerRuntimeRef{}
-	mi := &file_runtime_proto_msgTypes[37]
+	mi := &file_runtime_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2351,7 +3121,7 @@ func (x *WorkerRuntimeRef) String() string {
 func (*WorkerRuntimeRef) ProtoMessage() {}
 
 func (x *WorkerRuntimeRef) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[37]
+	mi := &file_runtime_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2364,7 +3134,7 @@ func (x *WorkerRuntimeRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkerRuntimeRef.ProtoReflect.Descriptor instead.
 func (*WorkerRuntimeRef) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{37}
+	return file_runtime_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *WorkerRuntimeRef) GetRuntimeId() string {
@@ -2394,7 +3164,7 @@ type WorkerHandle struct {
 
 func (x *WorkerHandle) Reset() {
 	*x = WorkerHandle{}
-	mi := &file_runtime_proto_msgTypes[38]
+	mi := &file_runtime_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2406,7 +3176,7 @@ func (x *WorkerHandle) String() string {
 func (*WorkerHandle) ProtoMessage() {}
 
 func (x *WorkerHandle) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[38]
+	mi := &file_runtime_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2419,7 +3189,7 @@ func (x *WorkerHandle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkerHandle.ProtoReflect.Descriptor instead.
 func (*WorkerHandle) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{38}
+	return file_runtime_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *WorkerHandle) GetAllocationId() string {
@@ -2469,7 +3239,7 @@ type AllocationWorkspace struct {
 
 func (x *AllocationWorkspace) Reset() {
 	*x = AllocationWorkspace{}
-	mi := &file_runtime_proto_msgTypes[39]
+	mi := &file_runtime_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2481,7 +3251,7 @@ func (x *AllocationWorkspace) String() string {
 func (*AllocationWorkspace) ProtoMessage() {}
 
 func (x *AllocationWorkspace) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[39]
+	mi := &file_runtime_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2494,7 +3264,7 @@ func (x *AllocationWorkspace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocationWorkspace.ProtoReflect.Descriptor instead.
 func (*AllocationWorkspace) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{39}
+	return file_runtime_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *AllocationWorkspace) GetMode() string {
@@ -2535,7 +3305,7 @@ type WorkspaceSource struct {
 
 func (x *WorkspaceSource) Reset() {
 	*x = WorkspaceSource{}
-	mi := &file_runtime_proto_msgTypes[40]
+	mi := &file_runtime_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2547,7 +3317,7 @@ func (x *WorkspaceSource) String() string {
 func (*WorkspaceSource) ProtoMessage() {}
 
 func (x *WorkspaceSource) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[40]
+	mi := &file_runtime_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2560,7 +3330,7 @@ func (x *WorkspaceSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceSource.ProtoReflect.Descriptor instead.
 func (*WorkspaceSource) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{40}
+	return file_runtime_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *WorkspaceSource) GetArtifact() *ArtifactRef {
@@ -2586,7 +3356,7 @@ type ListOfWorkspaceSource struct {
 
 func (x *ListOfWorkspaceSource) Reset() {
 	*x = ListOfWorkspaceSource{}
-	mi := &file_runtime_proto_msgTypes[41]
+	mi := &file_runtime_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2598,7 +3368,7 @@ func (x *ListOfWorkspaceSource) String() string {
 func (*ListOfWorkspaceSource) ProtoMessage() {}
 
 func (x *ListOfWorkspaceSource) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[41]
+	mi := &file_runtime_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2611,7 +3381,7 @@ func (x *ListOfWorkspaceSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOfWorkspaceSource.ProtoReflect.Descriptor instead.
 func (*ListOfWorkspaceSource) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{41}
+	return file_runtime_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ListOfWorkspaceSource) GetValues() []*WorkspaceSource {
@@ -2630,7 +3400,7 @@ type WorkspaceState struct {
 
 func (x *WorkspaceState) Reset() {
 	*x = WorkspaceState{}
-	mi := &file_runtime_proto_msgTypes[42]
+	mi := &file_runtime_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2642,7 +3412,7 @@ func (x *WorkspaceState) String() string {
 func (*WorkspaceState) ProtoMessage() {}
 
 func (x *WorkspaceState) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[42]
+	mi := &file_runtime_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2655,7 +3425,7 @@ func (x *WorkspaceState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceState.ProtoReflect.Descriptor instead.
 func (*WorkspaceState) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{42}
+	return file_runtime_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *WorkspaceState) GetArtifact() *ArtifactRef {
@@ -2675,7 +3445,7 @@ type WorkspaceExport struct {
 
 func (x *WorkspaceExport) Reset() {
 	*x = WorkspaceExport{}
-	mi := &file_runtime_proto_msgTypes[43]
+	mi := &file_runtime_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2687,7 +3457,7 @@ func (x *WorkspaceExport) String() string {
 func (*WorkspaceExport) ProtoMessage() {}
 
 func (x *WorkspaceExport) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[43]
+	mi := &file_runtime_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2700,7 +3470,7 @@ func (x *WorkspaceExport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceExport.ProtoReflect.Descriptor instead.
 func (*WorkspaceExport) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{43}
+	return file_runtime_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *WorkspaceExport) GetState() string {
@@ -2730,7 +3500,7 @@ type NullableAllocationWorkspace struct {
 
 func (x *NullableAllocationWorkspace) Reset() {
 	*x = NullableAllocationWorkspace{}
-	mi := &file_runtime_proto_msgTypes[44]
+	mi := &file_runtime_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2742,7 +3512,7 @@ func (x *NullableAllocationWorkspace) String() string {
 func (*NullableAllocationWorkspace) ProtoMessage() {}
 
 func (x *NullableAllocationWorkspace) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[44]
+	mi := &file_runtime_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2755,7 +3525,7 @@ func (x *NullableAllocationWorkspace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NullableAllocationWorkspace.ProtoReflect.Descriptor instead.
 func (*NullableAllocationWorkspace) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{44}
+	return file_runtime_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *NullableAllocationWorkspace) GetKind() isNullableAllocationWorkspace_Kind {
@@ -2812,7 +3582,7 @@ type NullableWorkspaceState struct {
 
 func (x *NullableWorkspaceState) Reset() {
 	*x = NullableWorkspaceState{}
-	mi := &file_runtime_proto_msgTypes[45]
+	mi := &file_runtime_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2824,7 +3594,7 @@ func (x *NullableWorkspaceState) String() string {
 func (*NullableWorkspaceState) ProtoMessage() {}
 
 func (x *NullableWorkspaceState) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[45]
+	mi := &file_runtime_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2837,7 +3607,7 @@ func (x *NullableWorkspaceState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NullableWorkspaceState.ProtoReflect.Descriptor instead.
 func (*NullableWorkspaceState) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{45}
+	return file_runtime_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *NullableWorkspaceState) GetKind() isNullableWorkspaceState_Kind {
@@ -2894,7 +3664,7 @@ type NullableWorkspaceExport struct {
 
 func (x *NullableWorkspaceExport) Reset() {
 	*x = NullableWorkspaceExport{}
-	mi := &file_runtime_proto_msgTypes[46]
+	mi := &file_runtime_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2906,7 +3676,7 @@ func (x *NullableWorkspaceExport) String() string {
 func (*NullableWorkspaceExport) ProtoMessage() {}
 
 func (x *NullableWorkspaceExport) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[46]
+	mi := &file_runtime_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2919,7 +3689,7 @@ func (x *NullableWorkspaceExport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NullableWorkspaceExport.ProtoReflect.Descriptor instead.
 func (*NullableWorkspaceExport) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{46}
+	return file_runtime_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *NullableWorkspaceExport) GetKind() isNullableWorkspaceExport_Kind {
@@ -2973,7 +3743,7 @@ type PerformanceMetricsRequest struct {
 
 func (x *PerformanceMetricsRequest) Reset() {
 	*x = PerformanceMetricsRequest{}
-	mi := &file_runtime_proto_msgTypes[47]
+	mi := &file_runtime_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2985,7 +3755,7 @@ func (x *PerformanceMetricsRequest) String() string {
 func (*PerformanceMetricsRequest) ProtoMessage() {}
 
 func (x *PerformanceMetricsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[47]
+	mi := &file_runtime_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2998,7 +3768,7 @@ func (x *PerformanceMetricsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PerformanceMetricsRequest.ProtoReflect.Descriptor instead.
 func (*PerformanceMetricsRequest) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{47}
+	return file_runtime_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *PerformanceMetricsRequest) GetVersion() int64 {
@@ -3028,7 +3798,7 @@ type NullablePerformanceMetricsRequest struct {
 
 func (x *NullablePerformanceMetricsRequest) Reset() {
 	*x = NullablePerformanceMetricsRequest{}
-	mi := &file_runtime_proto_msgTypes[48]
+	mi := &file_runtime_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3040,7 +3810,7 @@ func (x *NullablePerformanceMetricsRequest) String() string {
 func (*NullablePerformanceMetricsRequest) ProtoMessage() {}
 
 func (x *NullablePerformanceMetricsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[48]
+	mi := &file_runtime_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3053,7 +3823,7 @@ func (x *NullablePerformanceMetricsRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use NullablePerformanceMetricsRequest.ProtoReflect.Descriptor instead.
 func (*NullablePerformanceMetricsRequest) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{48}
+	return file_runtime_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *NullablePerformanceMetricsRequest) GetKind() isNullablePerformanceMetricsRequest_Kind {
@@ -3111,7 +3881,7 @@ type EngagementAllocation struct {
 
 func (x *EngagementAllocation) Reset() {
 	*x = EngagementAllocation{}
-	mi := &file_runtime_proto_msgTypes[49]
+	mi := &file_runtime_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3123,7 +3893,7 @@ func (x *EngagementAllocation) String() string {
 func (*EngagementAllocation) ProtoMessage() {}
 
 func (x *EngagementAllocation) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[49]
+	mi := &file_runtime_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3136,7 +3906,7 @@ func (x *EngagementAllocation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngagementAllocation.ProtoReflect.Descriptor instead.
 func (*EngagementAllocation) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{49}
+	return file_runtime_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *EngagementAllocation) GetSchema() string {
@@ -3195,7 +3965,7 @@ type HTTPAssignment struct {
 
 func (x *HTTPAssignment) Reset() {
 	*x = HTTPAssignment{}
-	mi := &file_runtime_proto_msgTypes[50]
+	mi := &file_runtime_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3207,7 +3977,7 @@ func (x *HTTPAssignment) String() string {
 func (*HTTPAssignment) ProtoMessage() {}
 
 func (x *HTTPAssignment) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[50]
+	mi := &file_runtime_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3220,7 +3990,7 @@ func (x *HTTPAssignment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HTTPAssignment.ProtoReflect.Descriptor instead.
 func (*HTTPAssignment) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{50}
+	return file_runtime_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *HTTPAssignment) GetLimits() *HTTPLimits {
@@ -3277,7 +4047,7 @@ type HTTPLimits struct {
 
 func (x *HTTPLimits) Reset() {
 	*x = HTTPLimits{}
-	mi := &file_runtime_proto_msgTypes[51]
+	mi := &file_runtime_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3289,7 +4059,7 @@ func (x *HTTPLimits) String() string {
 func (*HTTPLimits) ProtoMessage() {}
 
 func (x *HTTPLimits) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[51]
+	mi := &file_runtime_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3302,7 +4072,7 @@ func (x *HTTPLimits) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HTTPLimits.ProtoReflect.Descriptor instead.
 func (*HTTPLimits) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{51}
+	return file_runtime_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *HTTPLimits) GetRequestsPerSecond() int64 {
@@ -3345,7 +4115,7 @@ type HTTPRoute struct {
 
 func (x *HTTPRoute) Reset() {
 	*x = HTTPRoute{}
-	mi := &file_runtime_proto_msgTypes[52]
+	mi := &file_runtime_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3357,7 +4127,7 @@ func (x *HTTPRoute) String() string {
 func (*HTTPRoute) ProtoMessage() {}
 
 func (x *HTTPRoute) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[52]
+	mi := &file_runtime_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3370,7 +4140,7 @@ func (x *HTTPRoute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HTTPRoute.ProtoReflect.Descriptor instead.
 func (*HTTPRoute) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{52}
+	return file_runtime_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *HTTPRoute) GetOrigin() string {
@@ -3415,7 +4185,7 @@ type HTTPIdentity struct {
 
 func (x *HTTPIdentity) Reset() {
 	*x = HTTPIdentity{}
-	mi := &file_runtime_proto_msgTypes[53]
+	mi := &file_runtime_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3427,7 +4197,7 @@ func (x *HTTPIdentity) String() string {
 func (*HTTPIdentity) ProtoMessage() {}
 
 func (x *HTTPIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[53]
+	mi := &file_runtime_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3440,7 +4210,7 @@ func (x *HTTPIdentity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HTTPIdentity.ProtoReflect.Descriptor instead.
 func (*HTTPIdentity) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{53}
+	return file_runtime_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *HTTPIdentity) GetId() string {
@@ -3495,7 +4265,7 @@ type RuntimeCredentialRef struct {
 
 func (x *RuntimeCredentialRef) Reset() {
 	*x = RuntimeCredentialRef{}
-	mi := &file_runtime_proto_msgTypes[54]
+	mi := &file_runtime_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3507,7 +4277,7 @@ func (x *RuntimeCredentialRef) String() string {
 func (*RuntimeCredentialRef) ProtoMessage() {}
 
 func (x *RuntimeCredentialRef) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[54]
+	mi := &file_runtime_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3520,7 +4290,7 @@ func (x *RuntimeCredentialRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeCredentialRef.ProtoReflect.Descriptor instead.
 func (*RuntimeCredentialRef) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{54}
+	return file_runtime_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *RuntimeCredentialRef) GetCredentialId() string {
@@ -3548,7 +4318,7 @@ type ProtectedDestination struct {
 
 func (x *ProtectedDestination) Reset() {
 	*x = ProtectedDestination{}
-	mi := &file_runtime_proto_msgTypes[55]
+	mi := &file_runtime_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3560,7 +4330,7 @@ func (x *ProtectedDestination) String() string {
 func (*ProtectedDestination) ProtoMessage() {}
 
 func (x *ProtectedDestination) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[55]
+	mi := &file_runtime_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3573,7 +4343,7 @@ func (x *ProtectedDestination) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProtectedDestination.ProtoReflect.Descriptor instead.
 func (*ProtectedDestination) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{55}
+	return file_runtime_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *ProtectedDestination) GetHostname() string {
@@ -3606,7 +4376,7 @@ type ListOfHTTPRoute struct {
 
 func (x *ListOfHTTPRoute) Reset() {
 	*x = ListOfHTTPRoute{}
-	mi := &file_runtime_proto_msgTypes[56]
+	mi := &file_runtime_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3618,7 +4388,7 @@ func (x *ListOfHTTPRoute) String() string {
 func (*ListOfHTTPRoute) ProtoMessage() {}
 
 func (x *ListOfHTTPRoute) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[56]
+	mi := &file_runtime_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3631,7 +4401,7 @@ func (x *ListOfHTTPRoute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOfHTTPRoute.ProtoReflect.Descriptor instead.
 func (*ListOfHTTPRoute) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{56}
+	return file_runtime_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *ListOfHTTPRoute) GetValues() []*HTTPRoute {
@@ -3650,7 +4420,7 @@ type ListOfHTTPIdentity struct {
 
 func (x *ListOfHTTPIdentity) Reset() {
 	*x = ListOfHTTPIdentity{}
-	mi := &file_runtime_proto_msgTypes[57]
+	mi := &file_runtime_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3662,7 +4432,7 @@ func (x *ListOfHTTPIdentity) String() string {
 func (*ListOfHTTPIdentity) ProtoMessage() {}
 
 func (x *ListOfHTTPIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[57]
+	mi := &file_runtime_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3675,7 +4445,7 @@ func (x *ListOfHTTPIdentity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOfHTTPIdentity.ProtoReflect.Descriptor instead.
 func (*ListOfHTTPIdentity) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{57}
+	return file_runtime_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *ListOfHTTPIdentity) GetValues() []*HTTPIdentity {
@@ -3694,7 +4464,7 @@ type ListOfProtectedDestination struct {
 
 func (x *ListOfProtectedDestination) Reset() {
 	*x = ListOfProtectedDestination{}
-	mi := &file_runtime_proto_msgTypes[58]
+	mi := &file_runtime_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3706,7 +4476,7 @@ func (x *ListOfProtectedDestination) String() string {
 func (*ListOfProtectedDestination) ProtoMessage() {}
 
 func (x *ListOfProtectedDestination) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[58]
+	mi := &file_runtime_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3719,7 +4489,7 @@ func (x *ListOfProtectedDestination) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOfProtectedDestination.ProtoReflect.Descriptor instead.
 func (*ListOfProtectedDestination) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{58}
+	return file_runtime_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *ListOfProtectedDestination) GetValues() []*ProtectedDestination {
@@ -3739,7 +4509,7 @@ type AllocationFinalResponse struct {
 
 func (x *AllocationFinalResponse) Reset() {
 	*x = AllocationFinalResponse{}
-	mi := &file_runtime_proto_msgTypes[59]
+	mi := &file_runtime_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3751,7 +4521,7 @@ func (x *AllocationFinalResponse) String() string {
 func (*AllocationFinalResponse) ProtoMessage() {}
 
 func (x *AllocationFinalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[59]
+	mi := &file_runtime_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3764,7 +4534,7 @@ func (x *AllocationFinalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocationFinalResponse.ProtoReflect.Descriptor instead.
 func (*AllocationFinalResponse) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{59}
+	return file_runtime_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *AllocationFinalResponse) GetApiVersion() string {
@@ -3795,7 +4565,7 @@ type AllocationFinalReport struct {
 
 func (x *AllocationFinalReport) Reset() {
 	*x = AllocationFinalReport{}
-	mi := &file_runtime_proto_msgTypes[60]
+	mi := &file_runtime_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3807,7 +4577,7 @@ func (x *AllocationFinalReport) String() string {
 func (*AllocationFinalReport) ProtoMessage() {}
 
 func (x *AllocationFinalReport) ProtoReflect() protoreflect.Message {
-	mi := &file_runtime_proto_msgTypes[60]
+	mi := &file_runtime_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3820,7 +4590,7 @@ func (x *AllocationFinalReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocationFinalReport.ProtoReflect.Descriptor instead.
 func (*AllocationFinalReport) Descriptor() ([]byte, []int) {
-	return file_runtime_proto_rawDescGZIP(), []int{60}
+	return file_runtime_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *AllocationFinalReport) GetReportId() string {
@@ -3869,7 +4639,92 @@ var File_runtime_proto protoreflect.FileDescriptor
 
 const file_runtime_proto_rawDesc = "" +
 	"\n" +
-	"\rruntime.proto\x12\x1bcontractor.runtime.v1alpha1\x1a\x1cgoogle/protobuf/struct.proto\"&\n" +
+	"\rruntime.proto\x12\x1bcontractor.runtime.v1alpha1\x1a\x1cgoogle/protobuf/struct.proto\"\x12\n" +
+	"\x10BootstrapRequest\"\xda\x01\n" +
+	"\fSharedConfig\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12\x1d\n" +
+	"\aversion\x18\x02 \x01(\x03H\x01R\aversion\x88\x01\x01\x12A\n" +
+	"\x06limits\x18\x03 \x01(\v2).contractor.runtime.v1alpha1.SharedLimitsR\x06limits\x12\x1b\n" +
+	"\x06digest\x18\x04 \x01(\tH\x02R\x06digest\x88\x01\x01B\x0e\n" +
+	"\f_api_versionB\n" +
+	"\n" +
+	"\b_versionB\t\n" +
+	"\a_digest\"\xb3\x0f\n" +
+	"\fSharedLimits\x12;\n" +
+	"\x18git_import_url_max_bytes\x18\x01 \x01(\x03H\x00R\x14gitImportUrlMaxBytes\x88\x01\x01\x12:\n" +
+	"\x17run_metadata_max_labels\x18\x02 \x01(\x03H\x01R\x14runMetadataMaxLabels\x88\x01\x01\x12?\n" +
+	"\x1arun_metadata_key_max_bytes\x18\x03 \x01(\x03H\x02R\x16runMetadataKeyMaxBytes\x88\x01\x01\x12C\n" +
+	"\x1crun_metadata_value_max_bytes\x18\x04 \x01(\x03H\x03R\x18runMetadataValueMaxBytes\x88\x01\x01\x12-\n" +
+	"\x10audit_max_labels\x18\x05 \x01(\x03H\x04R\x0eauditMaxLabels\x88\x01\x01\x12A\n" +
+	"\x1bhttp_request_body_max_bytes\x18\x06 \x01(\x03H\x05R\x17httpRequestBodyMaxBytes\x88\x01\x01\x12C\n" +
+	"\x1chttp_response_body_max_bytes\x18\a \x01(\x03H\x06R\x18httpResponseBodyMaxBytes\x88\x01\x01\x12A\n" +
+	"\x1bhttp_header_block_max_bytes\x18\b \x01(\x03H\aR\x17httpHeaderBlockMaxBytes\x88\x01\x01\x12:\n" +
+	"\x17worker_result_max_bytes\x18\t \x01(\x03H\bR\x14workerResultMaxBytes\x88\x01\x01\x12B\n" +
+	"\x1bworker_completion_max_bytes\x18\n" +
+	" \x01(\x03H\tR\x18workerCompletionMaxBytes\x88\x01\x01\x12K\n" +
+	" worker_failure_message_max_bytes\x18\v \x01(\x03H\n" +
+	"R\x1cworkerFailureMessageMaxBytes\x88\x01\x01\x12B\n" +
+	"\x1bworker_result_max_artifacts\x18\f \x01(\x03H\vR\x18workerResultMaxArtifacts\x88\x01\x01\x12D\n" +
+	"\x1cworker_observation_max_tools\x18\r \x01(\x03H\fR\x19workerObservationMaxTools\x88\x01\x01\x12I\n" +
+	"\x1fworker_workspace_max_files_read\x18\x0e \x01(\x03H\rR\x1bworkerWorkspaceMaxFilesRead\x88\x01\x01\x128\n" +
+	"\x16worker_state_max_bytes\x18\x0f \x01(\x03H\x0eR\x13workerStateMaxBytes\x88\x01\x01\x12K\n" +
+	" worker_state_workspace_max_paths\x18\x10 \x01(\x03H\x0fR\x1cworkerStateWorkspaceMaxPaths\x88\x01\x01\x12V\n" +
+	"&worker_state_workspace_paths_max_bytes\x18\x11 \x01(\x03H\x10R!workerStateWorkspacePathsMaxBytes\x88\x01\x01\x12@\n" +
+	"\x1aartifact_payload_max_bytes\x18\x12 \x01(\x03H\x11R\x17artifactPayloadMaxBytes\x88\x01\x01\x126\n" +
+	"\x15public_page_max_items\x18\x13 \x01(\x03H\x12R\x12publicPageMaxItems\x88\x01\x01\x12:\n" +
+	"\x17artifact_list_max_items\x18\x14 \x01(\x03H\x13R\x14artifactListMaxItems\x88\x01\x01B\x1b\n" +
+	"\x19_git_import_url_max_bytesB\x1a\n" +
+	"\x18_run_metadata_max_labelsB\x1d\n" +
+	"\x1b_run_metadata_key_max_bytesB\x1f\n" +
+	"\x1d_run_metadata_value_max_bytesB\x13\n" +
+	"\x11_audit_max_labelsB\x1e\n" +
+	"\x1c_http_request_body_max_bytesB\x1f\n" +
+	"\x1d_http_response_body_max_bytesB\x1e\n" +
+	"\x1c_http_header_block_max_bytesB\x1a\n" +
+	"\x18_worker_result_max_bytesB\x1e\n" +
+	"\x1c_worker_completion_max_bytesB#\n" +
+	"!_worker_failure_message_max_bytesB\x1e\n" +
+	"\x1c_worker_result_max_artifactsB\x1f\n" +
+	"\x1d_worker_observation_max_toolsB\"\n" +
+	" _worker_workspace_max_files_readB\x19\n" +
+	"\x17_worker_state_max_bytesB#\n" +
+	"!_worker_state_workspace_max_pathsB)\n" +
+	"'_worker_state_workspace_paths_max_bytesB\x1d\n" +
+	"\x1b_artifact_payload_max_bytesB\x18\n" +
+	"\x16_public_page_max_itemsB\x1a\n" +
+	"\x18_artifact_list_max_items\"\x8e\x03\n" +
+	"\x0eAgentHeartbeat\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12$\n" +
+	"\vinstance_id\x18\x02 \x01(\tH\x01R\n" +
+	"instanceId\x88\x01\x01\x12(\n" +
+	"\rheartbeat_seq\x18\x03 \x01(\x04H\x02R\fheartbeatSeq\x88\x01\x01\x12)\n" +
+	"\x0eechoed_ack_seq\x18\x04 \x01(\x04H\x03R\fechoedAckSeq\x88\x01\x01\x12*\n" +
+	"\x0eobserved_state\x18\x05 \x01(\tH\x04R\robservedState\x88\x01\x01\x12W\n" +
+	"\vallocations\x18\x06 \x01(\v25.contractor.runtime.v1alpha1.ListOfObservedAllocationR\vallocationsB\x0e\n" +
+	"\f_api_versionB\x0e\n" +
+	"\f_instance_idB\x10\n" +
+	"\x0e_heartbeat_seqB\x11\n" +
+	"\x0f_echoed_ack_seqB\x11\n" +
+	"\x0f_observed_state\"\xff\x01\n" +
+	"\x11HeartbeatResponse\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12\x1c\n" +
+	"\aack_seq\x18\x02 \x01(\x04H\x01R\x06ackSeq\x88\x01\x01\x12\x1b\n" +
+	"\x06action\x18\x03 \x01(\tH\x02R\x06action\x88\x01\x01\x12b\n" +
+	"\x12allocation_actions\x18\x04 \x01(\v23.contractor.runtime.v1alpha1.ListOfAllocationActionR\x11allocationActionsB\x0e\n" +
+	"\f_api_versionB\n" +
+	"\n" +
+	"\b_ack_seqB\t\n" +
+	"\a_action\"v\n" +
+	"\x10AllocationAction\x12(\n" +
+	"\rallocation_id\x18\x01 \x01(\tH\x00R\fallocationId\x88\x01\x01\x12\x1b\n" +
+	"\x06action\x18\x02 \x01(\tH\x01R\x06action\x88\x01\x01B\x10\n" +
+	"\x0e_allocation_idB\t\n" +
+	"\a_action\"_\n" +
+	"\x16ListOfAllocationAction\x12E\n" +
+	"\x06values\x18\x01 \x03(\v2-.contractor.runtime.v1alpha1.AllocationActionR\x06values\"&\n" +
 	"\fListOfString\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\tR\x06values\"'\n" +
 	"\rListOfInteger\x12\x16\n" +
@@ -3962,7 +4817,23 @@ const file_runtime_proto_rawDesc = "" +
 	"\x05_codeB\f\n" +
 	"\n" +
 	"_retryableB\r\n" +
-	"\v_request_id\"\x91\x01\n" +
+	"\v_request_id\"\x84\x01\n" +
+	"\x10StateReadRequest\x12(\n" +
+	"\rallocation_id\x18\x01 \x01(\tH\x00R\fallocationId\x88\x01\x01\x12$\n" +
+	"\vif_revision\x18\x02 \x01(\x04H\x01R\n" +
+	"ifRevision\x88\x01\x01B\x10\n" +
+	"\x0e_allocation_idB\x0e\n" +
+	"\f_if_revision\"\xee\x01\n" +
+	"\x11StateReadResponse\x12\x1f\n" +
+	"\brevision\x18\x01 \x01(\x04H\x01R\brevision\x88\x01\x01\x12M\n" +
+	"\bsnapshot\x18\x02 \x01(\v2/.contractor.runtime.v1alpha1.AgentStateDocumentH\x00R\bsnapshot\x12R\n" +
+	"\fnot_modified\x18\x03 \x01(\v2-.contractor.runtime.v1alpha1.StateNotModifiedH\x00R\vnotModifiedB\b\n" +
+	"\x06resultB\v\n" +
+	"\t_revision\"\x12\n" +
+	"\x10StateNotModified\"6\n" +
+	"\x12AgentStateDocument\x12\x17\n" +
+	"\x04json\x18\x01 \x01(\fH\x00R\x04json\x88\x01\x01B\a\n" +
+	"\x05_json\"\x91\x01\n" +
 	"\x18PrepareAllocationRequest\x12$\n" +
 	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
 	"apiVersion\x88\x01\x01\x12?\n" +
@@ -4270,14 +5141,17 @@ const file_runtime_proto_rawDesc = "" +
 	"_report_idB\x10\n" +
 	"\x0e_allocation_idB\r\n" +
 	"\v_started_atB\x0e\n" +
-	"\f_finished_at2\x82\x01\n" +
-	"\fControlPlane\x12r\n" +
-	"\bRegister\x12..contractor.runtime.v1alpha1.AgentRegistration\x1a6.contractor.runtime.v1alpha1.AgentRegistrationResponse2\xf4\x03\n" +
+	"\f_finished_at2\xd3\x02\n" +
+	"\fControlPlane\x12e\n" +
+	"\tBootstrap\x12-.contractor.runtime.v1alpha1.BootstrapRequest\x1a).contractor.runtime.v1alpha1.SharedConfig\x12r\n" +
+	"\bRegister\x12..contractor.runtime.v1alpha1.AgentRegistration\x1a6.contractor.runtime.v1alpha1.AgentRegistrationResponse\x12h\n" +
+	"\tHeartbeat\x12+.contractor.runtime.v1alpha1.AgentHeartbeat\x1a..contractor.runtime.v1alpha1.HeartbeatResponse2\xe0\x04\n" +
 	"\x10RuntimeLifecycle\x12x\n" +
 	"\aPrepare\x125.contractor.runtime.v1alpha1.PrepareAllocationRequest\x1a6.contractor.runtime.v1alpha1.PrepareAllocationResponse\x12x\n" +
 	"\bFinalize\x126.contractor.runtime.v1alpha1.FinalizeAllocationRequest\x1a4.contractor.runtime.v1alpha1.AllocationFinalResponse\x12r\n" +
 	"\x05Abort\x123.contractor.runtime.v1alpha1.AbortAllocationRequest\x1a4.contractor.runtime.v1alpha1.AllocationFinalResponse\x12x\n" +
-	"\aRelease\x125.contractor.runtime.v1alpha1.ReleaseAllocationRequest\x1a6.contractor.runtime.v1alpha1.ReleaseAllocationResponseB9Z7github.com/grauwolf32/contractor/api/v1alpha1/runtimepbb\x06proto3"
+	"\aRelease\x125.contractor.runtime.v1alpha1.ReleaseAllocationRequest\x1a6.contractor.runtime.v1alpha1.ReleaseAllocationResponse\x12j\n" +
+	"\tReadState\x12-.contractor.runtime.v1alpha1.StateReadRequest\x1a..contractor.runtime.v1alpha1.StateReadResponseB9Z7github.com/grauwolf32/contractor/api/v1alpha1/runtimepbb\x06proto3"
 
 var (
 	file_runtime_proto_rawDescOnce sync.Once
@@ -4291,165 +5165,188 @@ func file_runtime_proto_rawDescGZIP() []byte {
 	return file_runtime_proto_rawDescData
 }
 
-var file_runtime_proto_msgTypes = make([]protoimpl.MessageInfo, 62)
+var file_runtime_proto_msgTypes = make([]protoimpl.MessageInfo, 73)
 var file_runtime_proto_goTypes = []any{
-	(*ListOfString)(nil),                      // 0: contractor.runtime.v1alpha1.ListOfString
-	(*ListOfInteger)(nil),                     // 1: contractor.runtime.v1alpha1.ListOfInteger
-	(*ListOfToolsetCapability)(nil),           // 2: contractor.runtime.v1alpha1.ListOfToolsetCapability
-	(*ListOfObservedAllocation)(nil),          // 3: contractor.runtime.v1alpha1.ListOfObservedAllocation
-	(*AgentRegistration)(nil),                 // 4: contractor.runtime.v1alpha1.AgentRegistration
-	(*AgentRegistrationResponse)(nil),         // 5: contractor.runtime.v1alpha1.AgentRegistrationResponse
-	(*ToolsetCapability)(nil),                 // 6: contractor.runtime.v1alpha1.ToolsetCapability
-	(*ObservedAllocation)(nil),                // 7: contractor.runtime.v1alpha1.ObservedAllocation
-	(*CompletionCapabilities)(nil),            // 8: contractor.runtime.v1alpha1.CompletionCapabilities
-	(*NullableCompletionCapabilities)(nil),    // 9: contractor.runtime.v1alpha1.NullableCompletionCapabilities
-	(*WorkspaceCapabilities)(nil),             // 10: contractor.runtime.v1alpha1.WorkspaceCapabilities
-	(*WorkspaceLimits)(nil),                   // 11: contractor.runtime.v1alpha1.WorkspaceLimits
-	(*NullableWorkspaceCapabilities)(nil),     // 12: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities
-	(*ErrorDetail)(nil),                       // 13: contractor.runtime.v1alpha1.ErrorDetail
-	(*PrepareAllocationRequest)(nil),          // 14: contractor.runtime.v1alpha1.PrepareAllocationRequest
-	(*PrepareAllocationResponse)(nil),         // 15: contractor.runtime.v1alpha1.PrepareAllocationResponse
-	(*FinalizeAllocationRequest)(nil),         // 16: contractor.runtime.v1alpha1.FinalizeAllocationRequest
-	(*AbortAllocationRequest)(nil),            // 17: contractor.runtime.v1alpha1.AbortAllocationRequest
-	(*ReleaseAllocationRequest)(nil),          // 18: contractor.runtime.v1alpha1.ReleaseAllocationRequest
-	(*ReleaseAllocationResponse)(nil),         // 19: contractor.runtime.v1alpha1.ReleaseAllocationResponse
-	(*TerminationError)(nil),                  // 20: contractor.runtime.v1alpha1.TerminationError
-	(*AllocationSpec)(nil),                    // 21: contractor.runtime.v1alpha1.AllocationSpec
-	(*AgentTemplateDocument)(nil),             // 22: contractor.runtime.v1alpha1.AgentTemplateDocument
-	(*ModelPolicyDocument)(nil),               // 23: contractor.runtime.v1alpha1.ModelPolicyDocument
-	(*RuntimeSettingsDocument)(nil),           // 24: contractor.runtime.v1alpha1.RuntimeSettingsDocument
-	(*RuntimeConfigProvenanceDocument)(nil),   // 25: contractor.runtime.v1alpha1.RuntimeConfigProvenanceDocument
-	(*AgentCardDocument)(nil),                 // 26: contractor.runtime.v1alpha1.AgentCardDocument
-	(*ExecutionReportDocument)(nil),           // 27: contractor.runtime.v1alpha1.ExecutionReportDocument
-	(*RuntimeReportDocument)(nil),             // 28: contractor.runtime.v1alpha1.RuntimeReportDocument
-	(*MapOfString)(nil),                       // 29: contractor.runtime.v1alpha1.MapOfString
-	(*ResolvedInstructions)(nil),              // 30: contractor.runtime.v1alpha1.ResolvedInstructions
-	(*WorkerContextManagement)(nil),           // 31: contractor.runtime.v1alpha1.WorkerContextManagement
-	(*ArtifactRef)(nil),                       // 32: contractor.runtime.v1alpha1.ArtifactRef
-	(*ResolvedSkill)(nil),                     // 33: contractor.runtime.v1alpha1.ResolvedSkill
-	(*ListOfResolvedSkill)(nil),               // 34: contractor.runtime.v1alpha1.ListOfResolvedSkill
-	(*WorkerCompletionContract)(nil),          // 35: contractor.runtime.v1alpha1.WorkerCompletionContract
-	(*AgentTemplateRef)(nil),                  // 36: contractor.runtime.v1alpha1.AgentTemplateRef
-	(*WorkerRuntimeRef)(nil),                  // 37: contractor.runtime.v1alpha1.WorkerRuntimeRef
-	(*WorkerHandle)(nil),                      // 38: contractor.runtime.v1alpha1.WorkerHandle
-	(*AllocationWorkspace)(nil),               // 39: contractor.runtime.v1alpha1.AllocationWorkspace
-	(*WorkspaceSource)(nil),                   // 40: contractor.runtime.v1alpha1.WorkspaceSource
-	(*ListOfWorkspaceSource)(nil),             // 41: contractor.runtime.v1alpha1.ListOfWorkspaceSource
-	(*WorkspaceState)(nil),                    // 42: contractor.runtime.v1alpha1.WorkspaceState
-	(*WorkspaceExport)(nil),                   // 43: contractor.runtime.v1alpha1.WorkspaceExport
-	(*NullableAllocationWorkspace)(nil),       // 44: contractor.runtime.v1alpha1.NullableAllocationWorkspace
-	(*NullableWorkspaceState)(nil),            // 45: contractor.runtime.v1alpha1.NullableWorkspaceState
-	(*NullableWorkspaceExport)(nil),           // 46: contractor.runtime.v1alpha1.NullableWorkspaceExport
-	(*PerformanceMetricsRequest)(nil),         // 47: contractor.runtime.v1alpha1.PerformanceMetricsRequest
-	(*NullablePerformanceMetricsRequest)(nil), // 48: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest
-	(*EngagementAllocation)(nil),              // 49: contractor.runtime.v1alpha1.EngagementAllocation
-	(*HTTPAssignment)(nil),                    // 50: contractor.runtime.v1alpha1.HTTPAssignment
-	(*HTTPLimits)(nil),                        // 51: contractor.runtime.v1alpha1.HTTPLimits
-	(*HTTPRoute)(nil),                         // 52: contractor.runtime.v1alpha1.HTTPRoute
-	(*HTTPIdentity)(nil),                      // 53: contractor.runtime.v1alpha1.HTTPIdentity
-	(*RuntimeCredentialRef)(nil),              // 54: contractor.runtime.v1alpha1.RuntimeCredentialRef
-	(*ProtectedDestination)(nil),              // 55: contractor.runtime.v1alpha1.ProtectedDestination
-	(*ListOfHTTPRoute)(nil),                   // 56: contractor.runtime.v1alpha1.ListOfHTTPRoute
-	(*ListOfHTTPIdentity)(nil),                // 57: contractor.runtime.v1alpha1.ListOfHTTPIdentity
-	(*ListOfProtectedDestination)(nil),        // 58: contractor.runtime.v1alpha1.ListOfProtectedDestination
-	(*AllocationFinalResponse)(nil),           // 59: contractor.runtime.v1alpha1.AllocationFinalResponse
-	(*AllocationFinalReport)(nil),             // 60: contractor.runtime.v1alpha1.AllocationFinalReport
-	nil,                                       // 61: contractor.runtime.v1alpha1.MapOfString.ValuesEntry
-	(structpb.NullValue)(0),                   // 62: google.protobuf.NullValue
+	(*BootstrapRequest)(nil),                  // 0: contractor.runtime.v1alpha1.BootstrapRequest
+	(*SharedConfig)(nil),                      // 1: contractor.runtime.v1alpha1.SharedConfig
+	(*SharedLimits)(nil),                      // 2: contractor.runtime.v1alpha1.SharedLimits
+	(*AgentHeartbeat)(nil),                    // 3: contractor.runtime.v1alpha1.AgentHeartbeat
+	(*HeartbeatResponse)(nil),                 // 4: contractor.runtime.v1alpha1.HeartbeatResponse
+	(*AllocationAction)(nil),                  // 5: contractor.runtime.v1alpha1.AllocationAction
+	(*ListOfAllocationAction)(nil),            // 6: contractor.runtime.v1alpha1.ListOfAllocationAction
+	(*ListOfString)(nil),                      // 7: contractor.runtime.v1alpha1.ListOfString
+	(*ListOfInteger)(nil),                     // 8: contractor.runtime.v1alpha1.ListOfInteger
+	(*ListOfToolsetCapability)(nil),           // 9: contractor.runtime.v1alpha1.ListOfToolsetCapability
+	(*ListOfObservedAllocation)(nil),          // 10: contractor.runtime.v1alpha1.ListOfObservedAllocation
+	(*AgentRegistration)(nil),                 // 11: contractor.runtime.v1alpha1.AgentRegistration
+	(*AgentRegistrationResponse)(nil),         // 12: contractor.runtime.v1alpha1.AgentRegistrationResponse
+	(*ToolsetCapability)(nil),                 // 13: contractor.runtime.v1alpha1.ToolsetCapability
+	(*ObservedAllocation)(nil),                // 14: contractor.runtime.v1alpha1.ObservedAllocation
+	(*CompletionCapabilities)(nil),            // 15: contractor.runtime.v1alpha1.CompletionCapabilities
+	(*NullableCompletionCapabilities)(nil),    // 16: contractor.runtime.v1alpha1.NullableCompletionCapabilities
+	(*WorkspaceCapabilities)(nil),             // 17: contractor.runtime.v1alpha1.WorkspaceCapabilities
+	(*WorkspaceLimits)(nil),                   // 18: contractor.runtime.v1alpha1.WorkspaceLimits
+	(*NullableWorkspaceCapabilities)(nil),     // 19: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities
+	(*ErrorDetail)(nil),                       // 20: contractor.runtime.v1alpha1.ErrorDetail
+	(*StateReadRequest)(nil),                  // 21: contractor.runtime.v1alpha1.StateReadRequest
+	(*StateReadResponse)(nil),                 // 22: contractor.runtime.v1alpha1.StateReadResponse
+	(*StateNotModified)(nil),                  // 23: contractor.runtime.v1alpha1.StateNotModified
+	(*AgentStateDocument)(nil),                // 24: contractor.runtime.v1alpha1.AgentStateDocument
+	(*PrepareAllocationRequest)(nil),          // 25: contractor.runtime.v1alpha1.PrepareAllocationRequest
+	(*PrepareAllocationResponse)(nil),         // 26: contractor.runtime.v1alpha1.PrepareAllocationResponse
+	(*FinalizeAllocationRequest)(nil),         // 27: contractor.runtime.v1alpha1.FinalizeAllocationRequest
+	(*AbortAllocationRequest)(nil),            // 28: contractor.runtime.v1alpha1.AbortAllocationRequest
+	(*ReleaseAllocationRequest)(nil),          // 29: contractor.runtime.v1alpha1.ReleaseAllocationRequest
+	(*ReleaseAllocationResponse)(nil),         // 30: contractor.runtime.v1alpha1.ReleaseAllocationResponse
+	(*TerminationError)(nil),                  // 31: contractor.runtime.v1alpha1.TerminationError
+	(*AllocationSpec)(nil),                    // 32: contractor.runtime.v1alpha1.AllocationSpec
+	(*AgentTemplateDocument)(nil),             // 33: contractor.runtime.v1alpha1.AgentTemplateDocument
+	(*ModelPolicyDocument)(nil),               // 34: contractor.runtime.v1alpha1.ModelPolicyDocument
+	(*RuntimeSettingsDocument)(nil),           // 35: contractor.runtime.v1alpha1.RuntimeSettingsDocument
+	(*RuntimeConfigProvenanceDocument)(nil),   // 36: contractor.runtime.v1alpha1.RuntimeConfigProvenanceDocument
+	(*AgentCardDocument)(nil),                 // 37: contractor.runtime.v1alpha1.AgentCardDocument
+	(*ExecutionReportDocument)(nil),           // 38: contractor.runtime.v1alpha1.ExecutionReportDocument
+	(*RuntimeReportDocument)(nil),             // 39: contractor.runtime.v1alpha1.RuntimeReportDocument
+	(*MapOfString)(nil),                       // 40: contractor.runtime.v1alpha1.MapOfString
+	(*ResolvedInstructions)(nil),              // 41: contractor.runtime.v1alpha1.ResolvedInstructions
+	(*WorkerContextManagement)(nil),           // 42: contractor.runtime.v1alpha1.WorkerContextManagement
+	(*ArtifactRef)(nil),                       // 43: contractor.runtime.v1alpha1.ArtifactRef
+	(*ResolvedSkill)(nil),                     // 44: contractor.runtime.v1alpha1.ResolvedSkill
+	(*ListOfResolvedSkill)(nil),               // 45: contractor.runtime.v1alpha1.ListOfResolvedSkill
+	(*WorkerCompletionContract)(nil),          // 46: contractor.runtime.v1alpha1.WorkerCompletionContract
+	(*AgentTemplateRef)(nil),                  // 47: contractor.runtime.v1alpha1.AgentTemplateRef
+	(*WorkerRuntimeRef)(nil),                  // 48: contractor.runtime.v1alpha1.WorkerRuntimeRef
+	(*WorkerHandle)(nil),                      // 49: contractor.runtime.v1alpha1.WorkerHandle
+	(*AllocationWorkspace)(nil),               // 50: contractor.runtime.v1alpha1.AllocationWorkspace
+	(*WorkspaceSource)(nil),                   // 51: contractor.runtime.v1alpha1.WorkspaceSource
+	(*ListOfWorkspaceSource)(nil),             // 52: contractor.runtime.v1alpha1.ListOfWorkspaceSource
+	(*WorkspaceState)(nil),                    // 53: contractor.runtime.v1alpha1.WorkspaceState
+	(*WorkspaceExport)(nil),                   // 54: contractor.runtime.v1alpha1.WorkspaceExport
+	(*NullableAllocationWorkspace)(nil),       // 55: contractor.runtime.v1alpha1.NullableAllocationWorkspace
+	(*NullableWorkspaceState)(nil),            // 56: contractor.runtime.v1alpha1.NullableWorkspaceState
+	(*NullableWorkspaceExport)(nil),           // 57: contractor.runtime.v1alpha1.NullableWorkspaceExport
+	(*PerformanceMetricsRequest)(nil),         // 58: contractor.runtime.v1alpha1.PerformanceMetricsRequest
+	(*NullablePerformanceMetricsRequest)(nil), // 59: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest
+	(*EngagementAllocation)(nil),              // 60: contractor.runtime.v1alpha1.EngagementAllocation
+	(*HTTPAssignment)(nil),                    // 61: contractor.runtime.v1alpha1.HTTPAssignment
+	(*HTTPLimits)(nil),                        // 62: contractor.runtime.v1alpha1.HTTPLimits
+	(*HTTPRoute)(nil),                         // 63: contractor.runtime.v1alpha1.HTTPRoute
+	(*HTTPIdentity)(nil),                      // 64: contractor.runtime.v1alpha1.HTTPIdentity
+	(*RuntimeCredentialRef)(nil),              // 65: contractor.runtime.v1alpha1.RuntimeCredentialRef
+	(*ProtectedDestination)(nil),              // 66: contractor.runtime.v1alpha1.ProtectedDestination
+	(*ListOfHTTPRoute)(nil),                   // 67: contractor.runtime.v1alpha1.ListOfHTTPRoute
+	(*ListOfHTTPIdentity)(nil),                // 68: contractor.runtime.v1alpha1.ListOfHTTPIdentity
+	(*ListOfProtectedDestination)(nil),        // 69: contractor.runtime.v1alpha1.ListOfProtectedDestination
+	(*AllocationFinalResponse)(nil),           // 70: contractor.runtime.v1alpha1.AllocationFinalResponse
+	(*AllocationFinalReport)(nil),             // 71: contractor.runtime.v1alpha1.AllocationFinalReport
+	nil,                                       // 72: contractor.runtime.v1alpha1.MapOfString.ValuesEntry
+	(structpb.NullValue)(0),                   // 73: google.protobuf.NullValue
 }
 var file_runtime_proto_depIdxs = []int32{
-	6,  // 0: contractor.runtime.v1alpha1.ListOfToolsetCapability.values:type_name -> contractor.runtime.v1alpha1.ToolsetCapability
-	7,  // 1: contractor.runtime.v1alpha1.ListOfObservedAllocation.values:type_name -> contractor.runtime.v1alpha1.ObservedAllocation
-	0,  // 2: contractor.runtime.v1alpha1.AgentRegistration.supported_runtimes:type_name -> contractor.runtime.v1alpha1.ListOfString
-	2,  // 3: contractor.runtime.v1alpha1.AgentRegistration.supported_toolsets:type_name -> contractor.runtime.v1alpha1.ListOfToolsetCapability
-	0,  // 4: contractor.runtime.v1alpha1.AgentRegistration.supported_sandbox_profiles:type_name -> contractor.runtime.v1alpha1.ListOfString
-	9,  // 5: contractor.runtime.v1alpha1.AgentRegistration.capabilities:type_name -> contractor.runtime.v1alpha1.NullableCompletionCapabilities
-	0,  // 6: contractor.runtime.v1alpha1.AgentRegistration.supported_runtime_adapters:type_name -> contractor.runtime.v1alpha1.ListOfString
-	12, // 7: contractor.runtime.v1alpha1.AgentRegistration.workspace_capabilities:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceCapabilities
-	1,  // 8: contractor.runtime.v1alpha1.AgentRegistration.supported_performance_metrics_versions:type_name -> contractor.runtime.v1alpha1.ListOfInteger
-	0,  // 9: contractor.runtime.v1alpha1.AgentRegistration.placement_labels:type_name -> contractor.runtime.v1alpha1.ListOfString
-	3,  // 10: contractor.runtime.v1alpha1.AgentRegistration.allocations:type_name -> contractor.runtime.v1alpha1.ListOfObservedAllocation
-	0,  // 11: contractor.runtime.v1alpha1.ToolsetCapability.tools:type_name -> contractor.runtime.v1alpha1.ListOfString
-	0,  // 12: contractor.runtime.v1alpha1.CompletionCapabilities.completion_contracts:type_name -> contractor.runtime.v1alpha1.ListOfString
-	8,  // 13: contractor.runtime.v1alpha1.NullableCompletionCapabilities.value:type_name -> contractor.runtime.v1alpha1.CompletionCapabilities
-	62, // 14: contractor.runtime.v1alpha1.NullableCompletionCapabilities.null:type_name -> google.protobuf.NullValue
-	0,  // 15: contractor.runtime.v1alpha1.WorkspaceCapabilities.modes:type_name -> contractor.runtime.v1alpha1.ListOfString
-	11, // 16: contractor.runtime.v1alpha1.WorkspaceCapabilities.limits:type_name -> contractor.runtime.v1alpha1.WorkspaceLimits
-	10, // 17: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities.value:type_name -> contractor.runtime.v1alpha1.WorkspaceCapabilities
-	62, // 18: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities.null:type_name -> google.protobuf.NullValue
-	21, // 19: contractor.runtime.v1alpha1.PrepareAllocationRequest.spec:type_name -> contractor.runtime.v1alpha1.AllocationSpec
-	38, // 20: contractor.runtime.v1alpha1.PrepareAllocationResponse.worker_handle:type_name -> contractor.runtime.v1alpha1.WorkerHandle
-	20, // 21: contractor.runtime.v1alpha1.AbortAllocationRequest.reason:type_name -> contractor.runtime.v1alpha1.TerminationError
-	31, // 22: contractor.runtime.v1alpha1.AllocationSpec.context_management:type_name -> contractor.runtime.v1alpha1.WorkerContextManagement
-	29, // 23: contractor.runtime.v1alpha1.AllocationSpec.run_metadata_labels:type_name -> contractor.runtime.v1alpha1.MapOfString
-	22, // 24: contractor.runtime.v1alpha1.AllocationSpec.agent_template:type_name -> contractor.runtime.v1alpha1.AgentTemplateDocument
-	34, // 25: contractor.runtime.v1alpha1.AllocationSpec.resolved_skills:type_name -> contractor.runtime.v1alpha1.ListOfResolvedSkill
-	23, // 26: contractor.runtime.v1alpha1.AllocationSpec.model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
-	23, // 27: contractor.runtime.v1alpha1.AllocationSpec.summarizer_model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
-	23, // 28: contractor.runtime.v1alpha1.AllocationSpec.compactor_model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
-	24, // 29: contractor.runtime.v1alpha1.AllocationSpec.runtime_settings:type_name -> contractor.runtime.v1alpha1.RuntimeSettingsDocument
-	25, // 30: contractor.runtime.v1alpha1.AllocationSpec.resolved_runtime_config_provenance:type_name -> contractor.runtime.v1alpha1.RuntimeConfigProvenanceDocument
-	44, // 31: contractor.runtime.v1alpha1.AllocationSpec.workspace:type_name -> contractor.runtime.v1alpha1.NullableAllocationWorkspace
-	48, // 32: contractor.runtime.v1alpha1.AllocationSpec.performance_metrics:type_name -> contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest
-	35, // 33: contractor.runtime.v1alpha1.AllocationSpec.completion_contract:type_name -> contractor.runtime.v1alpha1.WorkerCompletionContract
-	49, // 34: contractor.runtime.v1alpha1.AllocationSpec.engagement:type_name -> contractor.runtime.v1alpha1.EngagementAllocation
-	61, // 35: contractor.runtime.v1alpha1.MapOfString.values:type_name -> contractor.runtime.v1alpha1.MapOfString.ValuesEntry
-	30, // 36: contractor.runtime.v1alpha1.WorkerContextManagement.instructions:type_name -> contractor.runtime.v1alpha1.ResolvedInstructions
-	32, // 37: contractor.runtime.v1alpha1.ResolvedSkill.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	33, // 38: contractor.runtime.v1alpha1.ListOfResolvedSkill.values:type_name -> contractor.runtime.v1alpha1.ResolvedSkill
-	32, // 39: contractor.runtime.v1alpha1.WorkerCompletionContract.context:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	32, // 40: contractor.runtime.v1alpha1.WorkerCompletionContract.result_artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	36, // 41: contractor.runtime.v1alpha1.WorkerHandle.agent_template_ref:type_name -> contractor.runtime.v1alpha1.AgentTemplateRef
-	37, // 42: contractor.runtime.v1alpha1.WorkerHandle.worker_runtime_ref:type_name -> contractor.runtime.v1alpha1.WorkerRuntimeRef
-	26, // 43: contractor.runtime.v1alpha1.WorkerHandle.agent_card:type_name -> contractor.runtime.v1alpha1.AgentCardDocument
-	41, // 44: contractor.runtime.v1alpha1.AllocationWorkspace.sources:type_name -> contractor.runtime.v1alpha1.ListOfWorkspaceSource
-	45, // 45: contractor.runtime.v1alpha1.AllocationWorkspace.state:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceState
-	46, // 46: contractor.runtime.v1alpha1.AllocationWorkspace.export:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceExport
-	32, // 47: contractor.runtime.v1alpha1.WorkspaceSource.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	40, // 48: contractor.runtime.v1alpha1.ListOfWorkspaceSource.values:type_name -> contractor.runtime.v1alpha1.WorkspaceSource
-	32, // 49: contractor.runtime.v1alpha1.WorkspaceState.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	39, // 50: contractor.runtime.v1alpha1.NullableAllocationWorkspace.value:type_name -> contractor.runtime.v1alpha1.AllocationWorkspace
-	62, // 51: contractor.runtime.v1alpha1.NullableAllocationWorkspace.null:type_name -> google.protobuf.NullValue
-	42, // 52: contractor.runtime.v1alpha1.NullableWorkspaceState.value:type_name -> contractor.runtime.v1alpha1.WorkspaceState
-	62, // 53: contractor.runtime.v1alpha1.NullableWorkspaceState.null:type_name -> google.protobuf.NullValue
-	43, // 54: contractor.runtime.v1alpha1.NullableWorkspaceExport.value:type_name -> contractor.runtime.v1alpha1.WorkspaceExport
-	62, // 55: contractor.runtime.v1alpha1.NullableWorkspaceExport.null:type_name -> google.protobuf.NullValue
-	47, // 56: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest.value:type_name -> contractor.runtime.v1alpha1.PerformanceMetricsRequest
-	62, // 57: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest.null:type_name -> google.protobuf.NullValue
-	32, // 58: contractor.runtime.v1alpha1.EngagementAllocation.engagement:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	50, // 59: contractor.runtime.v1alpha1.EngagementAllocation.http:type_name -> contractor.runtime.v1alpha1.HTTPAssignment
-	51, // 60: contractor.runtime.v1alpha1.HTTPAssignment.limits:type_name -> contractor.runtime.v1alpha1.HTTPLimits
-	56, // 61: contractor.runtime.v1alpha1.HTTPAssignment.routes:type_name -> contractor.runtime.v1alpha1.ListOfHTTPRoute
-	56, // 62: contractor.runtime.v1alpha1.HTTPAssignment.exclusions:type_name -> contractor.runtime.v1alpha1.ListOfHTTPRoute
-	57, // 63: contractor.runtime.v1alpha1.HTTPAssignment.identities:type_name -> contractor.runtime.v1alpha1.ListOfHTTPIdentity
-	58, // 64: contractor.runtime.v1alpha1.HTTPAssignment.protected_destinations:type_name -> contractor.runtime.v1alpha1.ListOfProtectedDestination
-	0,  // 65: contractor.runtime.v1alpha1.HTTPRoute.path_prefixes:type_name -> contractor.runtime.v1alpha1.ListOfString
-	0,  // 66: contractor.runtime.v1alpha1.HTTPRoute.methods:type_name -> contractor.runtime.v1alpha1.ListOfString
-	0,  // 67: contractor.runtime.v1alpha1.HTTPRoute.address_ranges:type_name -> contractor.runtime.v1alpha1.ListOfString
-	0,  // 68: contractor.runtime.v1alpha1.HTTPIdentity.origins:type_name -> contractor.runtime.v1alpha1.ListOfString
-	54, // 69: contractor.runtime.v1alpha1.HTTPIdentity.credential:type_name -> contractor.runtime.v1alpha1.RuntimeCredentialRef
-	0,  // 70: contractor.runtime.v1alpha1.ProtectedDestination.addresses:type_name -> contractor.runtime.v1alpha1.ListOfString
-	52, // 71: contractor.runtime.v1alpha1.ListOfHTTPRoute.values:type_name -> contractor.runtime.v1alpha1.HTTPRoute
-	53, // 72: contractor.runtime.v1alpha1.ListOfHTTPIdentity.values:type_name -> contractor.runtime.v1alpha1.HTTPIdentity
-	55, // 73: contractor.runtime.v1alpha1.ListOfProtectedDestination.values:type_name -> contractor.runtime.v1alpha1.ProtectedDestination
-	60, // 74: contractor.runtime.v1alpha1.AllocationFinalResponse.report:type_name -> contractor.runtime.v1alpha1.AllocationFinalReport
-	27, // 75: contractor.runtime.v1alpha1.AllocationFinalReport.worker:type_name -> contractor.runtime.v1alpha1.ExecutionReportDocument
-	28, // 76: contractor.runtime.v1alpha1.AllocationFinalReport.runtime:type_name -> contractor.runtime.v1alpha1.RuntimeReportDocument
-	4,  // 77: contractor.runtime.v1alpha1.ControlPlane.Register:input_type -> contractor.runtime.v1alpha1.AgentRegistration
-	14, // 78: contractor.runtime.v1alpha1.RuntimeLifecycle.Prepare:input_type -> contractor.runtime.v1alpha1.PrepareAllocationRequest
-	16, // 79: contractor.runtime.v1alpha1.RuntimeLifecycle.Finalize:input_type -> contractor.runtime.v1alpha1.FinalizeAllocationRequest
-	17, // 80: contractor.runtime.v1alpha1.RuntimeLifecycle.Abort:input_type -> contractor.runtime.v1alpha1.AbortAllocationRequest
-	18, // 81: contractor.runtime.v1alpha1.RuntimeLifecycle.Release:input_type -> contractor.runtime.v1alpha1.ReleaseAllocationRequest
-	5,  // 82: contractor.runtime.v1alpha1.ControlPlane.Register:output_type -> contractor.runtime.v1alpha1.AgentRegistrationResponse
-	15, // 83: contractor.runtime.v1alpha1.RuntimeLifecycle.Prepare:output_type -> contractor.runtime.v1alpha1.PrepareAllocationResponse
-	59, // 84: contractor.runtime.v1alpha1.RuntimeLifecycle.Finalize:output_type -> contractor.runtime.v1alpha1.AllocationFinalResponse
-	59, // 85: contractor.runtime.v1alpha1.RuntimeLifecycle.Abort:output_type -> contractor.runtime.v1alpha1.AllocationFinalResponse
-	19, // 86: contractor.runtime.v1alpha1.RuntimeLifecycle.Release:output_type -> contractor.runtime.v1alpha1.ReleaseAllocationResponse
-	82, // [82:87] is the sub-list for method output_type
-	77, // [77:82] is the sub-list for method input_type
-	77, // [77:77] is the sub-list for extension type_name
-	77, // [77:77] is the sub-list for extension extendee
-	0,  // [0:77] is the sub-list for field type_name
+	2,  // 0: contractor.runtime.v1alpha1.SharedConfig.limits:type_name -> contractor.runtime.v1alpha1.SharedLimits
+	10, // 1: contractor.runtime.v1alpha1.AgentHeartbeat.allocations:type_name -> contractor.runtime.v1alpha1.ListOfObservedAllocation
+	6,  // 2: contractor.runtime.v1alpha1.HeartbeatResponse.allocation_actions:type_name -> contractor.runtime.v1alpha1.ListOfAllocationAction
+	5,  // 3: contractor.runtime.v1alpha1.ListOfAllocationAction.values:type_name -> contractor.runtime.v1alpha1.AllocationAction
+	13, // 4: contractor.runtime.v1alpha1.ListOfToolsetCapability.values:type_name -> contractor.runtime.v1alpha1.ToolsetCapability
+	14, // 5: contractor.runtime.v1alpha1.ListOfObservedAllocation.values:type_name -> contractor.runtime.v1alpha1.ObservedAllocation
+	7,  // 6: contractor.runtime.v1alpha1.AgentRegistration.supported_runtimes:type_name -> contractor.runtime.v1alpha1.ListOfString
+	9,  // 7: contractor.runtime.v1alpha1.AgentRegistration.supported_toolsets:type_name -> contractor.runtime.v1alpha1.ListOfToolsetCapability
+	7,  // 8: contractor.runtime.v1alpha1.AgentRegistration.supported_sandbox_profiles:type_name -> contractor.runtime.v1alpha1.ListOfString
+	16, // 9: contractor.runtime.v1alpha1.AgentRegistration.capabilities:type_name -> contractor.runtime.v1alpha1.NullableCompletionCapabilities
+	7,  // 10: contractor.runtime.v1alpha1.AgentRegistration.supported_runtime_adapters:type_name -> contractor.runtime.v1alpha1.ListOfString
+	19, // 11: contractor.runtime.v1alpha1.AgentRegistration.workspace_capabilities:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceCapabilities
+	8,  // 12: contractor.runtime.v1alpha1.AgentRegistration.supported_performance_metrics_versions:type_name -> contractor.runtime.v1alpha1.ListOfInteger
+	7,  // 13: contractor.runtime.v1alpha1.AgentRegistration.placement_labels:type_name -> contractor.runtime.v1alpha1.ListOfString
+	10, // 14: contractor.runtime.v1alpha1.AgentRegistration.allocations:type_name -> contractor.runtime.v1alpha1.ListOfObservedAllocation
+	7,  // 15: contractor.runtime.v1alpha1.ToolsetCapability.tools:type_name -> contractor.runtime.v1alpha1.ListOfString
+	7,  // 16: contractor.runtime.v1alpha1.CompletionCapabilities.completion_contracts:type_name -> contractor.runtime.v1alpha1.ListOfString
+	15, // 17: contractor.runtime.v1alpha1.NullableCompletionCapabilities.value:type_name -> contractor.runtime.v1alpha1.CompletionCapabilities
+	73, // 18: contractor.runtime.v1alpha1.NullableCompletionCapabilities.null:type_name -> google.protobuf.NullValue
+	7,  // 19: contractor.runtime.v1alpha1.WorkspaceCapabilities.modes:type_name -> contractor.runtime.v1alpha1.ListOfString
+	18, // 20: contractor.runtime.v1alpha1.WorkspaceCapabilities.limits:type_name -> contractor.runtime.v1alpha1.WorkspaceLimits
+	17, // 21: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities.value:type_name -> contractor.runtime.v1alpha1.WorkspaceCapabilities
+	73, // 22: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities.null:type_name -> google.protobuf.NullValue
+	24, // 23: contractor.runtime.v1alpha1.StateReadResponse.snapshot:type_name -> contractor.runtime.v1alpha1.AgentStateDocument
+	23, // 24: contractor.runtime.v1alpha1.StateReadResponse.not_modified:type_name -> contractor.runtime.v1alpha1.StateNotModified
+	32, // 25: contractor.runtime.v1alpha1.PrepareAllocationRequest.spec:type_name -> contractor.runtime.v1alpha1.AllocationSpec
+	49, // 26: contractor.runtime.v1alpha1.PrepareAllocationResponse.worker_handle:type_name -> contractor.runtime.v1alpha1.WorkerHandle
+	31, // 27: contractor.runtime.v1alpha1.AbortAllocationRequest.reason:type_name -> contractor.runtime.v1alpha1.TerminationError
+	42, // 28: contractor.runtime.v1alpha1.AllocationSpec.context_management:type_name -> contractor.runtime.v1alpha1.WorkerContextManagement
+	40, // 29: contractor.runtime.v1alpha1.AllocationSpec.run_metadata_labels:type_name -> contractor.runtime.v1alpha1.MapOfString
+	33, // 30: contractor.runtime.v1alpha1.AllocationSpec.agent_template:type_name -> contractor.runtime.v1alpha1.AgentTemplateDocument
+	45, // 31: contractor.runtime.v1alpha1.AllocationSpec.resolved_skills:type_name -> contractor.runtime.v1alpha1.ListOfResolvedSkill
+	34, // 32: contractor.runtime.v1alpha1.AllocationSpec.model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
+	34, // 33: contractor.runtime.v1alpha1.AllocationSpec.summarizer_model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
+	34, // 34: contractor.runtime.v1alpha1.AllocationSpec.compactor_model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
+	35, // 35: contractor.runtime.v1alpha1.AllocationSpec.runtime_settings:type_name -> contractor.runtime.v1alpha1.RuntimeSettingsDocument
+	36, // 36: contractor.runtime.v1alpha1.AllocationSpec.resolved_runtime_config_provenance:type_name -> contractor.runtime.v1alpha1.RuntimeConfigProvenanceDocument
+	55, // 37: contractor.runtime.v1alpha1.AllocationSpec.workspace:type_name -> contractor.runtime.v1alpha1.NullableAllocationWorkspace
+	59, // 38: contractor.runtime.v1alpha1.AllocationSpec.performance_metrics:type_name -> contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest
+	46, // 39: contractor.runtime.v1alpha1.AllocationSpec.completion_contract:type_name -> contractor.runtime.v1alpha1.WorkerCompletionContract
+	60, // 40: contractor.runtime.v1alpha1.AllocationSpec.engagement:type_name -> contractor.runtime.v1alpha1.EngagementAllocation
+	72, // 41: contractor.runtime.v1alpha1.MapOfString.values:type_name -> contractor.runtime.v1alpha1.MapOfString.ValuesEntry
+	41, // 42: contractor.runtime.v1alpha1.WorkerContextManagement.instructions:type_name -> contractor.runtime.v1alpha1.ResolvedInstructions
+	43, // 43: contractor.runtime.v1alpha1.ResolvedSkill.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	44, // 44: contractor.runtime.v1alpha1.ListOfResolvedSkill.values:type_name -> contractor.runtime.v1alpha1.ResolvedSkill
+	43, // 45: contractor.runtime.v1alpha1.WorkerCompletionContract.context:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	43, // 46: contractor.runtime.v1alpha1.WorkerCompletionContract.result_artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	47, // 47: contractor.runtime.v1alpha1.WorkerHandle.agent_template_ref:type_name -> contractor.runtime.v1alpha1.AgentTemplateRef
+	48, // 48: contractor.runtime.v1alpha1.WorkerHandle.worker_runtime_ref:type_name -> contractor.runtime.v1alpha1.WorkerRuntimeRef
+	37, // 49: contractor.runtime.v1alpha1.WorkerHandle.agent_card:type_name -> contractor.runtime.v1alpha1.AgentCardDocument
+	52, // 50: contractor.runtime.v1alpha1.AllocationWorkspace.sources:type_name -> contractor.runtime.v1alpha1.ListOfWorkspaceSource
+	56, // 51: contractor.runtime.v1alpha1.AllocationWorkspace.state:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceState
+	57, // 52: contractor.runtime.v1alpha1.AllocationWorkspace.export:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceExport
+	43, // 53: contractor.runtime.v1alpha1.WorkspaceSource.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	51, // 54: contractor.runtime.v1alpha1.ListOfWorkspaceSource.values:type_name -> contractor.runtime.v1alpha1.WorkspaceSource
+	43, // 55: contractor.runtime.v1alpha1.WorkspaceState.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	50, // 56: contractor.runtime.v1alpha1.NullableAllocationWorkspace.value:type_name -> contractor.runtime.v1alpha1.AllocationWorkspace
+	73, // 57: contractor.runtime.v1alpha1.NullableAllocationWorkspace.null:type_name -> google.protobuf.NullValue
+	53, // 58: contractor.runtime.v1alpha1.NullableWorkspaceState.value:type_name -> contractor.runtime.v1alpha1.WorkspaceState
+	73, // 59: contractor.runtime.v1alpha1.NullableWorkspaceState.null:type_name -> google.protobuf.NullValue
+	54, // 60: contractor.runtime.v1alpha1.NullableWorkspaceExport.value:type_name -> contractor.runtime.v1alpha1.WorkspaceExport
+	73, // 61: contractor.runtime.v1alpha1.NullableWorkspaceExport.null:type_name -> google.protobuf.NullValue
+	58, // 62: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest.value:type_name -> contractor.runtime.v1alpha1.PerformanceMetricsRequest
+	73, // 63: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest.null:type_name -> google.protobuf.NullValue
+	43, // 64: contractor.runtime.v1alpha1.EngagementAllocation.engagement:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	61, // 65: contractor.runtime.v1alpha1.EngagementAllocation.http:type_name -> contractor.runtime.v1alpha1.HTTPAssignment
+	62, // 66: contractor.runtime.v1alpha1.HTTPAssignment.limits:type_name -> contractor.runtime.v1alpha1.HTTPLimits
+	67, // 67: contractor.runtime.v1alpha1.HTTPAssignment.routes:type_name -> contractor.runtime.v1alpha1.ListOfHTTPRoute
+	67, // 68: contractor.runtime.v1alpha1.HTTPAssignment.exclusions:type_name -> contractor.runtime.v1alpha1.ListOfHTTPRoute
+	68, // 69: contractor.runtime.v1alpha1.HTTPAssignment.identities:type_name -> contractor.runtime.v1alpha1.ListOfHTTPIdentity
+	69, // 70: contractor.runtime.v1alpha1.HTTPAssignment.protected_destinations:type_name -> contractor.runtime.v1alpha1.ListOfProtectedDestination
+	7,  // 71: contractor.runtime.v1alpha1.HTTPRoute.path_prefixes:type_name -> contractor.runtime.v1alpha1.ListOfString
+	7,  // 72: contractor.runtime.v1alpha1.HTTPRoute.methods:type_name -> contractor.runtime.v1alpha1.ListOfString
+	7,  // 73: contractor.runtime.v1alpha1.HTTPRoute.address_ranges:type_name -> contractor.runtime.v1alpha1.ListOfString
+	7,  // 74: contractor.runtime.v1alpha1.HTTPIdentity.origins:type_name -> contractor.runtime.v1alpha1.ListOfString
+	65, // 75: contractor.runtime.v1alpha1.HTTPIdentity.credential:type_name -> contractor.runtime.v1alpha1.RuntimeCredentialRef
+	7,  // 76: contractor.runtime.v1alpha1.ProtectedDestination.addresses:type_name -> contractor.runtime.v1alpha1.ListOfString
+	63, // 77: contractor.runtime.v1alpha1.ListOfHTTPRoute.values:type_name -> contractor.runtime.v1alpha1.HTTPRoute
+	64, // 78: contractor.runtime.v1alpha1.ListOfHTTPIdentity.values:type_name -> contractor.runtime.v1alpha1.HTTPIdentity
+	66, // 79: contractor.runtime.v1alpha1.ListOfProtectedDestination.values:type_name -> contractor.runtime.v1alpha1.ProtectedDestination
+	71, // 80: contractor.runtime.v1alpha1.AllocationFinalResponse.report:type_name -> contractor.runtime.v1alpha1.AllocationFinalReport
+	38, // 81: contractor.runtime.v1alpha1.AllocationFinalReport.worker:type_name -> contractor.runtime.v1alpha1.ExecutionReportDocument
+	39, // 82: contractor.runtime.v1alpha1.AllocationFinalReport.runtime:type_name -> contractor.runtime.v1alpha1.RuntimeReportDocument
+	0,  // 83: contractor.runtime.v1alpha1.ControlPlane.Bootstrap:input_type -> contractor.runtime.v1alpha1.BootstrapRequest
+	11, // 84: contractor.runtime.v1alpha1.ControlPlane.Register:input_type -> contractor.runtime.v1alpha1.AgentRegistration
+	3,  // 85: contractor.runtime.v1alpha1.ControlPlane.Heartbeat:input_type -> contractor.runtime.v1alpha1.AgentHeartbeat
+	25, // 86: contractor.runtime.v1alpha1.RuntimeLifecycle.Prepare:input_type -> contractor.runtime.v1alpha1.PrepareAllocationRequest
+	27, // 87: contractor.runtime.v1alpha1.RuntimeLifecycle.Finalize:input_type -> contractor.runtime.v1alpha1.FinalizeAllocationRequest
+	28, // 88: contractor.runtime.v1alpha1.RuntimeLifecycle.Abort:input_type -> contractor.runtime.v1alpha1.AbortAllocationRequest
+	29, // 89: contractor.runtime.v1alpha1.RuntimeLifecycle.Release:input_type -> contractor.runtime.v1alpha1.ReleaseAllocationRequest
+	21, // 90: contractor.runtime.v1alpha1.RuntimeLifecycle.ReadState:input_type -> contractor.runtime.v1alpha1.StateReadRequest
+	1,  // 91: contractor.runtime.v1alpha1.ControlPlane.Bootstrap:output_type -> contractor.runtime.v1alpha1.SharedConfig
+	12, // 92: contractor.runtime.v1alpha1.ControlPlane.Register:output_type -> contractor.runtime.v1alpha1.AgentRegistrationResponse
+	4,  // 93: contractor.runtime.v1alpha1.ControlPlane.Heartbeat:output_type -> contractor.runtime.v1alpha1.HeartbeatResponse
+	26, // 94: contractor.runtime.v1alpha1.RuntimeLifecycle.Prepare:output_type -> contractor.runtime.v1alpha1.PrepareAllocationResponse
+	70, // 95: contractor.runtime.v1alpha1.RuntimeLifecycle.Finalize:output_type -> contractor.runtime.v1alpha1.AllocationFinalResponse
+	70, // 96: contractor.runtime.v1alpha1.RuntimeLifecycle.Abort:output_type -> contractor.runtime.v1alpha1.AllocationFinalResponse
+	30, // 97: contractor.runtime.v1alpha1.RuntimeLifecycle.Release:output_type -> contractor.runtime.v1alpha1.ReleaseAllocationResponse
+	22, // 98: contractor.runtime.v1alpha1.RuntimeLifecycle.ReadState:output_type -> contractor.runtime.v1alpha1.StateReadResponse
+	91, // [91:99] is the sub-list for method output_type
+	83, // [83:91] is the sub-list for method input_type
+	83, // [83:83] is the sub-list for extension type_name
+	83, // [83:83] is the sub-list for extension extendee
+	0,  // [0:83] is the sub-list for field type_name
 }
 
 func init() { file_runtime_proto_init() }
@@ -4457,79 +5354,90 @@ func file_runtime_proto_init() {
 	if File_runtime_proto != nil {
 		return
 	}
+	file_runtime_proto_msgTypes[1].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[2].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[3].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[4].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[5].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[6].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[7].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[9].OneofWrappers = []any{
+	file_runtime_proto_msgTypes[11].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[12].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[13].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[14].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[16].OneofWrappers = []any{
 		(*NullableCompletionCapabilities_Value)(nil),
 		(*NullableCompletionCapabilities_Null)(nil),
 	}
-	file_runtime_proto_msgTypes[10].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[11].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[12].OneofWrappers = []any{
+	file_runtime_proto_msgTypes[17].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[18].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[19].OneofWrappers = []any{
 		(*NullableWorkspaceCapabilities_Value)(nil),
 		(*NullableWorkspaceCapabilities_Null)(nil),
 	}
-	file_runtime_proto_msgTypes[13].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[14].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[15].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[16].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[17].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[18].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[20].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[21].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[22].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[23].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[22].OneofWrappers = []any{
+		(*StateReadResponse_Snapshot)(nil),
+		(*StateReadResponse_NotModified)(nil),
+	}
 	file_runtime_proto_msgTypes[24].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[25].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[26].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[27].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[28].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[30].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[29].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[31].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[32].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[33].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[34].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[35].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[36].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[37].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[38].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[39].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[40].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[41].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[42].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[43].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[44].OneofWrappers = []any{
-		(*NullableAllocationWorkspace_Value)(nil),
-		(*NullableAllocationWorkspace_Null)(nil),
-	}
-	file_runtime_proto_msgTypes[45].OneofWrappers = []any{
-		(*NullableWorkspaceState_Value)(nil),
-		(*NullableWorkspaceState_Null)(nil),
-	}
-	file_runtime_proto_msgTypes[46].OneofWrappers = []any{
-		(*NullableWorkspaceExport_Value)(nil),
-		(*NullableWorkspaceExport_Null)(nil),
-	}
+	file_runtime_proto_msgTypes[44].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[46].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[47].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[48].OneofWrappers = []any{
-		(*NullablePerformanceMetricsRequest_Value)(nil),
-		(*NullablePerformanceMetricsRequest_Null)(nil),
-	}
+	file_runtime_proto_msgTypes[48].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[49].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[50].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[51].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[52].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[53].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[54].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[55].OneofWrappers = []any{}
-	file_runtime_proto_msgTypes[59].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[55].OneofWrappers = []any{
+		(*NullableAllocationWorkspace_Value)(nil),
+		(*NullableAllocationWorkspace_Null)(nil),
+	}
+	file_runtime_proto_msgTypes[56].OneofWrappers = []any{
+		(*NullableWorkspaceState_Value)(nil),
+		(*NullableWorkspaceState_Null)(nil),
+	}
+	file_runtime_proto_msgTypes[57].OneofWrappers = []any{
+		(*NullableWorkspaceExport_Value)(nil),
+		(*NullableWorkspaceExport_Null)(nil),
+	}
+	file_runtime_proto_msgTypes[58].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[59].OneofWrappers = []any{
+		(*NullablePerformanceMetricsRequest_Value)(nil),
+		(*NullablePerformanceMetricsRequest_Null)(nil),
+	}
 	file_runtime_proto_msgTypes[60].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[61].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[62].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[63].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[64].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[65].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[66].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[70].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[71].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_runtime_proto_rawDesc), len(file_runtime_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   62,
+			NumMessages:   73,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

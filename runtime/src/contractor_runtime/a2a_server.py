@@ -7,7 +7,6 @@ import logging
 import uuid
 from dataclasses import dataclass
 from typing import Any, Protocol
-from urllib.parse import urlsplit
 
 import grpc
 from a2a.server.agent_execution import AgentExecutor, RequestContext
@@ -42,7 +41,7 @@ from contractor_runtime.contracts import (
     StageContentRequest,
     WorkerCompletion,
 )
-from contractor_runtime.contracts.base import RESOURCE_ID_PATTERN
+from contractor_runtime.contracts.base import RESOURCE_ID_PATTERN, parse_private_rpc_origin
 from contractor_runtime.contracts.codec import decode_private_value
 from contractor_runtime.contracts.grpc_wire.limits import MAX_A2A_BYTES
 
@@ -228,17 +227,7 @@ class ContractorAgentExecutor(AgentExecutor):
 
 def grpc_endpoint(origin: str) -> str:
     """Derive native A2A authority only from a validated HTTPS origin."""
-    parsed = urlsplit(origin)
-    if (
-        parsed.scheme != "https"
-        or not parsed.hostname
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.path not in {"", "/"}
-        or parsed.query
-        or parsed.fragment
-    ):
-        raise ValueError("A2A gRPC requires an HTTPS origin")
+    parsed = parse_private_rpc_origin("A2A endpoint", origin)
     host = f"[{parsed.hostname}]" if ":" in parsed.hostname else parsed.hostname
     return f"{host}:{parsed.port or 443}"
 
@@ -264,7 +253,10 @@ def register_a2a_gateway(server, provider: ActiveA2AProvider) -> None:
     def unary(name):
         async def call(request, context):
             handler = await resolve(request, context)
-            return await getattr(handler, name)(request, context)
+            response = await getattr(handler, name)(request, context)
+            if response.ByteSize() > MAX_A2A_BYTES:
+                await context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, "a2a_response_too_large")
+            return response
 
         return call
 
@@ -272,6 +264,10 @@ def register_a2a_gateway(server, provider: ActiveA2AProvider) -> None:
         async def call(request, context):
             handler = await resolve(request, context)
             async for item in getattr(handler, name)(request, context):
+                if item.ByteSize() > MAX_A2A_BYTES:
+                    await context.abort(
+                        grpc.StatusCode.RESOURCE_EXHAUSTED, "a2a_response_too_large"
+                    )
                 yield item
 
         return call

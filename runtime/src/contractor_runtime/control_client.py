@@ -11,10 +11,8 @@ from collections import deque
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
-from urllib.parse import quote, urlsplit
 
-from contractor_runtime import _https
-from contractor_runtime._grpc_client import ControlRPCError, RegistrationRPC
+from contractor_runtime._grpc_client import ControlRPCError
 from contractor_runtime.backoff import bounded_backoff
 from contractor_runtime.contracts import (
     AgentRegistrationResponse,
@@ -33,18 +31,15 @@ from contractor_runtime.threads import consume_task_exception
 
 logger = logging.getLogger(__name__)
 
-MAX_CONTROL_RESPONSE_BYTES = 1 << 20
 CONTROL_RETRY_BACKOFF_CEILING_SECONDS = 5.0
 
 
 class ControlTransport(Protocol):
     async def register(self, payload: Mapping[str, Any]) -> Mapping[str, Any] | bytes: ...
 
-    async def get_json(self, path: str) -> Mapping[str, Any] | bytes: ...
+    async def bootstrap(self) -> Mapping[str, Any] | bytes: ...
 
-    async def post_json(
-        self, path: str, payload: Mapping[str, Any]
-    ) -> Mapping[str, Any] | bytes: ...
+    async def heartbeat(self, payload: Mapping[str, Any]) -> Mapping[str, Any] | bytes: ...
 
 
 class ReconciliationHandler(Protocol):
@@ -59,38 +54,6 @@ class ControlClientError(Exception):
     """A bounded, non-secret private protocol error."""
 
 
-# Without the Server's error envelope these statuses may succeed on a later
-# attempt; every other status below 500 cannot.
-_RETRYABLE_STATUSES_WITHOUT_ENVELOPE = frozenset({408, 409, 425, 429})
-
-
-class ControlHTTPError(ControlClientError):
-    """A non-2xx Control Plane response and its private error envelope, if any."""
-
-    def __init__(self, status_code: int, error: _https.PrivateError | None = None) -> None:
-        detail = f" ({error.code})" if error is not None else ""
-        super().__init__(f"Control Plane returned HTTP status {status_code}{detail}")
-        self.status_code = status_code
-        self.code = error.code if error is not None else None
-        self.retryable = error.retryable if error is not None else None
-        self.request_id = error.request_id if error is not None else None
-
-    @property
-    def permanent(self) -> bool:
-        """Whether sending the same request again cannot succeed.
-
-        The Server's retryable flag decides when its envelope is present.
-        Otherwise 5xx, 408, 409, 425 and 429 may clear and any other status is
-        permanent.
-        """
-
-        if self.retryable is not None:
-            return not self.retryable
-        return (
-            self.status_code < 500 and self.status_code not in _RETRYABLE_STATUSES_WITHOUT_ENVELOPE
-        )
-
-
 class SharedConfigError(ControlClientError):
     """Startup config is permanently invalid; never register this process."""
 
@@ -98,12 +61,12 @@ class SharedConfigError(ControlClientError):
 class RegistrationRejectedError(ControlClientError):
     """The Control Plane rejected this process's registration permanently.
 
-    Its message names only the HTTP status, the Server's error code and request
+    Its message names only the RPC status, the Server's error code and request
     ID, so it is safe to log; the process stops instead of repeating a
     registration that cannot succeed (RTA-R113).
     """
 
-    def __init__(self, error: ControlHTTPError | ControlRPCError) -> None:
+    def __init__(self, error: ControlRPCError) -> None:
         reason = f"status {error.status_code}"
         if error.code is not None:
             reason += f" {error.code}, request {error.request_id}"
@@ -119,106 +82,6 @@ class RegistrationRejectedError(ControlClientError):
 class ControlTiming:
     heartbeat_interval_seconds: float
     confirmed_lease_seconds: float
-
-
-class MTLSJSONTransport:
-    """Minimal HTTPS/1.1 transport with a pre-request URI SAN role check.
-
-    Control calls reuse the process-owned private connections, which verify
-    the Control Plane role on every new connection before its first request
-    byte (CTL-R163). Registration and heartbeats are never sent twice by the
-    transport: a failed call returns its error to the sequenced client.
-    """
-
-    def __init__(
-        self, base_url: str, connections: _https.PrivateConnections, timeout_seconds: float
-    ) -> None:
-        if not _is_visible_ascii(base_url):
-            raise ValueError("Control Plane base URL must contain only visible ASCII characters")
-        parsed = urlsplit(base_url)
-        if (
-            parsed.scheme != "https"
-            or not parsed.hostname
-            or parsed.username is not None
-            or "?" in base_url
-            or "#" in base_url
-        ):
-            raise ValueError(
-                "Control Plane base URL must be HTTPS without userinfo, query or fragment"
-            )
-        self._host = parsed.hostname
-        self._port = parsed.port or 443
-        self._base_path = parsed.path.rstrip("/")
-        self._connections = connections
-        self._timeout = timeout_seconds
-
-    async def get_json(self, path: str) -> bytes:
-        if not path.startswith("/") or "?" in path or "#" in path or not _is_visible_ascii(path):
-            raise ValueError("private control path must be an absolute ASCII path without query")
-        request = _https.encode_request(
-            "GET",
-            self._base_path + path,
-            {
-                "Host": _https.host_header(self._host, self._port),
-                "Accept": "application/json",
-                "X-Request-ID": _https.new_request_id(),
-            },
-            b"",
-        )
-        return await self._exchange(request, idempotent=True)
-
-    async def post_json(self, path: str, payload: Mapping[str, Any]) -> bytes:
-        return await self._exchange(self._encode_request(path, payload), idempotent=False)
-
-    async def _exchange(self, request: bytes, *, idempotent: bool) -> bytes:
-        try:
-            response = await self._connections.exchange(
-                self._host,
-                self._port,
-                request,
-                idempotent=idempotent,
-                timeout_seconds=self._timeout,
-                max_response_bytes=MAX_CONTROL_RESPONSE_BYTES,
-            )
-        except _https.HTTPResponseTooLargeError:
-            if idempotent:
-                raise SharedConfigError("Control Plane startup config is too large") from None
-            raise ControlClientError("Control Plane response is too large") from None
-        except _https.HTTPResponseError as error:
-            raise ControlClientError(str(error)) from None
-        if not 200 <= response.status_code < 300:
-            raise ControlHTTPError(response.status_code, _https.decode_private_error(response.body))
-        return response.body
-
-    def _encode_request(self, path: str, payload: Mapping[str, Any]) -> bytes:
-        if not path.startswith("/") or "?" in path or "#" in path or not _is_visible_ascii(path):
-            raise ValueError("private control path must be an absolute ASCII path without query")
-        body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-        headers = {
-            "Host": _https.host_header(self._host, self._port),
-            "Content-Type": "application/json",
-            "Content-Length": str(len(body)),
-            "Accept": "application/json",
-            "X-Request-ID": _https.new_request_id(),
-        }
-        return _https.encode_request("POST", self._base_path + path, headers, body)
-
-
-class ControlTransports:
-    """Select one transport per operation family during the private API cutover."""
-
-    def __init__(self, http: MTLSJSONTransport, registration: RegistrationRPC) -> None:
-        self._http = http
-        self._registration = registration
-
-    async def register(self, payload):
-        return await self._registration.register(payload)
-
-    async def get_json(self, path):
-        return await self._http.get_json(path)
-
-    async def post_json(self, path, payload):
-        return await self._http.post_json(path, payload)
 
 
 class ControlClient:
@@ -266,10 +129,10 @@ class ControlClient:
         return self._timing
 
     async def configure_until_stopped(self, stop: asyncio.Event) -> bool:
-        """Load startup policy; only transport/retryable HTTP failures may retry."""
+        """Load startup policy; only transport/retryable RPC failures may retry."""
         failures = 0
         while not stop.is_set():
-            request = asyncio.create_task(self._transport.get_json("/private/v1/config"))
+            request = asyncio.create_task(self._transport.bootstrap())
             stopped = asyncio.create_task(stop.wait())
             try:
                 done, _ = await asyncio.wait(
@@ -278,11 +141,11 @@ class ControlClient:
                 if stopped in done:
                     return False
                 raw = await request
-            except ControlHTTPError as error:
+            except ControlRPCError as error:
                 if error.permanent:
                     raise SharedConfigError(
                         "Control Plane rejected startup config permanently "
-                        f"(HTTP {error.status_code})"
+                        f"(RPC {error.status_code})"
                     ) from None
                 failures += 1
             except SharedConfigError:
@@ -353,7 +216,7 @@ class ControlClient:
                 return True
             except asyncio.CancelledError:
                 raise
-            except (ControlHTTPError, ControlRPCError) as error:
+            except ControlRPCError as error:
                 if error.permanent:
                     raise RegistrationRejectedError(error) from None
                 failures += 1
@@ -377,10 +240,8 @@ class ControlClient:
     async def _exchange_heartbeat(self) -> HeartbeatResponse:
         self._sequence += 1
         request = await self._state.heartbeat(self._sequence, self._echoed_ack)
-        path = f"/private/v1/agents/{quote(self._state.instance_id, safe='')}/heartbeat"
         sent_at = self._watchdog.now() if self._watchdog is not None else None
-        raw = await self._transport.post_json(
-            path,
+        raw = await self._transport.heartbeat(
             request.model_dump(mode="json", by_alias=True, exclude_none=True),
         )
         try:
@@ -491,6 +352,8 @@ class ControlClient:
                 except asyncio.CancelledError:
                     raise
                 except Exception as error:
+                    if isinstance(error, ControlRPCError) and error.permanent:
+                        raise
                     failures += 1
                     logger.warning("Control Plane heartbeat failed (%s)", type(error).__name__)
                     delay = self._backoff(failures)
@@ -524,7 +387,3 @@ def _response_json(raw: Mapping[str, Any] | bytes) -> bytes:
         return json.dumps(raw, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     except (TypeError, ValueError):
         raise ControlClientError("Control Plane returned invalid JSON") from None
-
-
-def _is_visible_ascii(value: str) -> bool:
-    return all(" " < character < "\x7f" for character in value)

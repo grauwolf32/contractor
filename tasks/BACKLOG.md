@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 10 in progress, 46 pending, 13 deferred. 1728 finished: 1709 completed, 19 archived.
+69 open tasks: 11 in progress, 45 pending, 13 deferred. 1728 finished: 1709 completed, 19 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V490-003](v490-003-grpc-control-lifecycle.yml) | execution-core | feature | P1 | Complete gRPC control lifecycle and failure handling |
 
 ## Pending
 
@@ -30,7 +31,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
 | [V469-002](v469-002-opencode-audit-runtime.yml) | feature | P1 | V469-001 | Run OpenCode in one retained Audit environment through existing A2A |
-| [V490-003](v490-003-grpc-control-lifecycle.yml) | feature | P1 | — | Complete gRPC control lifecycle and failure handling |
 | [V490-006](v490-006-grpc-release.yml) | chore | P1 | V490-005 | Accept the complete gRPC boundary and remove replaced transport |
 
 ### Planners and the Worker model boundary (`planner-worker`)

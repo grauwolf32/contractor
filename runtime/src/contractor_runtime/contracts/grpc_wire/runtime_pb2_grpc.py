@@ -36,10 +36,20 @@ class ControlPlaneStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.Bootstrap = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.ControlPlane/Bootstrap',
+                request_serializer=runtime__pb2.BootstrapRequest.SerializeToString,
+                response_deserializer=runtime__pb2.SharedConfig.FromString,
+                _registered_method=True)
         self.Register = channel.unary_unary(
                 '/contractor.runtime.v1alpha1.ControlPlane/Register',
                 request_serializer=runtime__pb2.AgentRegistration.SerializeToString,
                 response_deserializer=runtime__pb2.AgentRegistrationResponse.FromString,
+                _registered_method=True)
+        self.Heartbeat = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.ControlPlane/Heartbeat',
+                request_serializer=runtime__pb2.AgentHeartbeat.SerializeToString,
+                response_deserializer=runtime__pb2.HeartbeatResponse.FromString,
                 _registered_method=True)
 
 
@@ -48,7 +58,19 @@ class ControlPlaneServicer:
     lf.a2a.v1.A2AService, not another Contractor invocation protocol.
     """
 
+    def Bootstrap(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def Register(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Heartbeat(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -57,10 +79,20 @@ class ControlPlaneServicer:
 
 def add_ControlPlaneServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'Bootstrap': grpc.unary_unary_rpc_method_handler(
+                    servicer.Bootstrap,
+                    request_deserializer=runtime__pb2.BootstrapRequest.FromString,
+                    response_serializer=runtime__pb2.SharedConfig.SerializeToString,
+            ),
             'Register': grpc.unary_unary_rpc_method_handler(
                     servicer.Register,
                     request_deserializer=runtime__pb2.AgentRegistration.FromString,
                     response_serializer=runtime__pb2.AgentRegistrationResponse.SerializeToString,
+            ),
+            'Heartbeat': grpc.unary_unary_rpc_method_handler(
+                    servicer.Heartbeat,
+                    request_deserializer=runtime__pb2.AgentHeartbeat.FromString,
+                    response_serializer=runtime__pb2.HeartbeatResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -74,6 +106,33 @@ class ControlPlane:
     """Contractor control RPCs. Worker/Planner invocation uses the official
     lf.a2a.v1.A2AService, not another Contractor invocation protocol.
     """
+
+    @staticmethod
+    def Bootstrap(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.ControlPlane/Bootstrap',
+            runtime__pb2.BootstrapRequest.SerializeToString,
+            runtime__pb2.SharedConfig.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def Register(request,
@@ -92,6 +151,33 @@ class ControlPlane:
             '/contractor.runtime.v1alpha1.ControlPlane/Register',
             runtime__pb2.AgentRegistration.SerializeToString,
             runtime__pb2.AgentRegistrationResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Heartbeat(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.ControlPlane/Heartbeat',
+            runtime__pb2.AgentHeartbeat.SerializeToString,
+            runtime__pb2.HeartbeatResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -132,6 +218,11 @@ class RuntimeLifecycleStub:
                 request_serializer=runtime__pb2.ReleaseAllocationRequest.SerializeToString,
                 response_deserializer=runtime__pb2.ReleaseAllocationResponse.FromString,
                 _registered_method=True)
+        self.ReadState = channel.unary_unary(
+                '/contractor.runtime.v1alpha1.RuntimeLifecycle/ReadState',
+                request_serializer=runtime__pb2.StateReadRequest.SerializeToString,
+                response_deserializer=runtime__pb2.StateReadResponse.FromString,
+                _registered_method=True)
 
 
 class RuntimeLifecycleServicer:
@@ -161,6 +252,12 @@ class RuntimeLifecycleServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ReadState(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_RuntimeLifecycleServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -183,6 +280,11 @@ def add_RuntimeLifecycleServicer_to_server(servicer, server):
                     servicer.Release,
                     request_deserializer=runtime__pb2.ReleaseAllocationRequest.FromString,
                     response_serializer=runtime__pb2.ReleaseAllocationResponse.SerializeToString,
+            ),
+            'ReadState': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReadState,
+                    request_deserializer=runtime__pb2.StateReadRequest.FromString,
+                    response_serializer=runtime__pb2.StateReadResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -293,6 +395,33 @@ class RuntimeLifecycle:
             '/contractor.runtime.v1alpha1.RuntimeLifecycle/Release',
             runtime__pb2.ReleaseAllocationRequest.SerializeToString,
             runtime__pb2.ReleaseAllocationResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReadState(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.RuntimeLifecycle/ReadState',
+            runtime__pb2.StateReadRequest.SerializeToString,
+            runtime__pb2.StateReadResponse.FromString,
             options,
             channel_credentials,
             insecure,

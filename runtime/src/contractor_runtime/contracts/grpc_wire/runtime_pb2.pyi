@@ -7,6 +7,108 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
+class BootstrapRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class SharedConfig(_message.Message):
+    __slots__ = ("api_version", "version", "limits", "digest")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    LIMITS_FIELD_NUMBER: _ClassVar[int]
+    DIGEST_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    version: int
+    limits: SharedLimits
+    digest: str
+    def __init__(self, api_version: _Optional[str] = ..., version: _Optional[int] = ..., limits: _Optional[_Union[SharedLimits, _Mapping]] = ..., digest: _Optional[str] = ...) -> None: ...
+
+class SharedLimits(_message.Message):
+    __slots__ = ("git_import_url_max_bytes", "run_metadata_max_labels", "run_metadata_key_max_bytes", "run_metadata_value_max_bytes", "audit_max_labels", "http_request_body_max_bytes", "http_response_body_max_bytes", "http_header_block_max_bytes", "worker_result_max_bytes", "worker_completion_max_bytes", "worker_failure_message_max_bytes", "worker_result_max_artifacts", "worker_observation_max_tools", "worker_workspace_max_files_read", "worker_state_max_bytes", "worker_state_workspace_max_paths", "worker_state_workspace_paths_max_bytes", "artifact_payload_max_bytes", "public_page_max_items", "artifact_list_max_items")
+    GIT_IMPORT_URL_MAX_BYTES_FIELD_NUMBER: _ClassVar[int]
+    RUN_METADATA_MAX_LABELS_FIELD_NUMBER: _ClassVar[int]
+    RUN_METADATA_KEY_MAX_BYTES_FIELD_NUMBER: _ClassVar[int]
+    RUN_METADATA_VALUE_MAX_BYTES_FIELD_NUMBER: _ClassVar[int]
+    AUDIT_MAX_LABELS_FIELD_NUMBER: _ClassVar[int]
+    HTTP_REQUEST_BODY_MAX_BYTES_FIELD_NUMBER: _ClassVar[int]
+    HTTP_RESPONSE_BODY_MAX_BYTES_FIELD_NUMBER: _ClassVar[int]
+    HTTP_HEADER_BLOCK_MAX_BYTES_FIELD_NUMBER: _ClassVar[int]
+    WORKER_RESULT_MAX_BYTES_FIELD_NUMBER: _ClassVar[int]
+    WORKER_COMPLETION_MAX_BYTES_FIELD_NUMBER: _ClassVar[int]
+    WORKER_FAILURE_MESSAGE_MAX_BYTES_FIELD_NUMBER: _ClassVar[int]
+    WORKER_RESULT_MAX_ARTIFACTS_FIELD_NUMBER: _ClassVar[int]
+    WORKER_OBSERVATION_MAX_TOOLS_FIELD_NUMBER: _ClassVar[int]
+    WORKER_WORKSPACE_MAX_FILES_READ_FIELD_NUMBER: _ClassVar[int]
+    WORKER_STATE_MAX_BYTES_FIELD_NUMBER: _ClassVar[int]
+    WORKER_STATE_WORKSPACE_MAX_PATHS_FIELD_NUMBER: _ClassVar[int]
+    WORKER_STATE_WORKSPACE_PATHS_MAX_BYTES_FIELD_NUMBER: _ClassVar[int]
+    ARTIFACT_PAYLOAD_MAX_BYTES_FIELD_NUMBER: _ClassVar[int]
+    PUBLIC_PAGE_MAX_ITEMS_FIELD_NUMBER: _ClassVar[int]
+    ARTIFACT_LIST_MAX_ITEMS_FIELD_NUMBER: _ClassVar[int]
+    git_import_url_max_bytes: int
+    run_metadata_max_labels: int
+    run_metadata_key_max_bytes: int
+    run_metadata_value_max_bytes: int
+    audit_max_labels: int
+    http_request_body_max_bytes: int
+    http_response_body_max_bytes: int
+    http_header_block_max_bytes: int
+    worker_result_max_bytes: int
+    worker_completion_max_bytes: int
+    worker_failure_message_max_bytes: int
+    worker_result_max_artifacts: int
+    worker_observation_max_tools: int
+    worker_workspace_max_files_read: int
+    worker_state_max_bytes: int
+    worker_state_workspace_max_paths: int
+    worker_state_workspace_paths_max_bytes: int
+    artifact_payload_max_bytes: int
+    public_page_max_items: int
+    artifact_list_max_items: int
+    def __init__(self, git_import_url_max_bytes: _Optional[int] = ..., run_metadata_max_labels: _Optional[int] = ..., run_metadata_key_max_bytes: _Optional[int] = ..., run_metadata_value_max_bytes: _Optional[int] = ..., audit_max_labels: _Optional[int] = ..., http_request_body_max_bytes: _Optional[int] = ..., http_response_body_max_bytes: _Optional[int] = ..., http_header_block_max_bytes: _Optional[int] = ..., worker_result_max_bytes: _Optional[int] = ..., worker_completion_max_bytes: _Optional[int] = ..., worker_failure_message_max_bytes: _Optional[int] = ..., worker_result_max_artifacts: _Optional[int] = ..., worker_observation_max_tools: _Optional[int] = ..., worker_workspace_max_files_read: _Optional[int] = ..., worker_state_max_bytes: _Optional[int] = ..., worker_state_workspace_max_paths: _Optional[int] = ..., worker_state_workspace_paths_max_bytes: _Optional[int] = ..., artifact_payload_max_bytes: _Optional[int] = ..., public_page_max_items: _Optional[int] = ..., artifact_list_max_items: _Optional[int] = ...) -> None: ...
+
+class AgentHeartbeat(_message.Message):
+    __slots__ = ("api_version", "instance_id", "heartbeat_seq", "echoed_ack_seq", "observed_state", "allocations")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    INSTANCE_ID_FIELD_NUMBER: _ClassVar[int]
+    HEARTBEAT_SEQ_FIELD_NUMBER: _ClassVar[int]
+    ECHOED_ACK_SEQ_FIELD_NUMBER: _ClassVar[int]
+    OBSERVED_STATE_FIELD_NUMBER: _ClassVar[int]
+    ALLOCATIONS_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    instance_id: str
+    heartbeat_seq: int
+    echoed_ack_seq: int
+    observed_state: str
+    allocations: ListOfObservedAllocation
+    def __init__(self, api_version: _Optional[str] = ..., instance_id: _Optional[str] = ..., heartbeat_seq: _Optional[int] = ..., echoed_ack_seq: _Optional[int] = ..., observed_state: _Optional[str] = ..., allocations: _Optional[_Union[ListOfObservedAllocation, _Mapping]] = ...) -> None: ...
+
+class HeartbeatResponse(_message.Message):
+    __slots__ = ("api_version", "ack_seq", "action", "allocation_actions")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    ACK_SEQ_FIELD_NUMBER: _ClassVar[int]
+    ACTION_FIELD_NUMBER: _ClassVar[int]
+    ALLOCATION_ACTIONS_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    ack_seq: int
+    action: str
+    allocation_actions: ListOfAllocationAction
+    def __init__(self, api_version: _Optional[str] = ..., ack_seq: _Optional[int] = ..., action: _Optional[str] = ..., allocation_actions: _Optional[_Union[ListOfAllocationAction, _Mapping]] = ...) -> None: ...
+
+class AllocationAction(_message.Message):
+    __slots__ = ("allocation_id", "action")
+    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    ACTION_FIELD_NUMBER: _ClassVar[int]
+    allocation_id: str
+    action: str
+    def __init__(self, allocation_id: _Optional[str] = ..., action: _Optional[str] = ...) -> None: ...
+
+class ListOfAllocationAction(_message.Message):
+    __slots__ = ("values",)
+    VALUES_FIELD_NUMBER: _ClassVar[int]
+    values: _containers.RepeatedCompositeFieldContainer[AllocationAction]
+    def __init__(self, values: _Optional[_Iterable[_Union[AllocationAction, _Mapping]]] = ...) -> None: ...
+
 class ListOfString(_message.Message):
     __slots__ = ("values",)
     VALUES_FIELD_NUMBER: _ClassVar[int]
@@ -148,6 +250,34 @@ class ErrorDetail(_message.Message):
     retryable: bool
     request_id: str
     def __init__(self, code: _Optional[str] = ..., retryable: _Optional[bool] = ..., request_id: _Optional[str] = ...) -> None: ...
+
+class StateReadRequest(_message.Message):
+    __slots__ = ("allocation_id", "if_revision")
+    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    IF_REVISION_FIELD_NUMBER: _ClassVar[int]
+    allocation_id: str
+    if_revision: int
+    def __init__(self, allocation_id: _Optional[str] = ..., if_revision: _Optional[int] = ...) -> None: ...
+
+class StateReadResponse(_message.Message):
+    __slots__ = ("revision", "snapshot", "not_modified")
+    REVISION_FIELD_NUMBER: _ClassVar[int]
+    SNAPSHOT_FIELD_NUMBER: _ClassVar[int]
+    NOT_MODIFIED_FIELD_NUMBER: _ClassVar[int]
+    revision: int
+    snapshot: AgentStateDocument
+    not_modified: StateNotModified
+    def __init__(self, revision: _Optional[int] = ..., snapshot: _Optional[_Union[AgentStateDocument, _Mapping]] = ..., not_modified: _Optional[_Union[StateNotModified, _Mapping]] = ...) -> None: ...
+
+class StateNotModified(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class AgentStateDocument(_message.Message):
+    __slots__ = ("json",)
+    JSON_FIELD_NUMBER: _ClassVar[int]
+    json: bytes
+    def __init__(self, json: _Optional[bytes] = ...) -> None: ...
 
 class PrepareAllocationRequest(_message.Message):
     __slots__ = ("api_version", "spec")

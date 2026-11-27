@@ -2,7 +2,6 @@ package stateview
 
 import (
 	"errors"
-	"net/http"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -16,7 +15,7 @@ func TestServiceKeepsRejectedStateReadNonRetryable(t *testing.T) {
 	for _, code := range []string{"worker_state_response_invalid", "agent_state_unavailable"} {
 		t.Run(code, func(t *testing.T) {
 			reader := &recordingReader{err: &reporting.WorkerStateReadError{
-				StatusCode: http.StatusServiceUnavailable, Code: code, Retryable: false,
+				Code: code, Retryable: false,
 			}}
 			service := testService(t, reader, Binding{
 				LogicalName: "builder", Handle: stateHandle("allocation-builder"), WorkspaceEligible: false,

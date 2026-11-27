@@ -890,7 +890,7 @@ were removed. Target scans use ordinary Project Audit APIs (ASC-R151 to ASC-R153
 
 **API-R113.** Authenticated `GET /v1/config` returns the non-secret shared
 startup policy owned by CTL-R171, with the same version, limits and digest as
-`GET /private/v1/config`. Ordinary users can read it without Operations access.
+`ControlPlane.Bootstrap`. Ordinary users can read it without Operations access.
 It rejects query parameters and a body, returns `Cache-Control: no-store`, and
 uses ordinary public API version, authentication and error handling. The
 handler reads no store. Server-only settings, credentials and allocation

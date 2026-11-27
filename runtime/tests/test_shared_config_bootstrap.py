@@ -6,18 +6,19 @@ import json
 from pathlib import Path
 from unittest.mock import AsyncMock
 
+import grpc
 import pytest
 from pydantic import ValidationError
 from test_cli import ConfigTransport, make_settings
 
 from contractor_runtime import _https, cli, shared_config
+from contractor_runtime._grpc_client import ControlRPCError
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, decode_private
 from contractor_runtime.contracts.shared_config import SharedConfig
 from contractor_runtime.control_client import (
     ControlClient,
     ControlClientError,
-    ControlHTTPError,
     SharedConfigError,
 )
 from contractor_runtime.state import RuntimeState
@@ -86,7 +87,7 @@ def test_invalid_config_never_prepares_or_registers(tmp_path, monkeypatch, chang
         invalid = document()
         change(invalid)
         transport = AsyncMock()
-        transport.get_json.return_value = invalid
+        transport.bootstrap.return_value = invalid
         prepare = AsyncMock()
         monkeypatch.setattr(cli, "_serve_configured", prepare)
         monkeypatch.setattr(shared_config, "_snapshot", None)
@@ -95,7 +96,7 @@ def test_invalid_config_never_prepares_or_registers(tmp_path, monkeypatch, chang
                 make_settings(tmp_path), transport=transport, install_signal_handlers=False
             )
         prepare.assert_not_called()
-        transport.post_json.assert_not_called()
+        transport.register.assert_not_called()
         assert shared_config._snapshot is None
 
     asyncio.run(scenario())
@@ -107,7 +108,7 @@ def test_startup_fetch_precedes_preparation(tmp_path, monkeypatch):
         monkeypatch.setattr(shared_config, "_snapshot", None)
 
         class Transport(ConfigTransport):
-            async def get_json(self, path):
+            async def bootstrap(self):
                 order.append("config")
                 return document()
 
@@ -128,11 +129,11 @@ def test_retryable_fetch_uses_existing_backoff_and_permanent_rejection_stops(tmp
     async def scenario():
         monkeypatch.setattr(shared_config, "_snapshot", None)
         transport = AsyncMock()
-        transport.get_json.side_effect = [
+        transport.bootstrap.side_effect = [
             OSError(),
             TimeoutError(),
             ControlClientError("truncated response"),
-            ControlHTTPError(503),
+            ControlRPCError(grpc.StatusCode.UNAVAILABLE, "internal_error", True, "request_1"),
             document(),
         ]
         sleep = AsyncMock()
@@ -140,14 +141,16 @@ def test_retryable_fetch_uses_existing_backoff_and_permanent_rejection_stops(tmp
             make_settings(tmp_path), RuntimeState(), transport, sleep=sleep, jitter=lambda: 0
         )
         assert await client.configure_until_stopped(asyncio.Event())
-        assert transport.get_json.await_count == 5
+        assert transport.bootstrap.await_count == 5
         assert len(sleep.await_args_list) == 4
         assert all(0 < call.args[0] <= 5 for call in sleep.await_args_list)
-        transport.get_json.reset_mock(side_effect=True)
-        transport.get_json.side_effect = ControlHTTPError(403)
+        transport.bootstrap.reset_mock(side_effect=True)
+        transport.bootstrap.side_effect = ControlRPCError(
+            grpc.StatusCode.PERMISSION_DENIED, "permission_denied", False, "request_1"
+        )
         with pytest.raises(SharedConfigError):
             await client.configure_until_stopped(asyncio.Event())
-        assert transport.get_json.await_count == 1
+        assert transport.bootstrap.await_count == 1
 
     asyncio.run(scenario())
 
@@ -159,7 +162,7 @@ def test_shutdown_joins_inflight_config_before_preparation(tmp_path, monkeypatch
         joined = asyncio.Event()
         stop = asyncio.Event()
 
-        async def fetch(path):
+        async def fetch():
             started.set()
             try:
                 await asyncio.Event().wait()
@@ -167,7 +170,7 @@ def test_shutdown_joins_inflight_config_before_preparation(tmp_path, monkeypatch
                 joined.set()
 
         transport = AsyncMock()
-        transport.get_json.side_effect = fetch
+        transport.bootstrap.side_effect = fetch
         prepare = AsyncMock()
         monkeypatch.setattr(cli, "_serve_configured", prepare)
         task = asyncio.create_task(
@@ -188,44 +191,7 @@ def test_shutdown_joins_inflight_config_before_preparation(tmp_path, monkeypatch
             await task
         assert joined.is_set()
         prepare.assert_not_called()
-        transport.post_json.assert_not_called()
-
-    asyncio.run(scenario())
-
-
-@pytest.mark.parametrize("fault", [None, "oversized", "interrupted"])
-def test_get_transport_is_bounded_idempotent_and_uses_safe_headers(fault):
-    from types import SimpleNamespace
-
-    from contractor_runtime.control_client import MAX_CONTROL_RESPONSE_BYTES, MTLSJSONTransport
-
-    async def scenario():
-        connections = AsyncMock()
-        connections.exchange.return_value = SimpleNamespace(status_code=200, body=b"{}")
-        if fault == "oversized":
-            connections.exchange.side_effect = _https.HTTPResponseTooLargeError()
-        elif fault == "interrupted":
-            connections.exchange.side_effect = _https.HTTPResponseNotStartedError()
-        transport = MTLSJSONTransport("https://control.test:8443", connections, 7)
-        if fault == "oversized":
-            with pytest.raises(SharedConfigError):
-                await transport.get_json("/private/v1/config")
-        elif fault == "interrupted":
-            with pytest.raises(ControlClientError) as error:
-                await transport.get_json("/private/v1/config")
-            assert not isinstance(error.value, SharedConfigError)
-        else:
-            assert await transport.get_json("/private/v1/config") == b"{}"
-        call = connections.exchange.call_args
-        assert call.kwargs == {
-            "idempotent": True,
-            "timeout_seconds": 7,
-            "max_response_bytes": MAX_CONTROL_RESPONSE_BYTES,
-        }
-        request = call.args[2]
-        assert request.startswith(b"GET /private/v1/config HTTP/1.1\r\n")
-        assert b"Host: control.test:8443\r\n" in request
-        assert request.endswith(b"\r\n\r\n")
+        transport.register.assert_not_called()
 
     asyncio.run(scenario())
 

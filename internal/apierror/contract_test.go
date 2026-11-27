@@ -233,7 +233,7 @@ func TestEventsSendExactlyTheFrameCodes(t *testing.T) {
 
 // TestPrivateAPIsAnswerSharedCodesLikeTheRegistry reads every error the
 // private APIs write: a code that is also a public code keeps the registry's
-// HTTP status and retryable flag there too (ERR-R14). Private codes stay
+// HTTP status (or equivalent gRPC status class) and retryable flag (ERR-R14). Private codes stay
 // outside the registry.
 func TestPrivateAPIsAnswerSharedCodesLikeTheRegistry(t *testing.T) {
 	statuses := httpStatusConstants(t)
@@ -255,17 +255,27 @@ func TestPrivateAPIsAnswerSharedCodesLikeTheRegistry(t *testing.T) {
 			}
 			ast.Inspect(file, func(node ast.Node) bool {
 				call, ok := node.(*ast.CallExpr)
-				if !ok || len(call.Args) != 5 {
+				if !ok || (len(call.Args) != 5 && len(call.Args) != 4) {
 					return true
 				}
+				native := false
 				switch name := calledName(call.Fun); name {
 				case "writeError", "writePrivateError":
+					if len(call.Args) != 5 {
+						return true
+					}
+				case "Error":
+					selector, ok := call.Fun.(*ast.SelectorExpr)
+					if !ok || !isIdent(selector.X, "runtimewire") || len(call.Args) != 4 {
+						return true
+					}
+					native = true
 				default:
 					return true
 				}
 				written++
 				where := set.Position(call.Pos()).String()
-				if fromOneKind(call.Args) {
+				if !native && fromOneKind(call.Args) {
 					return true
 				}
 				literal, ok := call.Args[2].(*ast.BasicLit)
@@ -279,6 +289,16 @@ func TestPrivateAPIsAnswerSharedCodesLikeTheRegistry(t *testing.T) {
 					return true
 				}
 				shared++
+				if native {
+					names := map[int][]string{400: {"InvalidArgument"}, 401: {"Unauthenticated"}, 403: {"PermissionDenied"}, 404: {"NotFound"}, 409: {"FailedPrecondition"}, 429: {"ResourceExhausted"}, 500: {"Internal", "Unavailable"}, 503: {"Unavailable", "Aborted"}, 504: {"DeadlineExceeded"}}
+					selector, validStatus := call.Args[1].(*ast.SelectorExpr)
+					flag, validFlag := call.Args[3].(*ast.Ident)
+					if !validStatus || !isIdent(selector.X, "codes") || !slices.Contains(names[kind.Status()], selector.Sel.Name) || !validFlag || flag.Name != strconv.FormatBool(kind.Retryable()) {
+						t.Errorf("%s: private gRPC %s disagrees with the shared status/retry class", where, code)
+					}
+					return true
+				}
+
 				status, retryable := -1, ""
 				if selector, ok := call.Args[1].(*ast.SelectorExpr); ok && isIdent(selector.X, "http") {
 					status = statuses[selector.Sel.Name]

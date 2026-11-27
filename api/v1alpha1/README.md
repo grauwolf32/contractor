@@ -238,7 +238,7 @@ are `api/testdata/workflow-context-management-cases.json` and the
 `AgentStateSnapshot.state.schemaVersion` is `2`: every current/completed invocation
 contains bounded invocation metrics and a closed summarizer phase/usage record.
 Prompt-token trigger tracking and workspace integrity digests stay internal to
-their Runtime owners; the State contract rejects these unused exported fields. The HTTP ETag's existing
+their Runtime owners; the State contract rejects these unused exported fields. The Server cache ETag's existing
 `contractor-agent-state-v1-*` prefix versions cache semantics independently.
 
 `llm-gateway-config-manifest.schema.json` describes the strict non-secret YAML
@@ -310,7 +310,8 @@ allocation enforces its own limits in Runtime. There is no per-request Server
 permit/journal protocol or separate target transport-stop RPC. Ordinary
 allocation cancellation/release joins target work and clears private state.
 
-`shared-config.schema.json` describes startup `GET /private/v1/config`.
+`shared-config.schema.json` describes the domain value returned by the typed
+startup `ControlPlane.Bootstrap` RPC.
 The Runtime verifies the digest of canonical `{limits,version}` and freezes
 that snapshot before preparation and registration (CTL-R171, RTA-R126).
 `make shared-config-generate` derives the golden fixture, Runtime test defaults
@@ -327,3 +328,13 @@ selectors total. Live pages return `items`, `projectRevision`, `nextCursor`;
 selection returns the existing exact collection publication descriptor.
 FND-R224 through FND-R229 own bounds, owner/Project authority, replay and failures.
 The shared findings collection fixture pins Project source kinds in both languages.
+
+
+Native control uses `runtime.proto`: Bootstrap, Register, Heartbeat and the
+allocation lifecycle including conditional ReadState. State carries a typed
+revision and snapshot/not-modified oneof; the JSON document keeps its 4 MiB
+ceiling inside a 4 MiB + 1 KiB protobuf ceiling. The old private HTTP routes
+for these operations are removed. `grpc-limits.json`, `grpc-sequences.json`
+and `private-rpc-origin-cases.json` pin cross-language transport limits, exact
+unsigned heartbeat sequences and HTTPS origin grammar. Existing JSON report
+schemas remain the validation boundary for named protobuf documents.

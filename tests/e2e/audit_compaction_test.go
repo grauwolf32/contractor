@@ -136,7 +136,7 @@ func TestAuditCompactionLeaseLossAcrossProcesses(t *testing.T) {
 		h.runtimeControlPlaneURL = h.proxyPrivateAPI(func(response *http.Response) error {
 			path := response.Request.URL.Path
 			registration := path == runtimepb.ControlPlane_Register_FullMethodName
-			if denyControl.Load() && (registration || strings.Contains(path, "heartbeat")) {
+			if denyControl.Load() && (registration || path == runtimepb.ControlPlane_Heartbeat_FullMethodName) {
 				_ = response.Body.Close()
 				return errors.New("controlled control-lease reply loss")
 			}

@@ -72,7 +72,7 @@ class ShutdownRuntime:
         class Connections(runtime_cli.PrivateConnections):
             def __init__(self, *args):
                 super().__init__(*args)
-                self.phase = "control-connections" if not owner.connections else "artifacts"
+                self.phase = "artifacts"
                 owner.connections.append(self)
 
             async def aclose(self):
@@ -81,11 +81,11 @@ class ShutdownRuntime:
 
         class Transport(InflightTransport):
             async def aclose(self):
-                pass
+                await owner.step("control-connections")
 
-            async def post_json(self, *args):
+            async def exchange(self, *args):
                 try:
-                    return await super().post_json(*args)
+                    return await super().exchange(*args)
                 except asyncio.CancelledError:
                     await owner.step("control-loop")
                     raise
@@ -136,8 +136,7 @@ class ShutdownRuntime:
         self.transport = Transport()
         self.server = Server()
         monkeypatch.setattr(runtime_cli, "PrivateConnections", Connections)
-        monkeypatch.setattr(runtime_cli, "MTLSJSONTransport", lambda *args: self.transport)
-        monkeypatch.setattr(runtime_cli, "RegistrationRPC", lambda *args: self.transport)
+        monkeypatch.setattr(runtime_cli, "ControlRPC", lambda *args: self.transport)
         monkeypatch.setattr(runtime_cli, "AllocationService", Allocation)
         monkeypatch.setattr(runtime_cli, "LeaseWatchdog", Watchdog)
         monkeypatch.setattr(runtime_cli, "PodmanLifecycle", Lifecycle)

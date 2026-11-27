@@ -621,3 +621,52 @@ def test_native_a2a_rejection_carries_bounded_correlation(
                 await server.wait_for_termination()
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_a2a_response_keeps_its_bound_with_larger_state_envelope(streaming):
+    from a2a.types import a2a_pb2 as pb
+    from a2a.types import a2a_pb2_grpc
+
+    from contractor_runtime.contracts.grpc_wire.limits import MAX_STATE_MESSAGE_BYTES
+
+    class Handler:
+        async def GetTask(self, request, context):
+            return pb.Task(id="x" * MAX_A2A_REQUEST_BYTES)
+
+        async def SubscribeToTask(self, request, context):
+            yield pb.StreamResponse(task=pb.Task(id="x" * MAX_A2A_REQUEST_BYTES))
+
+    class Provider:
+        async def active_a2a_application(self, allocation_id):
+            return Handler()
+
+    async def scenario():
+        with tempfile.TemporaryDirectory(prefix="ct-a2a-size-", dir="/tmp") as directory:
+            target = f"unix:{directory}/a2a.sock"
+            options = (
+                ("grpc.max_send_message_length", MAX_STATE_MESSAGE_BYTES),
+                ("grpc.max_receive_message_length", MAX_STATE_MESSAGE_BYTES),
+            )
+            server = grpc.aio.server(options=options)
+            register_a2a_gateway(server, Provider())
+            server.add_insecure_port(target)
+            await server.start()
+            try:
+                async with grpc.aio.insecure_channel(target, options=options) as channel:
+                    client = a2a_pb2_grpc.A2AServiceStub(channel)
+                    with pytest.raises(grpc.aio.AioRpcError) as caught:
+                        if streaming:
+                            async for _ in client.SubscribeToTask(
+                                pb.SubscribeToTaskRequest(id="t", tenant="a"), timeout=3
+                            ):
+                                raise AssertionError("oversized frame escaped")
+                        else:
+                            await client.GetTask(pb.GetTaskRequest(id="t", tenant="a"), timeout=3)
+                    assert caught.value.code() == grpc.StatusCode.RESOURCE_EXHAUSTED
+                    assert caught.value.details() == "a2a_response_too_large"
+            finally:
+                await server.stop(0)
+                await server.wait_for_termination()
+
+    asyncio.run(scenario())

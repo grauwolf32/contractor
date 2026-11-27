@@ -21,6 +21,7 @@ func TestSharedProtobufDomainRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	types := map[string]proto.Message{
+		"SharedConfig": &pb.SharedConfig{}, "AgentHeartbeat": &pb.AgentHeartbeat{}, "HeartbeatResponse": &pb.HeartbeatResponse{},
 		"AgentRegistration": &pb.AgentRegistration{}, "AgentRegistrationResponse": &pb.AgentRegistrationResponse{},
 		"AllocationSpec": &pb.AllocationSpec{}, "AllocationWorkspaceSpec": &pb.AllocationWorkspace{},
 		"FinalizeAllocationRequest": &pb.FinalizeAllocationRequest{}, "AbortAllocationRequest": &pb.AbortAllocationRequest{},
@@ -105,8 +106,39 @@ func TestSharedGRPCBounds(t *testing.T) {
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "grpc-limits.json"), &bounds); err != nil {
 		t.Fatal(err)
 	}
-	actual := map[string]int{"controlMessageBytes": MaxControlBytes, "a2aMessageBytes": MaxA2ABytes, "metadataBytes": MaxMetadataBytes, "concurrentRPCs": MaxConcurrentRPCs}
+	actual := map[string]int{"controlMessageBytes": MaxControlBytes, "a2aMessageBytes": MaxA2ABytes, "stateMessageBytes": MaxStateMessageBytes, "metadataBytes": MaxMetadataBytes, "concurrentRPCs": MaxConcurrentRPCs}
 	if !reflect.DeepEqual(bounds, actual) {
 		t.Fatalf("gRPC bounds drift: %v != %v", actual, bounds)
+	}
+}
+
+func TestSharedProtobufSequencePrecision(t *testing.T) {
+	var cases struct{ Valid, Invalid []string }
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "grpc-sequences.json"), &cases); err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range cases.Valid {
+		raw := []byte(`{"heartbeatSeq":` + value + `}`)
+		request := &pb.AgentHeartbeat{}
+		if err := encodeMessage(raw, request.ProtoReflect()); err != nil {
+			t.Fatal(err)
+		}
+		binary, err := proto.Marshal(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parsed := &pb.AgentHeartbeat{}
+		if err := proto.Unmarshal(binary, parsed); err != nil {
+			t.Fatal(err)
+		}
+		result, err := decodeMessage(parsed.ProtoReflect())
+		if err != nil || string(result) != string(raw) {
+			t.Fatalf("sequence %s changed: %s, %v", value, result, err)
+		}
+	}
+	for _, value := range cases.Invalid {
+		if err := encodeMessage([]byte(`{"heartbeatSeq":`+value+`}`), (&pb.AgentHeartbeat{}).ProtoReflect()); err == nil {
+			t.Fatalf("invalid sequence %s accepted", value)
+		}
 	}
 }

@@ -91,6 +91,8 @@ func decodeValue(field protoreflect.FieldDescriptor, value protoreflect.Value) (
 		return json.Marshal(value.Bool())
 	case protoreflect.Int64Kind:
 		return json.Marshal(value.Int())
+	case protoreflect.Uint64Kind:
+		return json.Marshal(value.Uint())
 	case protoreflect.DoubleKind:
 		if math.IsNaN(value.Float()) || math.IsInf(value.Float(), 0) {
 			return nil, ErrInvalid
@@ -179,6 +181,11 @@ func encodeMessage(data []byte, message protoreflect.Message) error {
 
 func encodeScalar(data []byte, field protoreflect.FieldDescriptor) (protoreflect.Value, error) {
 	switch field.Kind() {
+	case protoreflect.Uint64Kind:
+		var value uint64
+		if strictjson.DecodeNonNull(data, &value) == nil {
+			return protoreflect.ValueOfUint64(value), nil
+		}
 	case protoreflect.StringKind:
 		var value string
 		if strictjson.DecodeNonNull(data, &value) == nil {

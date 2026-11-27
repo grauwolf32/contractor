@@ -435,8 +435,8 @@ owned by the Server process: releasing an allocation retires the channels
 of its Runtime principal (CTL-R124), closing them after active sibling calls finish, and Server shutdown closes the rest after
 the Scheduler has stopped. An A2A invocation owns the connections of its
 `SendMessage`, its polls and its best-effort `CancelTask` and closes them
-before it returns. The Runtime process owns a gRPC registration channel, a separate HTTP set for
-bootstrap/heartbeats and another for Artifact API traffic, so a heartbeat never waits
+before it returns. The Runtime process owns one gRPC channel for bootstrap, registration and
+heartbeats, and a separate connection set for Artifact API traffic, so a heartbeat never waits
 behind an Artifact transfer, and closes them at shutdown after its private
 listener has stopped. Closing ends idle connections at once and a connection
 in use when its exchange ends; an exchange started after its owner closed
@@ -455,7 +455,7 @@ channels carry only their existing calls, so they do not evade the same call
 bound. The Server evicts the least recently used idle endpoint at LIM-CTL-17;
 if all endpoints are borrowed it rejects admission. It closes idle channels
 at LIM-CTL-14 and replaces aged channels before another call at LIM-CTL-15.
-Runtime registration serializes calls within their deadlines, never reuses an
+Runtime control serializes calls within their deadlines, never reuses an
 idle or aged channel past these bounds, and closes it at the next exchange or
 shutdown. The following connection/framing rules apply to remaining HTTP families.
 
@@ -1414,7 +1414,7 @@ transport, release and cleanup.
 
 **CTL-R128.** While a Worker is live, the private control protocol
 also owns the read-only allocation-correlated
-`GET /private/v1/allocations/{allocation_id}/agent-state` transport. That route
+`RuntimeLifecycle.ReadState` RPC. That operation
 returns only bounded Contractor-owned State to Control Plane; it is neither an
 A2A operation nor a public or generic state API. Its schema and lifecycle are
 specified in [worker](worker.md).
@@ -1566,7 +1566,7 @@ fixtures live under
 [`api/testdata/v1alpha1`](../../../api/testdata/v1alpha1/) (CTL-R8).
 
 The private live-state route is
-`GET /private/v1/allocations/{allocation_id}/agent-state` (CTL-R128).
+`RuntimeLifecycle.ReadState` (CTL-R128).
 
 ## Limits, failures and errors
 
@@ -1824,10 +1824,10 @@ snapshot creation independently retain their write authority checks.
 
 
 **CTL-R171.** Before preparation or registration, Runtime fetches
-`GET /private/v1/config` through the ordinary private mTLS connection with
+`ControlPlane.Bootstrap` through the private gRPC channel with
 Control Plane role verification. A verified Runtime certificate may read it
 without registering a principal; the endpoint has no database side effects.
-It accepts no query or body and returns a non-cacheable, secret-free
+It accepts an empty typed request and returns a secret-free
 `SharedConfig` (`apiVersion`, `version`, `limits`, `digest`). Version 1 carries
 `limits.artifactPayloadMaxBytes` from `contracts.MaxArtifactPayloadBytes`,
 `limits.publicPageMaxItems` from `pagelimit.MaxRows`, and
@@ -1906,25 +1906,29 @@ overlapping allocation intervals cannot be summed as independent process use.
 
 ### Native control and lifecycle binding
 
-**CTL-R175.** Registration and allocation Prepare, Finalize, Abort and Release
+**CTL-R175.** Bootstrap, Registration, Heartbeat and allocation Prepare,
+Finalize, Abort, Release and ReadState
 use named unary protobuf RPCs; A2A uses its official gRPC service. Their former
 HTTP/JSON-RPC routes are absent and are not transport fallbacks. Registered
 control/A2A addresses remain HTTPS origins; the A2A Agent Card advertises a
-`host:port` gRPC authority and allocation `tenant`. Bootstrap, heartbeat, Worker
-State and allocation Artifact/domain HTTP operations remain separate families
-until their own binding changes. Public HTTP, Gateway and target HTTP are not
+`host:port` gRPC authority and allocation `tenant`. Origins use the bounded
+Runtime endpoint grammar, require HTTPS and have no path except an optional
+root slash; queries, fragments and user information are rejected before
+registration or connection. Allocation Artifact/domain HTTP operations remain
+separate families until their own binding changes. Public HTTP, Gateway and target HTTP are not
 part of this private transport boundary.
 
 Protobuf envelopes carry typed identity, authority, lifecycle and presence.
 AgentTemplate, ModelPolicy, RuntimeSettings, config provenance, Agent Card and
-Worker/Runtime report subdocuments retain their named JSON document types and
+Worker/Runtime report and AgentStateSnapshot subdocuments retain their named JSON document types and
 existing validators. This preserves canonical config digests, exact numeric
 report content and isolated telemetry salvage (CTL-R136, OBS-R36); it does not
 permit an arbitrary method/path/JSON envelope. Secret Prepare bytes are cleared
 after the call; their diagnostic representation remains redacted.
 
 A control/lifecycle message and its domain projection are bounded by
-LIM-CTL-20, A2A envelopes by LIM-CTL-21, metadata by LIM-CTL-22. Both receivers
+LIM-CTL-20 (except the State response envelope, LIM-CTL-27), A2A envelopes
+by LIM-CTL-21, metadata by LIM-CTL-22. Both receivers
 bound aggregate admission with LIM-CTL-23 before application decoding. Caller
 deadlines include admission, connection, TLS and response; domain finalization,
 lease and Stage deadlines remain separate. Invalid input is `InvalidArgument`,
@@ -1935,3 +1939,15 @@ retryable storage transaction conflicts `Aborted`, exhausted admission
 retryability are carried in details; malformed details fail closed. No error
 status proves that a mutation did not commit: existing lifecycle identities
 and receipts remain authoritative.
+
+ReadState carries a required allocation ID and optional positive `uint64`
+`ifRevision`; its result carries a required positive revision and exactly one
+snapshot or not-modified marker. The revision must equal the snapshot's
+validated State revision; not-modified must equal the requested revision.
+The existing Planner cache derives its ETag locally from that revision. The
+State document keeps LIM-WRK-17 independently of the protobuf envelope.
+Heartbeat sequences, acknowledgements and echoed acknowledgements remain exact
+`uint64` values; channel connectivity and HTTP/2 PING never renew their lease.
+Malformed control replies (including oversized untyped receive failures) are
+permanent. Server admission exhaustion carries typed `control_rpc_capacity`
+with `retryable=true`; existing caller backoff and deadline bounds apply.

@@ -1,6 +1,6 @@
 {
-  "a2aUrl": "https://127.0.0.1:9443/a2a",
-  "controlUrl": "https://127.0.0.1:9443/private/v1",
+  "a2aUrl": "https://127.0.0.1:9443",
+  "controlUrl": "https://127.0.0.1:9443",
   "instanceId": "runtime-v2-1",
   "observedState": "idle",
   "softwareVersion": "0.8.0",

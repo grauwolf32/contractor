@@ -1,4 +1,4 @@
-"""Process-owned, deadline-bounded registration RPC over verified TLS."""
+"""Process-owned, deadline-bounded control RPC over verified TLS."""
 
 from __future__ import annotations
 
@@ -17,9 +17,17 @@ from google.rpc.status_pb2 import Status
 
 from contractor_runtime._grpc_tls import TLSForwarder
 from contractor_runtime._https import decode_private_error
+from contractor_runtime.contracts import (
+    AgentRegistrationResponse,
+    HeartbeatResponse,
+    PrivateProtocolDecodeError,
+    SharedConfig,
+    decode_private,
+)
 from contractor_runtime.contracts.grpc_wire import codec, runtime_pb2, runtime_pb2_grpc
 from contractor_runtime.contracts.grpc_wire.limits import MAX_CONTROL_BYTES, MAX_METADATA_BYTES
 from contractor_runtime.core.async_tasks import join_owned_task
+from contractor_runtime.threads import to_thread_until_done
 
 IDLE_SECONDS = 30.0
 LIFETIME_SECONDS = 300.0
@@ -40,7 +48,7 @@ class ControlRPCError(Exception):
         return not self.retryable
 
 
-class RegistrationRPC:
+class ControlRPC:
     def __init__(
         self, origin: str, context: ssl.SSLContext, timeout: float, *, clock=time.monotonic
     ) -> None:
@@ -59,32 +67,47 @@ class RegistrationRPC:
         self._closed = False
 
     async def register(self, value):
+        return await self._call(
+            "Register", value, runtime_pb2.AgentRegistration, AgentRegistrationResponse
+        )
+
+    async def bootstrap(self):
+        return await self._call("Bootstrap", {}, runtime_pb2.BootstrapRequest, SharedConfig)
+
+    async def heartbeat(self, value):
+        return await self._call("Heartbeat", value, runtime_pb2.AgentHeartbeat, HeartbeatResponse)
+
+    async def _call(self, operation, value, request_type, response_model):
         start = self._clock()
         correlation = "request_" + uuid.uuid4().hex
-        try:
-            request = codec.encode(value, runtime_pb2.AgentRegistration())
-        except codec.InvalidWireValue:
-            raise ControlRPCError(
-                grpc.StatusCode.INVALID_ARGUMENT, "invalid_request", False, correlation
-            ) from None
-        if request.ByteSize() > MAX_CONTROL_BYTES:
-            raise ControlRPCError(
-                grpc.StatusCode.INVALID_ARGUMENT, "invalid_request", False, correlation
-            )
         async with asyncio.timeout(self._timeout), self._lock:
             if self._closed:
                 raise RuntimeError("Control Plane connections are closed")
             try:
+                try:
+                    request = await to_thread_until_done(
+                        _encode_request, value, request_type, name="control-protobuf-encode"
+                    )
+                except codec.InvalidWireValue:
+                    raise ControlRPCError(
+                        grpc.StatusCode.INVALID_ARGUMENT, "invalid_request", False, correlation
+                    ) from None
                 await self._connect()
                 remaining = self._timeout - (self._clock() - start)
                 if remaining <= 0:
                     raise TimeoutError
-                response = await runtime_pb2_grpc.ControlPlaneStub(self._channel).Register(
+                method = getattr(runtime_pb2_grpc.ControlPlaneStub(self._channel), operation)
+                response = await method(
                     request, timeout=remaining, metadata=(("x-request-id", correlation),)
                 )
                 try:
-                    return codec.decode(response)
-                except codec.InvalidWireValue:
+                    result = await to_thread_until_done(
+                        _decode_response, response, response_model, name="control-protobuf-decode"
+                    )
+                    if operation == "Heartbeat" and result["ackSeq"] != value["heartbeatSeq"]:
+                        raise codec.InvalidWireValue
+                    return result
+                except (codec.InvalidWireValue, PrivateProtocolDecodeError, ValueError):
                     raise ControlRPCError(
                         grpc.StatusCode.INTERNAL, "invalid_response", False, correlation
                     ) from None
@@ -98,7 +121,17 @@ class RegistrationRPC:
                         False,
                         correlation,
                     ) from None
-                raise _error(error, correlation) from None
+                failure = _error(error, correlation)
+                if (
+                    failure.status_code == grpc.StatusCode.RESOURCE_EXHAUSTED
+                    and failure.code == "transport_unavailable"
+                ):
+                    # This Control Plane emits typed retryable admission errors.
+                    # An untyped receive-limit failure cannot become a startup retry loop.
+                    failure = ControlRPCError(
+                        failure.status_code, "invalid_response", False, correlation
+                    )
+                raise failure from None
             except BaseException:
                 await self._reset()
                 raise
@@ -153,6 +186,21 @@ class RegistrationRPC:
         self._closed = True
         async with self._lock:
             await self._reset()
+
+
+def _encode_request(value, request_type):
+    request = codec.encode(value, request_type())
+    if request.ByteSize() > MAX_CONTROL_BYTES:
+        raise codec.InvalidWireValue
+    return request
+
+
+def _decode_response(response, model):
+    raw = json.dumps(codec.decode(response), allow_nan=False, separators=(",", ":"))
+    if len(raw.encode()) > MAX_CONTROL_BYTES:
+        raise codec.InvalidWireValue
+    value = decode_private(model, raw)
+    return value.model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
 def _error(error, correlation):

@@ -14,14 +14,15 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+import grpc
 import pytest
 from fakes.allocation import allocation_context
 from test_grpc_interop import go_client as go_client
 
 import contractor_runtime.cli as runtime_cli
-from contractor_runtime._https import decode_private_error
+from contractor_runtime._grpc_client import ControlRPCError
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.control_client import ControlHTTPError, RegistrationRejectedError
+from contractor_runtime.control_client import RegistrationRejectedError
 from contractor_runtime.core.target_policy import (
     TargetDenied,
     parse_allowed_networks,
@@ -82,18 +83,14 @@ def test_shutdown_cancels_inflight_heartbeat_and_stops_listener(
     asyncio.run(scenario())
 
 
-_LABELS_REJECTED = (
-    b'{"code":"invalid_request","message":"request does not satisfy the private API contract",'
-    b'"retryable":false,"requestId":"request_1"}'
-)
-
-
 class ConfigTransport:
     async def register(self, payload):
-        return await self.post_json("/private/v1/agents/register", payload)
+        return await self.exchange("register", payload)
 
-    async def get_json(self, path: str) -> bytes:
-        assert path == "/private/v1/config"
+    async def heartbeat(self, payload):
+        return await self.exchange("heartbeat", payload)
+
+    async def bootstrap(self) -> bytes:
         return (Path(__file__).parent / "testdata/shared-config.json").read_bytes()
 
 
@@ -103,9 +100,11 @@ class RejectingTransport(ConfigTransport):
     def __init__(self) -> None:
         self.calls = 0
 
-    async def post_json(self, _: str, __: Mapping[str, Any]) -> Mapping[str, Any]:
+    async def exchange(self, _: str, __: Mapping[str, Any]) -> Mapping[str, Any]:
         self.calls += 1
-        raise ControlHTTPError(400, decode_private_error(_LABELS_REJECTED))
+        raise ControlRPCError(
+            grpc.StatusCode.INVALID_ARGUMENT, "invalid_request", False, "request_1"
+        )
 
 
 def test_permanent_registration_rejection_fails_startup_and_stops_listener(
@@ -127,7 +126,9 @@ def test_permanent_registration_rejection_fails_startup_and_stops_listener(
         )
         monkeypatch.setattr(runtime_cli, "log_runtime_certificate_expiry", lambda *_, **__: None)
 
-        with pytest.raises(RegistrationRejectedError, match="status 400 invalid_request"):
+        with pytest.raises(
+            RegistrationRejectedError, match=r"status StatusCode\.INVALID_ARGUMENT invalid_request"
+        ):
             await asyncio.wait_for(
                 runtime_cli.serve(
                     make_settings(tmp_path),
@@ -158,7 +159,7 @@ def test_main_reports_permanent_registration_rejection(
 ) -> None:
     async def rejected(_: Settings) -> None:
         raise RegistrationRejectedError(
-            ControlHTTPError(400, decode_private_error(_LABELS_REJECTED))
+            ControlRPCError(grpc.StatusCode.INVALID_ARGUMENT, "invalid_request", False, "request_1")
         )
 
     monkeypatch.setattr(runtime_cli, "parse_settings", lambda _: make_settings(tmp_path))
@@ -173,7 +174,8 @@ def test_main_reports_permanent_registration_rejection(
     messages = [record.getMessage() for record in caplog.records]
     assert any(
         "runtime agent failed: Control Plane rejected the Runtime Agent registration "
-        "permanently (status 400 invalid_request, request request_1)" in message
+        "permanently (status StatusCode.INVALID_ARGUMENT invalid_request, request request_1)"
+        in message
         for message in messages
     ), messages
     assert not any("labels cannot be registered" in message for message in messages)
@@ -389,7 +391,7 @@ class InflightTransport(ConfigTransport):
         self.heartbeat_cancelled = False
         self.calls = 0
 
-    async def post_json(self, _: str, __: Mapping[str, Any]) -> Mapping[str, Any]:
+    async def exchange(self, _: str, __: Mapping[str, Any]) -> Mapping[str, Any]:
         self.calls += 1
         if self.calls == 1:
             return {

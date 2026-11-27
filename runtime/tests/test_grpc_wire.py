@@ -13,6 +13,9 @@ from contractor_runtime.contracts.grpc_wire import runtime_pb2 as pb
 FIXTURES = Path(__file__).parents[2] / "api/testdata/v1alpha1"
 INDEX = json.loads((FIXTURES / "index.json").read_text())
 TYPES = {
+    "SharedConfig": pb.SharedConfig,
+    "AgentHeartbeat": pb.AgentHeartbeat,
+    "HeartbeatResponse": pb.HeartbeatResponse,
     "AgentRegistration": pb.AgentRegistration,
     "AgentRegistrationResponse": pb.AgentRegistrationResponse,
     "AllocationSpec": pb.AllocationSpec,
@@ -65,6 +68,19 @@ def test_shared_grpc_bounds():
     assert json.loads((FIXTURES / "grpc-limits.json").read_bytes()) == {
         "controlMessageBytes": limits.MAX_CONTROL_BYTES,
         "a2aMessageBytes": limits.MAX_A2A_BYTES,
+        "stateMessageBytes": limits.MAX_STATE_MESSAGE_BYTES,
         "metadataBytes": limits.MAX_METADATA_BYTES,
         "concurrentRPCs": limits.MAX_CONCURRENT_RPCS,
     }
+
+
+def test_shared_protobuf_sequence_precision():
+    cases = json.loads((FIXTURES / "grpc-sequences.json").read_bytes())
+    for raw in cases["valid"]:
+        value = {"heartbeatSeq": json.loads(raw)}
+        message = codec.encode(value, pb.AgentHeartbeat())
+        parsed = pb.AgentHeartbeat.FromString(message.SerializeToString())
+        assert codec.decode(parsed) == value
+    for raw in cases["invalid"]:
+        with pytest.raises(codec.InvalidWireValue):
+            codec.encode({"heartbeatSeq": json.loads(raw)}, pb.AgentHeartbeat())

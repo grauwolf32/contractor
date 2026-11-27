@@ -26,6 +26,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
 	a2apb "github.com/a2aproject/a2a-go/v2/a2apb/v1"
+	"github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/localpki"
@@ -39,6 +40,7 @@ import (
 	"google.golang.org/grpc/codes"
 	grpccredentials "google.golang.org/grpc/credentials"
 	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -642,15 +644,11 @@ func waitForRuntimeReleased(
 				_, cardErr := a2apb.NewA2AServiceClient(channel).GetTask(callCtx, &a2apb.GetTaskRequest{Tenant: allocationID, Id: "released-task"})
 				cancel()
 				cardReleased := grpcstatus.Code(cardErr) == codes.FailedPrecondition
-				stateURL := baseURL + "/private/v1/allocations/" + url.PathEscape(allocationID) + "/agent-state"
-				stateRequest, _ := http.NewRequestWithContext(ctx, http.MethodGet, stateURL, nil)
-				stateResponse, stateErr := client.Do(stateRequest)
-				stateReleased := false
-				if stateErr == nil {
-					stateReleased = stateResponse.StatusCode == http.StatusConflict ||
-						stateResponse.StatusCode == http.StatusNotFound
-					stateResponse.Body.Close()
-				}
+				callCtx, cancel = context.WithTimeout(ctx, time.Second)
+				_, stateErr := runtimepb.NewRuntimeLifecycleClient(channel).ReadState(callCtx, &runtimepb.StateReadRequest{AllocationId: proto.String(allocationID)})
+				cancel()
+				stateReleased := grpcstatus.Code(stateErr) == codes.FailedPrecondition || grpcstatus.Code(stateErr) == codes.NotFound
+
 				if cardReleased && stateReleased {
 					return
 				}

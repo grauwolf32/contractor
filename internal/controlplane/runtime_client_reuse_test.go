@@ -154,7 +154,7 @@ func TestRuntimeControlClientReusesOneVerifiedConnectionUntilRelease(t *testing.
 	client.Close()
 	awaitServerClose(t, &accepted, &closed, "Close did not close the client's connections")
 	err = finalize()
-	if !errors.Is(err, mtls.ErrRuntimeAgentTransportsClosed) || requests.Load() != 11 {
+	if !errors.Is(err, mtls.ErrRuntimeChannelsClosed) || requests.Load() != 11 {
 		t.Fatalf("call after Close = %v, requests=%d", err, requests.Load())
 	}
 }

@@ -1,59 +1,41 @@
 package controlplane
 
 import (
-	"net/http"
-	"net/http/httptest"
+	"context"
+	"errors"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/runtimewire"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestStartupConfigRequiresMTLSWithoutRegisteringPrincipal(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
-	handler, err := NewHTTPHandler(registry, HTTPOptions{})
+	handler := &controlRPCServer{registry: registry, principals: failingPrincipalRegistrar{err: errors.New("bootstrap must not register a principal")}}
+	if _, err := handler.Bootstrap(context.Background(), &pb.BootstrapRequest{}); status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("unverified bootstrap = %v", err)
+	}
+	request := &pb.BootstrapRequest{}
+	request.ProtoReflect().SetUnknown([]byte{0xf8, 0x07, 0x01})
+	if _, err := handler.Bootstrap(registrationPeerContext(), request); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("unknown bootstrap input = %v", err)
+	}
+	response, err := handler.Bootstrap(registrationPeerContext(), &pb.BootstrapRequest{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, tc := range []struct {
-		method, path  string
-		body          []byte
-		authenticated bool
-		status        int
-	}{
-		{"GET", "/private/v1/config", nil, false, 401},
-		{"GET", "/private/v1/config", nil, true, 200},
-		{"GET", "/private/v1/config?x=1", nil, true, 400},
-		{"GET", "/private/v1/config", []byte(`{}`), true, 400},
-		{"POST", "/private/v1/config", nil, true, 405},
-		{"HEAD", "/private/v1/config", nil, true, 405},
-	} {
-		t.Run(tc.method+tc.path, func(t *testing.T) {
-			request := httptest.NewRequest(tc.method, tc.path, nil)
-			if tc.authenticated {
-				request = verifiedRequest(tc.method, tc.path, tc.body)
-			}
-			response := httptest.NewRecorder()
-			handler.ServeHTTP(response, request)
-			if response.Code != tc.status {
-				t.Fatalf("status %d body %s", response.Code, response.Body)
-			}
-			if tc.status == http.StatusOK {
-				expected, err := control.DefaultSharedConfig()
-				if err != nil {
-					t.Fatal(err)
-				}
-				got, err := contracts.DecodePrivateStrict[control.SharedConfig](response.Body.Bytes())
-				if err != nil || got != expected {
-					t.Fatalf("config = %+v, %v", got, err)
-				}
-				if response.Header().Get("Cache-Control") != "no-store" {
-					t.Fatal("config may be cached")
-				}
-			}
-		})
+	var config control.SharedConfig
+	if err := runtimewire.Decode(response, &config); err != nil {
+		t.Fatal(err)
+	}
+	expected, err := control.DefaultSharedConfig()
+	if err != nil || config != expected {
+		t.Fatalf("bootstrap changed canonical policy: %+v / %v", config, err)
 	}
 	if len(registry.agents) != 0 {
-		t.Fatal("config registered an agent")
+		t.Fatal("bootstrap registered an agent")
 	}
 }

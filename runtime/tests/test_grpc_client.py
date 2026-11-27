@@ -1,4 +1,4 @@
-"""Production registration client against the Go Control Plane handler."""
+"""Production control client against the Go Control Plane handler."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from test_grpc_interop import go_client as go_client
 from test_grpc_interop import pki as pki
 from test_grpc_interop import runtime_context
 
-from contractor_runtime._grpc_client import ControlRPCError, RegistrationRPC, _error
+from contractor_runtime._grpc_client import ControlRPC, ControlRPCError, _error
 from contractor_runtime.contracts.grpc_wire import runtime_pb2 as pb
 
 
@@ -44,7 +44,7 @@ def test_shared_registration_uses_production_go_handler(pki, go_client, mode):
             assert startup, (await process.stderr.read()).decode()
             port = json.loads(startup)["port"]
             now = [0.0]
-            owner = RegistrationRPC(
+            owner = ControlRPC(
                 f"https://localhost:{port}", runtime_context(pki), 3, clock=lambda: now[0]
             )
             payload = json.loads(
@@ -56,13 +56,29 @@ def test_shared_registration_uses_production_go_handler(pki, go_client, mode):
             if mode == "invalid_request":
                 del payload["supportedRuntimeAdapters"]
             if mode == "success":
+                bootstrap = await owner.bootstrap()
+                assert bootstrap["digest"].startswith("sha256:")
+                first = owner._channel
                 result = await owner.register(payload)
+                assert owner._channel is first
                 assert result == {
                     "apiVersion": "contractor/v1alpha1",
                     "heartbeatIntervalSeconds": 10,
                     "confirmedLeaseSeconds": 60,
                 }
-                first = owner._channel
+                for sequence in range(1, 10):
+                    heartbeat = await owner.heartbeat(
+                        {
+                            "apiVersion": "contractor/v1alpha1",
+                            "instanceId": payload["instanceId"],
+                            "heartbeatSeq": sequence,
+                            "echoedAckSeq": sequence - 1,
+                            "observedState": "idle",
+                            "allocations": [],
+                        }
+                    )
+                    assert heartbeat["ackSeq"] == sequence
+                    assert owner._channel is first
                 assert await owner.register(payload) == result
                 assert owner._channel is first
                 now[0] = 300

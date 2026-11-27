@@ -18,10 +18,12 @@ from contractor_runtime.contracts import (
     PrivateProtocolDecodeError,
     ReleaseAllocationRequest,
 )
+from contractor_runtime.contracts.base import RESOURCE_ID_PATTERN
 from contractor_runtime.contracts.codec import decode_private
 from contractor_runtime.contracts.grpc_wire import codec, runtime_pb2_grpc
 from contractor_runtime.contracts.grpc_wire import runtime_pb2 as pb
-from contractor_runtime.contracts.grpc_wire.limits import MAX_CONTROL_BYTES
+from contractor_runtime.contracts.grpc_wire.limits import MAX_CONTROL_BYTES, MAX_STATE_MESSAGE_BYTES
+from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.state import RuntimeState
 from contractor_runtime.threads import to_thread_until_done
 
@@ -66,6 +68,57 @@ class LifecycleHandler(runtime_pb2_grpc.RuntimeLifecycleServicer):
         return await self._call(
             request, context, ReleaseAllocationRequest, "release", pb.ReleaseAllocationResponse
         )
+
+    async def ReadState(self, request, context):
+        request_id = await response_request_id(context)
+        await self.state.record_route_dispatch()
+        try:
+            if request.ByteSize() > MAX_CONTROL_BYTES:
+                raise codec.InvalidWireValue
+            value = codec.decode(request)
+            allocation = value.get("allocationId")
+            revision = value.get("ifRevision")
+            if (
+                not isinstance(allocation, str)
+                or RESOURCE_ID_PATTERN.fullmatch(allocation) is None
+                or revision == 0
+            ):
+                raise codec.InvalidWireValue
+        except codec.InvalidWireValue:
+            return await _abort(
+                context, grpc.StatusCode.INVALID_ARGUMENT, "invalid_request", False, request_id
+            )
+        try:
+            conditional = (
+                f'"contractor-agent-state-v1-{revision}"' if revision is not None else None
+            )
+            snapshot = await self.service.agent_state_snapshot(
+                allocation, if_none_match=conditional
+            )
+            if snapshot is None:
+                if revision is None:
+                    raise RuntimeError("unconditional State read returned no snapshot")
+                return pb.StateReadResponse(revision=revision, not_modified=pb.StateNotModified())
+            if revision == snapshot.state.state_revision:
+                return pb.StateReadResponse(revision=revision, not_modified=pb.StateNotModified())
+            return await to_thread_until_done(_encode_state, snapshot, name="state-protobuf-encode")
+        except AllocationError as error:
+            return await _abort(
+                context,
+                HTTP_STATUS.get(error.status_code, grpc.StatusCode.INTERNAL),
+                error.code,
+                error.retryable,
+                request_id,
+            )
+        except Exception as error:
+            logger.error(
+                "private RPC failed request_id=%s operation=state error_type=%s",
+                request_id,
+                type(error).__name__,
+            )
+            return await _abort(
+                context, grpc.StatusCode.INTERNAL, "internal_error", True, request_id
+            )
 
     async def _call(self, request, context, model, operation, response_type):
         request_id = await response_request_id(context)
@@ -135,3 +188,21 @@ def _encode_response(result, response_type):
     return codec.encode(
         result.model_dump(mode="json", by_alias=True, exclude_none=True), response_type()
     )
+
+
+def _encode_state(snapshot):
+    document = snapshot.model_dump_json(by_alias=True).encode()
+    response = pb.StateReadResponse(
+        revision=snapshot.state.state_revision, snapshot=pb.AgentStateDocument(json=document)
+    )
+    if (
+        len(document) > get_shared_config().worker_state_max_bytes
+        or response.ByteSize() > MAX_STATE_MESSAGE_BYTES
+    ):
+        raise AllocationError(
+            "agent_state_unavailable",
+            "allocation Worker State is unavailable",
+            retryable=False,
+            status_code=503,
+        )
+    return response

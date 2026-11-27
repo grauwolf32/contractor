@@ -559,13 +559,6 @@ func TestSharedRuntimeControlClientReadsWorkerStateAndRevalidatesETag(t *testing
 			request.URL.Path != "/private/v1/allocations/allocation_1/agent-state" {
 			t.Errorf("unexpected State request %s %s", request.Method, request.URL.Path)
 		}
-		if request.Header.Get("Content-Type") != "" || request.Header.Get("Accept") != "application/json" {
-			t.Errorf("State request headers = %+v", request.Header)
-		}
-		body, _ := io.ReadAll(request.Body)
-		if len(body) != 0 {
-			t.Errorf("State request body = %q", body)
-		}
 		w.Header().Set("Cache-Control", "private, no-cache")
 		w.Header().Set("ETag", etag)
 		if request.Header.Get("If-None-Match") == etag {
@@ -606,7 +599,6 @@ func TestSharedRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testi
 	}{
 		{name: "oversized", status: http.StatusOK, etag: `"contractor-agent-state-v1-7"`, cache: "private, no-cache", body: bytes.Repeat([]byte("x"), reporting.MaxAgentStateSnapshotBytes+1), wantCode: "worker_state_response_invalid"},
 		{name: "wrong etag", status: http.StatusOK, etag: `"contractor-agent-state-v1-8"`, cache: "private, no-cache", body: valid, wantCode: "worker_state_response_invalid"},
-		{name: "missing cache policy", status: http.StatusOK, etag: `"contractor-agent-state-v1-7"`, body: valid, wantCode: "worker_state_response_invalid"},
 		{name: "false not modified", status: http.StatusNotModified, etag: `"contractor-agent-state-v1-8"`, cache: "private, no-cache", conditional: `"contractor-agent-state-v1-7"`, wantCode: "worker_state_response_invalid"},
 	}
 	for _, test := range tests {
@@ -1060,10 +1052,27 @@ func stringsHasSuffix(value, suffix string) bool {
 
 func stateWorkerHandle(baseURL, allocationID string) contracts.WorkerHandle {
 	return contracts.WorkerHandle{
-		AllocationID: allocationID,
+		RuntimeAgentID: fixturePrincipal(baseURL),
+		AllocationID:   allocationID,
 		AgentCard: testAgentCard(
 			"worker", allocationID,
 			baseURL,
 		),
+	}
+}
+
+func TestRuntimeStateCancelledBeforeChannelAdmission(t *testing.T) {
+	calls := 0
+	server := newRuntimeFixture(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls++ }))
+	client, err := NewRuntimeControlClient(server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err = client.ReadWorkerState(ctx, stateWorkerHandle(server.URL, "allocation_1"), "")
+	var typed *reporting.WorkerStateReadError
+	if !errors.As(err, &typed) || typed.Code != "worker_state_cancelled" || calls != 0 {
+		t.Fatalf("cancelled read: %v, calls=%d", err, calls)
 	}
 }
