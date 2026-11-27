@@ -21,6 +21,11 @@ demonstration: >-
   observed in its separately accounted Runtime allocation. A1 proves this
   vertical slice before broader acceptance of the task and milestone.
 context:
+  review_followup: >-
+    Astra review of the initial P3 acceptance found five Runtime-path regressions.
+    V489-003 fixes and revalidates both modeled strategies; its evidence is the
+    current post-review merge acceptance. The original evidence below remains
+    the historical first P3 gate result.
   authority: >-
     User decision 2026-11-27 explicitly defers P2 and requests planning P3:
     move Router into Runtime and delete replaced Go code, keeping headless

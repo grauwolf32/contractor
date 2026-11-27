@@ -1,14 +1,14 @@
 # Planner в Runtime: P3 — единый модельный движок
 
 Обновлено 27 ноября 2026. P1 принят в main; P3 реализован в отдельной ветке
-`codex/runtime-planner-p3-plan`. После ревью P3 проходит исправления и повторную приёмку; в main ещё не слит.
+`codex/runtime-planner-p3-plan`. P3 после исправлений ревью готов к слиянию; в main ещё не слит.
 Исходная приёмка: [V489-001](../../tasks/done/v489-001-runtime-router.yml) и
 [evidence](../../tasks/evidence/v489-001-runtime-router.json).
 
-Исправления пяти замечаний Astra ведёт [V489-003](../../tasks/v489-003-runtime-planner-review-fixes.yml):
+Пять замечаний Astra закрыты в [V489-003](../../tasks/done/v489-003-runtime-planner-review-fixes.yml):
 приоритет подтверждённого finish, завершение отклонённых сессий, исход и usage
 компактора, каноническая цель для compaction и учёт множественного выбора.
-Готовность к слиянию требует повторной приёмки этой задачи.
+Повторная приёмка и контрольные суммы: [evidence](../../tasks/evidence/v489-003-runtime-planner-review-fixes.json).
 
 ## Решения пользователя
 
@@ -28,12 +28,15 @@ Multi-allocation и P1 уже в main. В ветке P3 Streamline и Router и�
 Server владеет планом, бюджетами, подтверждением результатов, Artifact refs,
 WorkerInvoker, Scheduler и Control Plane. Один план допускает один active dispatch.
 Go model runner, compactor, Gateway client и SDK tool/session bridge удалены.
-Production-код Go/Python сокращён на 2 742 строки без учёта tests/generated/docs;
+Production-код Go/Python сокращён на 2 684 строки без учёта tests/generated/docs;
 из Go module requirements удалены ADK, GenAI и ещё 21 неиспользуемая зависимость.
-Приёмка: 1 269 Go root tests, 6 774 Runtime cases и все 71 process roots;
+Первичная приёмка: 1 269 Go root tests. После исправлений повторены все
+затронутые Go packages: 791 root test с race/PostgreSQL, 6 795 Runtime cases
+и все 71 process roots;
 136 platform/live/opt-in Runtime skips и один optional heavy-I/O skip не
 считаются пройденным покрытием. Wire, public API/PostgreSQL, config, lint и
-architecture gates прошли. Owned test DB/процессы убраны; live модели не запускались.
+architecture gates первичной приёмки прошли; wire и lint повторены после
+исправлений. Owned test DB/процессы убраны; live модели не запускались.
 
 Потеря Runtime по-прежнему прерывает попытку; retry по Workflow создаёт новую
 StageExecution. Completed Stages сохраняются, план подзадач прерванной попытки
