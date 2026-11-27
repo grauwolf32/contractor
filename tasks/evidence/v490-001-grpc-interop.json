@@ -1,0 +1,83 @@
+{
+  "task": "V490-001",
+  "date": "2026-11-27",
+  "baseline": "9fd3ac96d32c696fa39988df85e32f6bb6d1d83b",
+  "implementation_commit": "e004a46bfbb9a6a67c8be5d55fe9e7422d2a78f9",
+  "scope": "Transport prerequisite only. Production Server/Runtime cutover and real PostgreSQL Run remain V490-002 and later tasks.",
+  "decisions": {
+    "A2A": "preserved, official gRPC binding",
+    "connectivity": "existing direct overlay; no NAT work",
+    "PKI": "existing CA, hostname, Control Plane URI role and Runtime SPKI; in-process Runtime TLS adapter"
+  },
+  "toolchain": {
+    "go": "1.26.10",
+    "a2a_go": "2.7.0",
+    "grpc_go": "1.85.0",
+    "protobuf_go": "1.36.12",
+    "python": "3.13.16",
+    "a2a_python": "1.1.2",
+    "grpcio": "1.85.4",
+    "grpcio_tools": "1.81.2",
+    "protobuf_python": "6.33.6",
+    "protoc": "33.5",
+    "protoc_gen_go_grpc": "1.6.2"
+  },
+  "checks": [
+    {
+      "command": "uv run --no-project --python 3.13 --with grpcio==1.85.0 --with cryptography python tasks/evidence/v490-001-grpc-peer-probe.py",
+      "result": "passed; reproduced missing stock grpcio role check, not production acceptance"
+    },
+    {
+      "command": "cd runtime && uv run --locked pytest tests/test_grpc_interop.py tests/test_mtls.py tests/test_a2a_server.py",
+      "result": "passed",
+      "passed": 24
+    },
+    {
+      "command": "make test-runtime",
+      "result": "passed; both report verifiers passed",
+      "passed": 6802,
+      "skipped": 136,
+      "skip_reasons": {
+        "OPS-R1: Linux byte-exact filename/long-path fixture; excluded from macOS acceptance": 2,
+        "run make test-interactsh-protocol for the pinned upstream server": 1,
+        "live LLM Gateway environment is not configured": 4,
+        "OPS-R1: the allocation-scoped Podman backend needs Linux host capabilities (AF_UNIX SOCK_SEQPACKET socket pairs, pidfd_open)": 94,
+        "explicit real-rootless startup capability gate": 2,
+        "explicit real-rootless deployment/workflow gate": 1,
+        "explicit real-rootless command execution gate": 13,
+        "explicit real-rootless owner-process gate": 3,
+        "explicit real Podman release gate": 5,
+        "explicit real gate: make test-podman-supervisor": 11
+      }
+    },
+    {
+      "command": "make lint",
+      "result": "passed"
+    },
+    {
+      "command": "python3 scripts/check_spec.py",
+      "result": "passed; 51 documents"
+    },
+    {
+      "command": "python3 scripts/check_tasks.py",
+      "result": "passed; 1796 tasks"
+    }
+  ],
+  "observed": [
+    "official Go/Python A2A SendMessage, GetTask, CancelTask",
+    "same production ContractorAgentExecutor and Go WorkerCompletion validator; exact 2^53-1 revision",
+    "foreign tenant rejection",
+    "same-CA wrong-role peer rejected in both directions and wrong Runtime SPKI rejected",
+    "UNAVAILABLE after handler acceptance does not replay mutation",
+    "eight forwarding owners admitted; ninth refused; shutdown cancels and joins open connections"
+  ],
+  "environment": "Use existing pinned ffuf 2.3.0 at /Users/ruslan/src/contractor/.local/v480/tools; the unsupported host ffuf caused an earlier interrupted run, then all 18 scanner engagement tests and the full suite passed.",
+  "not_claimed": [
+    "production admission before TLS handshake",
+    "production connection lifetime/retirement",
+    "real PostgreSQL ordinary Run via gRPC",
+    "Linux/rootless/live-model release acceptance",
+    "merge or deployment"
+  ],
+  "cleanup": "Test channels, listeners and owned Go subprocesses are stopped and joined. No database, deployment or live-model call was made."
+}

@@ -73,7 +73,7 @@ Server-side interceptor с `auth_context` не решает проверку **�
 на Python-клиенте**. Отдельный предварительный TLS dial тоже не доказывает
 identity соединения, по которому gRPC затем пошлёт запрос.
 
-[V490-001](../../tasks/v490-001-grpc-security-interop.yml) сначала проверяет это
+[V490-001](../../tasks/done/v490-001-grpc-security-interop.yml) сначала проверяет это
 на собственных loopback сертификатах. Эксперимент
 [`v490-001-grpc-peer-probe.py`](../../tasks/evidence/v490-001-grpc-peer-probe.py)
 не меняет зависимости проекта и не использует deployment PKI. Его успешное
@@ -214,7 +214,7 @@ maps в JSON-совместимые значения; Go SDK не принима
 
 | Задача | Проверяемый результат | Зависит от |
 | --- | --- | --- |
-| [V490-001](../../tasks/v490-001-grpc-security-interop.yml) | Решён TLS prerequisite, официальные SDK совместимы, определены binary validation и generation | — |
+| [V490-001](../../tasks/done/v490-001-grpc-security-interop.yml) | Решён TLS prerequisite, официальные SDK совместимы, определены binary validation и generation | — |
 | [V490-002](../../tasks/v490-002-grpc-run-slice.yml) | Первый настоящий Run: registration → prepare → A2A gRPC → finalize/release, плюс cancel | 001 |
 | [V490-003](../../tasks/v490-003-grpc-control-lifecycle.yml) | Полный control/State, четыре slots, lease, shutdown, lost replies и restart | 002 |
 | [V490-004](../../tasks/v490-004-grpc-allocation-services.yml) | Planner callbacks и все allocation domain services на gRPC | 003 |

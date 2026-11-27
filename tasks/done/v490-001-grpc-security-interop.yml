@@ -5,7 +5,7 @@ milestone: server-runtime-grpc-2026-11
 epic: execution-core
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -107,23 +107,16 @@ tests:
 - command: make lint
   covers:
   - A3
+implementation_commit: e004a46bfbb9a6a67c8be5d55fe9e7422d2a78f9
 verification:
-  status: in progress; focused real-process acceptance passed, full Runtime gate running
-  evidence:
-  - tasks/evidence/v490-001-grpc-peer-probe.json
-  - runtime/tests/test_grpc_interop.py
+  status: passed
+  evidence: tasks/evidence/v490-001-grpc-interop.json
   observed: >-
-    Stock grpcio reproduces the missing role check. The selected TLS adapter passes
-    official Go/Python A2A SendMessage/GetTask/CancelTask, rejects wrong tenant,
-    wrong-role peers in both directions and wrong Runtime SPKI, prevents mutation
-    replay after UNAVAILABLE, and bounds/joins eight open forwarding owners.
-    Focused interop/PKI/A2A suite has 24 passes. make lint passed; Ruff passed
-    again after adding the active-shutdown regression.
-  environment: >-
-    The first full Runtime run was interrupted after 17 scanner conformance
-    failures (2301 passes, one skip): PATH selected unsupported host ffuf.
-    Repeating all 18 ffuf engagement tests with the existing pinned ffuf 2.3.0
-    succeeded; the full Runtime gate is rerunning with that tool path.
+    Official A2A Go/Python interoperability, current peer role/principal checks,
+    exact WorkerCompletion numbers, tenant isolation, cancellation, no mutation
+    replay after UNAVAILABLE, bounded admission and joined shutdown passed.
+    Focused suite: 24 passes. Full Runtime: 6802 passes, 136 declared skips;
+    both report verifiers passed. make lint and spec/task validation passed.
   unproven: >-
-    Production security, real Server/PostgreSQL Run and migration gates belong
-    to the dependent tasks; this prerequisite does not claim production cutover.
+    This prerequisite does not claim production cutover, real PostgreSQL Run,
+    Linux/rootless/live-model release acceptance, merge or deployment.
