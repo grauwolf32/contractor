@@ -6,7 +6,7 @@ epic: planner-worker
 kind: defect
 introduced_by: V488-002
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, python, yaml]
 goal: The complete test gate resolves every Planner matrix owner and verifies current Server operations after the Runtime model-loop move.
@@ -36,3 +36,11 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2]
+implementation_commit: 04b0289a0c5a04c99c31fb5f74631da98d169d8f
+verification:
+  status: passed
+  observed: >-
+    Full e2e owner/matrix, Streamline, Session, faults and offline project-workflow
+    package suites passed against disposable PostgreSQL. make lint passed,
+    including all four Python layer contracts. Every matrix reference resolves.
+    No live Gateway/model calls, deployment or merge were performed.
