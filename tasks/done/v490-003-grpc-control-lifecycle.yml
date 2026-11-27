@@ -5,7 +5,7 @@ milestone: server-runtime-grpc-2026-11
 epic: execution-core
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V490-002
 languages:
@@ -126,3 +126,22 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 85ee8515a8d1407902ea3441ae89960e048fad39
+verification:
+  status: passed
+  observed: >-
+    make lint, make test-go with disposable PostgreSQL, and
+    make test-wire-cross-language passed. The final wire gate passed 451
+    Python contract cases and 1684 shared Python cases, covering 437 fixtures
+    through 471 Go and 307 Python readers; one optional disk-heavy case was
+    skipped, not counted as coverage. make test-runtime passed 6840 cases
+    with 136 declared skips and both report verifiers, including 611 compaction
+    cases. Final complete A2A and contract suites also passed after the last
+    response-bound and origin-validation changes. Full controlplane, mtls and
+    runtimewire race suites passed, as did the real native lifecycle integration
+    package. make test-e2e passed all 71 process roots in 4213.171 seconds and
+    its report verifiers, including capacity four, sibling cancellation,
+    lower-capacity restart, lease loss and Server/Runtime restart. Earlier
+    diagnostic failures and a compilation overlapping a test import edit were
+    corrected and superseded by the accepted full gates. Heavy-I/O remained
+    disabled. No live model calls, deployment or merge into main occurred.
