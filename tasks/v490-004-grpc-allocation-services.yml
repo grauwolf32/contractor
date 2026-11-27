@@ -16,7 +16,7 @@ languages:
 goal: Runtime tools and Planner callbacks reach the existing Server domain owners through gRPC with unchanged
   allocation authority and receipts.
 demonstration: Real Router/Streamline Planner callbacks dispatch a Worker and commit plan facts once under
-  a lost reply; ordinary finding, Audit and sitemap submissions return their existing durable receipts.
+  a lost reply; finding selections, Audit and sitemap submissions return their existing durable receipts.
 context:
   authority: 'User decision 2026-11-27: plan and implement gRPC for Server/Runtime, preserve A2A. Direct connectivity
     through the existing overlay is an architectural fact, not new scope. NAT, reverse tunnels and removal
@@ -32,9 +32,19 @@ context:
   - docs/spec/platform/failure-model.md
   - docs/spec/platform/persistence.md#PER-R24
   baseline: main 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b
+  boundary_decision: >-
+    Agent decomposition correction 2026-11-27: findingintake.MaxRequestBytes is
+    64 MiB because a proposal may include selected captured HTTP evidence.
+    Its existing handler already uses Artifact transfer admission. Move only
+    finding proposal submission to V490-005 with the bounded bulk transport;
+    finding reads and selections remain here. Preserve Audit document limits
+    of 8 MiB and Planner operation limits of 4 MiB with separately bounded
+    service messages and existing domain validation. Do not enlarge the
+    process control channel or silently shrink any domain limit. Reopen this
+    split only if the actual domain payload ownership changes.
 scope:
   in:
-  - Migrate Planner operations, gateway recovery, Audit evidence/judgments, finding proposals/reads/selections,
+  - Migrate Planner operations, gateway recovery, Audit evidence/judgments, finding reads/selections,
     sitemap mutations/snapshots/observations, Artifact list/metadata/access.
   - Keep provider parsing in Runtime adapters and domain rules in existing Server owners; replace HTTP adaptation
     without feature-specific stores.
@@ -43,7 +53,8 @@ scope:
   - Maintain Project read grants, current/exact ArtifactRefs, contentCacheKey, fencing and existing sequence/idempotency
     semantics.
   out:
-  - Artifact payload streaming is V490-005; public HTTP/WebSocket and model/Gateway traffic do not change.
+  - Artifact payload streaming and finding proposal submission with captured evidence are V490-005;
+    public HTTP/WebSocket and model/Gateway traffic do not change.
 requirements:
 - id: R1
   text: Preserve existing component/domain ownership, mTLS role and principal checks, allocation fencing, receipts,
@@ -86,8 +97,9 @@ acceptance_criteria:
   text: Real PostgreSQL tests prove lost-reply receipt replay, stale revisions, cancellation and domain-specific
     transaction conflicts without duplicate side effects.
 - id: A3
-  text: Full Planner, findings, Audit, sitemap and Artifact metadata suites pass through the new adapters;
-    tool and headless boundaries remain transport-independent.
+  text: Full Planner, finding read/selection, Audit, sitemap and Artifact metadata suites pass through
+    the new adapters; tool and headless boundaries remain transport-independent. Finding proposal
+    submission retains its sole existing transport until V490-005.
 tests:
 - command: make lint
   covers:

@@ -239,8 +239,8 @@ maps в JSON-совместимые значения; Go SDK не принима
 | [V490-001](../../tasks/done/v490-001-grpc-security-interop.yml) | Решён TLS prerequisite, официальные SDK совместимы, определены binary validation и generation | — |
 | [V490-002](../../tasks/done/v490-002-grpc-run-slice.yml) | Первый настоящий Run: registration → prepare → A2A gRPC → finalize/release, плюс cancel | 001 |
 | [V490-003](../../tasks/v490-003-grpc-control-lifecycle.yml) | Полный control/State, четыре slots, lease, shutdown, lost replies и restart | 002 |
-| [V490-004](../../tasks/v490-004-grpc-allocation-services.yml) | Planner callbacks и все allocation domain services на gRPC | 003 |
-| [V490-005](../../tasks/v490-005-grpc-artifact-streams.yml) | Artifact streams с CAS, receipt, bounded memory и cleanup | 004 |
+| [V490-004](../../tasks/v490-004-grpc-allocation-services.yml) | Planner callbacks, Audit, sitemap, finding reads/selections и Artifact metadata на gRPC | 003 |
+| [V490-005](../../tasks/v490-005-grpc-artifact-streams.yml) | Artifact и finding evidence streams с CAS, receipt, bounded memory и cleanup | 004 |
 | [V490-006](../../tasks/v490-006-grpc-release.yml) | Удалён старый транспорт, обновлены consumers/specs/ops, пройден release gate | 005 |
 
 001 — ограниченная проверка предпосылки, не отдельный транспортный framework.
@@ -250,6 +250,13 @@ release, а не начинает с массовой генерации все�
 old/new для одной операции и legacy fallback не остаётся. Каждая перенесённая
 операция обновляет потребителей и спецификацию сразу. Финальная сборка согласованна
 на обеих сторонах; rolling mixed-version compatibility не добавляется.
+
+Уточнение разбивки агентом 2026-11-27: finding submission вместе с выбранным HTTP
+evidence уже допускает 64 MiB и использует Artifact transfer admission. Его перенос
+входит в 005 вместе с bulk streams; finding reads/selections остаются в 004.
+Это сохраняет пределы существующих операций без увеличения control channel.
+Audit documents до 8 MiB и Planner operations до 4 MiB требуют собственных
+ограничений сообщений и прежней доменной валидации в 004.
 
 Нужны полные suites затронутых packages, real PostgreSQL для persistence,
 process tests для A2A/control, wire, API и architecture checks. Финальный exit —
