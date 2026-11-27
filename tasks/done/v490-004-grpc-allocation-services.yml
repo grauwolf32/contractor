@@ -5,7 +5,7 @@ milestone: server-runtime-grpc-2026-11
 epic: api-contracts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V490-003
 languages:
@@ -155,3 +155,23 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 18ec6215dc1d5ff7bcf8b6048a1dcc01d4d5095b
+verification:
+  status: passed
+  observed: >-
+    make lint, make test-go with disposable PostgreSQL, and
+    make test-wire-cross-language passed. The wire gate covered 451 Python
+    contract cases and 1685 shared Python cases, with 438 fixtures through
+    472 Go and 308 Python readers; one optional disk-heavy skip is not coverage.
+    The final make test-runtime passed 6853 cases with 136 declared skips and
+    both report verifiers, including 611 compaction cases. Native TLS suites
+    prove the hard metadata ceiling and bounded recovery of an untyped stream
+    loss using the original Planner sequence. Full private allocation, app,
+    API error and runtimewire race suites, including real PostgreSQL, passed.
+    The final make test-e2e passed all 71 process roots in 4204.463 seconds
+    and all six report verifiers. It includes real sitemap lost-acknowledgement
+    receipt replay, Nuclei output admission, Planner/Audit/finding paths,
+    capacity four, fencing, cancellation and process restart. Earlier failing
+    process and fixture runs were corrected and superseded by these full gates.
+    Heavy-I/O stayed disabled. No live model call, deployment or main merge
+    occurred; payload streams and finding submission remain V490-005.
