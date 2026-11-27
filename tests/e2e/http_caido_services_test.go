@@ -21,8 +21,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"go.yaml.in/yaml/v4"
+	"golang.org/x/net/http2"
 )
 
 const (
@@ -323,12 +325,13 @@ func (c *fakeCaidoControl) snapshot() ([]string, []string) {
 }
 
 type runtimeReleaseLossProxy struct {
-	server   *http.Server
-	listener net.Listener
-	client   *http.Client
-	target   string
-	dropped  chan struct{}
-	once     sync.Once
+	server    *http.Server
+	listener  net.Listener
+	client    *http.Client
+	rpcClient *http.Client
+	target    string
+	dropped   chan struct{}
+	once      sync.Once
 
 	mu          sync.Mutex
 	dropRelease bool
@@ -353,12 +356,15 @@ func newRuntimeReleaseLossProxy(
 	tlsListener := tls.NewListener(plain, &tls.Config{
 		MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{certificate},
 		ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: certificatePool(t, caFile),
-		NextProtos: []string{"http/1.1"},
+		NextProtos: []string{"h2", "http/1.1"},
 	})
 	client := newMTLSClient(t, caFile, controlPlaneIdentity)
 	client.Timeout = 30 * time.Second
+	rpcClient := newMTLSClient(t, caFile, controlPlaneIdentity)
+	rpcClient.Transport.(*http.Transport).ForceAttemptHTTP2 = true
+	rpcClient.Timeout = 30 * time.Second
 	proxy := &runtimeReleaseLossProxy{
-		listener: tlsListener, client: client, target: strings.TrimRight(target, "/"),
+		listener: tlsListener, client: client, rpcClient: rpcClient, target: strings.TrimRight(target, "/"),
 		dropped: make(chan struct{}), dropRelease: true,
 	}
 	proxy.server = &http.Server{
@@ -367,6 +373,9 @@ func newRuntimeReleaseLossProxy(
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       15 * time.Second,
+	}
+	if err := http2.ConfigureServer(proxy.server, &http2.Server{}); err != nil {
+		t.Fatal(err)
 	}
 	go func() {
 		if serveErr := proxy.server.Serve(tlsListener); serveErr != nil &&
@@ -379,6 +388,7 @@ func newRuntimeReleaseLossProxy(
 		defer cancel()
 		_ = proxy.server.Shutdown(shutdown)
 		client.CloseIdleConnections()
+		rpcClient.CloseIdleConnections()
 	})
 	return proxy
 }
@@ -399,7 +409,11 @@ func (p *runtimeReleaseLossProxy) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	outgoing.Header = r.Header.Clone()
-	response, err := p.client.Do(outgoing)
+	client := p.client
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
+		client = p.rpcClient
+	}
+	response, err := client.Do(outgoing)
 	if err != nil {
 		// Readiness polling starts before the child Runtime has accepted its
 		// first connection.  That expected startup edge is retried by the test;
@@ -411,23 +425,25 @@ func (p *runtimeReleaseLossProxy) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	defer response.Body.Close()
-	if strings.HasSuffix(r.URL.Path, "/release") && p.shouldDropRelease() {
+	if r.URL.Path == runtimepb.RuntimeLifecycle_Release_FullMethodName && p.shouldDropRelease() {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 1024))
-		p.once.Do(func() { close(p.dropped) })
-		if hijacker, ok := w.(http.Hijacker); ok {
-			connection, _, hijackErr := hijacker.Hijack()
-			if hijackErr == nil {
-				_ = connection.Close()
-				return
-			}
+		if response.StatusCode != http.StatusOK || response.Trailer.Get("Grpc-Status") != "0" {
+			p.recordFailure("release did not commit before controlled response loss")
 		}
-		p.recordFailure("release response could not be dropped")
-		http.Error(w, "release acknowledgement lost", http.StatusBadGateway)
-		return
+		p.once.Do(func() { close(p.dropped) })
+		// net/http aborts an HTTP/2 stream without synthesizing a successful gRPC
+		// acknowledgement. The real Runtime has already completed release.
+		panic(http.ErrAbortHandler)
 	}
 	copyHTTPHeaders(w.Header(), response.Header)
 	w.WriteHeader(response.StatusCode)
 	_, _ = io.Copy(w, io.LimitReader(response.Body, 20<<20))
+	if len(response.Trailer) > 0 {
+		_ = http.NewResponseController(w).Flush()
+	}
+	for name, values := range response.Trailer {
+		w.Header()[http.TrailerPrefix+name] = values
+	}
 }
 
 func (p *runtimeReleaseLossProxy) shouldDropRelease() bool {

@@ -576,7 +576,17 @@ def test_shared_planner_a2a_struct_restores_only_exact_integral_budgets():
         ((("x-request-id", "first"), ("x-request-id", "second")), None),
     ],
 )
-def test_native_a2a_rejection_carries_bounded_correlation(metadata, expected):
+@pytest.mark.parametrize(
+    ("tenant", "expected_status"),
+    [
+        ("released-1", grpc.StatusCode.FAILED_PRECONDITION),
+        ("a.b:c-" + "x" * 250, grpc.StatusCode.FAILED_PRECONDITION),
+        ("x" * 257, grpc.StatusCode.INVALID_ARGUMENT),
+    ],
+)
+def test_native_a2a_rejection_carries_bounded_correlation(
+    metadata, expected, tenant, expected_status
+):
     from a2a.types import a2a_pb2_grpc
 
     from contractor_runtime._https import REQUEST_ID_PATTERN
@@ -595,11 +605,11 @@ def test_native_a2a_rejection_carries_bounded_correlation(metadata, expected):
             try:
                 async with grpc.aio.insecure_channel(target) as channel:
                     call = a2a_pb2_grpc.A2AServiceStub(channel).GetTask(
-                        GetTaskRequest(id="task-1", tenant="released-1"), metadata=metadata
+                        GetTaskRequest(id="task-1", tenant=tenant), metadata=metadata
                     )
                     with pytest.raises(grpc.aio.AioRpcError) as error:
                         await call
-                    assert error.value.code() == grpc.StatusCode.FAILED_PRECONDITION
+                    assert error.value.code() == expected_status
                     values = [v for k, v in await call.initial_metadata() if k == "x-request-id"]
                     assert len(values) == 1 and REQUEST_ID_PATTERN.fullmatch(values[0])
                     if expected:

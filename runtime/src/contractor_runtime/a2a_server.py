@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import uuid
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -43,6 +42,7 @@ from contractor_runtime.contracts import (
     StageContentRequest,
     WorkerCompletion,
 )
+from contractor_runtime.contracts.base import RESOURCE_ID_PATTERN
 from contractor_runtime.contracts.codec import decode_private_value
 from contractor_runtime.contracts.grpc_wire.limits import MAX_A2A_BYTES
 
@@ -250,7 +250,7 @@ def register_a2a_gateway(server, provider: ActiveA2AProvider) -> None:
     async def resolve(request, context):
         await response_request_id(context)
         tenant = getattr(request, "tenant", "")
-        if not isinstance(tenant, str) or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", tenant) is None:
+        if not isinstance(tenant, str) or RESOURCE_ID_PATTERN.fullmatch(tenant) is None:
             await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "invalid_allocation")
         try:
             handler = await provider.active_a2a_application(tenant)

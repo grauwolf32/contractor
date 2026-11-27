@@ -164,13 +164,13 @@ func (p *sitemapPublicationProxy) serveHTTP(w http.ResponseWriter, r *http.Reque
 			w.Header().Add(name, value)
 		}
 	}
-	for name := range response.Trailer {
-		w.Header().Add("Trailer", name)
-	}
 	w.WriteHeader(response.StatusCode)
 	_, _ = io.Copy(w, response.Body)
+	if len(response.Trailer) > 0 {
+		_ = http.NewResponseController(w).Flush()
+	}
 	for name, values := range response.Trailer {
-		w.Header()[name] = values
+		w.Header()[http.TrailerPrefix+name] = values
 	}
 }
 
