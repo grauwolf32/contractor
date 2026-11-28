@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 11 in progress, 43 pending, 13 deferred. 1732 finished: 1713 completed, 19 archived.
+66 open tasks: 11 in progress, 42 pending, 13 deferred. 1733 finished: 1714 completed, 19 archived.
 
 ## In progress
 
@@ -21,7 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V490-009](v490-009-planner-resource-browser-fixture.yml) | ui | chore | P1 | Check Planner and Worker resources in the real browser fixture |
+| [V490-006](v490-006-grpc-release.yml) | execution-core | chore | P1 | Accept the complete gRPC boundary and remove replaced transport |
 
 ## Pending
 
@@ -31,7 +31,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
 | [V469-002](v469-002-opencode-audit-runtime.yml) | feature | P1 | V469-001 | Run OpenCode in one retained Audit environment through existing A2A |
-| [V490-006](v490-006-grpc-release.yml) | chore | P1 | V490-009 | Accept the complete gRPC boundary and remove replaced transport |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -173,7 +172,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 24 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
-| Web UI (`ui`) | 2 | 56 | 83 | 35 | 80 |
+| Web UI (`ui`) | 1 | 56 | 83 | 35 | 80 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 3 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 20 |

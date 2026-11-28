@@ -6,7 +6,7 @@ epic: ui
 kind: chore
 introduced_by: V488-002
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V490-005
 languages: [typescript, markdown]
@@ -50,6 +50,7 @@ tests:
   covers: [A3]
 - command: make lint
   covers: [A1, A2, A3]
+implementation_commit: c7d239efb3397d2f8c134713e467e9cf0ba60102
 verification:
   status: passed
   observed: >-
