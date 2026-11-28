@@ -30,8 +30,7 @@ context:
     the existing protocol; its allocation Worker report contributes known zero.
   siblings: >-
     Cover fresh and tool-only collectors, failed/cancelled zero-call reports,
-    terminal summary-only overhead, a started call with no usage, known zero
-    provider usage, and ordinary known usage. Retained old partial reports
+    terminal summary-only overhead, a started call with no usage, zero-valued provider placeholders and ordinary known positive usage. Retained old partial reports
     remain partial. Real PostgreSQL collection must prove the corrected report
     contributes zero while actual Planner/Worker/summarizer totals count once.
 scope:
@@ -43,7 +42,7 @@ scope:
     - New usage ledger, native normalizer inference, model changes and rewriting old reports.
 acceptance_criteria:
   - id: A1
-    text: Fresh/tool-only/zero-call terminal producer reports explicitly contain zero input/output/total tokens; a started call without usage keeps counters unavailable and known usage stays exact.
+    text: Fresh/tool-only/zero-call terminal producer reports explicitly contain zero input/output/total tokens; a started call without usage and a zero-total provider placeholder keep total usage unavailable, while known positive usage stays exact.
   - id: A2
     text: Real PostgreSQL collection of Planner, Worker, summary and corrected executor reports is complete and counts each contribution once; omitting executor token counters reproduces partial coverage.
   - id: A3

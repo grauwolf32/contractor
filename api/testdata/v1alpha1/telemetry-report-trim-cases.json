@@ -637,7 +637,7 @@
     },
     {
       "name": "records the Runtime built",
-      "bytes": 8125,
+      "bytes": 8174,
       "runtimeInputs": {
         "reportId": "worker-runtime-built",
         "durationMs": 21,
@@ -863,6 +863,9 @@
           },
           "durationMs": 21,
           "modelCalls": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalTokens": 0,
           "tools": {
             "http_request": {
               "calls": 1,
@@ -1186,204 +1189,204 @@
       },
       "limits": [
         {
-          "maximumBytes": 999,
+          "maximumBytes": 1048,
           "aggregateTooLarge": true
         },
         {
-          "maximumBytes": 1000,
+          "maximumBytes": 1049,
           "toolCallsFrom": 12,
           "errorsFrom": 1,
           "truncated": true,
-          "bytes": 1000
+          "bytes": 1049
         },
         {
-          "maximumBytes": 1110,
+          "maximumBytes": 1159,
           "toolCallsFrom": 12,
           "errorsFrom": 1,
           "truncated": true,
-          "bytes": 1000
+          "bytes": 1049
         },
         {
-          "maximumBytes": 1111,
+          "maximumBytes": 1160,
           "toolCallsFrom": 12,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 1111
+          "bytes": 1160
         },
         {
-          "maximumBytes": 5233,
+          "maximumBytes": 5282,
           "toolCallsFrom": 12,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 1111
+          "bytes": 1160
         },
         {
-          "maximumBytes": 5234,
+          "maximumBytes": 5283,
           "toolCallsFrom": 11,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 5234
+          "bytes": 5283
         },
         {
-          "maximumBytes": 5392,
+          "maximumBytes": 5441,
           "toolCallsFrom": 11,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 5234
+          "bytes": 5283
         },
         {
-          "maximumBytes": 5393,
+          "maximumBytes": 5442,
           "toolCallsFrom": 10,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 5393
+          "bytes": 5442
         },
         {
-          "maximumBytes": 5640,
+          "maximumBytes": 5689,
           "toolCallsFrom": 10,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 5393
+          "bytes": 5442
         },
         {
-          "maximumBytes": 5641,
+          "maximumBytes": 5690,
           "toolCallsFrom": 9,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 5641
+          "bytes": 5690
         },
         {
-          "maximumBytes": 5848,
+          "maximumBytes": 5897,
           "toolCallsFrom": 9,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 5641
+          "bytes": 5690
         },
         {
-          "maximumBytes": 5849,
+          "maximumBytes": 5898,
           "toolCallsFrom": 8,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 5849
+          "bytes": 5898
         },
         {
-          "maximumBytes": 6265,
+          "maximumBytes": 6314,
           "toolCallsFrom": 8,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 5849
+          "bytes": 5898
         },
         {
-          "maximumBytes": 6266,
+          "maximumBytes": 6315,
           "toolCallsFrom": 7,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 6266
+          "bytes": 6315
         },
         {
-          "maximumBytes": 6484,
+          "maximumBytes": 6533,
           "toolCallsFrom": 7,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 6266
+          "bytes": 6315
         },
         {
-          "maximumBytes": 6485,
+          "maximumBytes": 6534,
           "toolCallsFrom": 6,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 6485
+          "bytes": 6534
         },
         {
-          "maximumBytes": 6625,
+          "maximumBytes": 6674,
           "toolCallsFrom": 6,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 6485
+          "bytes": 6534
         },
         {
-          "maximumBytes": 6626,
+          "maximumBytes": 6675,
           "toolCallsFrom": 5,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 6626
+          "bytes": 6675
         },
         {
-          "maximumBytes": 6811,
+          "maximumBytes": 6860,
           "toolCallsFrom": 5,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 6626
+          "bytes": 6675
         },
         {
-          "maximumBytes": 6812,
+          "maximumBytes": 6861,
           "toolCallsFrom": 4,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 6812
+          "bytes": 6861
         },
         {
-          "maximumBytes": 7363,
+          "maximumBytes": 7412,
           "toolCallsFrom": 4,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 6812
+          "bytes": 6861
         },
         {
-          "maximumBytes": 7364,
+          "maximumBytes": 7413,
           "toolCallsFrom": 3,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 7364
+          "bytes": 7413
         },
         {
-          "maximumBytes": 7532,
+          "maximumBytes": 7581,
           "toolCallsFrom": 3,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 7364
+          "bytes": 7413
         },
         {
-          "maximumBytes": 7533,
+          "maximumBytes": 7582,
           "toolCallsFrom": 2,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 7533
+          "bytes": 7582
         },
         {
-          "maximumBytes": 8027,
+          "maximumBytes": 8076,
           "toolCallsFrom": 2,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 7533
+          "bytes": 7582
         },
         {
-          "maximumBytes": 8028,
+          "maximumBytes": 8077,
           "toolCallsFrom": 1,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 8028
+          "bytes": 8077
         },
         {
-          "maximumBytes": 8124,
+          "maximumBytes": 8173,
           "toolCallsFrom": 1,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 8028
+          "bytes": 8077
         },
         {
-          "maximumBytes": 8125,
+          "maximumBytes": 8174,
           "toolCallsFrom": 0,
           "errorsFrom": 0,
           "truncated": false,
-          "bytes": 8125
+          "bytes": 8174
         },
         {
-          "maximumBytes": 8126,
+          "maximumBytes": 8175,
           "toolCallsFrom": 0,
           "errorsFrom": 0,
           "truncated": false,
-          "bytes": 8125
+          "bytes": 8174
         }
       ]
     },

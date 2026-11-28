@@ -559,21 +559,30 @@ class MetricsState:
             )
             for name, values in sorted(self._tool_metrics.items())
         }
+        model_calls = self._report_counter("llm_calls") or 0
+
+        def token_counter(name: str) -> int | None:
+            value = self._report_counter(name)
+            # This producer knows no direct call started. Delegated Planner
+            # usage belongs to its Planner report, not this allocation report.
+            # A started call with no usage still leaves its counters absent.
+            return 0 if value is None and model_calls == 0 else value
+
         optional_metrics = {
             "modelPhases": self.model_phases()
             if any(v["model_calls"] for v in self._model_phases.values())
             or self._summarizer is not None
             else None,
-            "inputTokens": self._report_counter("input_tokens"),
-            "outputTokens": self._report_counter("output_tokens"),
-            "totalTokens": self._report_counter("total_tokens"),
+            "inputTokens": token_counter("input_tokens"),
+            "outputTokens": token_counter("output_tokens"),
+            "totalTokens": token_counter("total_tokens"),
             "workerBudget": self._worker_budget,
             "summarizer": self._summarizer,
         }
         metrics = ExecutionMetrics(
             llmCost=self.llm_cost.snapshot(self._report_counter("llm_calls") or 0),
             durationMs=_report_integer(max(0, duration_ms)),
-            modelCalls=self._report_counter("llm_calls") or 0,
+            modelCalls=model_calls,
             tools=tools,
             **{key: value for key, value in optional_metrics.items() if value is not None},
         )

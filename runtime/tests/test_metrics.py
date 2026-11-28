@@ -36,6 +36,46 @@ from contractor_runtime.toolsets.audit_results.arguments import AuditArgumentErr
 from contractor_runtime.toolsets.audit_results.collector import AuditCollectionError
 
 SECRET = "metrics-secret-that-must-not-survive"
+
+
+@pytest.mark.parametrize("tool_only", [False, True])
+@pytest.mark.parametrize("complete", [False, True])
+def test_shared_zero_direct_model_calls_report_explicit_token_zeros(tool_only, complete) -> None:
+    expected = json.loads(
+        (
+            Path(__file__).parents[2] / "api/testdata/v1alpha1/zero-direct-model-usage.json"
+        ).read_text()
+    )
+    state = MetricsState()
+    if tool_only:
+        state.record_tool_call("read_artifact", arguments={}, result={"ok": True})
+    metrics = state.build_report(report_id="zero-model", duration_ms=1, complete=complete).metrics
+    actual = metrics.model_dump(by_alias=True, exclude_none=True)
+    for name in ["modelCalls", "inputTokens", "outputTokens", "totalTokens"]:
+        assert actual.get(name) == expected[name]
+
+
+def test_shared_started_model_call_keeps_unknown_usage_including_provider_zero() -> None:
+    state = MetricsState()
+    state.record_model_call()
+    unknown = state.build_report(report_id="unknown-model", duration_ms=1).metrics
+    assert unknown.model_calls == 1
+    assert unknown.input_tokens is None
+    assert unknown.output_tokens is None
+    assert unknown.total_tokens is None
+    state.record_model_usage(
+        SimpleNamespace(prompt_token_count=0, candidates_token_count=0, total_token_count=0)
+    )
+    known = state.build_report(report_id="known-model-zero", duration_ms=1).metrics
+    # A provider zero total is the canonical missing-usage placeholder.
+    assert (known.input_tokens, known.output_tokens, known.total_tokens) == (0, 0, None)
+    state.record_model_usage(
+        SimpleNamespace(prompt_token_count=1, candidates_token_count=0, total_token_count=1)
+    )
+    positive = state.build_report(report_id="known-model-positive", duration_ms=1).metrics
+    assert (positive.input_tokens, positive.output_tokens, positive.total_tokens) == (1, 0, 1)
+
+
 TELEMETRY_SIZE_CASES = json.loads(
     (Path(__file__).parents[2] / "api/testdata/v1alpha1/telemetry-json-size-cases.json").read_text()
 )

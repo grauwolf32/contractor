@@ -191,6 +191,12 @@ class StageMetrics(BaseModel):
 [WRK-R155](../execution/worker.md). The Worker Runtime report of an
 `otlp-http@1` adapter adds the optional `droppedSpans` counters
 (OBS-R81). Every integer of `ExecutionMetrics` is bounded (OBS-R111).
+The Runtime report producer emits explicit zero input/output/total tokens when
+it observed no direct model calls. A started call whose usage was not reported
+keeps those counters unavailable. A Planner executor allocation contributes
+zero direct model usage; the ordinary Planner report owns its delegated model
+work. Readers never infer these zeros from the participant's name or rewrite
+retained reports.
 
 ### Report flow
 
