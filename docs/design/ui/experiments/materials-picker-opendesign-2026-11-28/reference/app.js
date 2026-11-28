@@ -1,6 +1,10 @@
 (() => {
   const params = new URLSearchParams(location.search);
-  const screen = params.get("screen") === "check" ? "check" : "materials";
+  const screens = ["materials", "material", "check"];
+  let screen = screens.includes(params.get("screen"))
+    ? params.get("screen")
+    : "materials";
+  history.scrollRestoration = "manual";
   document.documentElement.dataset.theme = params.get("theme") || "dark";
   const examples = [...window.materialExamples];
   const labels = {
@@ -15,11 +19,12 @@
   };
   const kinds = Object.keys(labels);
   const state = {
-    category: "all",
-    search: "",
-    selected: "api-main",
+    category: kinds.includes(params.get("category"))
+      ? params.get("category")
+      : "all",
+    search: params.get("search") || "",
+    selected: params.get("material") || "api-main",
     readerTab: "preview",
-    mobilePreview: false,
     type: "source",
     objective: "Can one customer read or export another customer’s invoices?",
     source: "source-main",
@@ -34,7 +39,9 @@
     uploadKind: "source",
     uploadFile: null,
     uploadFromPicker: false,
-    viewState: screen === "check" ? "normal" : params.get("state") || "normal",
+    viewState:
+      screen === "materials" ? params.get("state") || "normal" : "normal",
+    listScroll: 0,
   };
   const paths = {
     projects:
@@ -91,6 +98,52 @@
     `<button type="button" class="btn ${className}" data-action="${action}">${iconName ? icon(iconName) : ""}${text}</button>`;
   const screenHref = (value) =>
     `?screen=${value}&theme=${document.documentElement.dataset.theme}`;
+  function materialHref(item) {
+    const values = new URLSearchParams(location.search);
+    values.set("screen", "material");
+    values.set("material", item.id);
+    values.set("revision", item.revision);
+    values.set("state", "normal");
+    values.set("category", state.category);
+    values.set("search", state.search);
+    return `?${values}`;
+  }
+  function materialsHref() {
+    const values = new URLSearchParams(location.search);
+    values.set("screen", "materials");
+    values.delete("material");
+    values.delete("revision");
+    values.set("state", state.viewState);
+    values.set("category", state.category);
+    values.set("search", state.search);
+    return `?${values}`;
+  }
+  function navigate(href, fromList = false) {
+    history.pushState({ materialFromList: fromList }, "", href);
+    screen = new URLSearchParams(location.search).get("screen");
+    render();
+    window.scrollTo(0, screen === "materials" ? state.listScroll : 0);
+    document
+      .querySelector(screen === "material" ? "h1" : "#material-search")
+      ?.focus({ preventScroll: true });
+  }
+  window.addEventListener("popstate", () => {
+    const values = new URLSearchParams(location.search);
+    screen = screens.includes(values.get("screen"))
+      ? values.get("screen")
+      : "materials";
+    state.selected = values.get("material") || state.selected;
+    state.category = kinds.includes(values.get("category"))
+      ? values.get("category")
+      : "all";
+    state.search = values.get("search") || "";
+    state.viewState =
+      screen === "materials" ? values.get("state") || "normal" : "normal";
+    state.listScroll = history.state?.listScroll ?? state.listScroll;
+    state.readerTab = "preview";
+    render();
+    window.scrollTo(0, screen === "materials" ? state.listScroll : 0);
+  });
   let toastTimeout;
 
   function toast(text) {
@@ -127,13 +180,26 @@
   }
 
   function render() {
-    document.title = `${screen === "check" ? "New check" : "Materials"} · Contractor`;
+    document.title = `${screen === "check" ? "New check" : screen === "material" ? itemOf(state.selected)?.name || "Material" : "Materials"} · Contractor`;
     document.getElementById("app").innerHTML =
-      `<div class="shell">${rail()}${context()}<main class="workspace"><div class="topbar"><span class="search-shortcut">${icon("search")}Search or start a check… <kbd>⌘ K</kbd></span></div><div class="page">${screen === "check" ? checkPage() : materialsPage()}</div></main></div>`;
+      `<div class="shell">${rail()}${context()}<main class="workspace"><div class="topbar"><span class="search-shortcut">${icon("search")}Search or start a check… <kbd>⌘ K</kbd></span></div><div class="page">${screen === "check" ? checkPage() : screen === "material" ? materialPage() : materialsPage()}</div></main></div>`;
+    window.parent.postMessage(
+      { type: "materials-preview-route", query: location.search },
+      location.origin,
+    );
   }
 
   function materialsPage() {
-    return `<nav class="breadcrumb" aria-label="Breadcrumb"><a href="#" data-action="demo-link">Projects</a>${icon("chevron")}<span>Invoice Lab</span></nav><div class="page-heading"><div><h1>Invoice Lab</h1><p>Security review of the invoice API and its supporting services.</p></div><div class="toolbar">${iconButton("refresh", "refresh", "Refresh project")}</div></div><nav class="project-tabs" aria-label="Project sections">${["Overview", "Materials", "Checks", "Issues", "Facts", "Settings"].map((label) => `<a href="${label === "Checks" ? screenHref("check") : "#"}" ${label === "Materials" ? 'class="active" aria-current="page"' : label === "Checks" ? "" : 'data-action="demo-link"'}>${label}</a>`).join("")}</nav><div class="section-title"><div><h2>Materials</h2><p>${state.viewState === "normal" ? `${examples.length} materials in this project` : state.viewState === "empty" ? "No materials yet" : state.viewState === "loading" ? "Loading materials…" : "Materials unavailable"}</p></div>${button("Add material", "add", "primary", "plus")}</div><div class="library" data-mobile-preview="${state.mobilePreview}"><section class="library-main" aria-label="Project materials">${searchField("material-search", "Search materials", state.search)}${categoryFilters()}<div id="material-results">${materialResults()}</div></section>${reader(itemOf(state.selected))}</div>`;
+    return `<nav class="breadcrumb" aria-label="Breadcrumb"><a href="#" data-action="demo-link">Projects</a>${icon("chevron")}<span>Invoice Lab</span></nav><div class="page-heading"><div><h1>Invoice Lab</h1><p>Security review of the invoice API and its supporting services.</p></div><div class="toolbar">${iconButton("refresh", "refresh", "Refresh project")}</div></div><nav class="project-tabs" aria-label="Project sections">${["Overview", "Materials", "Checks", "Issues", "Facts", "Settings"].map((label) => `<a href="${label === "Checks" ? screenHref("check") : "#"}" ${label === "Materials" ? 'class="active" aria-current="page"' : label === "Checks" ? "" : 'data-action="demo-link"'}>${label}</a>`).join("")}</nav><div class="section-title"><div><h2>Materials</h2><p>${state.viewState === "normal" ? `${examples.length} materials in this project` : state.viewState === "empty" ? "No materials yet" : state.viewState === "loading" ? "Loading materials…" : "Materials unavailable"}</p></div>${button("Add material", "add", "primary", "plus")}</div><div class="library library-list"><section class="library-main" aria-label="Project materials">${searchField("material-search", "Search materials", state.search)}${categoryFilters()}<div id="material-results">${materialResults()}</div></section></div>`;
+  }
+
+  function materialPage() {
+    const item = itemOf(state.selected);
+    const revision = new URLSearchParams(location.search).get("revision");
+    const back = `<a class="btn ghost material-back" data-action="back-list" href="${escape(materialsHref())}">${icon("back")}Back to materials</a>`;
+    if (!item || (revision && revision !== item.revision))
+      return `${back}<div class="empty"><h1 tabindex="-1">Material version unavailable</h1><p>This saved version is not included in the demo.</p></div>`;
+    return `<nav class="breadcrumb" aria-label="Breadcrumb"><a href="${escape(materialsHref())}" data-action="back-list">Invoice Lab</a>${icon("chevron")}<a href="${escape(materialsHref())}" data-action="back-list">Materials</a>${icon("chevron")}<span>${escape(item.name)}</span></nav>${back}<header class="material-heading"><div class="material-identity">${kindIcon(item.kind)}<div><span class="label">${labels[item.kind]}</span><h1 tabindex="-1">${escape(item.name)}</h1></div></div><div class="toolbar">${iconButton("copy", "copy", "Copy material identifier", `data-id="${item.id}"`)}${iconButton("download", "download", "Download material", `data-id="${item.id}"`)}</div></header><div class="material-version"><span class="pill success">Current</span><code>${escape(item.revision)}</code><span>${item.format}</span><span>${item.size}</span><span>${item.updated}</span>${item.commit ? `<span class="material-commit">Git <code>${item.commit}</code></span>` : ""}<button class="link-button" data-action="details" data-id="${item.id}" type="button">details →</button></div><section class="reader material-viewer" aria-label="Material content"><div class="reader-tabs" role="group" aria-label="Preview view"><button type="button" class="${state.readerTab === "preview" ? "active" : ""}" aria-pressed="${state.readerTab === "preview"}" data-action="preview-tab" data-tab="preview">Preview</button><button type="button" class="${state.readerTab === "raw" ? "active" : ""}" aria-pressed="${state.readerTab === "raw"}" data-action="preview-tab" data-tab="raw">Raw</button></div><div class="reader-body">${state.readerTab === "raw" ? `<pre>${escape(item.content)}</pre>` : previewContent(item)}</div></section>`;
   }
 
   function searchField(id, label, value) {
@@ -184,7 +250,7 @@
   function materialRow(item, picker) {
     const selected =
       item.id === (picker ? state.pickerSelected : state.selected);
-    return `<button type="button" class="material-row" data-action="${picker ? "pick-row" : "select"}" data-id="${item.id}" ${picker ? `aria-pressed="${selected}"` : `aria-current="${selected}"`} aria-label="${escape(item.name)}">${kindIcon(item.kind)}<span class="row-main"><span class="row-title"><span class="filename">${escape(item.name)}</span>${selected && picker ? `<span class="pill success">${icon("check")}Selected</span>` : ""}</span><span class="row-meta"><span>${item.format}</span><span>${item.size}</span><span>${item.updated}</span></span>${item.commit ? `<span class="row-meta"><code>${item.commit}</code><span>${escape(item.description)}</span></span>` : ""}</span><span class="row-action">${icon(picker && selected ? "check" : "chevron")}</span></button>`;
+    return `<${picker ? 'button type="button"' : `a href="${escape(materialHref(item))}"`} class="material-row" data-action="${picker ? "pick-row" : "select"}" data-id="${item.id}" ${picker ? `aria-pressed="${selected}"` : ""} aria-label="${escape(item.name)}">${kindIcon(item.kind)}<span class="row-main"><span class="row-title"><span class="filename">${escape(item.name)}</span>${selected && picker ? `<span class="pill success">${icon("check")}Selected</span>` : ""}</span><span class="row-meta"><span>${item.format}</span><span>${item.size}</span><span>${item.updated}</span></span>${item.commit ? `<span class="row-meta"><code>${item.commit}</code><span>${escape(item.description)}</span></span>` : ""}</span><span class="row-action">${icon(picker && selected ? "check" : "chevron")}</span></${picker ? "button" : "a"}>`;
   }
 
   function reader(item, picker = false) {
@@ -312,31 +378,36 @@
   document.addEventListener("click", async (event) => {
     const control = event.target.closest("[data-action]");
     if (!control) return;
+    if (
+      control.tagName === "A" &&
+      (event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey ||
+        event.button !== 0)
+    )
+      return;
     event.preventDefault();
     const action = control.dataset.action;
     if (action === "category") {
       state.category = control.dataset.kind;
       state.selected = matchingMaterials()[0]?.id || "";
-      state.mobilePreview = false;
       render();
     }
     if (action === "select") {
       state.selected = control.dataset.id;
       state.readerTab = "preview";
-      state.mobilePreview = true;
-      render();
-      const next =
-        innerWidth <= 820
-          ? document.querySelector(".library .reader-title")
-          : document.querySelector(
-              `[data-action="select"][data-id="${state.selected}"]`,
-            );
-      next?.focus({ preventScroll: true });
+      state.listScroll = window.scrollY;
+      history.replaceState(
+        { listScroll: state.listScroll },
+        "",
+        materialsHref(),
+      );
+      navigate(control.getAttribute("href"), true);
     }
     if (action === "back-list") {
-      state.mobilePreview = false;
-      render();
-      document.getElementById("material-search").focus();
+      if (history.state?.materialFromList) history.back();
+      else navigate(control.getAttribute("href"));
     }
     if (action === "clear") {
       state.search = "";
@@ -427,13 +498,7 @@
     const input = event.target;
     if (input.id === "material-search") {
       state.search = input.value;
-      const matches = matchingMaterials();
-      if (!matches.some((item) => item.id === state.selected))
-        state.selected = matches[0]?.id || "";
       document.getElementById("material-results").innerHTML = materialResults();
-      document.querySelector(".library > .reader").outerHTML = reader(
-        itemOf(state.selected),
-      );
     }
     if (input.id === "picker-search") {
       const caret = input.selectionStart;
@@ -459,7 +524,6 @@
     if (event.target.id === "more-kinds") {
       state.category = event.target.value || "all";
       state.selected = matchingMaterials()[0]?.id || "";
-      state.mobilePreview = false;
       render();
       document.getElementById("more-kinds").focus();
     }

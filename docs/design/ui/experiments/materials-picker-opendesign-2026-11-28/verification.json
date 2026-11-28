@@ -1,7 +1,7 @@
 {
   "nativeRun": "c3729282-8627-43e9-998e-55fcf3364b41",
   "nativeStatus": "succeeded",
-  "testsPassed": 15,
+  "testsPassed": 20,
   "themes": [
     "light",
     "dark",
@@ -16,7 +16,6 @@
     "No horizontal overflow",
     "Closed mobile chooser stays hidden",
     "Search and category selection",
-    "Current preview follows visible selection",
     "Cancel preserves previous attachment",
     "Exact revision shown before attaching",
     "Invalid upload format remains editable",
@@ -26,7 +25,12 @@
     "Raw preview and material details open",
     "Loading, empty and retry states",
     "Secondary categories under More",
-    "Scaled review host retains exact iframe viewport"
+    "Scaled review host retains exact iframe viewport",
+    "Material links open a full-width page with Preview selected",
+    "Exact-version URLs reload and reject unavailable revisions",
+    "Back and Forward retain the list category and search",
+    "Back restores the phone list scroll position",
+    "Review host retains the opened material across theme, width and reload"
   ],
   "nativeCssSha256": "e9b6e09887b8c475fe524ecc5a8cb7de4bab8658358f2655b381342eff85734f"
 }

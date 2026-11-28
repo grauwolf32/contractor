@@ -10,5 +10,12 @@
     "rationale.md": "febf10943e890c51791e963c9757588e98869a27cc538ada6e9aa744779a4328"
   },
   "preview": "http://127.0.0.1:17574/",
-  "data": "Synthetic local review fixtures"
+  "data": "Synthetic local review fixtures",
+  "reviewFollowup": {
+    "date": "2026-11-28",
+    "request": "Open materials on a dedicated page with Preview preloaded",
+    "implementation": "Host scaffold and review host only; exact native outputs preserved",
+    "archive": "/Users/ruslan/Documents/ChatGPT/AppSec/archives/contractor-ui-experiments-2026-11-06/iterations/2026-11-28-materials-picker-full-view",
+    "priorArchive": "/Users/ruslan/Documents/ChatGPT/AppSec/archives/contractor-ui-experiments-2026-11-06/iterations/2026-11-28-materials-picker"
+  }
 }

@@ -4,7 +4,7 @@ Interactive OpenDesign iteration for Contractor, created on 2026-11-28 in
 `codex/materials-opendesign-20261128` from main `7e46ebca5`.
 
 Open http://127.0.0.1:17574/ while the review server is running. The toolbar
-switches between Project materials and New check, three themes, and 1440,
+switches between Project materials, Material preview and New check, three themes, and 1440,
 1024 and 390px viewports. Wide viewports scale to fit the host panel while
 retaining their selected layout width.
 
@@ -13,11 +13,13 @@ Restart from this experiment directory with
 
 ## Journeys
 
-Materials combines search, category filters and a selected material reader.
-Rows expose format, size, time and the Git commit when available. The reader
-opens immediately, shows the exact revision, supports Raw and details, and
-provides copy and download actions. Secondary categories live in More. On a
-phone, selecting a material opens its reader and Back restores the search.
+Materials combines search, category filters and full-width rows. Rows expose
+format, size, time and the Git commit when available. Clicking a material
+navigates to a dedicated page with Preview already open at full content width.
+The URL records the exact material and revision, supports reload and can be
+opened in a new tab. The page supports Raw, details, copy and download.
+Back to materials restores the list's search, category and scroll position.
+Secondary categories live in More. This flow is the same on desktop and phone.
 
 New check opens a material chooser over the current setup. Search reaches the
 compatible synthetic candidates. Selecting a candidate opens its preview.
@@ -47,17 +49,22 @@ credential file removed after generation.
 
 `reference/` contains the functional host scaffold. `host-polish.css` repairs
 closed mobile dialog visibility, long-reference wrapping, mobile check-type
-selection and attachment density. The host also puts secondary categories
-in More, keeps a preview within its filtered selection, preserves form state
-through uploads and shows exact material details.
+selection and attachment density. The host also puts secondary categories in
+More, preserves form state through uploads and shows exact material details.
+A follow-up requested during review replaces the library's narrow reader with
+a dedicated material page. The New check chooser keeps its quick preview and
+explicit attachment confirmation. The original native OpenDesign outputs
+remain byte-identical.
 
 The common archive copy lives under
-`/Users/ruslan/Documents/ChatGPT/AppSec/archives/contractor-ui-experiments-2026-11-06/iterations/2026-11-28-materials-picker`.
+`/Users/ruslan/Documents/ChatGPT/AppSec/archives/contractor-ui-experiments-2026-11-06/iterations/2026-11-28-materials-picker-full-view`.
+The earlier `2026-11-28-materials-picker` archive copy remains intact.
 
 ## Verification
 
-Fifteen Chromium scenarios cover three themes and desktop, medium and phone
-widths. The checks cover overflow, search, categories, direct preview, cancel,
+Twenty Chromium scenarios cover three themes and desktop, medium and phone
+widths. The checks cover overflow, search, categories, full-page preloaded preview,
+deep links and reload, Back/Forward navigation, chooser cancel,
 exact revision confirmation, upload validation, retained setup state, required
 Engagement, copy, Raw, details, empty/error/loading states and the review host.
 `verification.json` records the result. `review/` retains captures of the
