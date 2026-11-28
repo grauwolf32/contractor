@@ -3,6 +3,7 @@ import {
   type FindingProposalReceipt,
 } from "../../api/audits";
 import { useFindingSource } from "./source-data";
+import { HTTP_EXCHANGE_MEDIA_TYPE } from "../../api/artifacts";
 import { QueryView } from "../../app/query-view";
 import { useId } from "react";
 
@@ -106,7 +107,8 @@ export function SourceEvidence({ source }: { source: FindingProposalReceipt }) {
           ))}
         </section>
       )}
-      {exchanges.length === 0 ? (
+      {exchanges.length === 0 &&
+      !files.some((file) => file.mediaType === HTTP_EXCHANGE_MEDIA_TYPE) ? (
         <p className="issues-no-http">
           <Icon name="question-circle" size={14} />
           No HTTP exchanges were captured for this record.

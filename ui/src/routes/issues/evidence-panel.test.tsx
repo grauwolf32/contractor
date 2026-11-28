@@ -149,3 +149,29 @@ it("shows each HTTP exchange with its own outcome and masked credentials", async
   expect(screen.getByText("secret-2")).toBeVisible();
   expect(screen.queryByText("secret-1")).not.toBeInTheDocument();
 });
+
+it("retains two HTTP files without claiming captures are absent when no inline preview exists", () => {
+  const source = findingSource(
+    finding("project", "caido-files"),
+    {
+      projectEvidence: [1, 2].map((number) => ({
+        ref: {
+          namespace: "finding-materials",
+          name: `capture-${number}`,
+          revision: "r1",
+        },
+        digest: "sha256:" + "a".repeat(64),
+        mediaType: HTTP_EXCHANGE_MEDIA_TYPE,
+        sizeBytes: 100,
+      })),
+    },
+    { evidence_ids: ["evidence-1", "evidence-2"] },
+  );
+  renderWithAPI(<SourceEvidence source={source} />);
+  expect(
+    screen.getAllByRole("link", { name: "Open HTTP exchange" }),
+  ).toHaveLength(2);
+  expect(
+    screen.queryByText("No HTTP exchanges were captured for this record."),
+  ).not.toBeInTheDocument();
+});
