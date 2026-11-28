@@ -32,7 +32,7 @@ def oracle():
 def complete_manifest():
     variants, _, _ = h.fixtures()
     runtime = {
-        "adk": "2.13.0",
+        "adk": h.locked_adk_version(),
         "lockSha256": h.digest((h.REPO / "runtime/uv.lock").read_bytes()),
         "build": "sha256:" + "b" * 64,
     }
@@ -494,6 +494,7 @@ class HarnessTests(unittest.TestCase):
             lambda m: m.pop("budgets"),
             lambda m: m.update(repetitions=4),
             lambda m: m["runtime"].update(adk="2.8.0"),
+            lambda m: m["runtime"].update(adk="2.13.0"),
             lambda m: m["runtime"].update(lockSha256="sha256:" + "0" * 64),
             lambda m: m["variants"]["compact-on"]["runtime"].update(build="sha256:" + "c" * 64),
             lambda m: m["variants"]["compact-on"]["models"][0].update(alias="substituted-model"),

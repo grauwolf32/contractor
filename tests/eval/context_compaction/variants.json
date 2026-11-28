@@ -44,7 +44,7 @@
   },
   "repetitions": 5,
   "schemaVersion": "context-compaction-variants/v1",
-  "scorerSha256": "sha256:a4c56a6305547e7735c1d8bcc8bd20de4d6a6eba990ca0e5561503835f91ed72",
+  "scorerSha256": "sha256:6a8912e0564c983bda8ed93fe69601a7afd62818169461722eb7db895ec16f53",
   "thresholds": {
     "maxQualityDrop": 0,
     "maxTokenRatio": 1.0,

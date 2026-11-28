@@ -1,0 +1,39 @@
+schema_version: '1.0'
+id: V500-001
+title: Pin context evaluation to the current accepted Runtime SDK
+milestone: eval-maintenance-2026-10
+epic: evals
+kind: chore
+introduced_by: V480-001
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python, markdown, json]
+goal: Prepare the existing compaction study on the current exact Runtime dependency closure without selecting another model or accepting legacy SDK identities.
+context:
+  authority: 'User request 2026-11-28 conducts studies 6 and 7 and explicitly requires debug traces. This is the bounded preparation prerequisite discovered while resuming V417-010.'
+  finding: 'tests/eval/context_compaction/harness.py:291 requires ADK 2.13.0, while the accepted Runtime lock selects 2.15.0. V480-001 reset the runtime baseline without updating this live consumer.'
+  specification:
+    - docs/spec/evals/managed-evals.md
+    - docs/spec/evals/format.md
+    - docs/spec/platform/observability.md
+  design: tests/eval/context_compaction/README.md
+  boundary: The consumer checks the exact currently locked SDK and closure. Existing records remain immutable; new execution receives new pins and identities. Native execution and comparison retain their existing owners.
+scope:
+  in:
+    - Current SDK attestation and every sibling fixture, test and documentation reference.
+    - New scorer closure pin following the existing hash definition.
+  out:
+    - Runtime implementation, model selection, old result rewrites and experimental threshold tuning.
+acceptance_criteria:
+  - id: A1
+    text: The full existing fixture gate passes on the current SDK and rejects a different SDK or changed lock before dispatch.
+  - id: A2
+    text: The new scorer pin covers exactly the unchanged four-file hash definition; old manifests and outcomes remain intact.
+  - id: A3
+    text: Full lint passes and the live study uses debug telemetry with checked trace delivery.
+tests:
+  - command: make test-context-compaction-eval-fixtures
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2, A3]

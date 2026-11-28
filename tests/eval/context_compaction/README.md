@@ -106,7 +106,7 @@ The closed `context-compaction-live/v1` manifest contains:
 | --- | --- |
 | `id`, `repetitions`, `seed`, `thresholds` | Experiment label, 5–100 repeats, seed 417, gates above |
 | `fixtureSha256`, `observerSha256` | Exact `variants.json` and observer bytes |
-| `runtime` | `{adk:"2.13.0", lockSha256, build}`; exact lock bytes and Runtime build digest |
+| `runtime` | `{adk, lockSha256, build}`; `adk` equals the exact `google-adk` version in the current Runtime lock; exact lock bytes and Runtime build digest |
 | `budgets` | Positive integer `wallMs`, `memberMs`, `maxCalls`, `maxTokens`, `maxToolCalls`, `memberCalls`, `memberTokens`, `memberToolCalls` |
 | `variants` | Seven entries keyed by variant ID, each with `workflow`, `closureSha256`, `models`, `capabilitiesSha256`, `instructionsSha256`, `skillsSha256`, `reasoningAvailable`, `runtime` |
 | `models` per variant | Configured provenance entries `{policyRef, alias, gatewaySha256, policySha256, weightsRevision}`; include the same policy set for main/auxiliary/Planner/retry use, without inventing another role enum |

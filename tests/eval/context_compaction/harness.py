@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -247,6 +248,13 @@ def score(case, answer, oracle, truth, *, continuation_required=True, future_req
         return {"pass": False, "checks": {"well_formed_evidence": False}}
 
 
+def locked_adk_version():
+    lock = tomllib.loads((REPO / "runtime/uv.lock").read_text())
+    versions = [item["version"] for item in lock["package"] if item["name"] == "google-adk"]
+    require(len(versions) == 1, "Runtime lock must pin one ADK version")
+    return versions[0]
+
+
 def preflight(manifest):
     variants, cases, _ = fixtures()
     require(
@@ -288,7 +296,7 @@ def preflight(manifest):
     runtime = manifest["runtime"]
     require(
         set(runtime) == {"adk", "lockSha256", "build"}
-        and runtime["adk"] == "2.13.0"
+        and runtime["adk"] == locked_adk_version()
         and DIGEST.fullmatch(runtime["build"]),
         "invalid Runtime provenance",
     )
