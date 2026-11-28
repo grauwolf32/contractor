@@ -3,6 +3,11 @@
 Interactive OpenDesign iteration for Contractor, created on 2026-11-28 in
 `codex/materials-opendesign-20261128` from main `7e46ebca5`.
 
+The approved iteration is now implemented in the working UI. See
+[the transfer and verification](production/README.md) and open
+http://127.0.0.1:17575/test-results/materials-production/index.html?screen=materials&version=production&theme=dark&width=1440
+for the interactive production-component comparison.
+
 Open http://127.0.0.1:17574/ while the review server is running. The toolbar
 switches between Project materials, Material preview and New check, three themes, and 1440,
 1024 and 390px viewports. Wide viewports scale to fit the host panel while

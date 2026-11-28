@@ -27,7 +27,7 @@ import {
   trace,
   wstgLive,
 } from "./test-fixtures";
-import { renderStart } from "./test-support";
+import { chooseMaterial, renderStart } from "./test-support";
 
 const START = "/checks/new?project=project_shop";
 
@@ -343,24 +343,20 @@ describe("Start a check: materials", () => {
       name: "Materials",
     });
     const source = within(materials).getByText("Source code").closest("li")!;
-    expect(source).toHaveTextContent("sources/shop-source@shop-source-r1");
+    expect(source).toHaveTextContent("shop-source");
+    expect(source).toHaveTextContent("shop-source-r1");
     expect(source).toHaveTextContent(
       "Attached: the only material in a matching format.",
     );
     // The API spec input also takes ZIP, so three materials match by format.
-    const spec = within(materials).getByRole("combobox", {
-      name: "Material for API spec",
-    });
-    expect(spec).toHaveValue("");
-    expect(within(spec).getAllByRole("option")).toHaveLength(4);
+    expect(
+      within(materials).getByRole("button", {
+        name: "Choose API spec material",
+      }),
+    ).toBeVisible();
     expect(startButton()).toBeDisabled();
     expect(screen.getByText("Choose the API spec material.")).toBeVisible();
-    await user.selectOptions(
-      spec,
-      within(spec).getByRole("option", {
-        name: "sources/shop-openapi-v2@shop-openapi-v2-r1 · application/json",
-      }),
-    );
+    await chooseMaterial(user, "API spec", second);
     expect(startButton()).toBeEnabled();
   });
 
@@ -380,25 +376,19 @@ describe("Start a check: materials", () => {
     const materials = within(setup()).getByRole("region", {
       name: "Materials",
     });
-    const specSelect = within(materials).getByRole("combobox", {
-      name: "Material for API spec",
-    });
-    const valuesSelect = within(materials).getByRole("combobox", {
-      name: "Material for Request values",
-    });
-    expect(specSelect).toHaveValue("");
-    expect(valuesSelect).toHaveValue("");
-    expect(startButton()).toBeDisabled();
-    const option = within(specSelect).getByRole("option", {
-      name: /^sources\/openapi@openapi-r1/,
-    });
-    await user.selectOptions(specSelect, option);
-    await user.selectOptions(
-      valuesSelect,
-      within(valuesSelect).getByRole("option", {
-        name: /^sources\/openapi@openapi-r1/,
+    expect(
+      within(materials).getByRole("button", {
+        name: "Choose API spec material",
       }),
-    );
+    ).toBeVisible();
+    expect(
+      within(materials).getByRole("button", {
+        name: "Choose request values material",
+      }),
+    ).toBeVisible();
+    expect(startButton()).toBeDisabled();
+    await chooseMaterial(user, "API spec", spec);
+    await chooseMaterial(user, "Request values", spec);
     expect(
       within(materials).getByText(
         /The same material is attached to API spec and request values\./,
@@ -424,15 +414,15 @@ describe("Start a check: materials", () => {
       within(setup()).getByRole("button", { name: "Don't use Notes" }),
     );
     expect(
-      within(setup()).getByRole("combobox", { name: "Material for Notes" }),
-    ).toHaveValue("");
+      within(setup()).getByRole("button", { name: "Choose notes material" }),
+    ).toBeVisible();
     await user.type(
       screen.getByLabelText("Your objective, in your own words"),
       "Review",
     );
     expect(
-      within(setup()).getByRole("combobox", { name: "Material for Notes" }),
-    ).toHaveValue("");
+      within(setup()).getByRole("button", { name: "Choose notes material" }),
+    ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Save as draft" }));
     await waitFor(() => expect(sent("POST", "/audits")).toHaveLength(1));
     await expect(bodyOf(sent("POST", "/audits")[0])).resolves.toMatchObject({
@@ -466,18 +456,17 @@ describe("Start a check: materials", () => {
     expect(
       within(materials).getByText(/Showing the first 4 materials/),
     ).toBeVisible();
-    const select = within(materials).getByRole("combobox", {
-      name: "Material for Source code",
-    });
-    expect(select).toHaveValue("");
+    expect(
+      within(materials).getByRole("button", {
+        name: "Choose source code material",
+      }),
+    ).toBeVisible();
     await user.click(
       within(materials).getByRole("button", { name: "Load more materials" }),
     );
     await waitFor(() => expect(reads).toBe(5));
     // Every page is read now, so the only ZIP is attached.
-    expect(
-      await within(materials).findByText("sources/source-0@source-0-r1"),
-    ).toBeVisible();
+    expect(await within(materials).findByText("source-0-r1")).toBeVisible();
   });
 
   it("reads a failed further page of materials again on retry", async () => {
@@ -515,19 +504,17 @@ describe("Start a check: materials", () => {
     ).toBeVisible();
     // A partial inventory still waits for a choice.
     expect(
-      within(materials).getByRole("combobox", {
-        name: "Material for Source code",
+      within(materials).getByRole("button", {
+        name: "Choose source code material",
       }),
-    ).toHaveValue("");
+    ).toBeVisible();
     unavailable = false;
     await user.click(
       within(materials).getByRole("button", {
         name: "Retry loading materials",
       }),
     );
-    expect(
-      await within(materials).findByText("sources/source-0@source-0-r1"),
-    ).toBeVisible();
+    expect(await within(materials).findByText("source-0-r1")).toBeVisible();
     // Only the failed page is read again.
     expect(reads).toEqual(["0", "1", "2", "3", "4", "4"]);
   });

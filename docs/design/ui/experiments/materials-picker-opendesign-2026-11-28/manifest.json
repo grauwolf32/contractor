@@ -1,8 +1,8 @@
 {
   "files": {
     "README.md": {
-      "sha256": "758f528731a713d111a49d1c30da4d267e1c6d108e304e83501c1db49d85ccb6",
-      "bytes": 4158
+      "sha256": "1e1dfbec653951539064eca738cb3b7762864503f4641e5ed4f8569c8faa64a9",
+      "bytes": 4466
     },
     "contractor-logo.png": {
       "sha256": "351b5909f13d131d50d7e75c64e55fbd822499dc425daae2708e91adfa115f6d",
@@ -63,6 +63,38 @@
     "preservation.json": {
       "sha256": "0da4a9f7ac6b0d3e900b4ab7a20c5ff0a6cb5d455ac43b4fe766b43048dcb995",
       "bytes": 1194
+    },
+    "production/README.md": {
+      "sha256": "f4dac973f8ef836219e98960559bc1a3dee79b1ecba9e68808d4d92d86448041",
+      "bytes": 3885
+    },
+    "production/check-dark-390.png": {
+      "sha256": "020c45efdd60248606d1817f6c8fbd986d03e6cd3f01e9a1f571dcc0e1093cc8",
+      "bytes": 106512
+    },
+    "production/chooser-dark-1440.png": {
+      "sha256": "f9a993982af2b655301ad999904096b44832b806146ed8e64845fc018d8bdad0",
+      "bytes": 163602
+    },
+    "production/chooser-dark-390.png": {
+      "sha256": "d11d5c68aa066b2394788e300937dfec05b45d5c069c31691d67fac6719ea778",
+      "bytes": 57671
+    },
+    "production/material-dark-1440.png": {
+      "sha256": "e20d5bcb106fa0db3f2b2d37daf1a117489b457191ba26dc6f65a5e87623791b",
+      "bytes": 108551
+    },
+    "production/material-dark-390.png": {
+      "sha256": "b526fd144ca8fce332e87134246a01e06c560c3722d4781bc62634f356153701",
+      "bytes": 77310
+    },
+    "production/materials-dark-1440.png": {
+      "sha256": "284c3f1ebc469d2518cd9332d806c51d1eca4e91e2e385d31ec5bd1c6e26e81a",
+      "bytes": 94886
+    },
+    "production/verification.json": {
+      "sha256": "789f1bdce956e5023df6899eee98c54c0c6f3b5a991b236c0e3c9e3a70d80711",
+      "bytes": 1169
     },
     "prototype.html": {
       "sha256": "60b036c95fae337c1b68e39d1d580a4fa5a16910a4ed5100dcf412e300a60ca4",

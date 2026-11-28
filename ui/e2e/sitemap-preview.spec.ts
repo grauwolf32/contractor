@@ -70,7 +70,6 @@ async function install(page: Page, source = JSON.stringify(fixture)) {
 }
 async function load(page: Page) {
   await page.goto(path);
-  await page.getByRole("button", { name: "Load preview", exact: true }).click();
 }
 async function browse(page: Page, width: number) {
   if (width <= 820)
@@ -202,7 +201,7 @@ test("empty, unsupported and oversized sitemap retain exact Source/download beha
   await page.goto(path);
   await expect(
     page.getByRole("button", { name: "Load preview", exact: true }),
-  ).toBeDisabled();
+  ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Download this revision", exact: true }),
   ).toBeEnabled();

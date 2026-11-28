@@ -73,6 +73,64 @@ function listOf(items: ArtifactMetadata[]) {
 }
 
 describe("Project materials", () => {
+  it("keeps search and category in the return context of an exact material link", async () => {
+    const { user, router } = renderRegion({
+      [LIST_READ]: () =>
+        listOf([
+          material("sources", "service", "application/zip"),
+          material("openapi", "shop", "application/yaml"),
+        ]),
+    });
+    await screen.findByRole("link", { name: "sources/service" });
+    await user.click(screen.getByRole("button", { name: /Source code/ }));
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search materials" }),
+      "service",
+    );
+    expect(screen.queryByRole("link", { name: "openapi/shop" })).toBeNull();
+    const link = screen.getByRole("link", { name: "sources/service" });
+    expect(link).toHaveAttribute(
+      "href",
+      `/projects/${PROJECT}/artifacts/sources/service?revision=service-r1`,
+    );
+    await user.click(link);
+    expect(router.state.location.state).toMatchObject({
+      returnTo: `/projects/${PROJECT}/artifacts?materialsKind=source&materialsSearch=service`,
+      returnLabel: "Materials",
+    });
+  });
+
+  it("qualifies paged search and clears local filters without losing its namespace or cursor", async () => {
+    const { user, requests, router } = renderRegion(
+      {
+        [LIST_READ]: () =>
+          json(
+            page(
+              [material("sources", "service", "application/zip")],
+              "next-page",
+            ),
+          ),
+      },
+      `/projects/${PROJECT}/artifacts?artifactsNamespace=sources&artifactsCursor=page-2&materialsKind=docs&materialsSearch=missing`,
+    );
+    expect(await screen.findByText("No matching materials")).toBeVisible();
+    expect(
+      screen.getByRole("searchbox", { name: "Search this page" }),
+    ).toHaveValue("missing");
+    expect(
+      screen.getByText(/Search, categories and counts apply to this page/),
+    ).toBeVisible();
+    const reads = requests.length;
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(
+      await screen.findByRole("link", { name: "sources/service" }),
+    ).toBeVisible();
+    expect(router.state.location.search).toBe(
+      "?artifactsNamespace=sources&artifactsCursor=page-2",
+    );
+    expect(requests).toHaveLength(reads);
+  });
+
   it("groups materials by kind with their format, size, Git commit and lock", async () => {
     const { requests } = renderRegion({
       [LIST_READ]: () =>
@@ -101,12 +159,6 @@ describe("Project materials", () => {
         )
         .map((link) => link.textContent),
     ).toEqual(["readme", "report"]);
-    expect(
-      docs.getByRole("link", { name: "Preview docs/readme" }),
-    ).toHaveAttribute(
-      "href",
-      `/projects/${PROJECT}/artifacts/docs/readme?revision=readme-r1`,
-    );
     // Everything fits one page: the counts are totals.
     expect(docs.getByText("2")).toHaveClass("ui-list-section-count");
     expect(screen.queryByText("on this page")).toBeNull();
@@ -117,7 +169,7 @@ describe("Project materials", () => {
     ).toHaveAttribute("data-clamp", "none");
     expect(docs.getByRole("link", { name: "docs/readme" })).toHaveAttribute(
       "href",
-      `/projects/${PROJECT}/artifacts/docs/readme`,
+      `/projects/${PROJECT}/artifacts/docs/readme?revision=readme-r1`,
     );
     const source = within(screen.getByRole("region", { name: "Source code" }));
     expect(source.getByText("ZIP")).toBeInTheDocument();
@@ -207,7 +259,7 @@ describe("Project materials", () => {
     expect(source.getByText("2")).toHaveClass("ui-list-section-count");
     expect(source.getByText("on this page")).toBeVisible();
     expect(
-      screen.getByText(/Materials are ordered by kind across all pages/),
+      screen.getByText(/Search, categories and counts apply to this page/),
     ).toBeVisible();
     // A kind can live on a later page only.
     expect(screen.queryByRole("region", { name: "API spec" })).toBeNull();
@@ -220,7 +272,7 @@ describe("Project materials", () => {
     const api = within(await screen.findByRole("region", { name: "API spec" }));
     expect(api.getByText("on this page")).toBeVisible();
     expect(
-      screen.getByText(/Materials are ordered by kind across all pages/),
+      screen.getByText(/Search, categories and counts apply to this page/),
     ).toBeVisible();
   });
 

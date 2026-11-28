@@ -16,13 +16,15 @@ import { ErrorNotice } from "../../app/error-notice";
 import { useGuardedNavigate } from "../../app/page-location";
 import { QueryView } from "../../app/query-view";
 import { RefreshButton } from "../../app/refresh-button";
+import { formatBytes } from "../../app/format";
+import { RecordedTime } from "../../app/recorded-time";
 import { IconButton, IdChip, StatusGlyph } from "../../ui";
 import {
   MAXIMUM_SKILL_ARCHIVE_BYTES,
   SKILL_ARCHIVE_MEDIA_TYPE,
 } from "./artifact-file";
 import { ArtifactWriteForm } from "./common";
-import { MaterialIcon, MaterialKindIcon } from "./icons";
+import { MaterialIcon, MaterialKindMark } from "./icons";
 import { formatLabel, materialKindLabel, materialKindOf } from "./kinds";
 import {
   ArtifactFacts,
@@ -214,33 +216,32 @@ export function ArtifactDetailView({
     >
       <header className="materials-detail-header">
         <div className="materials-detail-context">{heading}</div>
-        {variant === undefined || metadata === undefined ? null : (
-          <p className="materials-kicker">
-            <MaterialKindIcon
-              kind={
-                materialKindOf(metadata) === "other"
-                  ? "docs"
-                  : materialKindOf(metadata)
-              }
-              size={14}
-            />
-            {materialKindLabel(metadata) === "Other"
-              ? metadata.mediaType === "text/plain"
-                ? "File"
-                : formatLabel(metadata.mediaType)
-              : materialKindLabel(metadata)}
-          </p>
-        )}
         <div className="materials-detail-titlebar">
           <div className="materials-detail-titles">
-            <h1
-              id={titleId}
-              className="materials-detail-title"
-              aria-label={`${namespace}/${name}`}
-            >
-              <span className="ui-visually-hidden">{namespace}/</span>
-              {name}
-            </h1>
+            <div className="materials-detail-identity">
+              {variant === undefined || metadata === undefined ? null : (
+                <MaterialKindMark kind={materialKindOf(metadata)} />
+              )}
+              <div>
+                {variant === undefined || metadata === undefined ? null : (
+                  <p className="materials-kicker">
+                    {materialKindLabel(metadata) === "Other"
+                      ? metadata.mediaType === "text/plain"
+                        ? "File"
+                        : formatLabel(metadata.mediaType)
+                      : materialKindLabel(metadata)}
+                  </p>
+                )}
+                <h1
+                  id={titleId}
+                  className="materials-detail-title"
+                  aria-label={`${namespace}/${name}`}
+                >
+                  <span className="ui-visually-hidden">{namespace}/</span>
+                  {name}
+                </h1>
+              </div>
+            </div>
             <div className="materials-detail-revision">
               <ArtifactRevisionLede metadata={metadata} />
               {metadata === undefined ? null : (
@@ -254,6 +255,9 @@ export function ArtifactDetailView({
                       Locked
                     </span>
                   ) : null}
+                  <span>{formatLabel(metadata.mediaType)}</span>
+                  <span>{formatBytes(metadata.size)}</span>
+                  <RecordedTime value={metadata.createdAt} />
                 </>
               )}
             </div>
@@ -322,6 +326,18 @@ export function ArtifactDetailView({
                   titleAs="h2"
                   unavailableCopy="Inline preview is unavailable for this format or size. Download this revision to open it."
                   loadPreview={() => artifacts.preview(shown)}
+                  loadOnMountKey={
+                    variant === "material"
+                      ? [
+                          ...artifactScopeKeys(scope).metadata(
+                            namespace,
+                            name,
+                            shown.artifact.revision,
+                          ),
+                          "preview",
+                        ]
+                      : undefined
+                  }
                 />
               </div>
               <aside

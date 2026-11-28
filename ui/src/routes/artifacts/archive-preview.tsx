@@ -117,6 +117,10 @@ export function ArchivePreviewPanel({
         entry.previewable &&
         /^README\.md$/i.test(entry.path),
     )?.path ??
+    (loadOnMount
+      ? entries?.find((entry) => entry.kind === "file" && entry.previewable)
+          ?.path
+      : undefined) ??
     null;
   const entry = entries?.find((item) => item.path === selected);
   const file = useQuery({

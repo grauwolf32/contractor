@@ -173,9 +173,6 @@ for (const theme of ["light", "dark", "black"])
             : Buffer.from(file.source),
         );
         if (file.id === "archive") {
-          await page
-            .getByRole("button", { name: "Browse files", exact: true })
-            .click();
           await expect(
             page.getByRole("heading", { name: "Shop API source bundle" }),
           ).toBeVisible();
@@ -188,9 +185,6 @@ for (const theme of ["light", "dark", "black"])
             "async function getOrder",
           );
         } else {
-          await page
-            .getByRole("button", { name: "Load preview", exact: true })
-            .click();
           if (file.id === "source")
             await expect(
               page.locator(".materials-detail-reader pre"),
@@ -296,17 +290,12 @@ for (const theme of ["light", "dark", "black"])
             .toJSON(),
         }));
         expect(geometry.doc).toBeLessThanOrEqual(width);
-        if (width <= 820) {
-          expect(geometry.reader.width).toBeGreaterThan(width * 0.78);
-          expect(geometry.support.y).toBeGreaterThanOrEqual(
-            geometry.reader.bottom - 1,
-          );
-        } else {
-          expect(geometry.support.x).toBeGreaterThan(geometry.reader.x);
-          expect(geometry.reader.width).toBeGreaterThan(
-            geometry.support.width * 1.8,
-          );
-        }
+        expect(geometry.reader.width).toBeGreaterThan(
+          width * (width <= 820 ? 0.78 : 0.5),
+        );
+        expect(geometry.support.y).toBeGreaterThanOrEqual(
+          geometry.reader.bottom - 1,
+        );
         if (["source", "openapi", "archive"].includes(file.id))
           await page.screenshot({
             path: info.outputPath(`${file.id}-${theme}-${width}.png`),
@@ -332,9 +321,12 @@ test("scope and revision retain context, exact identity and local reader state",
     await page.goto(
       `${prefix}/${file.namespace}/${file.name}?revision=${file.versions[0]!.revision}`,
     );
-    await page
-      .getByRole("button", { name: "Load preview", exact: true })
-      .click();
+    const automatic =
+      prefix.startsWith("/projects/") || prefix.startsWith("/evals/");
+    if (!automatic)
+      await page
+        .getByRole("button", { name: "Load preview", exact: true })
+        .click();
     await expect(page.locator("pre.artifact-preview")).toContainText(
       "async function getOrder",
     );
@@ -350,9 +342,12 @@ test("scope and revision retain context, exact identity and local reader state",
     await expect(
       page.getByText("Historical revision", { exact: true }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Load preview", exact: true }),
-    ).toBeVisible();
+    if (automatic)
+      await expect(page.locator("pre.artifact-preview")).toBeVisible();
+    else
+      await expect(
+        page.getByRole("button", { name: "Load preview", exact: true }),
+      ).toBeVisible();
     await expect(
       page.getByText("Upload a new version", { exact: true }),
     ).toHaveCount(0);
@@ -404,7 +399,6 @@ test("Swagger definitions and path-level parameters survive selection", async ({
   await page.goto(
     "/projects/project_shop/artifacts/outputs/shop-api?revision=shop-api-r2",
   );
-  await page.getByRole("button", { name: "Load preview", exact: true }).click();
   const renderer = page.locator(".openapi-artifact-preview");
   await expect(
     renderer.getByRole("heading", { name: "Read saved order", exact: true }),
@@ -449,7 +443,6 @@ test("local references to other paths keep their actual Scalar targets", async (
   await page.goto(
     "/projects/project_shop/artifacts/outputs/shop-api?revision=shop-api-r2",
   );
-  await page.getByRole("button", { name: "Load preview", exact: true }).click();
   const renderer = page.locator(".openapi-artifact-preview");
   await expect(
     renderer.getByRole("heading", {
@@ -490,9 +483,6 @@ for (const theme of ["light", "dark", "black"]) {
     await page.goto(
       `/projects/project_shop/artifacts/${file.namespace}/${file.name}`,
     );
-    await page
-      .getByRole("button", { name: "Load preview", exact: true })
-      .click();
     await expect(
       page.getByRole("heading", { name: "List orders", exact: true }),
     ).toBeVisible();

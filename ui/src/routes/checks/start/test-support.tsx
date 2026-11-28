@@ -1,4 +1,6 @@
 // A fake Server and router around the Start page, for its tests.
+import { screen, within } from "@testing-library/react";
+import type { UserEvent } from "@testing-library/user-event";
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import type { Audit, AuditProfile } from "../../../api/audits";
 import type { Project } from "../../../api/projects";
@@ -6,6 +8,7 @@ import { fakeServer, type FakeCall } from "../../../test/fake-server";
 import { failure, json, page } from "../../../test/responses";
 import { renderWithAPI } from "../../../test/render";
 import { StartCheckRoute } from "../start";
+import { inSentence } from "./check-types";
 import { draftAudit, projectFixture, startResponse } from "./test-fixtures";
 import { artifactMetadata, artifactWrite } from "../../../test/builders";
 
@@ -152,4 +155,30 @@ export function renderStart(path: string, server: FakeStartServer = {}) {
       { path: "*", element: <p>Another page</p> },
     ],
   });
+}
+
+/** Choose through the same preview-and-confirm journey as a user. */
+export async function chooseMaterial(
+  user: UserEvent,
+  label: string,
+  material: ArtifactMetadata,
+) {
+  const lower = inSentence(label);
+  await user.click(
+    screen.getByRole("button", {
+      name: new RegExp(`^(Choose|Change) ${lower} material$`),
+    }),
+  );
+  const picker = screen.getByRole("dialog", { name: `Choose ${lower}` });
+  const { namespace, name, revision } = material.artifact;
+  await user.click(
+    within(picker).getByRole("button", {
+      name: `${namespace}/${name}@${revision}`,
+    }),
+  );
+  await user.click(
+    within(picker).getByRole("button", {
+      name: "Attach material",
+    }),
+  );
 }

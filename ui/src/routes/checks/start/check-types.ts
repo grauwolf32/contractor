@@ -274,7 +274,7 @@ export function inputLabel(name: string): string {
 }
 
 /** A media type in words: "ZIP", "JSON", or the media type itself. */
-export function formatName(mediaType: string): string {
+function formatName(mediaType: string): string {
   return Object.hasOwn(FORMAT_NAMES, mediaType)
     ? FORMAT_NAMES[mediaType]!
     : mediaType;

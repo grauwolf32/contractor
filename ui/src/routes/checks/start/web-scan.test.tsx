@@ -13,6 +13,7 @@ import {
 } from "./test-fixtures";
 import {
   renderStart as renderBaseStart,
+  chooseMaterial,
   type FakeStartServer,
 } from "./test-support";
 import { renderWithAPI } from "../../../test/render";
@@ -185,14 +186,7 @@ describe("Web scan Audit", () => {
         screen.getByLabelText("Upload Nuclei rules"),
         file,
       );
-      await view.user.selectOptions(
-        screen.getByLabelText("Material for Engagement"),
-        JSON.stringify([
-          engagementMaterial.artifact.namespace,
-          engagementMaterial.artifact.name,
-          engagementMaterial.artifact.revision,
-        ]),
-      );
+      await chooseMaterial(view.user, "Engagement", engagementMaterial);
       expect(screen.getByRole("button", { name: "Start check" })).toBeEnabled();
       expect(
         screen.getByRole("button", { name: "Save as draft" }),

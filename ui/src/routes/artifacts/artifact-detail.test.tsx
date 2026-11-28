@@ -146,7 +146,13 @@ describe("Material detail", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "Archive contents" }),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Browse files" })).toBeEnabled();
+    await waitFor(() =>
+      expect(
+        requests.some((request) =>
+          new URL(request.url).pathname.endsWith("/archive"),
+        ),
+      ).toBe(true),
+    );
 
     // Revisions stay behind Technical details; history loads on demand.
     const revision = screen.getByText("rev-2", {
@@ -380,7 +386,7 @@ describe("Material detail", () => {
     "honors unavailable owner upload for $name material",
     async ({ frozen }) => {
       const source = '{"html":"<script>example</script>"}';
-      const { user } = renderAt("/projects/project-1/artifacts/custom/result", {
+      renderAt("/projects/project-1/artifacts/custom/result", {
         "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata":
           () =>
             json(
@@ -402,16 +408,12 @@ describe("Material detail", () => {
       expect(
         await screen.findByRole("heading", { level: 1, name: "custom/result" }),
       ).toBeVisible();
-      const preview = await screen.findByRole("button", {
-        name: "Load preview",
-      });
       expect(
         screen.queryByText("Upload a new version", { selector: "summary" }),
       ).toBeNull();
       expect(
         screen.queryByText("Historical revisions are read-only."),
       ).toBeNull();
-      await user.click(preview);
       expect(await screen.findByText(source)).toBeVisible();
       expect(document.querySelector("script")).toBeNull();
     },

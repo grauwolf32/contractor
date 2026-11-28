@@ -72,7 +72,6 @@ async function install(page: Page, source = JSON.stringify(fixture)) {
 }
 async function load(page: Page) {
   await page.goto(path);
-  await page.getByRole("button", { name: "Load preview", exact: true }).click();
   return page.getByRole("article", { name: "Saved engagement", exact: true });
 }
 async function browse(page: Page, width: number) {
@@ -243,9 +242,6 @@ test("optional limits stay absent and invalid/oversized policies retain Source/d
   ]) {
     await install(page, source);
     await page.goto(path);
-    await page
-      .getByRole("button", { name: "Load preview", exact: true })
-      .click();
     await expect(page.getByRole("alert")).toContainText(
       "invalid or unsupported",
     );
@@ -261,7 +257,7 @@ test("optional limits stay absent and invalid/oversized policies retain Source/d
   await page.goto(path);
   await expect(
     page.getByRole("button", { name: "Load preview", exact: true }),
-  ).toBeDisabled();
+  ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Download this revision", exact: true }),
   ).toBeEnabled();

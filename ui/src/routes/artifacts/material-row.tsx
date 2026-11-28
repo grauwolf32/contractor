@@ -2,8 +2,9 @@ import type { ArtifactMetadata } from "../../api/artifacts";
 import { ContextLink } from "../../app/context-navigation";
 import { formatBytes } from "../../app/format";
 import { RecordedTime } from "../../app/recorded-time";
+import { Icon } from "../../app/icon";
 import { IdChip, ListRow } from "../../ui";
-import { MaterialIcon, MaterialKindIcon } from "./icons";
+import { MaterialIcon, MaterialKindMark } from "./icons";
 import { formatLabel, materialKindOf } from "./kinds";
 import "./materials.css";
 
@@ -43,23 +44,26 @@ export function MaterialRow({
   item,
   to,
   returnLabel,
+  previewOnOpen = false,
 }: {
   item: ArtifactMetadata;
   to: string;
   returnLabel: string;
+  previewOnOpen?: boolean;
 }) {
   const identity = item.artifact;
   const previewParams = new URLSearchParams(to.split("?")[1] ?? "");
   previewParams.set("revision", identity.revision);
+  const previewTo = `${to.split("?")[0]}?${previewParams.toString()}`;
   return (
     <ListRow
-      glyph={<MaterialKindIcon kind={materialKindOf(item)} />}
+      glyph={<MaterialKindMark kind={materialKindOf(item)} />}
       // Long names that differ only at the end must stay distinguishable.
       clamp={false}
       title={
         <ContextLink
           className="materials-row-link"
-          to={to}
+          to={previewOnOpen ? previewTo : to}
           aria-label={`${identity.namespace}/${identity.name}`}
           returnLabel={returnLabel}
         >
@@ -88,14 +92,18 @@ export function MaterialRow({
         ) : null,
       ]}
       trailing={
-        <ContextLink
-          className="materials-row-preview"
-          to={`${to.split("?")[0]}?${previewParams.toString()}`}
-          returnLabel={returnLabel}
-          aria-label={`Preview ${identity.namespace}/${identity.name}`}
-        >
-          Preview →
-        </ContextLink>
+        previewOnOpen ? (
+          <Icon name="chevron-right" size={16} />
+        ) : (
+          <ContextLink
+            className="materials-row-preview"
+            to={previewTo}
+            returnLabel={returnLabel}
+            aria-label={`Preview ${identity.namespace}/${identity.name}`}
+          >
+            Preview →
+          </ContextLink>
+        )
       }
     />
   );
