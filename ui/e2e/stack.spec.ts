@@ -689,11 +689,23 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
       name: "Allocation resource observations",
     }),
   ).toBeVisible();
-  const runResource = streamlineAttempt.locator(
+  const resourceAgents = ["builder", "planner_executor"];
+  const allocationIDs = new Map<string, string>();
+  const runResources = streamlineAttempt.locator(
     "article.allocation-resource-card",
   );
-  await expect(runResource).toHaveCount(1);
-  await expectNativeResources(runResource);
+  await expect(runResources).toHaveCount(resourceAgents.length);
+  for (const logicalAgent of resourceAgents) {
+    const card = runResources.filter({
+      has: page.getByText(logicalAgent, { exact: true }),
+    });
+    await expect(card).toHaveCount(1);
+    await expectNativeResources(card);
+    const allocationID = await card.locator("header code").innerText();
+    expect(allocationID).not.toBe("");
+    allocationIDs.set(logicalAgent, allocationID);
+  }
+  expect(new Set(allocationIDs.values()).size).toBe(resourceAgents.length);
 
   await page.goto("/operations/performance");
   await expect(
@@ -707,14 +719,21 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await page.goto("/operations/allocations/completed");
   await page.getByLabel("Run ID (optional)").fill(streamlineRunID);
   await page.getByRole("button", { name: "Apply filter" }).click();
-  const retainedRow = page.locator(".ops-completed-row");
-  await expect(retainedRow).toHaveCount(1);
-  await retainedRow.getByRole("button", { name: /^Metrics for / }).click();
-  const retainedResource = page
-    .getByRole("region", { name: /^Metrics for / })
-    .locator("article.allocation-resource-card");
-  await expect(retainedResource).toHaveCount(1);
-  await expectNativeResources(retainedResource);
+  const retainedRows = page.locator(".ops-completed-row");
+  await expect(retainedRows).toHaveCount(resourceAgents.length);
+  for (const [logicalAgent, allocationID] of allocationIDs) {
+    const row = retainedRows.filter({
+      has: page.getByText(logicalAgent, { exact: true }),
+    });
+    await expect(row).toHaveCount(1);
+    const name = `Metrics for ${allocationID}`;
+    await row.getByRole("button", { name, exact: true }).click();
+    const card = row
+      .getByRole("region", { name, exact: true })
+      .locator("article.allocation-resource-card");
+    await expect(card).toHaveCount(1);
+    await expectNativeResources(card);
+  }
 
   await page.goto(`/runs/${streamlineRunID}`);
   const streamlineOutput = page

@@ -1,0 +1,62 @@
+schema_version: '1.0'
+id: V490-009
+title: Check Planner and Worker resources in the real browser fixture
+milestone: server-runtime-grpc-2026-11
+epic: ui
+kind: chore
+introduced_by: V488-002
+priority: P1
+status: in_progress
+depends_on:
+- V490-005
+languages: [typescript, markdown]
+goal: The existing real-stack browser journey verifies resources for both separately accounted Streamline allocations.
+context:
+  authority: >-
+    Agent-discovered release prerequisite, 2026-11-28, within the user's
+    Server/Runtime gRPC implementation request. This corrects test expectations
+    to the already accepted Planner allocation architecture and changes no
+    production behavior, model, deployment or public API.
+  finding: >-
+    ui/e2e/stack.spec.ts:695 expects one allocation-resource-card and line 710
+    expects one completed allocation for streamline-copy@1. V488-002 commit
+    fcd2e506de884c7d57560cd3ea2bf3f10bd039b4 adds the separately accounted
+    planner_executor alongside builder. The original browser assertions were
+    left unchanged; release-verify now fails with two cards, while the Run
+    succeeds. Both the Run detail and Operations retained-resource views apply.
+  specification:
+  - docs/spec/execution/planners.md#PLN-R135
+  siblings: >-
+    Verify the exact two logical agents in both views and apply the existing
+    native resource assertions to each. The retained view must identify and
+    expand each row, never choose the first card or weaken the count check.
+scope:
+  in:
+  - Update the real-stack journey to expect and independently inspect builder and planner_executor resource observations.
+  - Run the complete owning UI-stack shard, UI verification and lint.
+  out:
+  - Production UI, metrics collection, allocation cardinality, models, source configurations and secret-boundary assertions.
+acceptance_criteria:
+- id: A1
+  text: The real Server/Runtime/PostgreSQL/browser scenario verifies exactly two distinct logical allocation resource cards for the completed Streamline Stage.
+- id: A2
+  text: Operations shows exactly the same two completed allocation identities and native resource observations; no arbitrary first-item selection is used.
+- id: A3
+  text: The full owning browser shard, including all later secret/owner/credential/domain journeys, UI verification and lint pass without changing production behavior.
+tests:
+- command: make test-release-ui-stack-a
+  covers: [A1, A2, A3]
+- command: make ui-verify
+  covers: [A3]
+- command: make lint
+  covers: [A1, A2, A3]
+verification:
+  status: passed
+  observed: >-
+    make test-release-ui-stack-a passed all 12 Go roots. The real Operations
+    browser invocation executed 117 cases, with no skipped, unexpected or flaky
+    case; the widget and native Eval journeys each executed one additional
+    browser case. Both resource views verify builder and planner_executor and
+    preserve the same two distinct allocation IDs. Later owner, secret,
+    credential and domain assertions also pass. make ui-verify and make lint
+    passed. No production UI, configuration, model or API field changed.

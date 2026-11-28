@@ -9,6 +9,7 @@ status: pending
 depends_on:
 - V490-005
 - V490-008
+- V490-009
 languages:
 - go
 - python
