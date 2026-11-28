@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock
 import grpc
 import jcs
 import pytest
+from google.adk.tools import FunctionTool
 from fakes.source_selectors import artifact_sources
 from fakes.worker_state import WorkerState
 from test_finding_facades import context
@@ -21,6 +22,60 @@ from contractor_runtime.toolsets.common.sources import SourcePreparer
 from contractor_runtime.toolsets.security_findings.facades import FactTool
 from contractor_runtime.toolsets.security_findings.memories import select_memory
 from contractor_runtime.toolsets.security_findings.publisher import FindingPublisher
+
+
+@pytest.mark.parametrize("sources", [None, []])
+@pytest.mark.parametrize("repair", ["memory", "artifact"])
+def test_adk_source_free_fact_has_repair_hint_and_accepts_exact_repair(sources, repair):
+    async def scenario():
+        artifacts = MemorySources()
+        source = artifacts.seed(
+            "snapshot", "selected", "application/json", jcs.canonicalize(snapshot())
+        )
+        tool, client, state = make_tool(artifacts, source)
+        adk = FunctionTool(tool)
+        declaration = adk._get_declaration()
+        assert "memory_name or sources" in declaration.description
+        assert 'memory_name="technology"' in declaration.description
+        args = dict(
+            title="Reported banner", description="Version remains unverified", sources=sources
+        )
+        with pytest.raises(ToolInputError, match="memory_name.*sources"):
+            await adk.run_async(args=args, tool_context=context("missing"))
+        assert artifacts.write_calls == 0 and not client.requests
+        if repair == "memory":
+            args["memory_name"] = "technology"
+            args.pop("sources")
+        else:
+            state.resources.selected_versions.observe(source)
+            args["sources"] = artifact_sources([source])
+        await adk.run_async(args=args, tool_context=context("repaired"))
+        assert len(client.requests) == 1
+        assert len(client.requests[0]["evidenceRefs"]) == 1
+
+    asyncio.run(scenario())
+
+
+def test_source_free_repairs_still_consume_the_existing_fact_call_budget():
+    async def scenario():
+        artifacts = MemorySources()
+        source = artifacts.seed(
+            "snapshot", "selected", "application/json", jcs.canonicalize(snapshot())
+        )
+        tool, client, _ = make_tool(artifacts, source)
+        for index in range(8):
+            with pytest.raises(ToolInputError, match="memory_name.*sources"):
+                await tool(title="Claim", description="Reported", tool_context=context(str(index)))
+        with pytest.raises(ToolInputError, match="eight"):
+            await tool(
+                title="Claim",
+                description="Reported",
+                memory_name="technology",
+                tool_context=context("ninth"),
+            )
+        assert artifacts.write_calls == 0 and not client.requests
+
+    asyncio.run(scenario())
 
 
 def snapshot():

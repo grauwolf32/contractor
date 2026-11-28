@@ -2195,6 +2195,10 @@ reopening it. No title discriminator or semantic repair is implicit.
 ### Original memories as informational evidence
 
 **FND-R238.** Common `fact` additionally accepts optional `memory_name`.
+The tool declaration explains that `memory_name` or nonempty `sources` is required
+and shows a valid memory call. A source-free `fact` returns a bounded input error
+identifying these alternatives before source I/O, while still consuming its
+ordinary distinct-call quota slot (FND-R239). It never infers evidence from prose.
 The selected Worker task supplies an exact ordinary Artifact in its `memories`
 slot. Runtime resolves the name only inside that frozen Memory snapshot
 (MEM-R100/R101); it never reads mutable Memory or searches other artifacts.
