@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 
 import grpc
 import pytest
@@ -25,12 +26,38 @@ from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.projectfs import MemoryWorkspaceProvider, hydrate_workspace
 from contractor_runtime.projectfs.storage import WorkspaceSourceFile
 from contractor_runtime.toolsets.common.trace_source import trace_source
-from contractor_runtime.toolsets.security_findings.trace import TraceFindingsToolsetFactory
+from contractor_runtime.toolsets.security_findings.trace import (
+    TraceFindingsToolsetFactory,
+    TraceProof,
+)
 from contractor_runtime.toolsets.taint_annotations.tools import TaintAnnotationsToolsetFactory
 
 SOURCE = "def first():\n    sink(value)\n\ndef second():\n    sink(other)\n"
 REF = ArtifactRef(namespace="inputs", name="source", revision="1")
 NOW = datetime(2026, 11, 8, tzinfo=UTC)
+
+
+def test_shared_ui_trace_evidence_is_a_real_runtime_proof():
+    proof = json.loads(
+        (Path(__file__).parents[2] / "api/testdata/finding-trace-evidence.json").read_text()
+    )
+    parsed = TraceProof.model_validate(proof)
+    assert parsed.model_dump(by_alias=True) == proof
+    original = "".join(f"// Context {i}\n" for i in range(1, 21)) + (
+        'function lookup(value) {\n  return db.query("SELECT * FROM users WHERE id=" + value);\n}\n'
+    )
+    current = original.replace(
+        "function lookup", "// @trace target=test\n// @sink kind=sql arg=value\nfunction lookup"
+    )
+    capture = WorkspaceSourceFile(
+        proof["workspace"]["file"],
+        proof["source"]["file"],
+        ArtifactRef.model_validate(proof["source"]["artifact"]),
+        original,
+        current,
+    )
+    actual = trace_source(capture, parsed.workspace.start_line, parsed.workspace.end_line)
+    assert actual == {key: value for key, value in proof.items() if key != "requestDigest"}
 
 
 def capture(original, current, path="app.py"):

@@ -969,6 +969,7 @@ its owning requirement.
 | `LIM-UI-22` | 50 rows | One sitemap navigation or larger detail-collection page | Web UI sitemap Preview; local search/paging over one document within LIM-UI-12 | [UI-R236](../ui/ui.md) |
 | `LIM-UI-23` | 50 rows | One engagement route-navigation or nested-value page | Web UI engagement Preview; local search/paging over one document within LIM-UI-12 | [UI-R237](../ui/ui.md) |
 | `LIM-UI-24` | 20 candidate checks per page; 2 report transfers in flight per API client | Reports list availability reads | Project filter before paging; shared cancelable report-read queue; full content retained only by selected detail | [UI-R238](../ui/ui.md) |
+| `LIM-UI-25` | 16,000 syntax tree visits and rendered token spans combined; depth 64 | Syntax colouring of one retained code snippet | Web UI; beyond either budget show the complete escaped snippet without syntax spans | [UI-R248](../ui/ui.md) |
 | `LIM-UIJ-1` | 7 days | Audit Start/Continue time-limit dialog: seven-day preset, which is also the UI default for Start and for resuming after the time limit | Web UI (Audit time-limit dialog) | [journeys](../ui/journeys.md) |
 | `LIM-UIJ-2` | 24 hours | Audit Start/Continue time-limit dialog: 24-hour preset | Web UI (Audit time-limit dialog) | [UIJ-R77](../ui/journeys.md) |
 | `LIM-WFL-1` | exactly 1 entry Stage per Workflow | Workflow `entryStage` | WorkflowCatalog (Workflow schema validation) | [WFL-R3](../configuration/workflows.md) |

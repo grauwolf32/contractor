@@ -1,6 +1,10 @@
 {
   "prefixes": [
     {
+      "prefix": "hljs-",
+      "source": "lowlight syntax tree className properties, rendered as escaped React spans by artifacts/previews/code-highlight.tsx"
+    },
+    {
       "prefix": "ops-signin-spiral-",
       "source": "src/routes/login-backdrop.tsx: ops-signin-spiral-${position}"
     },

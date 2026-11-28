@@ -8,8 +8,57 @@ import { renderWithAPI } from "../../test/render";
 import { bytes, failure, json } from "../../test/responses";
 import { FindingEvidenceFile } from "./evidence-file";
 import { saveBlob } from "../../app/download";
+import proof from "../../../../api/testdata/finding-trace-evidence.json";
 
 vi.mock("../../app/download", () => ({ saveBlob: vi.fn() }));
+
+it("renders saved code evidence through exact Project Preview and retains JSON Source/download", async () => {
+  const { source, file } = sample();
+  const text = JSON.stringify(proof);
+  const metadata = {
+    ...file.metadata,
+    mediaType: "application/json",
+    size: new TextEncoder().encode(text).length,
+  };
+  const server = fakeServer({}, (_request, url) => {
+    expect(url.pathname).toMatch(
+      /^\/v1\/projects\/project_shop\/artifacts\/evidence\/search-route(?:\/metadata)?$/,
+    );
+    expect(url.searchParams.get("revision")).toBe(
+      file.metadata.artifact.revision,
+    );
+    return url.pathname.endsWith("/metadata")
+      ? json(metadata)
+      : bytes(text, metadata.mediaType);
+  });
+  const view = renderWithAPI(
+    <FindingEvidenceFile source={source} index={0} />,
+    { server },
+  );
+  expect(server.requests).toHaveLength(0);
+  await view.user.click(screen.getByRole("button", { name: "Preview" }));
+  expect(
+    await screen.findByRole("region", { name: "Code evidence" }),
+  ).toBeVisible();
+  expect(screen.getByLabelText("Saved code").textContent).toBe(
+    proof.workspace.text,
+  );
+  await view.user.click(screen.getByRole("tab", { name: "Source" }));
+  expect(
+    screen.getByRole("tabpanel", { name: "Source" }).querySelector("pre")
+      ?.textContent,
+  ).toBe(text);
+  await view.user.click(
+    screen.getByRole("button", { name: "Download search-route" }),
+  );
+  await waitFor(() => expect(saveBlob).toHaveBeenCalled());
+  expect(
+    server.sent(
+      "GET",
+      "/v1/projects/project_shop/artifacts/evidence/search-route",
+    ),
+  ).toHaveLength(2);
+});
 
 function sample() {
   const data = issueReviewFixtures();

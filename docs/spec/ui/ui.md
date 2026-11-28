@@ -1724,6 +1724,21 @@ no API request is sent by a renderer and no synthetic preview data ships in UI.
   display bound the complete source stays in a single text node, with an
   explanation that numbering is hidden.
 
+**UI-R248.** The shared material preview recognizes JSON declaring the current
+  `contractor.trace-finding-evidence.v1` format (FND-R231). It presents only the
+  saved workspace snippet, its path, actual snippet line numbers and a visibly
+  selected range with a textual range label. Original source path/coordinates
+  are separately labelled; original exact material identity and file digests
+  remain under Technical details. The renderer never fetches or reconstructs
+  source. Known file extensions receive syntax colours using escaped text and
+  theme tokens; unknown syntax remains literal text. Snippet admission follows
+  LIM-FND-55, with coherent line counts and containing selection. Syntax DOM
+  expansion follows LIM-UI-25; exceeding it retains the full literal snippet.
+  Malformed or unsupported declared trace proofs explain their unavailability.
+  The exact original JSON stays in Source and ordinary download, while existing
+  explicit structured-evidence loading, scope/revision and byte limits apply.
+  Wrapping, keyboard access, 390px and all three themes remain supported.
+
 **UI-R226.** OpenAPI material reference navigation selects one saved operation
   or schema. The existing Scalar renderer owns parameter/schema/reference
   interpretation, including Swagger 2 and OpenAPI 3. A selected direct operation

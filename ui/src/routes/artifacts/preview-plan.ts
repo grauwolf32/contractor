@@ -5,6 +5,7 @@ import {
 } from "../../api/artifacts";
 import type { SitemapDocument } from "./previews/sitemap-document";
 import type { EngagementDocument } from "./previews/engagement-document";
+import type { CodeEvidenceDocument } from "./previews/code-evidence-document";
 import { AUTOMATIC_DOCUMENT_BYTES } from "../../app/document-limits";
 import {
   parseHTTPExchange,
@@ -13,6 +14,8 @@ import {
 
 export type ArtifactPreviewPlan =
   | { kind: "source"; memorySnapshot?: true }
+  | { kind: "code-evidence"; document: CodeEvidenceDocument }
+  | { kind: "invalid-code-evidence" }
   | { kind: "diff" }
   | { kind: "markdown" }
   | { kind: "likec4" }
@@ -50,6 +53,20 @@ export async function createArtifactPreviewPlan(
   if (mediaType === "application/json") {
     try {
       const value: unknown = JSON.parse(source);
+      if (
+        value !== null &&
+        typeof value === "object" &&
+        "schema" in value &&
+        typeof value.schema === "string" &&
+        value.schema.startsWith("contractor.trace-finding-evidence.")
+      ) {
+        const { parseCodeEvidence } =
+          await import("./previews/code-evidence-document");
+        const document = parseCodeEvidence(source);
+        return document === undefined
+          ? { kind: "invalid-code-evidence" }
+          : { kind: "code-evidence", document };
+      }
       if (
         value !== null &&
         typeof value === "object" &&

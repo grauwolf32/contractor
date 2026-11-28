@@ -29,6 +29,9 @@ importers:
       '@tanstack/react-query':
         specifier: 5.102.8
         version: 5.102.8(react@19.2.8)
+      lowlight:
+        specifier: 3.3.0
+        version: 3.3.0
       openapi-fetch:
         specifier: 0.17.0
         version: 0.17.0

@@ -1,0 +1,24 @@
+{
+  "schema": "contractor.trace-finding-evidence.v1",
+  "source": {
+    "artifact": {
+      "namespace": "inputs",
+      "name": "source",
+      "revision": "source-r1"
+    },
+    "file": "src/lookup.js",
+    "startLine": 22,
+    "endLine": 22,
+    "digest": "sha256:fe192aef5aa190361a7ed7f730bd8d2bf47136255e0b50812406795cb99e5247"
+  },
+  "workspace": {
+    "file": "workspace/src/lookup.js",
+    "startLine": 24,
+    "endLine": 24,
+    "snippetStartLine": 16,
+    "snippetEndLine": 24,
+    "text": "// Context 16\n// Context 17\n// Context 18\n// Context 19\n// Context 20\n// @trace target=test\n// @sink kind=sql arg=value\nfunction lookup(value) {\n  return db.query(\"SELECT * FROM users WHERE id=\" + value);\n",
+    "digest": "sha256:73c293ebf6c3860958c315a641cdba854604b7a5ee52a6168ad0ffea7bd76d53"
+  },
+  "requestDigest": "sha256:d8dd2d5f2430027e0a3251e1920fd545439840558b65be161f0b7d38ca841ef8"
+}

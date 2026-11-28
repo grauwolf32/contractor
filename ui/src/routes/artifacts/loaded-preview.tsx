@@ -25,8 +25,11 @@ const DiffArtifactPreview = lazy(() => import("./previews/diff"));
 const HTTPExchangePreview = lazy(() => import("./previews/http-exchange"));
 const SitemapPreview = lazy(() => import("./previews/sitemap"));
 const EngagementPreview = lazy(() => import("./previews/engagement"));
+const CodeEvidencePreview = lazy(() => import("./previews/code-evidence"));
 
 const RENDERER_LABELS = {
+  "code-evidence": "Code evidence",
+  "invalid-code-evidence": "Code evidence",
   diff: "Diff",
   markdown: "Markdown",
   openapi: "OpenAPI",
@@ -44,6 +47,15 @@ type RenderedPlan = Exclude<ArtifactPreviewPlan, { kind: "source" }>;
 
 function Renderer({ plan, source }: { plan: RenderedPlan; source: string }) {
   switch (plan.kind) {
+    case "code-evidence":
+      return <CodeEvidencePreview document={plan.document} />;
+    case "invalid-code-evidence":
+      return (
+        <p className="artifact-renderer-error" role="alert">
+          This code evidence is invalid or unsupported. Source and download
+          retain the original saved document.
+        </p>
+      );
     case "engagement":
       return <EngagementPreview document={plan.document} />;
     case "invalid-engagement":

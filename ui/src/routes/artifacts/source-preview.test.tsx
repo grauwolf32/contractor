@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { SourcePreview } from "./source-preview";
 
 describe("numbered source", () => {
-  it.each(["one\n\nthree\n", "one\r\n\r\nthree", "", "one"])(
+  it.each(["one\n\nthree\n", "one\r\n\r\nthree", "one\r\rthree\r", "", "one"])(
     "preserves literal text %j, including blank lines and CRLF",
     async (source) => {
       const { container } = render(<SourcePreview source={source} />);

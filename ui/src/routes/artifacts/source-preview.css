@@ -7,7 +7,7 @@
   position: relative;
   display: block;
   min-height: 1.7em;
-  padding: 0 var(--space-3) 0 var(--space-12);
+  padding: 0 var(--space-3) 0 var(--source-gutter, var(--space-12));
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -15,7 +15,7 @@
   content: attr(data-line);
   position: absolute;
   left: 0;
-  width: var(--space-8);
+  width: calc(var(--source-gutter, var(--space-12)) - 2ch);
   text-align: right;
   color: var(--muted);
   user-select: none;
@@ -23,6 +23,10 @@
 .materials-numbered-source[data-wrap="false"] .materials-source-line {
   white-space: pre;
   min-width: max-content;
+}
+.materials-source-line[data-selected="true"] {
+  background: var(--code-hl);
+  box-shadow: inset 3px 0 var(--link);
 }
 .materials-source-reader .materials-source-tools {
   border-bottom: 1px solid var(--line);

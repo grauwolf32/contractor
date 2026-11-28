@@ -29,6 +29,7 @@
     "@likec4/language-services": "1.56.0",
     "@scalar/api-reference-react": "0.9.66",
     "@tanstack/react-query": "5.102.8",
+    "lowlight": "3.3.0",
     "openapi-fetch": "0.17.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",

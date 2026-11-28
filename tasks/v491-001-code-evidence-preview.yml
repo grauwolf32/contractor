@@ -1,0 +1,85 @@
+schema_version: "1.0"
+id: V491-001
+title: Render retained code evidence with its saved selection and source coordinates
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: in_progress
+depends_on: []
+languages: [typescript, css, markdown, python]
+goal: Researchers can read retained code evidence directly in a possible issue or material preview, with syntax colours, actual line numbers and the selected range instead of decoding the trace proof JSON.
+demonstration: Open an issue's exact retained trace proof, choose Preview, read the saved annotated snippet and original source coordinates, then switch to Source or download the unchanged proof; repeat at 390px in light, dark and black themes.
+context:
+  authority: User request 2026-11-28 asks to add a good preview renderer for code evidence in the UI. Implementation proposal uses the already retained trace proof; generic text remains the ordinary source reader.
+  specification: [docs/spec/ui/ui.md#UI-R248, docs/spec/ui/ui.md#UI-R223, docs/spec/ui/ui.md#UI-R225, docs/spec/findings/findings.md#FND-R231]
+  design: [docs/design/ui/README.md, ui/src/ui/README.md]
+  boundary: Runtime owns source capture, annotation interpretation and coordinate translation. UI presents the existing contractor.trace-finding-evidence.v1 document through the common Artifact preview owner and never infers original source text or fetches a workspace. Saved workspace selection and original coordinates stay separately labelled. Alternative is formatting raw JSON, which leaves code unreadable; reopen only for a concrete different retained code format. Existing Artifact access, exact scope/revision, size admission, retries and downloads remain authoritative.
+scope:
+  in:
+    - Recognize the declared trace-proof schema in JSON and lazily render saved path, original coordinates, workspace snippet and selection through the shared material preview.
+    - Reuse numbered source and wrapping controls, add bounded syntax colouring without executing source, and keep literal text/line endings intact.
+    - Explain malformed or unsupported trace evidence and retain exact Source/download access.
+    - Verify issue evidence and material reader integration, maximum snippet size, hostile text, mobile layout and all themes.
+  out:
+    - New source APIs, fetching source archives, live workspace access, changing trace publication or domain validation, automatic structured-evidence reads, deployment.
+requirements:
+  - id: R1
+    text: Only the declared current trace schema receives the specialized reader; generic JSON remains ordinary source. Malformed declared proofs show an explicit notice rather than invented code.
+  - id: R2
+    text: Display only saved workspace text with its actual snippet start and selected lines; original source coordinates and exact provenance are separate and never implied to be the annotated workspace coordinates.
+  - id: R3
+    text: Render escaped text using theme tokens and retain keyboard wrapping, exact JSON Source and ordinary exact-revision download.
+failure_outcomes:
+  - operation: Preview an existing exact evidence revision
+    permanent: Existing metadata/payload errors and size rejection remain visible; malformed declared trace evidence shows a local notice plus exact Source/download.
+    retryable: Existing Artifact reader owns Retry; the renderer adds no requests or retry loop.
+    ambiguous: Read-only operation; no mutations or receipts introduced.
+    cancelled: Existing reader owns requests and revision fences; leaving the reader discards local rendering state.
+    timeout: Existing Artifact read deadline; local rendering is bounded by existing trace snippet limits and adds no external work.
+cardinality:
+  - collection: One loaded trace proof and its saved snippet
+    expected: One source descriptor and a few context/selected lines.
+    maximum: Existing LIM-FND-55 proof ceiling of 1 MiB, snippet of 400 lines and 128 KiB; generic source numbering remains LIM-UI-18.
+    bound: One loaded document, one code block, at most 400 numbered snippet rows; syntax token DOM has a bounded budget and falls back to escaped text.
+lifecycle:
+  - entity: Local evidence preview and wrapping state
+    delete: Leaving the reader releases local state; existing Artifact deletion owns retained bytes.
+    cascade: No new durable entities, requests or background jobs.
+    retention: Existing exact Project/Run Artifact retention and downloads remain unchanged.
+acceptance_criteria:
+  - id: A1
+    given: A retained current-schema trace proof in material or issue evidence
+    when: Its existing explicit Preview action loads it
+    then: The saved code, syntax colours, actual snippet line numbers and selected range are visible with separately labelled original coordinates; Source/download preserve exact proof bytes and no source fetch occurs.
+  - id: A2
+    given: Malformed/unsupported trace JSON, hostile source, unknown language or maximum-size snippet
+    when: Preview is rendered
+    then: Invalid proofs are explicit, unknown syntax remains escaped text, full text and line endings survive, rendering work stays bounded and no source executes or loads external resources.
+  - id: A3
+    given: A valid code evidence preview at desktop or 390px in light, dark or black
+    when: The reader switches tabs and wrapping using the keyboard
+    then: Controls and full code remain reachable without document horizontal overflow and the selected range has a visible textual label.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: cd runtime && uv run pytest tests/test_trace_findings.py
+    covers: [A1, A2]
+  - command: make ui-gates
+    covers: [A1, A2, A3]
+  - command: cd ui && corepack pnpm exec playwright test e2e/code-evidence-preview.spec.ts e2e/issue-review-design.spec.ts e2e/artifact-preview.spec.ts
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2]
+  - command: cd runtime && uv run python ../scripts/check_tasks.py
+    covers: [A1, A2, A3]
+verification:
+  date: 2026-11-28
+  results:
+    - make ui-verify passed; 230 Vitest files, 2605 passed and one pre-existing expected-fail, 17 Node server tests, lint/typecheck/generated checks and production build.
+    - make ui-gates passed; 14 gate tests, CSS/exports checks and ESLint; no tolerated unused exports.
+    - Production runBrowserGate executed the three declared Playwright specs; all 34 cases passed, zero skipped/flaky/unexpected.
+    - Four additional production-build screenshots were inspected for light desktop and light/dark/black 390px; code and selection remain readable without document overflow.
+    - Runtime trace module passed all 70 tests, including reproducing the shared UI fixture through real trace_source; Ruff passed.
+    - Specification, task and shared-fixture source checks passed; git diff --check passed.
+  boundary: Read-only UI over already retained exact proof bytes; no Server/Runtime production behavior, public API, persistence or deployment changed.

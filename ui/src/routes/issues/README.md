@@ -105,6 +105,12 @@ Larger and structured/HTTP evidence requires explicit Preview/Download. The
 there is no source-scope fallback. A source location is a coordinate, not invented
 code. Credential-looking captured HTTP headers retain per-value show/hide controls.
 
+Explicit previews of retained `contractor.trace-finding-evidence.v1` JSON use the
+shared Code evidence renderer: saved annotated workspace text, actual snippet
+line numbers, selection and syntax colours, with original source coordinates
+separately labelled. Original JSON stays under Source. No source file or archive
+is fetched to reconstruct a snippet.
+
 `FindingDecision presentation="review"` exposes Mark as duplicate and defers its
 rationale until a verdict is selected. The shared decision owner still validates
 eligibility, rationale, severity and duplicate target and owns stale conflicts,

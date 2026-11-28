@@ -8,6 +8,7 @@ const mockedSpecs = [
   "e2e/llm-cost.spec.ts",
   "e2e/archive-preview.spec.ts",
   "e2e/artifact-preview.spec.ts",
+  "e2e/code-evidence-preview.spec.ts",
   "e2e/material-detail-design.spec.ts",
   "e2e/sitemap-preview.spec.ts",
   "e2e/engagement-preview.spec.ts",

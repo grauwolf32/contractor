@@ -1,36 +1,35 @@
-import { Fragment, useMemo, useState } from "react";
+import {
+  Fragment,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { Button } from "../../ui";
+import { sourceLines } from "./source-lines";
 import "./source-preview.css";
 
 // LIM-UI-18: preserve the full text without creating an element per line in
 // newline-heavy one MiB payloads.
-const MAXIMUM_NUMBERED_LINES = 4000;
-function sourceLines(source: string) {
-  const lines: { text: string; ending: string }[] = [];
-  let start = 0;
-  while (start < source.length) {
-    if (lines.length === MAXIMUM_NUMBERED_LINES) return undefined;
-    const end = source.indexOf("\n", start);
-    if (end === -1) {
-      lines.push({ text: source.slice(start), ending: "" });
-      break;
-    }
-    const cr = end > start && source[end - 1] === "\r";
-    lines.push({
-      text: source.slice(start, cr ? end - 1 : end),
-      ending: cr ? "\r\n" : "\n",
-    });
-    start = end + 1;
-  }
-  return lines;
-}
-export function SourcePreview({ source }: { source: string }) {
+export function SourcePreview({
+  source,
+  startLine = 1,
+  selection,
+  highlightedLines,
+  label = "Source",
+}: {
+  source: string;
+  startLine?: number | undefined;
+  selection?: { startLine: number; endLine: number } | undefined;
+  highlightedLines?: readonly ReactNode[] | undefined;
+  label?: string | undefined;
+}) {
   const [wrap, setWrap] = useState(true);
   const lines = useMemo(() => sourceLines(source), [source]);
   return (
     <div className="materials-source-reader">
       <div className="materials-source-tools">
-        <span>Source</span>
+        <span>{label}</span>
         <Button
           size="xs"
           variant="ghost"
@@ -44,14 +43,30 @@ export function SourcePreview({ source }: { source: string }) {
         className="artifact-preview materials-numbered-source"
         data-wrap={wrap}
         data-numbered={lines !== undefined}
+        aria-label={label}
+        style={
+          {
+            "--source-gutter": `${String(startLine + (lines?.length ?? 0)).length + 3}ch`,
+          } as CSSProperties
+        }
         tabIndex={0}
       >
         {lines === undefined
           ? source
           : lines.map((line, index) => (
               <Fragment key={index}>
-                <span className="materials-source-line" data-line={index + 1}>
-                  {line.text}
+                <span
+                  className="materials-source-line"
+                  data-line={startLine + index}
+                  data-selected={
+                    selection !== undefined &&
+                    startLine + index >= selection.startLine &&
+                    startLine + index <= selection.endLine
+                      ? true
+                      : undefined
+                  }
+                >
+                  {highlightedLines?.[index] ?? line.text}
                 </span>
                 {line.ending}
               </Fragment>
