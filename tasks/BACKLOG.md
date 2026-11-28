@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 11 in progress, 46 pending, 13 deferred. 1770 finished: 1751 completed, 19 archived.
+69 open tasks: 10 in progress, 46 pending, 13 deferred. 1771 finished: 1752 completed, 19 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V500-007](v500-007-zero-model-token-report.yml) | operations | defect | P1 | Report explicit zero tokens when Runtime observed no direct model calls |
-| [V500-008](v500-008-bounded-parallel-context-consumer.yml) | evals | feature | P1 | Execute frozen context members with bounded parallel admission |
 
 ## Pending
 
@@ -179,7 +178,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 30 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 23 | 80 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
-| Evaluations (`evals`) | 5 | 25 | 52 | 27 | 59 |
+| Evaluations (`evals`) | 4 | 25 | 52 | 27 | 59 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
 | Web UI (`ui`) | 2 | 58 | 83 | 38 | 81 |
 | Operations, authentication, CLI and deployment (`operations`) | 2 | 23 | 56 | 16 | 35 |
