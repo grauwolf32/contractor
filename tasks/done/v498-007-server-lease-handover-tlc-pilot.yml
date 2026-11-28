@@ -1,0 +1,118 @@
+schema_version: "1.0"
+id: V498-007
+title: "Verify Server lease handover and recovery ordering with TLC"
+milestone: persistence-api-cleanup-2026-10
+epic: persistence
+kind: chore
+priority: P2
+status: completed
+implementation_commit: fecf68bdd453a206fd6efe06ac316833f580e3ba
+depends_on: [V498-006]
+languages: [go]
+goal: >-
+  Establish checked evidence that the next Server recovers every committed
+  lease-fenced operation before admitting traffic, including a previous
+  holder's delayed COMMIT after its lease session ends.
+context:
+  authority:
+    - "User request 2026-11-28: pilot Server lease handover in TLA+/TLC, covering lease loss, delayed COMMIT and successor recovery; create a task and map results to PostgreSQL tests."
+    - "User request 2026-11-28: keep local artifacts in /Users/ruslan/src/contractor/.lean/server-lease-handover."
+  specification:
+    - docs/spec/platform/persistence.md#PER-R2
+    - docs/spec/platform/persistence.md#PER-R7
+    - docs/spec/platform/persistence.md#PER-R34
+    - docs/spec/platform/persistence.md#PER-R35
+    - docs/spec/platform/persistence.md#PER-R36
+    - docs/spec/configuration/runtime-config.md#RCF-R72
+  finding: >-
+    internal/persistence/postgres/lease.go:68 proves the session after taking
+    a shared transaction lock; lease.go:88 waits exclusively before startup
+    recovery. internal/app/single_active.go:254 composes acquisition and
+    handover; internal/app/app.go:156 orders it before credential recovery.
+    Existing PostgreSQL and credential protocol-fault tests cover delayed
+    commits, identity and startup failures. Missing formal correspondence and
+    explicit multiple-writer/queued-proof coverage are the scope of this pilot.
+  boundary: >-
+    PostgreSQL owns session advisory lease exclusivity, transaction atomicity
+    and handover lock ordering. Persistence owns exact PID/session-start proof
+    and shared/exclusive handover. App orders recovery after handover;
+    Credentials owns journal reconciliation and admission. Lease loss does
+    not revoke an already proved working-pool transaction. Non-fenced writes
+    retain PER-R36; this is not universal revocation of the old process.
+  decision: >-
+    Use a bounded protocol model with independently scheduled proof, shared
+    lock, lease loss, commit/rollback, successor barrier and recovery steps.
+    A model of the lease alone is simpler but cannot catch a late journal
+    commit after a recovery read. Add real PostgreSQL lock-queue and multiple
+    transaction regressions, and execute existing app/credential fault tests.
+    No intended production change; an established defect gets a separate task.
+    Persistence and credential owners reopen on lock/proof/startup ordering
+    changes. Finite model assumptions are recorded, not promoted to a proof
+    of PostgreSQL or of all Server startup paths.
+scope:
+  in:
+    - "One database, one old lease identity, one/two old transactions and one/two bounded successor startup attempts."
+    - "Session loss independently of process detection; exact session identity, shared proof lock, exclusive handover, delayed/lost commit response and rollback."
+    - "Intent/completion journal abstractions, recovery snapshot before admission, timeout/cancellation and restart of a failed startup."
+    - "Negative controls, reachability witnesses, exact executed PostgreSQL test mapping, full selected packages and lint."
+    - "Ignored local models/logs, tracked task/tests/evidence and explicit cleanup of the owned UTF8 test database."
+  out:
+    - "Production/schema/API changes, new lease mechanisms, deployment or CI integration."
+    - "Unbounded/refinement/liveness proof, physical keepalive timing, arbitrary repeated loss during recovery, full Server process crash and external Gateway correctness."
+    - "A guarantee that all old-process writes or external calls stop immediately after session loss."
+acceptance_criteria:
+  - id: A1
+    text: "Finite baseline graphs exhaust with valid session proofs, protected transactions, safe recovery snapshots and no admission before recovery; bounds/assumptions/code mapping are explicit."
+  - id: A2
+    text: "Named mutation controls fail their assigned invariants, and witnesses reach late commit, lost reply, rollback, blocked handover, queued old proof, failed startup/retry and recovery."
+  - id: A3
+    text: "New real PostgreSQL tests show the successor waits for every old fenced transaction, a fresh old proof queues behind the exclusive waiter then fails, and mixed commit/rollback outcomes are observed exactly."
+  - id: A4
+    text: "Required existing session identity, timeout/cancellation, real app takeover and credential delayed-COMMIT/recovery/admission tests actually run, with no missing selections or undeclared skips."
+  - id: A5
+    text: "Full persistence, app and credential packages plus lint pass; evidence pins source/models/logs, optional skips are explicit and owned database/server resources are removed."
+tests:
+  - command: "python3 /Users/ruslan/src/contractor/.lean/server-lease-handover/run.py"
+    covers: [A1, A2]
+  - command: "go test -json -race -tags=integration -count=1 -timeout 20m ./internal/persistence/postgres ./internal/app ./internal/credentials"
+    covers: [A3, A4, A5]
+  - command: "python3 /Users/ruslan/src/contractor/.lean/server-lease-handover/verify_postgres.py"
+    covers: [A3, A4, A5]
+  - command: make lint
+    covers: [A5]
+verification:
+  evidence: tasks/evidence/v498-007-server-lease-handover.json
+  local_report: /Users/ruslan/src/contractor/.lean/server-lease-handover/README.md
+  result: >-
+    All 42 TLC outcomes match: six baseline graphs exhaust with 247, 267,
+    2095, 2527, 3882 and 187 distinct states; ten named negative controls
+    fail their assigned invariants and 26 witnesses are reached. Full
+    persistence/postgres, app and credentials packages pass with race and
+    integration tags on real UTF8 PostgreSQL: 255 top-level tests, all five
+    new scenarios and all required existing identities, no Go skips.
+    Full make lint passes with one auxiliary Python unittest skip, not
+    passing coverage. Owned database, server, data and socket are removed
+    only after both full checks end. No production/schema/API change.
+  verification_incident: >-
+    The first lint failed in the unchanged release report runner's bounded
+    output test: os.killpg raised PermissionError while cleaning up a child.
+    The exact isolated test and a full lint rerun passed without source
+    changes. The cause was not established; failed and successful logs are
+    retained, and the failed run is not coverage. The Quality/report-runner
+    owner reopens this as a separate defect if the ordinary gate reproduces it.
+  limits: >-
+    Finite safety, not an unbounded/refinement/composition or liveness proof.
+    One old session, one/two old transactions and one/two successor startup
+    attempts; a retry follows cancellation/failure before recovery. Stable
+    successor lease during recovery is assumed; loss of that session during
+    startup/recovery and arbitrary handover chains are excluded. Session
+    exclusivity and atomicity are primitives; fresh shared/exclusive queue
+    behavior is independently tested, reentrant locks excluded. Identity
+    abstracts PID/backend_start and is checked on PostgreSQL. Journal intent
+    and completion rows and recovery are abstractions of credential work;
+    Gateway correctness, same-credential serialization, abandoned states,
+    ciphertext and pagination are not proved. Existing protocol-fault tests
+    hold actual PostgreSQL COMMIT; no separate Server process is killed.
+    No universal revocation of old-process writes/calls: PER-R36 still applies.
+    Persistence/credential owners reopen on identity, lock/proof order,
+    transaction scope, startup admission or fenced-write membership changes.
