@@ -15,5 +15,5 @@
     "negative-memory": "sha256:02eea6ec659a2b4a33d4c0d033e1453d42ac6213e0db0af8c3a021637c696f02",
     "source-review": "sha256:d8a9b96f4468557c9dc447eb77551041f90542cb8b6954f2f54f37f9dd1f5807"
   },
-  "verification": "Full fixture gate passes 52 cases, 105 recorded samples and both Go packages; final lint remains before acceptance"
+  "verification": "Passed full fixture gate57 tests,105 recorded samples and both Go packages; full lint passed before acceptance. Refreshed-main lint is repeated separately."
 }
