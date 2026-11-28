@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "eval-prerequisite-evidence/v1",
+  "task": "V500-003",
+  "implementationCommit": "5716e8938ef89f017c60aafcfaa975a6a891d5f0",
+  "fixtureGate": {
+    "pythonCases": 43,
+    "recordedScoredSamples": 105,
+    "goPackages": 2,
+    "status": "passed"
+  },
+  "lint": "passed",
+  "development": {
+    "runId": "run_d439d3fc3967ee7d58bcb0282c54bfaf",
+    "released": true,
+    "flushSucceeded": true,
+    "failedOperations": 0,
+    "droppedSpans": 0,
+    "phoenixForwarding": "unavailable during pilot; original OTLP retained"
+  },
+  "manifestSha256": "sha256:ada22f0cac70f779f0b9270b6f92dd6036488b8b95fb946d49c6239f6c5fb7ef"
+}

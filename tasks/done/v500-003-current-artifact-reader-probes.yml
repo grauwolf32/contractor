@@ -6,7 +6,7 @@ epic: evals
 kind: chore
 introduced_by: V474-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: The existing controlled Runtime and independent observer recognize the current read_artifact tool selected by all authored context Eval templates.
@@ -38,3 +38,12 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A3]
+
+implementation_commit: 5716e8938ef89f017c60aafcfaa975a6a891d5f0
+verification:
+  - command: make test-context-compaction-eval-fixtures
+    result: Passed all 43 offline Python cases, 105 recorded scored samples and both Go packages; no live-model quality claim.
+  - command: make lint
+    result: Passed full repository lint, formatting, task/spec/release graph and Runtime layer checks.
+  - command: Frozen current-SDK preflight and development debug trace inspection
+    result: All 120 new expected members pass exact resource, observer and native source/task checks before dispatch. Development Run is released; complete OTLP flush has zero failed operations and zero dropped spans.
