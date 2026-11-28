@@ -17,6 +17,15 @@ context:
     - docs/spec/findings/findings.md
   design: tests/eval/project_facts/README.md
   boundary: Use ordinary native Managed Eval/Audit execution. Both arms use the same immutable binding for a mechanism/noise baseline; no instruction improvement or candidate superiority is claimed. Keep hidden expectations outside Worker materials and identify evaluator-assisted semantic review explicitly.
+  current_state: >-
+    All 36 members settled on 2026-11-28. Native Audit executions succeeded;
+    35 child Workers succeeded and one failed allocation preparation. All 22
+    immutable source receipts and attached original memories were reviewed.
+    Useful recall is 21/24; strict unsupported and spam rates are each 1/22,
+    with the unsupported classification explicitly borderline. Native human
+    reviews remain unscored. Shared stack cleanup waits for V417-010.
+  results: docs/research/project-facts-evaluation-20261128.md
+  evidence: tasks/evidence/v500-002-project-facts-results-20261128.json
 scope:
   in:
     - All six frozen cases, three repeats in both arms, exact current configuration and source pins.

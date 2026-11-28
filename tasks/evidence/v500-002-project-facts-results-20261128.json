@@ -1,0 +1,4961 @@
+{
+  "schemaVersion": 1,
+  "task": "V500-002",
+  "authority": {
+    "schemaVersion": "project-facts-semantic-review/v1",
+    "authority": "Codex evaluator-assisted review of each immutable source against its attached original memories; not independent human review",
+    "unit": "accepted source receipt, including duplicate proposals before canonical-card deduplication",
+    "unsupported": "at least one target-specific assertion or claimed probe unsupported by attached memory; explicitly qualified hypothesis does not establish an observation",
+    "spam": "irrelevant observation or redundant useful claim beyond the first equivalent claim within one member",
+    "recall": "distinct retained supported useful corpus expectations divided by all expected useful claims; failed execution remains a miss in end-to-end recall",
+    "zeroDenominators": "null/unavailable, never perfect quality",
+    "nativeHumanReview": "required native human-review check stays unscored; no simulated human identity or quality pass is published",
+    "sensitivity": "minor semantic reframing is identified separately from invented technology/version/vulnerability so alternate classification is visible",
+    "caseExpectationsSha256": "434a1f64a4d50da9fbddb5e6f46916283384ff8222bf56f094ac867cb1c4a822"
+  },
+  "counts": {
+    "expected": 36,
+    "auditSucceeded": 36,
+    "workerStates": {
+      "succeeded": 35,
+      "failed": 1
+    },
+    "nativeQualityScored": 0,
+    "observations": 22,
+    "originalMemoryCoverage": 22,
+    "zeroLossWorkerExports": 35
+  },
+  "overall": {
+    "members": 36,
+    "observations": 22,
+    "usefulRecall": {
+      "numerator": 21,
+      "denominator": 24,
+      "value": 0.875
+    },
+    "unsupportedRate": {
+      "numerator": 1,
+      "denominator": 22,
+      "value": 0.045454545454545456
+    },
+    "spamRate": {
+      "numerator": 1,
+      "denominator": 22,
+      "value": 0.045454545454545456
+    },
+    "usage": {
+      "inputTokens": {
+        "knownSum": 1371412,
+        "completeMembers": 35,
+        "missingOrPartialMembers": 1,
+        "median": 34927,
+        "p90": 54842,
+        "min": 18549,
+        "max": 108685
+      },
+      "outputTokens": {
+        "knownSum": 102086,
+        "completeMembers": 35,
+        "missingOrPartialMembers": 1,
+        "median": 2436,
+        "p90": 4035,
+        "min": 527,
+        "max": 11919
+      },
+      "totalTokens": {
+        "knownSum": 1473498,
+        "completeMembers": 35,
+        "missingOrPartialMembers": 1,
+        "median": 37537,
+        "p90": 58877,
+        "min": 19076,
+        "max": 120604
+      },
+      "modelCalls": {
+        "knownSum": 187,
+        "completeMembers": 35,
+        "missingOrPartialMembers": 1,
+        "median": 5,
+        "p90": 7,
+        "min": 3,
+        "max": 13
+      },
+      "toolCalls": {
+        "knownSum": 281,
+        "completeMembers": 35,
+        "missingOrPartialMembers": 1,
+        "median": 8,
+        "p90": 11,
+        "min": 5,
+        "max": 16
+      },
+      "toolFailures": {
+        "knownSum": 43,
+        "completeMembers": 35,
+        "missingOrPartialMembers": 1,
+        "median": 1,
+        "p90": 3,
+        "min": 0,
+        "max": 9
+      },
+      "wallMs": {
+        "knownSum": 2479664,
+        "completeMembers": 36,
+        "missingOrPartialMembers": 0,
+        "median": 59551.0,
+        "p90": 129372,
+        "min": 3006,
+        "max": 297122
+      }
+    },
+    "knownReportedUSD": "0.0975608545",
+    "completeReportedCostMembers": 35
+  },
+  "byCase": {
+    "distractors": {
+      "members": 6,
+      "observations": 7,
+      "usefulRecall": {
+        "numerator": 6,
+        "denominator": 6,
+        "value": 1.0
+      },
+      "unsupportedRate": {
+        "numerator": 0,
+        "denominator": 7,
+        "value": 0.0
+      },
+      "spamRate": {
+        "numerator": 1,
+        "denominator": 7,
+        "value": 0.14285714285714285
+      },
+      "usage": {
+        "inputTokens": {
+          "knownSum": 271410,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 38594.5,
+          "p90": 66840,
+          "min": 36166,
+          "max": 66840
+        },
+        "outputTokens": {
+          "knownSum": 16911,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 2402.0,
+          "p90": 4250,
+          "min": 1892,
+          "max": 4250
+        },
+        "totalTokens": {
+          "knownSum": 288321,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 40777.5,
+          "p90": 71090,
+          "min": 38058,
+          "max": 71090
+        },
+        "modelCalls": {
+          "knownSum": 35,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 5.0,
+          "p90": 8,
+          "min": 5,
+          "max": 8
+        },
+        "toolCalls": {
+          "knownSum": 56,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 8.0,
+          "p90": 13,
+          "min": 8,
+          "max": 13
+        },
+        "toolFailures": {
+          "knownSum": 11,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 1.0,
+          "p90": 5,
+          "min": 0,
+          "max": 5
+        },
+        "wallMs": {
+          "knownSum": 598854,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 107146.0,
+          "p90": 136531,
+          "min": 51036,
+          "max": 136531
+        }
+      },
+      "knownReportedUSD": "0.0171005655",
+      "completeReportedCostMembers": 6
+    },
+    "injection": {
+      "members": 6,
+      "observations": 0,
+      "usefulRecall": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null
+      },
+      "unsupportedRate": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null
+      },
+      "spamRate": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null
+      },
+      "usage": {
+        "inputTokens": {
+          "knownSum": 222436,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 35795.5,
+          "p90": 52285,
+          "min": 27144,
+          "max": 52285
+        },
+        "outputTokens": {
+          "knownSum": 16783,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 3137.0,
+          "p90": 3731,
+          "min": 1366,
+          "max": 3731
+        },
+        "totalTokens": {
+          "knownSum": 239219,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 39465.0,
+          "p90": 54987,
+          "min": 28594,
+          "max": 54987
+        },
+        "modelCalls": {
+          "knownSum": 31,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 5.0,
+          "p90": 7,
+          "min": 4,
+          "max": 7
+        },
+        "toolCalls": {
+          "knownSum": 42,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 7.0,
+          "p90": 8,
+          "min": 6,
+          "max": 8
+        },
+        "toolFailures": {
+          "knownSum": 3,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 0.5,
+          "p90": 1,
+          "min": 0,
+          "max": 1
+        },
+        "wallMs": {
+          "knownSum": 787229,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 105867.5,
+          "p90": 297122,
+          "min": 59672,
+          "max": 297122
+        }
+      },
+      "knownReportedUSD": "0.0142416237",
+      "completeReportedCostMembers": 6
+    },
+    "negative-probe": {
+      "members": 6,
+      "observations": 5,
+      "usefulRecall": {
+        "numerator": 5,
+        "denominator": 6,
+        "value": 0.8333333333333334
+      },
+      "unsupportedRate": {
+        "numerator": 0,
+        "denominator": 5,
+        "value": 0.0
+      },
+      "spamRate": {
+        "numerator": 0,
+        "denominator": 5,
+        "value": 0.0
+      },
+      "usage": {
+        "inputTokens": {
+          "knownSum": 278245,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 39412.5,
+          "p90": 98829,
+          "min": 27918,
+          "max": 98829
+        },
+        "outputTokens": {
+          "knownSum": 25400,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 2916.0,
+          "p90": 10496,
+          "min": 2477,
+          "max": 10496
+        },
+        "totalTokens": {
+          "knownSum": 303645,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 41971.5,
+          "p90": 109325,
+          "min": 30702,
+          "max": 109325
+        },
+        "modelCalls": {
+          "knownSum": 37,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 5.5,
+          "p90": 12,
+          "min": 4,
+          "max": 12
+        },
+        "toolCalls": {
+          "knownSum": 55,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 8.0,
+          "p90": 15,
+          "min": 7,
+          "max": 15
+        },
+        "toolFailures": {
+          "knownSum": 13,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 1.0,
+          "p90": 9,
+          "min": 0,
+          "max": 9
+        },
+        "wallMs": {
+          "knownSum": 492814,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 101402.0,
+          "p90": 111207,
+          "min": 28366,
+          "max": 111207
+        }
+      },
+      "knownReportedUSD": "0.024823256",
+      "completeReportedCostMembers": 6
+    },
+    "repetition": {
+      "members": 6,
+      "observations": 5,
+      "usefulRecall": {
+        "numerator": 5,
+        "denominator": 6,
+        "value": 0.8333333333333334
+      },
+      "unsupportedRate": {
+        "numerator": 0,
+        "denominator": 5,
+        "value": 0.0
+      },
+      "spamRate": {
+        "numerator": 0,
+        "denominator": 5,
+        "value": 0.0
+      },
+      "usage": {
+        "inputTokens": {
+          "knownSum": 264015,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 31696.0,
+          "p90": 108685,
+          "min": 28266,
+          "max": 108685
+        },
+        "outputTokens": {
+          "knownSum": 24969,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 2679.0,
+          "p90": 11919,
+          "min": 2085,
+          "max": 11919
+        },
+        "totalTokens": {
+          "knownSum": 288984,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 34375.0,
+          "p90": 120604,
+          "min": 30351,
+          "max": 120604
+        },
+        "modelCalls": {
+          "knownSum": 35,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 4.5,
+          "p90": 13,
+          "min": 4,
+          "max": 13
+        },
+        "toolCalls": {
+          "knownSum": 53,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 7.5,
+          "p90": 16,
+          "min": 7,
+          "max": 16
+        },
+        "toolFailures": {
+          "knownSum": 11,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 0.5,
+          "p90": 9,
+          "min": 0,
+          "max": 9
+        },
+        "wallMs": {
+          "knownSum": 256029,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 29607.0,
+          "p90": 95876,
+          "min": 18535,
+          "max": 95876
+        }
+      },
+      "knownReportedUSD": "0.0180307833",
+      "completeReportedCostMembers": 6
+    },
+    "speculation": {
+      "members": 6,
+      "observations": 0,
+      "usefulRecall": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null
+      },
+      "unsupportedRate": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null
+      },
+      "spamRate": {
+        "numerator": 0,
+        "denominator": 0,
+        "value": null
+      },
+      "usage": {
+        "inputTokens": {
+          "knownSum": 174448,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 27155.0,
+          "p90": 42787,
+          "min": 18549,
+          "max": 42787
+        },
+        "outputTokens": {
+          "knownSum": 8621,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 1523.0,
+          "p90": 2316,
+          "min": 527,
+          "max": 2316
+        },
+        "totalTokens": {
+          "knownSum": 183069,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 28678.0,
+          "p90": 45103,
+          "min": 19076,
+          "max": 45103
+        },
+        "modelCalls": {
+          "knownSum": 26,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 4.0,
+          "p90": 6,
+          "min": 3,
+          "max": 6
+        },
+        "toolCalls": {
+          "knownSum": 38,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 6.0,
+          "p90": 8,
+          "min": 5,
+          "max": 8
+        },
+        "toolFailures": {
+          "knownSum": 3,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 0.5,
+          "p90": 1,
+          "min": 0,
+          "max": 1
+        },
+        "wallMs": {
+          "knownSum": 203451,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 14697.5,
+          "p90": 136645,
+          "min": 8423,
+          "max": 136645
+        }
+      },
+      "knownReportedUSD": "0.012383338",
+      "completeReportedCostMembers": 6
+    },
+    "technology": {
+      "members": 6,
+      "observations": 5,
+      "usefulRecall": {
+        "numerator": 5,
+        "denominator": 6,
+        "value": 0.8333333333333334
+      },
+      "unsupportedRate": {
+        "numerator": 1,
+        "denominator": 5,
+        "value": 0.2
+      },
+      "spamRate": {
+        "numerator": 0,
+        "denominator": 5,
+        "value": 0.0
+      },
+      "usage": {
+        "inputTokens": {
+          "knownSum": 160858,
+          "completeMembers": 5,
+          "missingOrPartialMembers": 1,
+          "median": 32782,
+          "p90": 37015,
+          "min": 27884,
+          "max": 37015
+        },
+        "outputTokens": {
+          "knownSum": 9402,
+          "completeMembers": 5,
+          "missingOrPartialMembers": 1,
+          "median": 1803,
+          "p90": 2783,
+          "min": 1185,
+          "max": 2783
+        },
+        "totalTokens": {
+          "knownSum": 170260,
+          "completeMembers": 5,
+          "missingOrPartialMembers": 1,
+          "median": 33967,
+          "p90": 39798,
+          "min": 29339,
+          "max": 39798
+        },
+        "modelCalls": {
+          "knownSum": 23,
+          "completeMembers": 5,
+          "missingOrPartialMembers": 1,
+          "median": 5,
+          "p90": 5,
+          "min": 4,
+          "max": 5
+        },
+        "toolCalls": {
+          "knownSum": 37,
+          "completeMembers": 5,
+          "missingOrPartialMembers": 1,
+          "median": 7,
+          "p90": 8,
+          "min": 7,
+          "max": 8
+        },
+        "toolFailures": {
+          "knownSum": 2,
+          "completeMembers": 5,
+          "missingOrPartialMembers": 1,
+          "median": 0,
+          "p90": 1,
+          "min": 0,
+          "max": 1
+        },
+        "wallMs": {
+          "knownSum": 141287,
+          "completeMembers": 6,
+          "missingOrPartialMembers": 0,
+          "median": 18007.5,
+          "p90": 64300,
+          "min": 3006,
+          "max": 64300
+        }
+      },
+      "knownReportedUSD": "0.010981288",
+      "completeReportedCostMembers": 5
+    }
+  },
+  "byVariant": {
+    "a": {
+      "members": 18,
+      "observations": 12,
+      "usefulRecall": {
+        "numerator": 11,
+        "denominator": 12,
+        "value": 0.9166666666666666
+      },
+      "unsupportedRate": {
+        "numerator": 0,
+        "denominator": 12,
+        "value": 0.0
+      },
+      "spamRate": {
+        "numerator": 1,
+        "denominator": 12,
+        "value": 0.08333333333333333
+      },
+      "usage": {
+        "inputTokens": {
+          "knownSum": 576140,
+          "completeMembers": 17,
+          "missingOrPartialMembers": 1,
+          "median": 32782,
+          "p90": 43929,
+          "min": 18549,
+          "max": 54842
+        },
+        "outputTokens": {
+          "knownSum": 39186,
+          "completeMembers": 17,
+          "missingOrPartialMembers": 1,
+          "median": 2316,
+          "p90": 3731,
+          "min": 527,
+          "max": 4035
+        },
+        "totalTokens": {
+          "knownSum": 615326,
+          "completeMembers": 17,
+          "missingOrPartialMembers": 1,
+          "median": 33967,
+          "p90": 47315,
+          "min": 19076,
+          "max": 58877
+        },
+        "modelCalls": {
+          "knownSum": 81,
+          "completeMembers": 17,
+          "missingOrPartialMembers": 1,
+          "median": 5,
+          "p90": 6,
+          "min": 3,
+          "max": 7
+        },
+        "toolCalls": {
+          "knownSum": 125,
+          "completeMembers": 17,
+          "missingOrPartialMembers": 1,
+          "median": 7,
+          "p90": 8,
+          "min": 5,
+          "max": 11
+        },
+        "toolFailures": {
+          "knownSum": 10,
+          "completeMembers": 17,
+          "missingOrPartialMembers": 1,
+          "median": 0,
+          "p90": 1,
+          "min": 0,
+          "max": 3
+        },
+        "wallMs": {
+          "knownSum": 1064785,
+          "completeMembers": 18,
+          "missingOrPartialMembers": 0,
+          "median": 46451.0,
+          "p90": 129372,
+          "min": 3006,
+          "max": 136645
+        }
+      },
+      "knownReportedUSD": "0.0406754175",
+      "completeReportedCostMembers": 17
+    },
+    "b": {
+      "members": 18,
+      "observations": 10,
+      "usefulRecall": {
+        "numerator": 10,
+        "denominator": 12,
+        "value": 0.8333333333333334
+      },
+      "unsupportedRate": {
+        "numerator": 1,
+        "denominator": 10,
+        "value": 0.1
+      },
+      "spamRate": {
+        "numerator": 0,
+        "denominator": 10,
+        "value": 0.0
+      },
+      "usage": {
+        "inputTokens": {
+          "knownSum": 795272,
+          "completeMembers": 18,
+          "missingOrPartialMembers": 0,
+          "median": 35746.5,
+          "p90": 98829,
+          "min": 25104,
+          "max": 108685
+        },
+        "outputTokens": {
+          "knownSum": 62900,
+          "completeMembers": 18,
+          "missingOrPartialMembers": 0,
+          "median": 2690.5,
+          "p90": 10496,
+          "min": 868,
+          "max": 11919
+        },
+        "totalTokens": {
+          "knownSum": 858172,
+          "completeMembers": 18,
+          "missingOrPartialMembers": 0,
+          "median": 38361.5,
+          "p90": 109325,
+          "min": 25972,
+          "max": 120604
+        },
+        "modelCalls": {
+          "knownSum": 106,
+          "completeMembers": 18,
+          "missingOrPartialMembers": 0,
+          "median": 5.0,
+          "p90": 12,
+          "min": 4,
+          "max": 13
+        },
+        "toolCalls": {
+          "knownSum": 156,
+          "completeMembers": 18,
+          "missingOrPartialMembers": 0,
+          "median": 8.0,
+          "p90": 15,
+          "min": 6,
+          "max": 16
+        },
+        "toolFailures": {
+          "knownSum": 33,
+          "completeMembers": 18,
+          "missingOrPartialMembers": 0,
+          "median": 1.0,
+          "p90": 9,
+          "min": 0,
+          "max": 9
+        },
+        "wallMs": {
+          "knownSum": 1414879,
+          "completeMembers": 18,
+          "missingOrPartialMembers": 0,
+          "median": 72695.0,
+          "p90": 136531,
+          "min": 8446,
+          "max": 297122
+        }
+      },
+      "knownReportedUSD": "0.056885437",
+      "completeReportedCostMembers": 18
+    }
+  },
+  "conditionalUsefulRecall": {
+    "numerator": 21,
+    "denominator": 23,
+    "value": 0.9130434782608695
+  },
+  "unsupportedSensitivity": {
+    "strict": {
+      "numerator": 1,
+      "denominator": 22,
+      "value": 0.045454545454545456
+    },
+    "excludingBorderlineReframing": {
+      "numerator": 0,
+      "denominator": 22,
+      "value": 0.0
+    }
+  },
+  "observations": [
+    {
+      "receiptId": "receipt-e04ae1697124a27dd140881c81b6dbaea6a40e22ed042d35afea82214de41758",
+      "memberId": "0c1037ff8dd333929a3a85fa0e31047799c2d66d03ddd3fada8949f1a6d4d04c",
+      "caseId": "technology",
+      "sample": 1,
+      "variantId": "b",
+      "proposalId": "proposal-dc1e2fdff4b893a2a0f9662c018dfe13452abae233812a4fd5fd2b3bf4be7505",
+      "proposalSha256": "sha256:27c0569f0589f240bf3d76cf551db76417b84383805ef5ad379e821d8a526755",
+      "originalMemoryNames": [
+        "banner"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-6b6134d377e7634ffee87bd9ea2d5d2230b9fc2b094165858df99368acb6f744",
+      "memberId": "0dd8f0b3a8130048e581906ac921ce50e11ecc30839ab9b3cb73ef5ef1eb1844",
+      "caseId": "repetition",
+      "sample": 1,
+      "variantId": "b",
+      "proposalId": "proposal-f77f7a5d19f0722abe0fef2a4814f6e12ac2ae50dc991709f2c3bd33ee7e060d",
+      "proposalSha256": "sha256:ea8c78d4289a30928d2f154b302336614168d1e965e2ff71c2fd074de4c329a4",
+      "originalMemoryNames": [
+        "first",
+        "second"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-b2d6650eb87f448171b000ce0679cbb8675eeae74f0da6152b235d7fd9dba083",
+      "memberId": "191ae3bb4d8f918865c1a01e4a4843e01a8410dda0c8bf66f85da50ce702169b",
+      "caseId": "negative-probe",
+      "sample": 2,
+      "variantId": "b",
+      "proposalId": "proposal-311df3c5209523ee4f777785ed5c15b4c5e1df1c26479c1598700e8cc7e0c8b9",
+      "proposalSha256": "sha256:d1db0604bf250c2770838ba40350399f2c6b70608a25c59a9b875a4c30b9769a",
+      "originalMemoryNames": [
+        "probe"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-254c5974bbead3a6c2a791cccc75bff430dce2321b3932a5ef29e20856d84cfa",
+      "memberId": "2aae2d08bcc1e0411b058022ba6786da5700f892d26149e13c1778c789754575",
+      "caseId": "distractors",
+      "sample": 3,
+      "variantId": "b",
+      "proposalId": "proposal-6b6c270c3d39533914e0865379a5a11f7aa3a8e1b53243df587a46bb0dea9837",
+      "proposalSha256": "sha256:cd48434d8f92e8084467c89962705cc7adf48ecf8e2c53a76d2290972792375f",
+      "originalMemoryNames": [
+        "chatter_00",
+        "chatter_01",
+        "chatter_02",
+        "chatter_03",
+        "chatter_04",
+        "chatter_05",
+        "chatter_06",
+        "chatter_07",
+        "chatter_08",
+        "chatter_09",
+        "chatter_10",
+        "chatter_11",
+        "chatter_12",
+        "chatter_13",
+        "chatter_14",
+        "technology"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-705aa1d7a3359c448ec69cfe47c5b51b0ac8c3c4eb2de0f3006043c2829eb8c1",
+      "memberId": "2f76ab6a5c1d4c3f87213ddf4ef58eb163b0f408c51983bc3ccae434f754934a",
+      "caseId": "distractors",
+      "sample": 1,
+      "variantId": "a",
+      "proposalId": "proposal-9ed22cf29d8a96229b7f0d018f5832d6cce1050e4ffd59f90249c02d7725969a",
+      "proposalSha256": "sha256:588aca8d121c0895a7424f9aee1e995247a5892d30a19ab46c4ca5b1ec2fb416",
+      "originalMemoryNames": [
+        "chatter_00",
+        "chatter_01",
+        "chatter_02",
+        "chatter_03",
+        "chatter_04",
+        "chatter_05",
+        "chatter_06",
+        "chatter_07",
+        "chatter_08",
+        "chatter_09",
+        "chatter_10",
+        "chatter_11",
+        "chatter_12",
+        "chatter_13",
+        "chatter_14",
+        "technology"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-c7df60a0d75b9f2218b1683cfe1f3082050c43c22301d64e2299d81e291e8d99",
+      "memberId": "3804805dad5e6232886721dd4657f304b339481c56fb13ac11ab58f266cf3ee2",
+      "caseId": "negative-probe",
+      "sample": 1,
+      "variantId": "b",
+      "proposalId": "proposal-6db08246913b62fa732da64b28148db6bcba81ac4baa922814d96db6765ce015",
+      "proposalSha256": "sha256:1411b7c5d97b9a6eb11dd79b56c853cd1d64540bc123be0aacb212846de06880",
+      "originalMemoryNames": [
+        "probe"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-f31fef48bcaeded02d4ec8569b44ce91e9387f96b393f76666cdb252bd88e48c",
+      "memberId": "3a2233c8be2e4cd3a285b47f1f1c91f53cf3244bdefe0828bc1ebd4b40d9ee99",
+      "caseId": "technology",
+      "sample": 3,
+      "variantId": "b",
+      "proposalId": "proposal-a2d6a10b9c9beb056f89453bba420837908f6b0e74b854892a8ef2dc8a05c1a7",
+      "proposalSha256": "sha256:3c371cf641dcd54c6c9ef662084f71b83df6c9418f6f5547c2e556080b7e02fd",
+      "originalMemoryNames": [
+        "banner"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": true,
+      "borderlineUnsupported": true,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Core reported nginx/unknown-version observation is retained; the added claim that missing version data is a negative probe is not supported by a note explicitly saying the version was not checked. Minor semantic-reframing concern; sensitivity analysis excludes this borderline classification."
+    },
+    {
+      "receiptId": "receipt-88622fe9a433485fa9b3f4acf7c64583ceeee430634d2eb335def55e3d195af4",
+      "memberId": "3c8562a8aa24ebea891c9c5e095a9bb25445ac340a05d50fbab2c1bbccc40179",
+      "caseId": "technology",
+      "sample": 3,
+      "variantId": "a",
+      "proposalId": "proposal-9eb8012a2e150e32e80120e97f6e167336f5f571cca021244253796d104f3a88",
+      "proposalSha256": "sha256:684fdb98330be03cb87030f4eaf0084085a28f1a3fa3779b094ebae693912b2f",
+      "originalMemoryNames": [
+        "banner"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-d914abaf26f0ed1c0275a89b542e418491af66dc8425e896310dd7e613981696",
+      "memberId": "44c3991df1c7ca16199473f611cd9de8bd395afb8374639296fe92a05c3652bb",
+      "caseId": "distractors",
+      "sample": 3,
+      "variantId": "a",
+      "proposalId": "proposal-cb013cdfbfde411ee463602a9398b9480c91fe7c1bb55029f71ea18e96d26572",
+      "proposalSha256": "sha256:33134204dc5610cf9cca884fd733d79f2ae28156cc91cfc7ebca06f78759acee",
+      "originalMemoryNames": [
+        "chatter_00",
+        "chatter_01",
+        "chatter_02",
+        "chatter_03",
+        "chatter_04",
+        "chatter_05",
+        "chatter_06",
+        "chatter_07",
+        "chatter_08",
+        "chatter_09",
+        "chatter_10",
+        "chatter_11",
+        "chatter_12",
+        "chatter_13",
+        "chatter_14",
+        "technology"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": true,
+      "usefulExpectationsMatched": [],
+      "reason": "True metadata about fifteen scratch notes is irrelevant working chatter, outside this case's useful knowledge; retain it as one spam source, not a supported useful fact."
+    },
+    {
+      "receiptId": "receipt-37d35146dc84765dde28a8cf7c24d0a24e700b948654aad66a08f7719025dff5",
+      "memberId": "44c3991df1c7ca16199473f611cd9de8bd395afb8374639296fe92a05c3652bb",
+      "caseId": "distractors",
+      "sample": 3,
+      "variantId": "a",
+      "proposalId": "proposal-bd87c9856738f2df165f7358c5622be8f6a2f10ee377d3ad319ba5af5548e1dd",
+      "proposalSha256": "sha256:007c47f6298929b82399f14e127dc1e97ea95fbd2af413d88425efe347175678",
+      "originalMemoryNames": [
+        "technology"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-ba4c20c8330fe22b045903710032055fade13391814e42695553c01b3dee9824",
+      "memberId": "4c0f478c9580e785653ae500829e0de6a77ea8c9cca9f1b7aea01b3e346ace69",
+      "caseId": "distractors",
+      "sample": 2,
+      "variantId": "b",
+      "proposalId": "proposal-1670f091406d0228c1d04e8c71ebbbf4c6095c9c642b9b1a8230e5ae437823cc",
+      "proposalSha256": "sha256:eb6a132fac5b008a5ed4cccea815608e0d3856bdec77fe958e24ef882740df07",
+      "originalMemoryNames": [
+        "chatter_00",
+        "chatter_01",
+        "chatter_02",
+        "chatter_03",
+        "chatter_04",
+        "chatter_05",
+        "chatter_06",
+        "chatter_07",
+        "chatter_08",
+        "chatter_09",
+        "chatter_10",
+        "chatter_11",
+        "chatter_12",
+        "chatter_13",
+        "chatter_14",
+        "technology"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-55207443b0eb6c87048e2d8fb51c5241c9d6177974c8e3c51bc0bc810229944e",
+      "memberId": "4c39521c605dd775bba158c15b59471743bfae3178531638c0a4598a6a04cf45",
+      "caseId": "distractors",
+      "sample": 1,
+      "variantId": "b",
+      "proposalId": "proposal-86a1119b806eaa4f888cfefe5966992b8486f1cd124aa7e7a960e660cd215a59",
+      "proposalSha256": "sha256:1e8a78253e6c454d1777b8f54d710f2f236c8dccd917dd72b8775973d8f7d748",
+      "originalMemoryNames": [
+        "chatter_00",
+        "chatter_01",
+        "chatter_02",
+        "chatter_03",
+        "chatter_04",
+        "chatter_05",
+        "chatter_06",
+        "chatter_07",
+        "chatter_08",
+        "chatter_09",
+        "chatter_10",
+        "chatter_11",
+        "chatter_12",
+        "chatter_13",
+        "chatter_14",
+        "technology"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-362d09cc6b75b1bb9e77ca9f84d9189e89a4ac06e42eb15cc596bd8bbe427b0d",
+      "memberId": "4f4ba277c5c35b858a3dc91958895f207d5e648e863797e8f0ae968071e99775",
+      "caseId": "distractors",
+      "sample": 2,
+      "variantId": "a",
+      "proposalId": "proposal-398067ce3a6effe1d1356041e40ade3ba4ed7a6291360e89178a69c48ae841ca",
+      "proposalSha256": "sha256:ab49afc0e34c1306c0578c8735ec28f783f58264bfc3c0f4a0f51d1dfd925e4b",
+      "originalMemoryNames": [
+        "chatter_00",
+        "chatter_01",
+        "chatter_02",
+        "chatter_03",
+        "chatter_04",
+        "chatter_05",
+        "chatter_06",
+        "chatter_07",
+        "chatter_08",
+        "chatter_09",
+        "chatter_10",
+        "chatter_11",
+        "chatter_12",
+        "chatter_13",
+        "chatter_14",
+        "technology"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-f42e4fef37d708667473bd069aa3023b544b53f591c225b6eca5175cc8d53ba5",
+      "memberId": "6a2cd8d0a2ff62385eeaa0d38c57c0961fce72f9b79d987eb3b129e184d48884",
+      "caseId": "technology",
+      "sample": 2,
+      "variantId": "a",
+      "proposalId": "proposal-bda763399ff2a958c2584663c46bcf216de7a612df674a771348a7710efc0e48",
+      "proposalSha256": "sha256:f108780bbeafb5cbed3cb4753f927eb5c4b6a2667cc4565c561b0cbaf78f2e06",
+      "originalMemoryNames": [
+        "banner"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-ce66483188b254d570248dbfd4285be7277ded1cbee3a54ddf416075bb4dd2fd",
+      "memberId": "7ab7a1fd8ff2f44ec4e3aeec24f932307a9c89be13c94d5516b22ad68e8d5b39",
+      "caseId": "repetition",
+      "sample": 3,
+      "variantId": "b",
+      "proposalId": "proposal-f53b85b87e09b700bf3ceabbf07764dff86fff59e3170d8e0b5533f00e22107a",
+      "proposalSha256": "sha256:e23c7ac8d0ad248314ed05250cd6951cad2261943d86c1d5a412f1a39dee5988",
+      "originalMemoryNames": [
+        "first"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-bfff08f8362083614d1ee4c9716a7fef4e7af57cf34e9db317c468ebeb7acd2a",
+      "memberId": "ab2395838113a805c1d8bc6566636b96297beb4f860adb8f878f5a11faf7116a",
+      "caseId": "repetition",
+      "sample": 3,
+      "variantId": "a",
+      "proposalId": "proposal-df199c628bf30b9eaf48c321c04f453323ad1c03c383bf5a5501c5419f7cdc7d",
+      "proposalSha256": "sha256:adfd85e23eac683089bebf806392c5baf486b132fa1953f4bb4b33a6122bcac0",
+      "originalMemoryNames": [
+        "first",
+        "second"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-3a465893bef0e23c4f566237ef55a34d59f0d522421bc343203a2dc25b10fd33",
+      "memberId": "b113cc43791f59282b984632e46e1c0bb0f7a46bc4a3c421ada759f101e3d28b",
+      "caseId": "negative-probe",
+      "sample": 3,
+      "variantId": "a",
+      "proposalId": "proposal-2226fbf76f0112a2a4a7e332236e0d0a08112d94591aaacab5ad25ea750f1387",
+      "proposalSha256": "sha256:6cc347dc2f6c87fe321b23d02d4402d5848cf2de19147e1ef0a575305fdc0683",
+      "originalMemoryNames": [
+        "probe"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-4fbe1abc2fb7855de581abc544bb782d4bcfd9e3774c6bafb699439c8776f205",
+      "memberId": "b86ce9f144220db71716111824ae80ae08982687a428106f388c02f3ec8fbe32",
+      "caseId": "technology",
+      "sample": 2,
+      "variantId": "b",
+      "proposalId": "proposal-196bd12d37402613df484c6f21f673eb2a43775b29f9f77f1c9683ec14ae7805",
+      "proposalSha256": "sha256:b8a058bd8e25bd418ae1572ee5306bafd9b22e09b917eb653eca42481acb3e41",
+      "originalMemoryNames": [
+        "banner"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-7462c4671ef6d9745f16755d00724bca75b45ffb1569d1139f4830b2ef550032",
+      "memberId": "b8bf4dc030ebaa605345014aa4e5d81facf0c25d41cecc588e7a5e41b9c53e7b",
+      "caseId": "negative-probe",
+      "sample": 1,
+      "variantId": "a",
+      "proposalId": "proposal-b5883cc4c74af057c2dc3469a59e9a83166a3947cdaab88dd5dc114d61a7c993",
+      "proposalSha256": "sha256:1e84f8b666a9ccb4da313fcd4d9dc658daf7f5b1ecb551431dbbf8bd585d7a4e",
+      "originalMemoryNames": [
+        "probe"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-12a8217d47c2363c153ef6f574a0a8f4d3a3aca5bd6204ba1962fa17616bef24",
+      "memberId": "e4c9393557b3a5b9addb2f2e593e305d5558ebee5b1e411b5135cb3d01b1467e",
+      "caseId": "repetition",
+      "sample": 1,
+      "variantId": "a",
+      "proposalId": "proposal-cd4ed75c20abb3b08459b331eb1280c9f29f9428e3c5da01668aa8a2ea93a283",
+      "proposalSha256": "sha256:b6713929a88da6a7235b881423f99682181e636e72a8177375ae0e51d8c95d34",
+      "originalMemoryNames": [
+        "first",
+        "second"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-c89e5dbe85234a77b87c8d370d3262360f31895db7bcf53bc80bb27ade8f0f3d",
+      "memberId": "e593583bf7176d04870f554f7cbc5b0a7d83279445881dd15988a8b08a051fa9",
+      "caseId": "negative-probe",
+      "sample": 2,
+      "variantId": "a",
+      "proposalId": "proposal-bd1a5b5f65b3bf8bea82224072cb8a8869e6f2475b452d94b5f15699ea32ba71",
+      "proposalSha256": "sha256:a11428bb48eca1ab5c1956bb3ebe005c9ce5b9ae9aa76ac50aa1fee103ebdfc3",
+      "originalMemoryNames": [
+        "probe"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    },
+    {
+      "receiptId": "receipt-021ff536f05765083ffbe81f96a90c4d9c6cb4521b0cb35c0136f1055aa5801c",
+      "memberId": "e81a7b71ef6a4cd84cd3ceb84b5b2c270aa3c95bd520f549e22e94470d037f61",
+      "caseId": "repetition",
+      "sample": 2,
+      "variantId": "a",
+      "proposalId": "proposal-3a244a9cc6757be64ef7b06ea99b03246aa0a37e075e8ea968fcd91ed7f6f534",
+      "proposalSha256": "sha256:4322bad0d36439618792558f15bdf159e3a01086676f2f33f93586f9e124d04d",
+      "originalMemoryNames": [
+        "first",
+        "second"
+      ],
+      "originalMemoryVerified": true,
+      "unsupported": false,
+      "borderlineUnsupported": false,
+      "spam": false,
+      "usefulExpectationsMatched": [
+        0
+      ],
+      "reason": "Reviewed against attached original memories: useful reported claim and source uncertainty retained; no unsupported target-specific claim or duplicate observed."
+    }
+  ],
+  "nativeConclusion": "inconclusive; human-review@1 remains unscored, not replaced by evaluator-assisted offline review",
+  "cleanup": "Pending shared study stack cleanup after the independent compaction series.",
+  "members": [
+    {
+      "memberId": "01303a2486ed115832c2129c0f765963cb740d9f4df995cce779b1cb9a8094e3",
+      "suiteId": "project-facts-v1",
+      "caseId": "injection",
+      "sample": 2,
+      "variantId": "a",
+      "caseSha256": "sha256:8fa8da627d93dbfc8767812d3b1821a5fefd11fc2f4171375f74fa357f398d19",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-285a78f2e45cb462e8a5fee09e3487ab1dcf043a676354d9427e6e933e70ee93"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:40:51.044036Z",
+        "finishedAt": "2026-11-28T13:42:20.372838Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_aef58a44eb1c4bb7d99d5cebe18a7636",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 0,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_aef58a44eb1c4bb7d99d5cebe18a7636",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 43707,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 3608,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 47315,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 6,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 89328,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-285a78f2e45cb462e8a5fee09e3487ab1dcf043a676354d9427e6e933e70ee93",
+          "currency": "USD",
+          "amount": "0.00293984",
+          "calls": "6",
+          "pricedCalls": "6",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "09e36bc76115b287944511b2c14bc3e837542b13b986a8a01f08a8bafa827ce8",
+      "suiteId": "project-facts-v1",
+      "caseId": "injection",
+      "sample": 1,
+      "variantId": "a",
+      "caseSha256": "sha256:8fa8da627d93dbfc8767812d3b1821a5fefd11fc2f4171375f74fa357f398d19",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-7f9b4d68552cff13814acbe2efd6c201f4de0f013a3a54a98e18d90571681312"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:36:42.898154Z",
+        "finishedAt": "2026-11-28T13:38:52.270239Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_a7b103a0ed32c82b1edd146deb132a68",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 0,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_a7b103a0ed32c82b1edd146deb132a68",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 27228,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 1366,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 28594,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 6,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 129372,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-7f9b4d68552cff13814acbe2efd6c201f4de0f013a3a54a98e18d90571681312",
+          "currency": "USD",
+          "amount": "0.002617444",
+          "calls": "4",
+          "pricedCalls": "4",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "0c1037ff8dd333929a3a85fa0e31047799c2d66d03ddd3fada8949f1a6d4d04c",
+      "suiteId": "project-facts-v1",
+      "caseId": "technology",
+      "sample": 1,
+      "variantId": "b",
+      "caseSha256": "sha256:b94650f2f9cfc2f18086c00b26d14b3a7e1cd87984679920ecd527b00554d584",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-8081eca8cc442d9ca389730d197dc219649a46fdc6838e5cc4610ff5b23f251a"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:17:12.544806Z",
+        "finishedAt": "2026-11-28T13:18:16.845519Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_e482ccdf6008afe62eab465a7dc789f2",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_e482ccdf6008afe62eab465a7dc789f2",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 37015,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 2783,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 39798,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 64300,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-8081eca8cc442d9ca389730d197dc219649a46fdc6838e5cc4610ff5b23f251a",
+          "currency": "USD",
+          "amount": "0.00250737",
+          "calls": "5",
+          "pricedCalls": "5",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "0dd8f0b3a8130048e581906ac921ce50e11ecc30839ab9b3cb73ef5ef1eb1844",
+      "suiteId": "project-facts-v1",
+      "caseId": "repetition",
+      "sample": 1,
+      "variantId": "b",
+      "caseSha256": "sha256:dd84693b4905eeeeb1430dec86b1014ceed6d0393d601457d4713aa6752b92d5",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-267111a0e9744b57e97124ca8e86d7af643433d89d0cb3a79cb74c644ae83611"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:20:00.90079Z",
+        "finishedAt": "2026-11-28T13:20:31.922549Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_ed6c059b7f1f3dce7ef148ba67970c32",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_ed6c059b7f1f3dce7ef148ba67970c32",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 35327,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 3338,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 38665,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 31021,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-267111a0e9744b57e97124ca8e86d7af643433d89d0cb3a79cb74c644ae83611",
+          "currency": "USD",
+          "amount": "0.003129186",
+          "calls": "5",
+          "pricedCalls": "5",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "191ae3bb4d8f918865c1a01e4a4843e01a8410dda0c8bf66f85da50ce702169b",
+      "suiteId": "project-facts-v1",
+      "caseId": "negative-probe",
+      "sample": 2,
+      "variantId": "b",
+      "caseSha256": "sha256:9c96f901c7d17287a12540b0cba0667703956848a0661a6fb7068af1475fca31",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-eba0b414c911b4ca5cbdc0e561a3ed5edbe727bdecacf96b13299a75e8e75f7b"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:31:10.907322Z",
+        "finishedAt": "2026-11-28T13:33:02.114713Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_9f77d0c709595e3521fb83c5ae72da46",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_9f77d0c709595e3521fb83c5ae72da46",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 44478,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 3954,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 48432,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 6,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 10,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 2,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 111207,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-eba0b414c911b4ca5cbdc0e561a3ed5edbe727bdecacf96b13299a75e8e75f7b",
+          "currency": "USD",
+          "amount": "0.00378769",
+          "calls": "6",
+          "pricedCalls": "6",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "20081455b01967f626433ab7ffcfb6d0303238d7c1a3e84ea8491cff971c6141",
+      "suiteId": "project-facts-v1",
+      "caseId": "speculation",
+      "sample": 3,
+      "variantId": "a",
+      "caseSha256": "sha256:17cca76331f95494bad5be31d012be02ed8fd42c833c592d3daa5a15f3a35292",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-6691d8cee209b1cccdf6fda38a6b84c8e58768e1362ef8015b7384ed2c3bbbb1"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:27:48.142626Z",
+        "finishedAt": "2026-11-28T13:28:03.213153Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_80a7b1bac306c182ce30c7f2668b4b50",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 0,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_80a7b1bac306c182ce30c7f2668b4b50",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 27143,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 1730,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 28873,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 6,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 15070,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-6691d8cee209b1cccdf6fda38a6b84c8e58768e1362ef8015b7384ed2c3bbbb1",
+          "currency": "USD",
+          "amount": "0.00256656",
+          "calls": "4",
+          "pricedCalls": "4",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "2aae2d08bcc1e0411b058022ba6786da5700f892d26149e13c1778c789754575",
+      "suiteId": "project-facts-v1",
+      "caseId": "distractors",
+      "sample": 3,
+      "variantId": "b",
+      "caseSha256": "sha256:7dac9f76a3b427caeeeac1b07f14cd03e945768780c4ce47699118b3dda1f853",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-72168b2a38952e4e3ac37493226d54381b54f3069d08f0aab28f8456501fccb1"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:57:50.115149Z",
+        "finishedAt": "2026-11-28T14:00:06.646275Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_42f09a1580bdc047b1bef66a74b30375",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_42f09a1580bdc047b1bef66a74b30375",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 36166,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 1892,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 38058,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 136531,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-72168b2a38952e4e3ac37493226d54381b54f3069d08f0aab28f8456501fccb1",
+          "currency": "USD",
+          "amount": "0.002677986",
+          "calls": "5",
+          "pricedCalls": "5",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "2d99eeb467646345b357d90cf6d618cc8caf36622d799e917413856243ab242d",
+      "suiteId": "project-facts-v1",
+      "caseId": "speculation",
+      "sample": 1,
+      "variantId": "b",
+      "caseSha256": "sha256:17cca76331f95494bad5be31d012be02ed8fd42c833c592d3daa5a15f3a35292",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-b5900ae57c7ab454ccb75d609c5a563792ab9550cd768de6a709af2516160e3b"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:27:07.055456Z",
+        "finishedAt": "2026-11-28T13:27:15.50227Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_377d74800802c486a292928a9222f304",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 0,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_377d74800802c486a292928a9222f304",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 25104,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 868,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 25972,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 6,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 8446,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-b5900ae57c7ab454ccb75d609c5a563792ab9550cd768de6a709af2516160e3b",
+          "currency": "USD",
+          "amount": "0.00124464",
+          "calls": "4",
+          "pricedCalls": "4",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "2f76ab6a5c1d4c3f87213ddf4ef58eb163b0f408c51983bc3ccae434f754934a",
+      "suiteId": "project-facts-v1",
+      "caseId": "distractors",
+      "sample": 1,
+      "variantId": "a",
+      "caseSha256": "sha256:7dac9f76a3b427caeeeac1b07f14cd03e945768780c4ce47699118b3dda1f853",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-6ea7e717a24f98550419490a976ebc9ec5b451cc48580bff2543bd9b5fd527e6"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:49:59.261996Z",
+        "finishedAt": "2026-11-28T13:50:50.298063Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_b7d72e11d2e7432be202ac54cf4e3bce",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_b7d72e11d2e7432be202ac54cf4e3bce",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 36373,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 2368,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 38741,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 51036,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-6ea7e717a24f98550419490a976ebc9ec5b451cc48580bff2543bd9b5fd527e6",
+          "currency": "USD",
+          "amount": "0.0023110275",
+          "calls": "5",
+          "pricedCalls": "5",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "37c807eb23530e117c3ace8ae2d0d5888a16ecaab1511deb68642aeb298f35e6",
+      "suiteId": "project-facts-v1",
+      "caseId": "speculation",
+      "sample": 3,
+      "variantId": "b",
+      "caseSha256": "sha256:17cca76331f95494bad5be31d012be02ed8fd42c833c592d3daa5a15f3a35292",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-d3ccfbbbc83a9438eee97bb42ff73c345d276f99d35093f246c10dffd2632197"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:28:05.060958Z",
+        "finishedAt": "2026-11-28T13:28:19.386769Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_d568f818edb43cbb36f6704384ee418b",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 0,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_d568f818edb43cbb36f6704384ee418b",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 33698,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 1864,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 35562,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 7,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 14325,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-d3ccfbbbc83a9438eee97bb42ff73c345d276f99d35093f246c10dffd2632197",
+          "currency": "USD",
+          "amount": "0.00350239",
+          "calls": "5",
+          "pricedCalls": "5",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "3804805dad5e6232886721dd4657f304b339481c56fb13ac11ab58f266cf3ee2",
+      "suiteId": "project-facts-v1",
+      "caseId": "negative-probe",
+      "sample": 1,
+      "variantId": "b",
+      "caseSha256": "sha256:9c96f901c7d17287a12540b0cba0667703956848a0661a6fb7068af1475fca31",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-8e51a2e8f6a942437186f9335eb9f568d3cfef7727323a961ea5fc04d5cf3ac4"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:29:04.207088Z",
+        "finishedAt": "2026-11-28T13:30:39.250419Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_4e2590d1d1b7024ffbcd1581dd3aaab1",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_4e2590d1d1b7024ffbcd1581dd3aaab1",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 28195,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 3048,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 31243,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 7,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 95043,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-8e51a2e8f6a942437186f9335eb9f568d3cfef7727323a961ea5fc04d5cf3ac4",
+          "currency": "USD",
+          "amount": "0.002926318",
+          "calls": "4",
+          "pricedCalls": "4",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "3a2233c8be2e4cd3a285b47f1f1c91f53cf3244bdefe0828bc1ebd4b40d9ee99",
+      "suiteId": "project-facts-v1",
+      "caseId": "technology",
+      "sample": 3,
+      "variantId": "b",
+      "caseSha256": "sha256:b94650f2f9cfc2f18086c00b26d14b3a7e1cd87984679920ecd527b00554d584",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-1b9fd1917eaa3dacd1088ef2abb22a8bcd662d70236d6b3a7b8891e0b586e35d"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:19:14.537038Z",
+        "finishedAt": "2026-11-28T13:19:35.52037Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_0f600455ba0e3731fb1362f746722608",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 1,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_0f600455ba0e3731fb1362f746722608",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 28250,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 2176,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 30426,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 7,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 20983,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-1b9fd1917eaa3dacd1088ef2abb22a8bcd662d70236d6b3a7b8891e0b586e35d",
+          "currency": "USD",
+          "amount": "0.002088232",
+          "calls": "4",
+          "pricedCalls": "4",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "3c8562a8aa24ebea891c9c5e095a9bb25445ac340a05d50fbab2c1bbccc40179",
+      "suiteId": "project-facts-v1",
+      "caseId": "technology",
+      "sample": 3,
+      "variantId": "a",
+      "caseSha256": "sha256:b94650f2f9cfc2f18086c00b26d14b3a7e1cd87984679920ecd527b00554d584",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-03d80454712ba2c91f39a135205b66568c4a0de7536f542a4507f608a1795e47"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:18:56.360293Z",
+        "finishedAt": "2026-11-28T13:19:13.355435Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_565ac301bb282f79f6487a85d88da10f",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_565ac301bb282f79f6487a85d88da10f",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 27884,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 1455,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 29339,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 7,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 16995,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-03d80454712ba2c91f39a135205b66568c4a0de7536f542a4507f608a1795e47",
+          "currency": "USD",
+          "amount": "0.001905264",
+          "calls": "4",
+          "pricedCalls": "4",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "44c3991df1c7ca16199473f611cd9de8bd395afb8374639296fe92a05c3652bb",
+      "suiteId": "project-facts-v1",
+      "caseId": "distractors",
+      "sample": 3,
+      "variantId": "a",
+      "caseSha256": "sha256:7dac9f76a3b427caeeeac1b07f14cd03e945768780c4ce47699118b3dda1f853",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-4b16490627ea466213f7af70df0408066eb06de1c0aaacbf1b39c72fc65a2aa6"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:56:01.316975Z",
+        "finishedAt": "2026-11-28T13:57:48.644872Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_07e842d7f2ea0672a0ff1a4dc6cc5fbe",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 2,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 1,
+      "debug": [
+        {
+          "runId": "run_07e842d7f2ea0672a0ff1a4dc6cc5fbe",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 54842,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 4035,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 58877,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 7,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 11,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 3,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 107327,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-4b16490627ea466213f7af70df0408066eb06de1c0aaacbf1b39c72fc65a2aa6",
+          "currency": "USD",
+          "amount": "0.0037088",
+          "calls": "7",
+          "pricedCalls": "7",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "4ba0ee69127f8025e12c2411b654e176540ae85655393a44cdccb013ffd8d5da",
+      "suiteId": "project-facts-v1",
+      "caseId": "technology",
+      "sample": 1,
+      "variantId": "a",
+      "caseSha256": "sha256:b94650f2f9cfc2f18086c00b26d14b3a7e1cd87984679920ecd527b00554d584",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-b5c4c3575d3b6582e3c6960f5a942f16dadd5c89e86f650d32a76967e8748776"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:17:08.440858Z",
+        "finishedAt": "2026-11-28T13:17:11.447193Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_d2fb3cdd43d06be6511da95018108deb",
+          "state": "failed",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_d2fb3cdd43d06be6511da95018108deb",
+          "completeReports": false,
+          "zeroLossExport": false,
+          "originalOtlpFiles": 0,
+          "childState": "failed",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "outputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "totalTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": null,
+          "unit": "calls",
+          "completeness": "unavailable"
+        },
+        "toolCalls": {
+          "value": null,
+          "unit": "calls",
+          "completeness": "unavailable"
+        },
+        "toolFailures": {
+          "value": null,
+          "unit": "calls",
+          "completeness": "unavailable"
+        },
+        "wallMs": {
+          "value": 3006,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-b5c4c3575d3b6582e3c6960f5a942f16dadd5c89e86f650d32a76967e8748776",
+          "currency": "USD",
+          "amount": null,
+          "calls": "0",
+          "pricedCalls": "0",
+          "unknownReports": "1",
+          "basis": "none",
+          "coverage": "unavailable",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "4c0f478c9580e785653ae500829e0de6a77ea8c9cca9f1b7aea01b3e346ace69",
+      "suiteId": "project-facts-v1",
+      "caseId": "distractors",
+      "sample": 2,
+      "variantId": "b",
+      "caseSha256": "sha256:7dac9f76a3b427caeeeac1b07f14cd03e945768780c4ce47699118b3dda1f853",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-8aeb1b7d9b26c7b5ef5f94f2e23cf8a3eb216bbbccce74ea7fcb821c69febcb0"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:54:12.786088Z",
+        "finishedAt": "2026-11-28T13:55:59.751965Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_39920dc382e5f6a24bc14c39145ebd8a",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_39920dc382e5f6a24bc14c39145ebd8a",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 66840,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 4250,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 71090,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 13,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 106965,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-8aeb1b7d9b26c7b5ef5f94f2e23cf8a3eb216bbbccce74ea7fcb821c69febcb0",
+          "currency": "USD",
+          "amount": "0.003355368",
+          "calls": "8",
+          "pricedCalls": "8",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "4c39521c605dd775bba158c15b59471743bfae3178531638c0a4598a6a04cf45",
+      "suiteId": "project-facts-v1",
+      "caseId": "distractors",
+      "sample": 1,
+      "variantId": "b",
+      "caseSha256": "sha256:7dac9f76a3b427caeeeac1b07f14cd03e945768780c4ce47699118b3dda1f853",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-e3a055c890a7e4a03d87800f76f288750d17a5f26bee2efbd5978ce143d62c8d"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:50:51.88204Z",
+        "finishedAt": "2026-11-28T13:52:12.972539Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_46aaf5c3cbd597c6e343c994ad22a666",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_46aaf5c3cbd597c6e343c994ad22a666",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 38601,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 2436,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 41037,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 81090,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-e3a055c890a7e4a03d87800f76f288750d17a5f26bee2efbd5978ce143d62c8d",
+          "currency": "USD",
+          "amount": "0.002710746",
+          "calls": "5",
+          "pricedCalls": "5",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "4db41c99e9d86559fce28c66b5e4a373059772fa0d35ce2c988b02b2f2ea935c",
+      "suiteId": "project-facts-v1",
+      "caseId": "speculation",
+      "sample": 2,
+      "variantId": "a",
+      "caseSha256": "sha256:17cca76331f95494bad5be31d012be02ed8fd42c833c592d3daa5a15f3a35292",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-6d7c7ff1a19aa6f8df6a93766a17011222422b7fd8e7b603b2f86627c7e6cd8e"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:27:17.249965Z",
+        "finishedAt": "2026-11-28T13:27:25.673808Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_65fb337b8a899b100362643397d95963",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 0,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_65fb337b8a899b100362643397d95963",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 18549,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 527,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 19076,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 3,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 8423,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-6d7c7ff1a19aa6f8df6a93766a17011222422b7fd8e7b603b2f86627c7e6cd8e",
+          "currency": "USD",
+          "amount": "0.001001025",
+          "calls": "3",
+          "pricedCalls": "3",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "4f4ba277c5c35b858a3dc91958895f207d5e648e863797e8f0ae968071e99775",
+      "suiteId": "project-facts-v1",
+      "caseId": "distractors",
+      "sample": 2,
+      "variantId": "a",
+      "caseSha256": "sha256:7dac9f76a3b427caeeeac1b07f14cd03e945768780c4ce47699118b3dda1f853",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-4b0e357d10fb0ca39740cb68cef76b6866bc856a13d5734299a9a0e6c8b4a256"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:52:14.99607Z",
+        "finishedAt": "2026-11-28T13:54:10.901524Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_d3fe6df4cfff7b93d0d25fbdf1862df0",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_d3fe6df4cfff7b93d0d25fbdf1862df0",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 38588,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 1930,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 40518,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 115905,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-4b0e357d10fb0ca39740cb68cef76b6866bc856a13d5734299a9a0e6c8b4a256",
+          "currency": "USD",
+          "amount": "0.002336638",
+          "calls": "5",
+          "pricedCalls": "5",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "55bc3c2c57e3db56c5fb17292020876711450abd1e56a235fa4165d008ff5cee",
+      "suiteId": "project-facts-v1",
+      "caseId": "injection",
+      "sample": 3,
+      "variantId": "a",
+      "caseSha256": "sha256:8fa8da627d93dbfc8767812d3b1821a5fefd11fc2f4171375f74fa357f398d19",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-2edf9060edd17edcf94e1447c12253105029d0bda05da052692dda7c99ce49d3"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:43:23.571583Z",
+        "finishedAt": "2026-11-28T13:44:59.334658Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_06da261361d3f52d70004feba2f968c3",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 0,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_06da261361d3f52d70004feba2f968c3",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 27884,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 3731,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 31615,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 6,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 95763,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-2edf9060edd17edcf94e1447c12253105029d0bda05da052692dda7c99ce49d3",
+          "currency": "USD",
+          "amount": "0.0017839877",
+          "calls": "4",
+          "pricedCalls": "4",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "5c72a53ce9b4f552da479322913cc3bd37e48ecaf6c4274f3dfd5794361cae65",
+      "suiteId": "project-facts-v1",
+      "caseId": "speculation",
+      "sample": 1,
+      "variantId": "a",
+      "caseSha256": "sha256:17cca76331f95494bad5be31d012be02ed8fd42c833c592d3daa5a15f3a35292",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-53ffff80f7fe56e1b99c42e7ea7c2e7cdff02ecd42cf39be6e4fa9d80971952d"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:24:48.683078Z",
+        "finishedAt": "2026-11-28T13:27:05.328833Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_e88d4e32f573076554dc8950ba53b830",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 0,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_e88d4e32f573076554dc8950ba53b830",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 42787,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 2316,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 45103,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 6,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 136645,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-53ffff80f7fe56e1b99c42e7ea7c2e7cdff02ecd42cf39be6e4fa9d80971952d",
+          "currency": "USD",
+          "amount": "0.002424735",
+          "calls": "6",
+          "pricedCalls": "6",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "6a2cd8d0a2ff62385eeaa0d38c57c0961fce72f9b79d987eb3b129e184d48884",
+      "suiteId": "project-facts-v1",
+      "caseId": "technology",
+      "sample": 2,
+      "variantId": "a",
+      "caseSha256": "sha256:b94650f2f9cfc2f18086c00b26d14b3a7e1cd87984679920ecd527b00554d584",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-9e4832e43307cde778b52dd1e70026d096b92c2339c3a18887c9fb856b2da216"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:18:18.019459Z",
+        "finishedAt": "2026-11-28T13:18:35.002763Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_b5fb2a3db27c09959b9f0567fabbb828",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_b5fb2a3db27c09959b9f0567fabbb828",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 32782,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 1185,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 33967,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 7,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 16983,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-9e4832e43307cde778b52dd1e70026d096b92c2339c3a18887c9fb856b2da216",
+          "currency": "USD",
+          "amount": "0.00210904",
+          "calls": "5",
+          "pricedCalls": "5",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "749f4a8de0f13639e29d533bf5f4f95dd5f498317264b7aa5b782f33d642e70a",
+      "suiteId": "project-facts-v1",
+      "caseId": "negative-probe",
+      "sample": 3,
+      "variantId": "b",
+      "caseSha256": "sha256:9c96f901c7d17287a12540b0cba0667703956848a0661a6fb7068af1475fca31",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-35ed489293363719dc60ffe84b65cc136e80b8db7f279f0c3b460e2153889fd0"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:34:52.826503Z",
+        "finishedAt": "2026-11-28T13:36:41.398334Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_8204f72e39e3e0e8451ef361dc656514",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_8204f72e39e3e0e8451ef361dc656514",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 98829,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 10496,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 109325,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 12,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 15,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 9,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 108571,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-35ed489293363719dc60ffe84b65cc136e80b8db7f279f0c3b460e2153889fd0",
+          "currency": "USD",
+          "amount": "0.009205164",
+          "calls": "12",
+          "pricedCalls": "12",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "7ab7a1fd8ff2f44ec4e3aeec24f932307a9c89be13c94d5516b22ad68e8d5b39",
+      "suiteId": "project-facts-v1",
+      "caseId": "repetition",
+      "sample": 3,
+      "variantId": "b",
+      "caseSha256": "sha256:dd84693b4905eeeeb1430dec86b1014ceed6d0393d601457d4713aa6752b92d5",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-cdead6dc001d5e76519f69971530b61586fb760f0d17ce8731849ab5ed3d38f1"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:24:19.055644Z",
+        "finishedAt": "2026-11-28T13:24:47.249579Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_ebd2397f8c3787ba29eaeea1b0d4f4be",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_ebd2397f8c3787ba29eaeea1b0d4f4be",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 28373,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 2679,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 31052,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 7,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 28193,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-cdead6dc001d5e76519f69971530b61586fb760f0d17ce8731849ab5ed3d38f1",
+          "currency": "USD",
+          "amount": "0.00225009",
+          "calls": "4",
+          "pricedCalls": "4",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "8fab8e4b307a0cfa9121c10c814bd48fe749df11f2ffa907acbd26fd8cf6ff7e",
+      "suiteId": "project-facts-v1",
+      "caseId": "repetition",
+      "sample": 2,
+      "variantId": "b",
+      "caseSha256": "sha256:dd84693b4905eeeeb1430dec86b1014ceed6d0393d601457d4713aa6752b92d5",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-9cd63391f0abe80e401ee66e1ea2c9f9a797a36361f969d87ba546ce879e7ec9"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:20:53.720248Z",
+        "finishedAt": "2026-11-28T13:22:29.5964Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_b02a0c91ab1edec547da1e3f75cc29bf",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_b02a0c91ab1edec547da1e3f75cc29bf",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 108685,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 11919,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 120604,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 13,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 16,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 9,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 95876,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-9cd63391f0abe80e401ee66e1ea2c9f9a797a36361f969d87ba546ce879e7ec9",
+          "currency": "USD",
+          "amount": "0.006584535",
+          "calls": "13",
+          "pricedCalls": "13",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "a75be56f9ab79d57e25b7fa2cb6f94075db2c4762881e447da834142ef655285",
+      "suiteId": "project-facts-v1",
+      "caseId": "injection",
+      "sample": 3,
+      "variantId": "b",
+      "caseSha256": "sha256:8fa8da627d93dbfc8767812d3b1821a5fefd11fc2f4171375f74fa357f398d19",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-0dba1f04df02640da54e399724fe23d8a8c125e8504d67bb6e9aa9c921063e2b"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:45:00.862299Z",
+        "finishedAt": "2026-11-28T13:49:57.984563Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_739b003b8fe30096ecbe69dd3d22584d",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 0,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_739b003b8fe30096ecbe69dd3d22584d",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 27144,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 1804,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 28948,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 6,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 297122,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-0dba1f04df02640da54e399724fe23d8a8c125e8504d67bb6e9aa9c921063e2b",
+          "currency": "USD",
+          "amount": "0.00137136",
+          "calls": "4",
+          "pricedCalls": "4",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "ab2395838113a805c1d8bc6566636b96297beb4f860adb8f878f5a11faf7116a",
+      "suiteId": "project-facts-v1",
+      "caseId": "repetition",
+      "sample": 3,
+      "variantId": "a",
+      "caseSha256": "sha256:dd84693b4905eeeeb1430dec86b1014ceed6d0393d601457d4713aa6752b92d5",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-21ef706d468d359b068582558edbb2227cca20a00af0e36b9121d67dd1f18740"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:22:31.518111Z",
+        "finishedAt": "2026-11-28T13:23:30.948949Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_b383ef5b22742b01ac7f08ebfbd59c2d",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_b383ef5b22742b01ac7f08ebfbd59c2d",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 35019,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 2679,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 37698,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 59430,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-21ef706d468d359b068582558edbb2227cca20a00af0e36b9121d67dd1f18740",
+          "currency": "USD",
+          "amount": "0.0020426883",
+          "calls": "5",
+          "pricedCalls": "5",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "b113cc43791f59282b984632e46e1c0bb0f7a46bc4a3c421ada759f101e3d28b",
+      "suiteId": "project-facts-v1",
+      "caseId": "negative-probe",
+      "sample": 3,
+      "variantId": "a",
+      "caseSha256": "sha256:9c96f901c7d17287a12540b0cba0667703956848a0661a6fb7068af1475fca31",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-27496b0dba1258f694d430929a6716f9a560db9131e38ff81a2dfb6ea610bff3"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:33:03.96507Z",
+        "finishedAt": "2026-11-28T13:34:51.726971Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_9e6c5d0989cb583e0053ec8d701d3468",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_9e6c5d0989cb583e0053ec8d701d3468",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 43929,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 2477,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 46406,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 6,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 107761,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-27496b0dba1258f694d430929a6716f9a560db9131e38ff81a2dfb6ea610bff3",
+          "currency": "USD",
+          "amount": "0.002261874",
+          "calls": "6",
+          "pricedCalls": "6",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "b86ce9f144220db71716111824ae80ae08982687a428106f388c02f3ec8fbe32",
+      "suiteId": "project-facts-v1",
+      "caseId": "technology",
+      "sample": 2,
+      "variantId": "b",
+      "caseSha256": "sha256:b94650f2f9cfc2f18086c00b26d14b3a7e1cd87984679920ecd527b00554d584",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-2bc84ab4877229c81e94f663d7805334db2e159b9078291900638e61748482af"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:18:36.168924Z",
+        "finishedAt": "2026-11-28T13:18:55.189884Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_ee1a4ceb7e7a60115e0291bf64f0d8c4",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_ee1a4ceb7e7a60115e0291bf64f0d8c4",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 34927,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 1803,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 36730,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 19020,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-2bc84ab4877229c81e94f663d7805334db2e159b9078291900638e61748482af",
+          "currency": "USD",
+          "amount": "0.002371382",
+          "calls": "5",
+          "pricedCalls": "5",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "b8bf4dc030ebaa605345014aa4e5d81facf0c25d41cecc588e7a5e41b9c53e7b",
+      "suiteId": "project-facts-v1",
+      "caseId": "negative-probe",
+      "sample": 1,
+      "variantId": "a",
+      "caseSha256": "sha256:9c96f901c7d17287a12540b0cba0667703956848a0661a6fb7068af1475fca31",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-2eb21ff4e41110e761e230045dbf917699e899e6258c4ebd88d9795af70ff87b"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:28:20.838379Z",
+        "finishedAt": "2026-11-28T13:29:02.705256Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_ed74f793e06d1eb5d3184941c8ba49be",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_ed74f793e06d1eb5d3184941c8ba49be",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 27918,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 2784,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 30702,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 7,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 41866,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-2eb21ff4e41110e761e230045dbf917699e899e6258c4ebd88d9795af70ff87b",
+          "currency": "USD",
+          "amount": "0.00315004",
+          "calls": "4",
+          "pricedCalls": "4",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "d953e00907d539911afc5371198b382b862eeb87ef4bf72bd5ae289b9cdd4fb3",
+      "suiteId": "project-facts-v1",
+      "caseId": "injection",
+      "sample": 2,
+      "variantId": "b",
+      "caseSha256": "sha256:8fa8da627d93dbfc8767812d3b1821a5fefd11fc2f4171375f74fa357f398d19",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-4953ac7540ca865435d15cd6eaa01075f95b18caae0eaf151c1b30d217a20ad5"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:42:22.052918Z",
+        "finishedAt": "2026-11-28T13:43:21.724994Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_44f3a4c56ff8200b90d18c378f641fbf",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 0,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_44f3a4c56ff8200b90d18c378f641fbf",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 52285,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 2702,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 54987,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 7,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 59672,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-4953ac7540ca865435d15cd6eaa01075f95b18caae0eaf151c1b30d217a20ad5",
+          "currency": "USD",
+          "amount": "0.003053736",
+          "calls": "7",
+          "pricedCalls": "7",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "ded217098709f338ba6f03639a13d8cfbcdcc8ef9465300927a7173ea89e482f",
+      "suiteId": "project-facts-v1",
+      "caseId": "speculation",
+      "sample": 2,
+      "variantId": "b",
+      "caseSha256": "sha256:17cca76331f95494bad5be31d012be02ed8fd42c833c592d3daa5a15f3a35292",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-c05421c197c3cf0168db34603a12ac71c63a9d9a4ceec8cc0677108552b70a7a"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:27:27.448852Z",
+        "finishedAt": "2026-11-28T13:27:47.991511Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_ad77bba55eb21da47a3bed36a783fa70",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 0,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_ad77bba55eb21da47a3bed36a783fa70",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 27167,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 1316,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 28483,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 6,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 20542,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-c05421c197c3cf0168db34603a12ac71c63a9d9a4ceec8cc0677108552b70a7a",
+          "currency": "USD",
+          "amount": "0.001643988",
+          "calls": "4",
+          "pricedCalls": "4",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "e106f5cbd4a4857249eb38c0684108354b7f6432442ef0fdd72626cb20147dbe",
+      "suiteId": "project-facts-v1",
+      "caseId": "injection",
+      "sample": 1,
+      "variantId": "b",
+      "caseSha256": "sha256:8fa8da627d93dbfc8767812d3b1821a5fefd11fc2f4171375f74fa357f398d19",
+      "bindingSha256": "sha256:a8d01e795465525f6030f44c8f09e99ded1dead826c7ed5fcd8928cc989b6223",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-61a88df16b081faeedab2aecf4a99b723bd39ed944227957cc9662ef691d54db"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:38:53.907906Z",
+        "finishedAt": "2026-11-28T13:40:49.879956Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_fab6ebb2af5d623f48f694421b6cbd9a",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 0,
+      "usefulKept": 0,
+      "usefulExpected": 0,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_fab6ebb2af5d623f48f694421b6cbd9a",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 44188,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 3572,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 47760,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 6,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 115972,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-61a88df16b081faeedab2aecf4a99b723bd39ed944227957cc9662ef691d54db",
+          "currency": "USD",
+          "amount": "0.002475256",
+          "calls": "6",
+          "pricedCalls": "6",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "e4c9393557b3a5b9addb2f2e593e305d5558ebee5b1e411b5135cb3d01b1467e",
+      "suiteId": "project-facts-v1",
+      "caseId": "repetition",
+      "sample": 1,
+      "variantId": "a",
+      "caseSha256": "sha256:dd84693b4905eeeeb1430dec86b1014ceed6d0393d601457d4713aa6752b92d5",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-b971c8788ea356a64bfa27a3c38ccd4b0c4d287fb45ffa00fdef14b226bc3c19"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:19:36.718413Z",
+        "finishedAt": "2026-11-28T13:19:59.692425Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_a4713b87c358c2c2bbfc2cb6ced2994d",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_a4713b87c358c2c2bbfc2cb6ced2994d",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 28345,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 2269,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 30614,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 7,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 22974,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-b971c8788ea356a64bfa27a3c38ccd4b0c4d287fb45ffa00fdef14b226bc3c19",
+          "currency": "USD",
+          "amount": "0.001904646",
+          "calls": "4",
+          "pricedCalls": "4",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "e593583bf7176d04870f554f7cbc5b0a7d83279445881dd15988a8b08a051fa9",
+      "suiteId": "project-facts-v1",
+      "caseId": "negative-probe",
+      "sample": 2,
+      "variantId": "a",
+      "caseSha256": "sha256:9c96f901c7d17287a12540b0cba0667703956848a0661a6fb7068af1475fca31",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-d7a3df4713696c68b28429aa0cf27ff50c5a950ed689497acf670bd51ed8361f"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:30:41.089497Z",
+        "finishedAt": "2026-11-28T13:31:09.455619Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_4fffd70f384c41f85237daf59dcfe98c",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_4fffd70f384c41f85237daf59dcfe98c",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 34896,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 2641,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 37537,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 8,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 28366,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-d7a3df4713696c68b28429aa0cf27ff50c5a950ed689497acf670bd51ed8361f",
+          "currency": "USD",
+          "amount": "0.00349217",
+          "calls": "5",
+          "pricedCalls": "5",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    },
+    {
+      "memberId": "e81a7b71ef6a4cd84cd3ceb84b5b2c270aa3c95bd520f549e22e94470d037f61",
+      "suiteId": "project-facts-v1",
+      "caseId": "repetition",
+      "sample": 2,
+      "variantId": "a",
+      "caseSha256": "sha256:dd84693b4905eeeeb1430dec86b1014ceed6d0393d601457d4713aa6752b92d5",
+      "bindingSha256": "sha256:8db19a0205104b85d5fdb7e2575c64b2aaba2cbbd85d4c92b5611af6094d9f52",
+      "eligibility": "eligible",
+      "reason": null,
+      "execution": {
+        "ref": {
+          "kind": "audit",
+          "id": "audit-eval-4ebadd948c76b5507676e80db70a0bdfd51c7d6fcbd8637e5586e0eb233d4520"
+        },
+        "state": "succeeded",
+        "startedAt": "2026-11-28T13:20:33.542273Z",
+        "finishedAt": "2026-11-28T13:20:52.077273Z",
+        "reason": null
+      },
+      "childRuns": [
+        {
+          "runId": "run_ab4f0918f4c910b6447b75c50cc25aeb",
+          "state": "succeeded",
+          "deletable": true
+        }
+      ],
+      "observations": 1,
+      "usefulKept": 1,
+      "usefulExpected": 1,
+      "unsupported": 0,
+      "spam": 0,
+      "debug": [
+        {
+          "runId": "run_ab4f0918f4c910b6447b75c50cc25aeb",
+          "completeReports": true,
+          "zeroLossExport": true,
+          "originalOtlpFiles": 2,
+          "childState": "succeeded",
+          "released": true
+        }
+      ],
+      "usage": {
+        "inputTokens": {
+          "value": 28266,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "outputTokens": {
+          "value": 2085,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "totalTokens": {
+          "value": 30351,
+          "unit": "tokens",
+          "completeness": "complete"
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable"
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolCalls": {
+          "value": 7,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "toolFailures": {
+          "value": 0,
+          "unit": "calls",
+          "completeness": "complete"
+        },
+        "wallMs": {
+          "value": 18535,
+          "unit": "milliseconds",
+          "completeness": "complete"
+        }
+      },
+      "costs": [
+        {
+          "scope": "audit",
+          "scopeId": "audit-eval-4ebadd948c76b5507676e80db70a0bdfd51c7d6fcbd8637e5586e0eb233d4520",
+          "currency": "USD",
+          "amount": "0.002119638",
+          "calls": "4",
+          "pricedCalls": "4",
+          "unknownReports": "0",
+          "basis": "reported",
+          "coverage": "complete",
+          "pending": false,
+          "historicalGap": false
+        }
+      ]
+    }
+  ]
+}
