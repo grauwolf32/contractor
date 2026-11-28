@@ -48,7 +48,7 @@
     ".lean/project-deletion/cleanup_database.py": "ce10b59b0e33b7c62cff6a8f38b072654ba9c031c67c8a0060746afc18a8c0b7",
     ".lean/project-deletion/reset_utf8.py": "900c8d69f7b22fc9f5576a3808f6dfe0e7ff32f30d5ae2323a82c4054d5cea1f",
     ".lean/project-deletion/env.sh": "68f7fd9e63503f644d1d70e06f53c02f46289c75bbb241404a31dac49fa7e804",
-    ".lean/project-deletion/README.md": "082be1e84f2303af7e47bb95822f197230466514710a695d803bab609b056dbe",
+    ".lean/project-deletion/README.md": "6d494aa27662dcc873581efeef97fca33bf4356ce3ead3fe3e7a17ec50a42f51",
     ".lean/project-deletion/results/tlc-summary.json": "eaabe9ad7f662f8aec040fff62dd611e7f5eaae26e91e6f54b985fb399b8870b",
     ".lean/project-deletion/results/postgres-summary.json": "98698026d98db9acc69a4a943720f7b092137d1c6869e25275c0a11884741b54",
     ".lean/project-deletion/results/go-result.json": "f11ae29a31d5c74d2480093f0cf5c179e0107e3fd990d91f6478f29a80357bcb",
@@ -1658,5 +1658,6 @@
     "Full Go package execution includes existing 50000-revision, receipt/Eval and 60000-Run read-plan fixtures. No heavy IO opt-in was enabled; only declared policy skips may be accepted.",
     "No production defect established or production/schema/API changed; no automatic CI adoption."
   ],
-  "reopen_when": "Project lifecycle and persistence owners revisit phases, drain gates, claims, transaction ownership or cleanup ordering."
+  "reopen_when": "Project lifecycle and persistence owners revisit phases, drain gates, claims, transaction ownership or cleanup ordering.",
+  "implementation_commit": "a041c9e4daf03a23ff770a11ac1324b9bb5c972d"
 }
