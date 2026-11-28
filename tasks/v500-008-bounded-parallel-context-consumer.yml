@@ -1,0 +1,61 @@
+schema_version: '1.0'
+id: V500-008
+title: Execute frozen context members with bounded parallel admission
+milestone: eval-maintenance-2026-10
+epic: evals
+kind: feature
+priority: P1
+status: pending
+depends_on: []
+languages: [python, markdown, json]
+goal: A context study can use four concurrent demo Runs on the configured OpenRouter route without changing identities, usage ownership or selected records.
+demonstration: Admit four existing frozen members before their first model executions settle; collect all four through ordinary Run/Managed Eval APIs and retain exact per-member outcomes and debug traces.
+context:
+  authority: 'User decision 2026-11-28 requests eval concurrency4–8 for OpenRouter. The configured route is OpenRouter; use4 to match the current demo admission limit, freeze it before dispatch and keep all comparable arms under the same setting.'
+  specification:
+    - docs/spec/evals/format.md
+    - docs/spec/evals/managed-evals.md
+  design: tests/eval/context_compaction/README.md
+  boundary: >-
+    Extend only the existing external producer. Server/Runtime keep execution,
+    model admission, receipts and accounting. One producer admits a bounded set
+    of ordinary Runs and serializes result/assessment selections with existing
+    CAS/idempotency mechanisms. No new scheduler, ledger or parallel comparison.
+    The local manifest version2 explicitly freezes concurrency1..8; historical
+    version1 manifests/results remain retained and are not leniently admitted.
+scope:
+  in:
+    - Frozen local manifest concurrency and bounded active-member polling/admission.
+    - Reserve each in-flight member's full remaining budget before further admission.
+    - Stop new admission on unknown usage, permanent failure or deadlines; settle/join admitted work and retain all expected outcomes.
+    - Exact submission receipts and serialized result/assessment/selection writes.
+  out:
+    - New production API or global model-limit changes, model substitution, duplicate demo stacks and rewrites of historical plans.
+failure_outcomes:
+  - operation: Parallel producer admission and collection
+    permanent: Stop further submissions and retain failed/missing members; do not replace a failed sample.
+    retryable: Existing bounded exact-key retry mechanisms apply; no extra model identity is created.
+    ambiguous: Reconcile the same submission receipt and retain its native execution.
+    cancelled: Cancel each affected experiment through existing lifecycle once and join admitted Runs before ending the producer.
+    timeout: Frozen member/aggregate deadlines and a separate bounded cleanup deadline apply to all admitted members.
+cardinality:
+  - collection: Active Runs
+    expected: Four for the current OpenRouter study.
+    maximum: Eight; one global pool across the frozen matrix.
+    bound: One paged member read per active experiment per iteration; finite row/byte/transport and member/aggregate budget bounds.
+lifecycle:
+  - entity: Producer and admitted ordinary Runs
+    delete: Reuse native cancellation/release; retain exact outcomes and assessments.
+    retention: All expected members, including unsubmitted and unknown-usage records, remain in the final artifact.
+acceptance_criteria:
+  - id: A1
+    text: Offline regression proves multiple members are admitted before any must settle, never more than frozen concurrency; concurrency1 and4 use the same identities and full denominator.
+  - id: A2
+    text: In-flight reservations cannot exceed aggregate budgets. Missing usage stops new admission while already admitted members are retained/settled; no lost or duplicate selection occurs.
+  - id: A3
+    text: Timeout/cancellation joins all admitted work under finite cleanup; full fixture and lint gates pass, and the demo study records actual overlap with debug enabled.
+tests:
+  - command: make test-context-compaction-eval-fixtures
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
