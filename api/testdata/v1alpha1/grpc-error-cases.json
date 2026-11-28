@@ -1,0 +1,105 @@
+{
+  "cases": [
+    {
+      "name": "receive-limit",
+      "status": 8,
+      "code": "invalid_response",
+      "retryable": false,
+      "detail": null
+    },
+    {
+      "name": "transport",
+      "status": 14,
+      "code": "transport_unavailable",
+      "retryable": true,
+      "detail": null
+    },
+    {
+      "name": "request-deadline",
+      "status": 4,
+      "code": "transport_unavailable",
+      "retryable": true,
+      "detail": null
+    },
+    {
+      "name": "transaction-aborted",
+      "status": 10,
+      "code": "transport_unavailable",
+      "retryable": true,
+      "detail": null
+    },
+    {
+      "name": "cancelled",
+      "status": 1,
+      "code": "transport_unavailable",
+      "retryable": false,
+      "detail": null
+    },
+    {
+      "name": "typed-admission",
+      "status": 8,
+      "code": "control_rpc_capacity",
+      "retryable": true,
+      "detail": {
+        "code": "control_rpc_capacity",
+        "retryable": true,
+        "requestId": "request_1"
+      }
+    },
+    {
+      "name": "typed-size",
+      "status": 8,
+      "code": "response_too_large",
+      "retryable": false,
+      "detail": {
+        "code": "response_too_large",
+        "retryable": false,
+        "requestId": "request_1"
+      }
+    },
+    {
+      "name": "missing-retryability",
+      "status": 8,
+      "code": "invalid_error_response",
+      "retryable": false,
+      "detail": {
+        "code": "control_rpc_capacity",
+        "requestId": "request_1"
+      }
+    },
+    {
+      "name": "invalid-code",
+      "status": 8,
+      "code": "invalid_error_response",
+      "retryable": false,
+      "detail": {
+        "code": "_invalid",
+        "retryable": true,
+        "requestId": "request_1"
+      }
+    },
+    {
+      "name": "invalid-correlation",
+      "status": 8,
+      "code": "invalid_error_response",
+      "retryable": false,
+      "detail": {
+        "code": "control_rpc_capacity",
+        "retryable": true,
+        "requestId": "bad request"
+      }
+    },
+    {
+      "name": "unknown-detail",
+      "status": 8,
+      "code": "invalid_error_response",
+      "retryable": false,
+      "detail": {
+        "code": "control_rpc_capacity",
+        "retryable": true,
+        "requestId": "request_1"
+      },
+      "unknownDetail": true
+    }
+  ]
+}

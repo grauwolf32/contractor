@@ -135,12 +135,8 @@ class RPCConnections:
                             grpc.StatusCode.CANCELLED,
                         }
                     ):
-                        if failure.status_code == grpc.StatusCode.RESOURCE_EXHAUSTED:
-                            raise ArtifactAPIError(
-                                grpc.StatusCode.INTERNAL, "invalid_response", False, correlation
-                            ) from None
                         raise ArtifactTransportError("allocation RPC transport failed") from None
-                    healthy = failure.code != "invalid_error_response"
+                    healthy = failure.code not in {"invalid_error_response", "invalid_response"}
                     rejected = ArtifactAPIError(
                         failure.status_code, failure.code, failure.retryable, failure.request_id
                     )

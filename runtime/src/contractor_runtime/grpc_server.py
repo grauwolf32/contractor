@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -22,7 +23,11 @@ from contractor_runtime.contracts.base import RESOURCE_ID_PATTERN
 from contractor_runtime.contracts.codec import decode_private
 from contractor_runtime.contracts.grpc_wire import codec, runtime_pb2_grpc
 from contractor_runtime.contracts.grpc_wire import runtime_pb2 as pb
-from contractor_runtime.contracts.grpc_wire.limits import MAX_CONTROL_BYTES, MAX_STATE_MESSAGE_BYTES
+from contractor_runtime.contracts.grpc_wire.limits import (
+    MAX_CONCURRENT_RPCS,
+    MAX_CONTROL_BYTES,
+    MAX_STATE_MESSAGE_BYTES,
+)
 from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.state import RuntimeState
 from contractor_runtime.threads import to_thread_until_done
@@ -42,6 +47,47 @@ HTTP_STATUS = {
     503: grpc.StatusCode.UNAVAILABLE,
     504: grpc.StatusCode.DEADLINE_EXCEEDED,
 }
+
+
+class RPCAdmission(grpc.aio.ServerInterceptor):
+    """Bound native RPC decoding and return typed capacity failures.
+
+    The interceptor runs in the SDK's RPC task before deserialization. Its
+    done callback returns admission on every outcome, including malformed input
+    and cancellation before the application handler starts. Keeping that owner
+    also holds admission while a terminal handler joins its allocation cleanup.
+    """
+
+    def __init__(self):
+        self._active = 0
+
+    async def intercept_service(self, continuation, handler_call_details):
+        handler = await continuation(handler_call_details)
+        if handler is None:
+            return None
+        if self._active >= MAX_CONCURRENT_RPCS:
+            # Stream-unary can reject before reading any request, even for a
+            # unary client. No protobuf deserializer runs for this rejection.
+            return grpc.stream_unary_rpc_method_handler(self._reject)
+        owner = asyncio.current_task()
+        if owner is None:
+            raise RuntimeError("native RPC admission requires an asyncio owner")
+        self._active += 1
+        owner.add_done_callback(self._release)
+        return handler
+
+    def _release(self, _owner):
+        self._active -= 1
+
+    async def _reject(self, _requests, context):
+        request_id = await response_request_id(context)
+        await _abort(
+            context,
+            grpc.StatusCode.RESOURCE_EXHAUSTED,
+            "control_rpc_capacity",
+            True,
+            request_id,
+        )
 
 
 class LifecycleHandler(runtime_pb2_grpc.RuntimeLifecycleServicer):

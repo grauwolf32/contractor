@@ -17,7 +17,7 @@ from contractor_runtime._grpc_client import _error
 from contractor_runtime.contracts import API_VERSION, PrepareAllocationRequest
 from contractor_runtime.contracts.grpc_wire import codec, runtime_pb2_grpc
 from contractor_runtime.contracts.grpc_wire import runtime_pb2 as pb
-from contractor_runtime.grpc_server import LifecycleHandler
+from contractor_runtime.grpc_server import LifecycleHandler, RPCAdmission
 from contractor_runtime.state import RuntimeState
 
 
@@ -26,7 +26,7 @@ async def lifecycle_client(service):
     state = RuntimeState(instance_id="runtime-test")
     with tempfile.TemporaryDirectory(prefix="ct-grpc-", dir="/tmp") as directory:
         target = f"unix:{directory}/lifecycle.sock"
-        server = grpc.aio.server()
+        server = grpc.aio.server(interceptors=(RPCAdmission(),))
         runtime_pb2_grpc.add_RuntimeLifecycleServicer_to_server(
             LifecycleHandler(state, service), server
         )
@@ -269,5 +269,85 @@ def test_unicode_prepare_reaches_allocation_service_with_verified_digests(
                 assert response.worker_handle.allocation_id == spec.allocation_id
         finally:
             await service.close(30)
+
+    asyncio.run(scenario())
+
+
+def test_runtime_admission_is_typed_before_decode_and_releases_every_outcome():
+    from contractor_runtime.contracts.grpc_wire.limits import MAX_CONCURRENT_RPCS
+
+    async def scenario():
+        entered = asyncio.Queue()
+        release = asyncio.Event()
+        decoded = 0
+
+        def parse(raw):
+            nonlocal decoded
+            decoded += 1
+            if raw != b"hold":
+                raise ValueError("invalid probe")
+            return raw
+
+        async def hold(request, context):
+            await entered.put(None)
+            await release.wait()
+            return b"ok"
+
+        with tempfile.TemporaryDirectory(prefix="ct-admission-", dir="/tmp") as directory:
+            target = f"unix:{directory}/admission.sock"
+            server = grpc.aio.server(interceptors=(RPCAdmission(),))
+            server.add_generic_rpc_handlers(
+                (
+                    grpc.method_handlers_generic_handler(
+                        "probe.Admission",
+                        {
+                            "Hold": grpc.unary_unary_rpc_method_handler(
+                                hold,
+                                request_deserializer=parse,
+                                response_serializer=lambda value: value,
+                            )
+                        },
+                    ),
+                )
+            )
+            server.add_insecure_port(target)
+            await server.start()
+            calls = []
+            try:
+                async with grpc.aio.insecure_channel(target) as channel:
+                    method = channel.unary_unary("/probe.Admission/Hold")
+                    for _ in range(MAX_CONCURRENT_RPCS):
+                        calls.append(method(b"hold", timeout=10))
+                        await entered.get()
+                    with pytest.raises(grpc.aio.AioRpcError) as caught:
+                        await method(b"malformed", timeout=10)
+                    failure = _error(caught.value, "fallback")
+                    assert failure.status_code is grpc.StatusCode.RESOURCE_EXHAUSTED
+                    assert failure.code == "control_rpc_capacity" and failure.retryable
+                    assert decoded == MAX_CONCURRENT_RPCS
+                    release.set()
+                    assert await asyncio.gather(*calls) == [b"ok"] * MAX_CONCURRENT_RPCS
+                    # Decode failures also return admission, before any service method runs.
+                    for _ in range(MAX_CONCURRENT_RPCS + 1):
+                        with pytest.raises(grpc.aio.AioRpcError) as malformed:
+                            await method(b"malformed", timeout=10)
+                        assert malformed.value.code() is not grpc.StatusCode.RESOURCE_EXHAUSTED
+                    assert await method(b"hold", timeout=10) == b"ok"
+                    # Transport cancellation returns its permit as well.
+                    release.clear()
+                    call = method(b"hold", timeout=10)
+                    await entered.get()  # drain successful reuse
+                    await entered.get()  # new blocked call
+                    call.cancel()
+                    with pytest.raises(asyncio.CancelledError):
+                        await call
+                    release.set()
+                    assert await method(b"hold", timeout=10) == b"ok"
+            finally:
+                release.set()
+                for call in calls:
+                    call.cancel()
+                await server.stop(0)
+                await server.wait_for_termination()
 
     asyncio.run(scenario())

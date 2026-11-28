@@ -126,15 +126,6 @@ class ControlRPC:
                         correlation,
                     ) from None
                 failure = _error(error, correlation)
-                if (
-                    failure.status_code == grpc.StatusCode.RESOURCE_EXHAUSTED
-                    and failure.code == "transport_unavailable"
-                ):
-                    # This Control Plane emits typed retryable admission errors.
-                    # An untyped receive-limit failure cannot become a startup retry loop.
-                    failure = ControlRPCError(
-                        failure.status_code, "invalid_response", False, correlation
-                    )
                 raise failure from None
             except BaseException:
                 await self._reset()
@@ -215,10 +206,15 @@ def _error(error, correlation, *, allow_retry_info=False):
     retryable = status_code in {
         grpc.StatusCode.UNAVAILABLE,
         grpc.StatusCode.DEADLINE_EXCEEDED,
-        grpc.StatusCode.RESOURCE_EXHAUSTED,
         grpc.StatusCode.ABORTED,
     }
-    code = "transport_unavailable"
+    # Capacity rejections are explicitly typed. An untyped status may be a
+    # local receive limit and cannot safely become a retry loop.
+    code = (
+        "invalid_response"
+        if status_code == grpc.StatusCode.RESOURCE_EXHAUSTED
+        else "transport_unavailable"
+    )
     details = [
         value
         for key, value in (error.trailing_metadata() or ())

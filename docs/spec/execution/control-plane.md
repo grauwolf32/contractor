@@ -1936,8 +1936,12 @@ State document keeps LIM-WRK-17 independently of the protobuf envelope.
 Heartbeat sequences, acknowledgements and echoed acknowledgements remain exact
 `uint64` values; channel connectivity and HTTP/2 PING never renew their lease.
 Malformed control replies (including oversized untyped receive failures) are
-permanent. Server admission exhaustion carries typed `control_rpc_capacity`
-with `retryable=true`; existing caller backoff and deadline bounds apply.
+permanent. Server and Runtime admission exhaustion carries typed
+`control_rpc_capacity` with `retryable=true`; an untyped `ResourceExhausted`
+is a permanent `invalid_response`, since it can be a local receive-limit
+failure. Runtime pre-decode admission owns each SDK RPC task through completion
+and rejects surplus before deserialization, replacing the SDK's untyped capacity
+rejection. Existing caller backoff and deadline bounds apply.
 
 
 **CTL-R176.** Runtime allocation-domain calls use the named `Allocation`

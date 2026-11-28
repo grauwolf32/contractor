@@ -82,8 +82,13 @@ func decodeLifecycleError(err error) error {
 	if !ok {
 		return errors.New("Runtime RPC failed")
 	}
-	failure := &RuntimeAPIError{RPCStatus: st.Code(), Code: "transport_unavailable", Retryable: st.Code() == codes.Unavailable || st.Code() == codes.DeadlineExceeded || st.Code() == codes.ResourceExhausted}
+	failure := &RuntimeAPIError{RPCStatus: st.Code(), Code: "transport_unavailable", Retryable: st.Code() == codes.Unavailable || st.Code() == codes.DeadlineExceeded || st.Code() == codes.Aborted}
 	details := st.Details()
+	if st.Code() == codes.ResourceExhausted {
+		// The SDK also uses this status for local receive-limit failures.
+		// Only validated domain details can make capacity exhaustion retryable.
+		failure.Code = "invalid_response"
+	}
 	if len(details) == 0 {
 		return failure
 	}
@@ -104,7 +109,7 @@ func decodeLifecycleError(err error) error {
 	return failure
 }
 func validPrivateErrorCode(value string) bool {
-	if len(value) == 0 || len(value) > 128 {
+	if len(value) == 0 || len(value) > 64 || value[0] < 'a' || value[0] > 'z' {
 		return false
 	}
 	for _, c := range value {
