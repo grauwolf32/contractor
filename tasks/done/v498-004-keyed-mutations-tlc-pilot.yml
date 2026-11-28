@@ -5,7 +5,8 @@ milestone: persistence-api-cleanup-2026-10
 epic: persistence
 kind: chore
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: f351994935bd3b5011864d817db235850f1c940e
 depends_on: [V498-003]
 languages: [go]
 goal: >-
@@ -73,3 +74,36 @@ tests:
     covers: [A3, A4, A5]
   - command: make lint
     covers: [A5]
+verification:
+  evidence: tasks/evidence/v498-004-keyed-mutations.json
+  local_report: /Users/ruslan/src/contractor/.lean/keyed-mutations/README.md
+  result: >-
+    Six finite baseline graphs exhaust without violations: 169, 5408, 2872,
+    4688, 3004 and 3364 distinct states across RC/RR, same/different requests,
+    one/two clients and scopes, and bounded attempts. All seven mutation
+    controls violate their named invariants; all 21 witnesses are reached,
+    distinguishing committed-response loss from rollback before response loss.
+    Both complete Go packages pass under race/integration: 131 top-level tests,
+    no skips. Exact test identity validation confirms all 23 new leaf scenarios
+    plus required existing receipt, scope, retry and domain cases. Full make
+    lint passes with one auxiliary Python unittest skip, not passing coverage.
+    Final owned database, PostgreSQL server, data and socket cleanup succeeds.
+  verification_incident: >-
+    Initial lint failed two auxiliary PostgreSQL checks because the agent
+    removed its database after Go completed while lint still needed it.
+    The same owned disposable database was recreated and full lint passed
+    without source changes. The failed result/log are retained; final cleanup
+    waited for both gates. No failed or skipped case is counted as passing.
+  limits: >-
+    Finite safety during retained receipt lifetime, not unbounded proof,
+    Go/SQL refinement, liveness or fairness. PostgreSQL atomicity, constraints,
+    lock release and snapshot semantics are modeled assumptions checked on
+    real PostgreSQL. EOF is injected after a real commit or a real rollback;
+    this is not physical network failure injection. Runtime management uses
+    a fresh service object and actual database with ordinary credential/holder
+    test adapters, not process restart. Receipt purge, external effects,
+    hash collisions, HTTP authorization/canonicalization and arbitrary message
+    histories remain excluded. No production defect was established or
+    production behavior/schema/API changed. Reopen with persistence and Runtime
+    management owners when scope/digest/replay, transaction ownership, retry
+    classification or receipt retention changes. Local artifacts are no CI gate.

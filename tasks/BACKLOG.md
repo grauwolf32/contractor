@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 11 in progress, 41 pending, 13 deferred. 1754 finished: 1735 completed, 19 archived.
+64 open tasks: 10 in progress, 41 pending, 13 deferred. 1755 finished: 1736 completed, 19 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V498-004](v498-004-keyed-mutations-tlc-pilot.yml) | persistence | chore | P2 | Verify KeyedMutation idempotency and ambiguous replies with TLC |
 
 ## Pending
 
@@ -174,5 +173,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 1 | 57 | 83 | 38 | 81 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 3 | 44 | 30 | 22 |
-| PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 28 | 53 | 20 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 53 | 20 |
 | Quality, CI and process (`quality`) | 11 | 1 | 38 | 157 | 32 |
