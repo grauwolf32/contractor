@@ -1908,7 +1908,11 @@ PlannerOperation calls have a separate sublimit inside that ceiling: callbacks
 may wait for a Worker that needs Artifact or Allocation RPCs to finish. Reserving
 Worker progress positions prevents those callbacks from consuming their own
 dependencies; surplus receives the existing typed retryable capacity error.
-The independent ControlPlane reserve remains available. Caller
+The independent ControlPlane reserve remains available. ControlPlane message
+reads and writes also have independent Server-owned LIM-CTL-30 stream deadlines,
+including when the caller omits a deadline. The read deadline is cleared before
+domain execution, and the response receives a fresh write budget; socket I/O
+budgets do not become database or registration timeouts. Caller
 deadlines include admission, connection, TLS and response; domain finalization,
 lease and Stage deadlines remain separate. Invalid input is `InvalidArgument`,
 missing TLS identity `Unauthenticated`, state conflicts `FailedPrecondition`,
