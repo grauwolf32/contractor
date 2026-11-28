@@ -37,7 +37,7 @@ acceptance_criteria:
   - id: A3
     text: "Invalid attempts still count toward the existing quota; generic finding validation is unchanged."
 tests:
-  - command: "cd runtime && uv run pytest -W error tests/test_memory_fact_sources.py tests/test_finding_facades.py tests/test_project_facts.py tests/test_security_findings_toolset.py"
+  - command: "cd runtime && uv run pytest -W error tests/test_memory_fact_sources.py tests/test_finding_facades.py tests/test_project_facts.py tests/test_security_findings_toolset.py tests/test_finding_tool_contracts.py"
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
