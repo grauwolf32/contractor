@@ -94,4 +94,11 @@ verification: >-
   retains both HTTP captures through Runtime loss, Server restart and producer Run deletion.
   Optional disk-heavy fixtures remain disabled; their skips are not passing coverage.
   The owned database was explicitly dropped and its private PostgreSQL stopped and removed.
-  Implemented on codex/multiple-http-evidence; not merged into main or deployed.
+  Initially implemented on codex/multiple-http-evidence; main integration is recorded below.
+
+integration:
+  task: V496-002
+  merged_into_main: true
+  merge_commit: bf4aa5dbc57ed5fe03230cc1bb8356053324aeb4
+  evidence: tasks/evidence/v496-002-http-evidence-main-integration.json
+  deployed: false

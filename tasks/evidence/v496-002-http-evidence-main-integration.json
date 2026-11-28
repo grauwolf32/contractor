@@ -1,0 +1,95 @@
+{
+  "task": "V496-002",
+  "date": "2026-11-28",
+  "source_task": "V496-001",
+  "source_branch": "codex/multiple-http-evidence",
+  "source_head": "71df3a580dc7cb83c08803babd36d5c8e8fb99c8",
+  "main_before": "d4129a54004aa6023beb506d24d573dd3178ac88",
+  "merge_commit": "bf4aa5dbc57ed5fe03230cc1bb8356053324aeb4",
+  "merge_parents": [
+    "d4129a54004aa6023beb506d24d573dd3178ac88",
+    "71df3a580dc7cb83c08803babd36d5c8e8fb99c8"
+  ],
+  "merged_into_main": true,
+  "reconciliation": [
+    "Renumber HTTP feature to V496-001 because main already owns V494-001 for Playground.",
+    "Preserve current shared widget files and artifact path owner without compatibility re-exports.",
+    "Keep Semgrep shipped configuration, candidate schema and implementation and Playground pin unchanged.",
+    "Regenerate task/catalog graphs through their owners and bump UI to 0.11.49."
+  ],
+  "verification": {
+    "go_postgres": {
+      "result": "passed",
+      "command": "go test -tags=integration ./internal/auditdomain ./internal/findingintake ./internal/httpapi/privateartifacts ./internal/findingexport/... ./internal/auditservice ./internal/publicclient/...",
+      "database_configured": true
+    },
+    "runtime": {
+      "result": "passed",
+      "command": "make test-runtime",
+      "passed": 6771,
+      "skipped": 139,
+      "compaction_selected_passed": 611,
+      "ffuf_version": "2.3.0"
+    },
+    "contracts": {
+      "result": "passed",
+      "command": "make verify-public-api test-wire-cross-language",
+      "shared_fixtures": 442,
+      "go_shared_roots": 475,
+      "python_shared_roots": 309,
+      "python_shared_cases_passed": 1642,
+      "optional_disk_heavy_skips": 1
+    },
+    "ui": {
+      "result": "passed",
+      "command": "VITEST_MAX_WORKERS=4 make ui-verify",
+      "files_passed": 231,
+      "passed": 2624,
+      "expected_failures": 1,
+      "static_server_tests_passed": 17
+    },
+    "browser": {
+      "result": "passed",
+      "command": "make ui-browser-mocked",
+      "passed": 272,
+      "specs": 37,
+      "skipped": 0
+    },
+    "process": {
+      "result": "passed",
+      "command": "go test -tags=e2e -count=1 ./tests/e2e -run '^TestAuditPartialJudgmentsAcrossProcesses$'",
+      "outcome": "Both selected HTTP exchanges and an artifact remain public-readable after Runtime loss, Server restart and producer Run deletion."
+    },
+    "lint": {
+      "result": "passed",
+      "command": "make lint"
+    },
+    "preservation_guard": {
+      "result": "passed",
+      "command": "python3 /private/tmp/contractor-v496-merge/install-main.py --verify-only"
+    }
+  },
+  "preservation": {
+    "portable_task": {
+      "sha256": "fec1a80da187967959302f276030ab3f5b91e601982411de12953071cbe73b94",
+      "mode": 420,
+      "size": 2796
+    },
+    "portable_task_bytes_and_mode_preserved": true,
+    "portable_task_remains_untracked": true,
+    "staged_delta_preserved": true,
+    "original_staged_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "local_backlog_regenerated": true,
+    "local_portable_contribution_preserved": true
+  },
+  "cleanup": {
+    "database": "contractor_v496",
+    "database_dropped": true,
+    "private_postgresql_stopped_and_removed": true,
+    "owned_test_tool_links_removed": true
+  },
+  "heavy_io_enabled": false,
+  "live_models_run": false,
+  "deployed": false,
+  "pushed": false
+}

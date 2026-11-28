@@ -5,7 +5,7 @@ milestone: findings-tools
 epic: findings
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V496-001]
 languages: [go, python, typescript, yaml, markdown]
 goal: Main supports multiple selected HTTP evidence per Finding while retaining the current Semgrep, Playground and shared widget deliveries and the user's local portable-kit work.
@@ -46,3 +46,11 @@ tests:
     covers: [A1, A2]
   - command: python3 /private/tmp/contractor-v496-merge/install-main.py --verify-only
     covers: [A1, A3]
+
+implementation_commit: bf4aa5dbc57ed5fe03230cc1bb8356053324aeb4
+verification:
+  result: passed
+  evidence: tasks/evidence/v496-002-http-evidence-main-integration.json
+  delivery: Local main contains the exact two-parent merge, preserving Semgrep, Playground and current widget ownership. No push, deployment or live models.
+  results: Combined Go/PostgreSQL, API/wire, lint, complete Runtime (6771 passed, 139 declared skips), UI (2624 passed, one expected failure), 17 static-server tests, all 272 mocked browser cases and the real interrupted-Run lifecycle case pass. Optional disk-heavy skips remain unrun coverage.
+  preservation: The portable task retains exact bytes/mode and untracked status; the empty staged delta and its local generated backlog contribution are preserved. The owned database was dropped and its private PostgreSQL stopped and removed.
