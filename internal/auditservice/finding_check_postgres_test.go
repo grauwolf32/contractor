@@ -23,7 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 )
 
-func TestSharedPostgresFindingCheckEvidenceJudgmentAndPurge(t *testing.T) {
+func TestPostgresFindingCheckEvidenceJudgmentAndPurge(t *testing.T) {
 	f := newJudgmentFixture(t, 1, true)
 	f.service.findings, _ = findingintake.New(f.pool, artifactpgtest.NewStorage())
 	ctx := t.Context()
