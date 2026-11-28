@@ -525,9 +525,6 @@ export const queryKeys = {
     /** Workspace counters of one check at one revision. */
     workspace: (auditId: string, revision: number) =>
       ["inbox", "workspace", auditId, revision] as const,
-    /** The report of one finished check at one revision; null when none. */
-    report: (auditId: string, revision: number) =>
-      ["inbox", "report", auditId, revision] as const,
   },
 };
 

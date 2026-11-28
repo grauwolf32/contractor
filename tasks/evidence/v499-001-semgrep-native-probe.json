@@ -1,0 +1,97 @@
+{
+  "task": "V499-001",
+  "date": "2026-11-28",
+  "baseline": "d4b8c5112fef383a47ce3aae9abc1094e346c2e5",
+  "branch": "codex/semgrep-probe-stability",
+  "engine": "1.187.0",
+  "decision": "Execute the native OSS version command through the installed Semgrep entry point; retain independent two-second capability budgets and strict version acceptance. Compile locked installation bytecode without using it as proof of engine readiness.",
+  "benchmark": {
+    "kind": "observations only; no wall-clock test assertions",
+    "command": [
+      "semgrep",
+      "--experimental",
+      "--version",
+      "--disable-version-check"
+    ],
+    "python_cli_fallback": "shadowed by a command exiting 97",
+    "local_elapsed_ms": 90,
+    "cloudru1_elapsed_ms": 139,
+    "cloudru2_elapsed_ms": 146,
+    "prior_cloud_python_cli_ms": [
+      2690,
+      2895
+    ],
+    "native_exit_codes": [
+      0,
+      0,
+      0
+    ],
+    "native_versions": [
+      "1.187.0",
+      "1.187.0",
+      "1.187.0"
+    ]
+  },
+  "regression": {
+    "test": "test_real_semgrep_probe_does_not_load_python_scan_cli",
+    "before": "failed on baseline: native capability omitted when pysemgrep fallback exits 97",
+    "focused_command": "cd runtime && uv run pytest tests/test_semgrep_scan.py tests/test_scan_toolset.py",
+    "focused": {
+      "tests": 183,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "coverage": [
+      "real engine with Python scan CLI fallback forbidden",
+      "unsupported/malformed versions and nonzero exit",
+      "hung Semgrep process joined and killed while a healthy peer remains available"
+    ]
+  },
+  "verification_status": "passed",
+  "delivery": {
+    "merged_into_main": false,
+    "deployed": false,
+    "new_database_created": false,
+    "live_model_calls": false
+  },
+  "checks": [
+    {
+      "command": "make test-runtime",
+      "result": "passed",
+      "tests": 6917,
+      "passed": 6781,
+      "skipped": 136,
+      "failures": 0,
+      "errors": 0,
+      "compaction_selected_passed": 611,
+      "real_native_regression_passed": true
+    },
+    {
+      "command": "make lint",
+      "result": "passed"
+    },
+    {
+      "command": "make test-ansible",
+      "result": "passed after final installation marker change"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "notes": [
+    "Optional/platform skips remain skips; disk-heavy I/O was not enabled.",
+    "The first lint invocation requested the dependency graph refresh after the scanner specification changed. The graph was rebuilt with make docs-dependencies; only its fingerprint changed. The subsequent complete lint passed.",
+    "Cloud measurements ran only explicit version commands; this branch was not deployed and no demo business data was changed."
+  ],
+  "log_sha256": {
+    "runtime.log": "df63d191d1186f2479189f685ca9dbf09d696c4846fea05e1ed03173eec79e1f",
+    "runtime.xml": "b7aa9cb9ed4e09739e964a4b6fcbd7a4b4193dc47202454a0e4d4cfbae9cdd7e",
+    "lint.log": "f99085ca8eb16b365bd0ff1997d4ece3bea62ea8b244974be8e8150447c25b59",
+    "ansible.log": "3d544ce417f88b87184826092026195e33d00a67df9ae6bff0738759bba90177",
+    "focused.xml": "6e0646f17c49a9dee0020ff9ae1005497921f0717b344fa7372093164c0de661",
+    "baseline-regression.log": "7b7fadabb18d77e802b8560667be248bda6c2aee2fc29145362a05194892165d"
+  },
+  "implementation_commit": "6515fa95e6923a2f78c1c0c3138f055c72430731"
+}

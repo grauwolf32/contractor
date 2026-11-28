@@ -1733,7 +1733,10 @@ class KatanaTool(ScanTool):
 class SemgrepTool(ScanTool):
     name = "scan_semgrep"
     binary = "semgrep"
-    version_arguments = ("--version", "--disable-version-check")
+    # The pinned CLI otherwise dispatches --version back to pysemgrep and
+    # imports the scan CLI before printing. Check the packaged OSS engine
+    # through the same entry point without that cold-start dependency.
+    version_arguments = ("--experimental", "--version", "--disable-version-check")
     local_only = True
     description = """Run offline Semgrep Community Edition static checks on an exact source ZIP.
 

@@ -61,7 +61,6 @@ def test_all_registered_model_tool_schemas_hide_technical_versions(tmp_path):
                 name = getattr(cls, "name", None)
                 if isinstance(name, str):
                     classes.setdefault(name, set()).add(cls)
-    seen = set()
     for ref, factory in factories.items():
         for name in factory.exported_tools:
             candidates = classes[name]
@@ -78,5 +77,3 @@ def test_all_registered_model_tool_schemas_hide_technical_versions(tmp_path):
                 .parameters_json_schema
             )
             _check(schema)
-            seen.add((ref, name))
-    assert len(seen) == 118

@@ -1085,3 +1085,16 @@ its owning requirement.
 | `LIM-PLN-24` | 512 KiB compact UTF-8 JSON for a Planner execution envelope; 4 MiB for the surrounding official A2A protobuf request | Runtime Planner A2A ingress; Worker content retains LIM-WRK-9 | Server StageContentRequest validation, Runtime Planner DTO, A2A body admission | [PLN-R136](../execution/planners.md) |
 
 | `LIM-FND-61` | One Finding, one retained source receipt and one assertion of at most 32 KiB UTF-8 per ordinary check Run; exact revision within the shared safe integer bound | Immutable ordinary Finding check binding and common context | Server pin/schema/Runtime context validation; shared result/evidence limits and existing paged history bounds also apply | [FND-R243](../findings/findings.md) |
+
+## Browser exploration
+
+| ID | Value | Scope | Enforcement | Owner |
+| --- | --- | --- | --- | --- |
+| `LIM-BRW-1` | 1 Chromium process, 4 contexts | One allocation; context proxy lifetime at most 1800 s | Browser session admission and controlled proxy | [BRW-R6](../tools/browser.md) |
+| `LIM-BRW-2` | 256 actions, 1024 requests, 64 screenshot attempts, 32 distinct gaps | One allocation; excess requests aborted before transport | Browser session and screenshot admission | [BRW-R4](../tools/browser.md) |
+| `LIM-BRW-3` | 1280×720 pixels; 4 MiB PNG | One viewport screenshot | Playwright viewport and byte validation | [BRW-R5](../tools/browser.md) |
+| `LIM-BRW-4` | 1 MiB UTF-8 JSON | Exported map | Browser map export | [BRW-R4](../tools/browser.md) |
+| `LIM-BRW-5` | 512 selector characters, 4096 input/URL characters | Model action input | Browser tools/session | [BRW-R6](../tools/browser.md) |
+| `LIM-BRW-6` | 100 links and controls, 12000 text characters, 256 title characters | DOM snapshot; link URL at most 4096 characters | Fixed Runtime DOM projection | [BRW-R6](../tools/browser.md) |
+| `LIM-BRW-7` | 100 request rows per page; offset 0..1024 | Model request observations | browser_requests | [BRW-R4](../tools/browser.md) |
+| `LIM-BRW-8` | min(request timeout, 30 s), 5 s wrapper overhead; 20 s probe; 200 ms settle window | Browser operation/observation | Runtime bounded calls and allocation authority | [BRW-R6](../tools/browser.md) |

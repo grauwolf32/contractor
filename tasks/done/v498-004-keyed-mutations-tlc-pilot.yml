@@ -1,0 +1,109 @@
+schema_version: "1.0"
+id: V498-004
+title: "Verify KeyedMutation idempotency and ambiguous replies with TLC"
+milestone: persistence-api-cleanup-2026-10
+epic: persistence
+kind: chore
+priority: P2
+status: completed
+implementation_commit: f351994935bd3b5011864d817db235850f1c940e
+depends_on: [V498-003]
+languages: [go]
+goal: >-
+  Establish checked evidence that a repeated keyed request cannot duplicate a
+  committed database effect, and that a lost commit response can be reconciled
+  without changing the accepted request or its original result.
+context:
+  authority:
+    - "User request 2026-11-28: run the KeyedMutation TLA+/TLC pilot, create a task, check idempotency and lost responses, and bind results to PostgreSQL tests."
+    - "User request 2026-11-28: keep artifacts in /Users/ruslan/src/contractor/.lean/keyed-mutations."
+  specification:
+    - docs/spec/platform/persistence.md#PER-R24
+    - docs/spec/platform/persistence.md#PER-R13
+    - docs/spec/platform/persistence.md#PER-R18
+    - docs/spec/api/public-api.md#API-R69
+  finding: >-
+    internal/persistence/postgres/receipts.go:178 owns lock/read/effect/claim,
+    while tx.go and retry.go own atomic commit and definite-abort retries.
+    Existing receipt tests cover normal replay and serialization but do not
+    connect a bounded protocol model to actual durable effects, rollback after
+    effect or receipt, lost commit acknowledgements and stale snapshot recovery.
+  boundary: >-
+    PostgreSQL owns transaction atomicity, unique receipt keys and advisory
+    locks. KeyedMutation owns digest comparison and replay; callers own the
+    transaction and ambiguous-outcome reconciliation. Model bounded clients,
+    scopes, requests, attempts, local writes and retained receipts, separating
+    commit from response delivery. A callback may run in an aborted attempt;
+    only committed database effects are singular. No external side effect is
+    included in that guarantee. Runtime label management is the concrete caller.
+  decision: >-
+    Use a local finite safety model, named mutation controls and reachability
+    witnesses, with real PostgreSQL regressions and the existing production
+    consumer. A helper-only test would be simpler but would miss consumer
+    transaction/replay boundaries. No production changes are intended; any
+    established defect requires its own scoped task. Receipt purge/lifecycle,
+    arbitrary histories, fairness/liveness, PostgreSQL internals, digest collision
+    resistance and external effects remain outside this pilot.
+scope:
+  in:
+    - "Check concurrent same/different requests, independent scopes, immutable original response and atomic receipt/effect commit."
+    - "Explore rollback before and after effect/receipt, lost reply after commit, cancellation, stale REPEATABLE READ snapshot and bounded whole-transaction retry."
+    - "Require expected failures for weakened gates and witnesses for successful replay and failure recovery paths."
+    - "Add real PostgreSQL tests for durable effect counts and actual Runtime label management replay."
+    - "Run full touched Go packages, exact executed-test validation and lint; record hashes, assumptions, skips and owned database cleanup."
+  out:
+    - "Production behavior/schema/API changes, new receipt machinery, external calls, deployment and automatic CI adoption."
+    - "Receipt purge/deletion races, all domain callers, unbounded proofs, delivery/fairness/liveness guarantees and fault injection into a PostgreSQL server's internals."
+acceptance_criteria:
+  - id: A1
+    text: "Finite baseline graphs exhaust without safety violations; bounds and mappings distinguish callback invocation, committed effect, receipt and delivered result."
+  - id: A2
+    text: "Negative controls fail their named invariants, and witnesses reach competing requests, rollback, ambiguous commit reply, reconciliation and stale-snapshot retry."
+  - id: A3
+    text: "Real PostgreSQL regressions prove atomic effect/receipt rollback, one committed effect after lost acknowledgement and contention, exact replay/conflict and fresh-transaction recovery from stale snapshots."
+  - id: A4
+    text: "Runtime label management replays a lost successful result after later state changes without reverting the live binding or accepting a changed request."
+  - id: A5
+    text: "Complete touched packages, exact test validation and lint pass; artifacts remain under the primary .lean path and owned database resources are removed."
+tests:
+  - command: "python3 /Users/ruslan/src/contractor/.lean/keyed-mutations/run.py"
+    covers: [A1, A2]
+  - command: "go test -json -race -tags=integration -count=1 -timeout 20m ./internal/persistence/postgres ./internal/runtimeconfig"
+    covers: [A3, A4, A5]
+  - command: "python3 /Users/ruslan/src/contractor/.lean/keyed-mutations/verify_postgres.py"
+    covers: [A3, A4, A5]
+  - command: make lint
+    covers: [A5]
+verification:
+  evidence: tasks/evidence/v498-004-keyed-mutations.json
+  local_report: /Users/ruslan/src/contractor/.lean/keyed-mutations/README.md
+  result: >-
+    Six finite baseline graphs exhaust without violations: 169, 5408, 2872,
+    4688, 3004 and 3364 distinct states across RC/RR, same/different requests,
+    one/two clients and scopes, and bounded attempts. All seven mutation
+    controls violate their named invariants; all 21 witnesses are reached,
+    distinguishing committed-response loss from rollback before response loss.
+    Both complete Go packages pass under race/integration: 131 top-level tests,
+    no skips. Exact test identity validation confirms all 23 new leaf scenarios
+    plus required existing receipt, scope, retry and domain cases. Full make
+    lint passes with one auxiliary Python unittest skip, not passing coverage.
+    Final owned database, PostgreSQL server, data and socket cleanup succeeds.
+  verification_incident: >-
+    Initial lint failed two auxiliary PostgreSQL checks because the agent
+    removed its database after Go completed while lint still needed it.
+    The same owned disposable database was recreated and full lint passed
+    without source changes. The failed result/log are retained; final cleanup
+    waited for both gates. No failed or skipped case is counted as passing.
+  limits: >-
+    Finite safety during retained receipt lifetime, not unbounded proof,
+    Go/SQL refinement, liveness or fairness. PostgreSQL atomicity, constraints,
+    lock release and snapshot semantics are modeled assumptions checked on
+    real PostgreSQL. EOF is injected after a real commit or a real rollback;
+    this is not physical network failure injection. Runtime management uses
+    a fresh service object and actual database with ordinary credential/holder
+    test adapters, not process restart. Receipt purge, external effects,
+    hash collisions, HTTP authorization/canonicalization and arbitrary message
+    histories remain excluded. No production defect was established or
+    production behavior/schema/API changed. Reopen with persistence and Runtime
+    management owners when scope/digest/replay, transaction ownership, retry
+    classification or receipt retention changes. Local artifacts are no CI gate.

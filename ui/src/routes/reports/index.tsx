@@ -20,8 +20,13 @@ export function ReportsRoute() {
   const [params] = useSearchParams();
   const filters = readFilters(params);
   const check = useReportCheck(api, auditId);
+  const outsideProject =
+    filters.project !== null &&
+    check.data !== undefined &&
+    check.data.projectId !== filters.project;
+  const selectedId = outsideProject ? undefined : auditId;
   useDocumentTitle(
-    auditId === undefined || check.data === undefined
+    selectedId === undefined || check.data === undefined
       ? "Reports"
       : `${auditProfileLabel(check.data)} report`,
   );
@@ -29,17 +34,17 @@ export function ReportsRoute() {
     <PaneLayout
       listLabel="Reports"
       detailLabel="Report"
-      showDetail={auditId !== undefined}
+      showDetail={selectedId !== undefined}
       backLink={{
         to: `/reports${filterSearch(filters)}`,
         label: "Back to reports",
       }}
-      list={<ReportsList selectedId={auditId} filters={filters} />}
+      list={<ReportsList selectedId={selectedId} filters={filters} />}
       detail={
-        auditId === undefined ? (
+        selectedId === undefined ? (
           <NoReportSelected />
         ) : (
-          <ReportDetail key={auditId} auditId={auditId} check={check} />
+          <ReportDetail key={selectedId} auditId={selectedId} check={check} />
         )
       }
     />

@@ -2015,6 +2015,15 @@ and tool results continue to record exact revisions.
 **SCN-R271.** `scan@1` exports `scan_semgrep`, an offline static code adapter
 without target-network or active-check authority. It requires Semgrep Community
 Edition 1.187.0, advertised only after its independent version probe succeeds.
+Startup, provisioning preflight and per-scan version verification use the same
+`semgrep --experimental --version --disable-version-check` command. For this
+pinned release it executes the packaged native OSS engine through the installed
+entry point without loading the Python scan CLI. Capability discovery retains
+its independent two-second scanner deadline; only a successful exact `1.187.0`
+reply is accepted. No metadata-only assertion, cached reply, retry or Python CLI
+fallback substitutes for executing the engine. A hung or invalid Semgrep is
+omitted without hiding healthy scanners, and its subprocess is joined before
+probe cleanup. Revalidate this native command when changing the pinned engine.
 The model callable accepts source/rulepack namespace/name selectors resolved
 through selected exact versions; deterministic `tool@1` receives exact refs.
 `source_ref` is one `application/zip` source artifact. The shared source-analysis

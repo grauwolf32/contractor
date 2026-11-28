@@ -40,7 +40,7 @@ It leaves to other documents:
   [Evaluation format](../evals/format.md).
 - Individual Toolsets: [Memory](memory.md), [Skills](skills.md),
   [Workspace](workspace.md), [Code analysis](code-analysis.md),
-  [HTTP and Caido](http-caido.md), [Scanners](scanners.md) and
+  [HTTP and Caido](http-caido.md), [Browser exploration](browser.md), [Scanners](scanners.md) and
   [Code execution](code-execution.md).
 - Registries: [limits](../platform/limits.md), [errors](../platform/errors.md),
   [failure model](../platform/failure-model.md) and

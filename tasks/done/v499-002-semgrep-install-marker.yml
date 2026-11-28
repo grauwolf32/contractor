@@ -1,0 +1,42 @@
+schema_version: "1.0"
+id: V499-002
+title: Keep Semgrep lockfile destinations separate from its completion marker
+milestone: scan-tools-followups
+epic: scan-tools
+kind: defect
+introduced_by: V499-001
+priority: P1
+status: completed
+depends_on: [V499-001]
+languages: [python]
+goal: Semgrep provisioning copies both locked inputs, compiles bytecode once and marks completion only after success.
+context:
+  authority: User 2026-11-28 requests merging V499-001 and starting the demo. Deployment exposed this narrow installation prerequisite.
+  finding: deploy/ansible/roles/contractor_runtime/tasks/semgrep.yml:16 writes loop inputs over .bytecode-complete, skipping the build; line 42 references undefined item outside a loop. Existing syntax/resolve tests do not execute this installer.
+  siblings: Both lockfile copy iterations, bytecode build creates guard and completion publication; exercise the complete production task sequence, including rerun and failed build.
+  boundary: Keep the immutable package version and native version command; use existing Ansible copy/command tasks and private_command.py without new installation machinery.
+scope:
+  in:
+    - Correct the two template destinations.
+    - Execute the real installer tasks with synthetic uv in existing Ansible diagnostics tests, checking files, build invocation, completion and private failure output.
+  out:
+    - Runtime behavior, package versions, models, business data, Finding format repair and global timeout changes.
+acceptance_criteria:
+  - id: A1
+    text: Both exact locked inputs are copied before the build, bytecode compilation runs once even with the old completion marker present, and an idempotent rerun preserves installed content.
+  - id: A2
+    text: Failed compilation leaves no new completion marker and no private diagnostics; a regression fails on the broken production tasks.
+  - id: A3
+    text: The complete Ansible gate executes the production installer regression and lint passes.
+tests:
+  - command: make test-ansible
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  results:
+    - The real Ansible installer regression fails on the baseline with an undefined item and passes after correcting both destinations.
+    - All 19 diagnostics tests pass, including exact lockfile copies before compilation, a pre-existing legacy marker, idempotent rerun, failed compilation without completion and protected verbose diagnostics.
+    - make lint passes including the complete Ansible gate, task/spec checks, Go and Python source checks. Runtime production code is unchanged from the independently verified V499-001 revision.
+    - The failed demo installation marker was verified against the exact lockfile digest and preserved aside; no business data was changed. Corrected deployment follows main integration.
+implementation_commit: 41e553efbd87ab22542bcbf1fbc6a375a0c26b1c

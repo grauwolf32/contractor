@@ -13,6 +13,65 @@ from contractor_runtime.archive_cache import read_archive
 from contractor_runtime.state import ProcessState
 
 
+@pytest.mark.parametrize("failure", ["cleanup-failed", "reply-lost"])
+def test_release_pilot_replays_preserve_fenced_identity_and_replacement(
+    tmp_path, runtime_capabilities, monkeypatch, failure
+):
+    from contractor_runtime.contracts import API_VERSION, ReleaseAllocationRequest
+
+    async def scenario():
+        state, service = await make_service(tmp_path, runtime_capabilities, allocation_slots=2)
+        old, peer, replacement = "pilot-old", "pilot-peer", "pilot-new"
+        try:
+            await service.prepare(make_spec(allocation_id=old))
+            await service.prepare(make_spec(allocation_id=peer))
+            owner = service._allocations[old]
+            cleanup = owner._cleanup.release
+            calls = 0
+
+            async def failing_once(context, deadline):
+                nonlocal calls
+                calls += 1
+                if failure == "cleanup-failed" and calls == 1:
+                    raise OSError("injected local cleanup failure")
+                await cleanup(context, deadline)
+
+            monkeypatch.setattr(owner._cleanup, "release", failing_once)
+            if failure == "cleanup-failed":
+                with pytest.raises(AllocationError) as error:
+                    await finalize_and_release(service, old)
+                assert error.value.code == "allocation_cleanup_failed"
+            else:
+                # The peer loses this successful response; no heartbeat release
+                # acknowledgement has arrived at the Runtime yet.
+                await finalize_and_release(service, old)
+            assert (await state.snapshot(old)).process_state is ProcessState.FENCED
+            assert old in service._allocations
+            assert (await state.snapshot(peer)).process_state is ProcessState.ALLOCATED
+            with pytest.raises(AllocationError, match="capacity"):
+                await service.prepare(make_spec(allocation_id=replacement))
+            request = ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=old)
+            await service.release(request)
+            await service.release(request)
+            assert calls == (2 if failure == "cleanup-failed" else 1)
+            assert (await state.snapshot(old)).process_state is ProcessState.FENCED
+            await service.confirm_release(old)
+            await service.prepare(make_spec(allocation_id=replacement))
+            new_owner = service._allocations[replacement]
+            await service.release(request)
+            await service.confirm_release(old)
+            assert service._allocations[replacement] is new_owner
+            assert (await state.snapshot(replacement)).process_state is ProcessState.ALLOCATED
+            assert (await state.snapshot(peer)).process_state is ProcessState.ALLOCATED
+            assert await service.active_a2a_application(replacement) is not None
+        finally:
+            await service.close(30)
+        assert not service._allocations
+        assert not (await state.snapshot()).allocations
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("cancel_first", [False, True])
 def test_retired_prepare_cannot_consume_a_replacements_reservation(
     tmp_path, runtime_capabilities, monkeypatch, cancel_first

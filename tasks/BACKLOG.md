@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 11 in progress, 46 pending, 13 deferred. 1751 finished: 1732 completed, 19 archived.
+69 open tasks: 11 in progress, 45 pending, 13 deferred. 1758 finished: 1739 completed, 19 archived.
 
 ## In progress
 
@@ -45,9 +45,8 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V410-008](v410-008-sitemap-caido-history.yml) | feature | P2 | V410-007 | Import selected Caido history incrementally with durable checkpoints |
-| [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-007, V412-001 | Collect managed Playwright network observations into the sitemap |
+| [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-007 | Collect managed Playwright network observations into the sitemap |
 | [V410-037](v410-037-allocation-openvpn-bridge-egress.yml) | feature | P2 | — | Route bridge egress through an allocation-owned OpenVPN tunnel |
-| [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
@@ -72,7 +71,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-006](v410-006-sitemap-workflow-composition.yml) | feature | P1 | — | Ship standalone sitemap discovery and reconciliation Workflows |
 | [V410-025](v410-025-sitemap-audit-composition.yml) | feature | P1 | V410-007 | Compose exact sitemap artifacts through ordinary Audit tasks |
 | [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-015, V410-025 | Discover URL-only targets using HTTP tools and the shared sitemap |
-| [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
+| [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
 
 ### Audits (`audits`)
@@ -166,23 +165,23 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 54 | 80 | 46 | 116 |
+| Run execution core (`execution-core`) | 3 | 54 | 80 | 48 | 116 |
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 51 | 63 | 54 | 106 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 14 | 4 | 2 | 6 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 27 | 38 | 18 | 39 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 22 | 13 | 13 | 30 |
+| HTTP and Caido tools (`http-tools`) | 4 | 27 | 38 | 18 | 39 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 22 | 15 | 13 | 32 |
 | Findings tools and collections (`findings`) | 4 | 27 | 16 | 15 | 30 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 21 | 79 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 22 | 79 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 24 | 47 | 24 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
 | Web UI (`ui`) | 2 | 58 | 83 | 38 | 81 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 3 | 44 | 30 | 22 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 29 | 52 | 21 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 29 | 53 | 21 |
 | Quality, CI and process (`quality`) | 11 | 1 | 38 | 157 | 32 |

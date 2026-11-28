@@ -4,7 +4,7 @@ import { PROJECT_ID_PATTERN } from "../../api/projects";
  * The list filter of /reports: ready reports. Pending and unavailable report
  * statuses stay on their checks and are readable at /reports/:auditId.
  */
-export type ReportFilter = "ready" | "all";
+type ReportFilter = "ready" | "all";
 
 export interface ReportFilters {
   status: ReportFilter;
@@ -14,7 +14,7 @@ export interface ReportFilters {
 }
 
 /** URL parameters of the list; the selected report is the path. */
-export const STATUS_PARAM = "status";
+const STATUS_PARAM = "status";
 export const PROJECT_PARAM = "project";
 export const PAGE_PARAM = "page";
 

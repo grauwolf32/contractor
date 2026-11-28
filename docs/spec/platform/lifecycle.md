@@ -330,3 +330,9 @@ Owner column links each entry to its owning requirement.
 | `LIFE-PLN-5` | Active Runtime Planner host and its last operation/reply | Planner.Run removes it after joining admitted operations; Runtime releases its loop/session and model handles before allocation cleanup | The invocation must settle before allocation release | Ordinary Run/Project deletion and Stage abort cancel the owner; process loss interrupts it | Invocation memory only, bounded by LIM-PLN-23; no raw conversation is persisted | [PLN-R137](../execution/planners.md) |
 
 | `LIFE-FND-8` | Ordinary Finding check Run, retained evidence/results and source-history acknowledgements | Existing owner-authorized terminal Run deletion after release; owning Project drain/purge | No independent check hold or lifecycle; deleting Project denies new admission/publication | Ordinary Run bindings are purged; Project cleanup releases finding-materials and finding-history bindings with the existing owner cleanup | Acknowledged partial evidence and results survive permitted producing Run purge and later analyst edits until Project deletion | [FND-R244](../findings/findings.md), [FND-R245](../findings/findings.md) |
+
+## Browser exploration
+
+| ID | Entity | Deletion owner | Blockers | Cascade | Retention | Owner |
+| --- | --- | --- | --- | --- | --- | --- |
+| `LIFE-BRW-1` | Allocation browser process, contexts, private proxy and transient observations | Allocation cancellation, lease loss, release or failed preparation | Active calls and dependent browser cleanup must join before private HTTP credentials are erased and the slot is reused | Close all contexts, proxies, Chromium and the Playwright driver; clear in-memory maps and shared HTTP captures | Only explicitly published ordinary artifacts and selected Finding sources use existing Run/Project retention | [BRW-R5](../tools/browser.md), [BRW-R6](../tools/browser.md) |

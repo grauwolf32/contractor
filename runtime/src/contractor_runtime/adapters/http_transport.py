@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import ssl
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
@@ -105,7 +105,7 @@ class HTTPTransport:
         self._engine = None
         self._ssl = ssl_context
         self._tasks: set[asyncio.Task] = set()
-        self._response_cleanup: list[Callable[[], None]] = []
+        self._consumer_cleanup: list[Callable[[], Awaitable[None] | None]] = []
         self._request_count = 0
         self._next_request_at = 0.0
         self._rate_lock = asyncio.Lock()
@@ -151,9 +151,15 @@ class HTTPTransport:
         if tasks:
             await asyncio.shield(asyncio.gather(*tasks, return_exceptions=True))
         await self._close_transport()
-        for cleanup in self._response_cleanup:
-            cleanup()
-        self._response_cleanup.clear()
+        cleanup_failed = False
+        for cleanup in self._consumer_cleanup:
+            try:
+                result = cleanup()
+                if result is not None:
+                    await result
+            except Exception:
+                cleanup_failed = True
+        self._consumer_cleanup.clear()
         # Stop may precede the Server's release acknowledgement. Drop all
         # allocation settings and target material as soon as the owner joins;
         # failed tasks may retain private request/response traceback frames.
@@ -171,6 +177,8 @@ class HTTPTransport:
         self._sessions.clear()
         self._ssl = None
         self._authority_deadline = lambda: None
+        if cleanup_failed:
+            raise RuntimeError("HTTP consumer cleanup failed") from None
 
     def _require_authority(self) -> float:
         if self._stopped:
@@ -180,9 +188,9 @@ class HTTPTransport:
             raise HTTPTransportError("http_allocation_closed")
         return lease
 
-    def attach_response_buffer(self, cleanup: Callable[[], None]) -> None:
-        """Allocation teardown also erases model-facing response buffers."""
-        self._response_cleanup.append(cleanup)
+    def attach_consumer_cleanup(self, cleanup: Callable[[], Awaitable[None] | None]) -> None:
+        """Join dependent clients and erase their response buffers before credentials."""
+        self._consumer_cleanup.append(cleanup)
 
     def model_scope(self) -> dict:
         """Project authorized public scope without infrastructure or secrets."""
