@@ -360,6 +360,63 @@
         },
         "automatic": false
       }
+    },
+    {
+      "type": "ArtifactWriteHeader",
+      "value": {
+        "artifact": {
+          "namespace": "analysis",
+          "name": "report"
+        },
+        "mediaType": "text/plain",
+        "size": 0,
+        "createOnly": true
+      }
+    },
+    {
+      "type": "ArtifactWriteHeader",
+      "value": {
+        "artifact": {
+          "namespace": "analysis",
+          "name": "report"
+        },
+        "mediaType": "text/plain",
+        "size": 1,
+        "expectedRevision": "revision,with opaque punctuation"
+      }
+    },
+    {
+      "type": "ArtifactWriteHeader",
+      "value": {
+        "createOnly": false
+      }
+    },
+    {
+      "type": "ArtifactPayloadMetadata",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "artifact": {
+          "namespace": "analysis",
+          "name": "report",
+          "revision": "exact"
+        },
+        "mediaType": "text/plain",
+        "size": 0,
+        "bindingCreatedAt": "2026-11-28T00:00:00Z",
+        "revisionCreatedAt": "2026-11-28T00:00:00.123456789Z"
+      }
+    },
+    {
+      "type": "FindingSubmissionHeader",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "invocationId": "invocation-1",
+        "submissionId": "submission-1",
+        "evidenceRefs": [],
+        "incidental": false,
+        "proposalSize": 67108864,
+        "derivedAnchorsSize": 0
+      }
     }
   ],
   "invalid": [
@@ -421,6 +478,43 @@
         "testedConditions": [
           1
         ]
+      }
+    },
+    {
+      "type": "ArtifactWriteHeader",
+      "value": {
+        "size": true
+      }
+    },
+    {
+      "type": "ArtifactWriteHeader",
+      "value": {
+        "size": "1"
+      }
+    },
+    {
+      "type": "ArtifactWriteHeader",
+      "value": {
+        "createOnly": true,
+        "expectedRevision": "revision-1"
+      }
+    },
+    {
+      "type": "ArtifactWriteHeader",
+      "value": {
+        "expectedRevision": null
+      }
+    },
+    {
+      "type": "FindingSubmissionHeader",
+      "value": {
+        "proposalSize": -1
+      }
+    },
+    {
+      "type": "FindingSubmissionHeader",
+      "value": {
+        "httpEvidenceSize": null
       }
     }
   ]

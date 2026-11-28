@@ -84,9 +84,6 @@ func TestPrivateProjectArtifactAuthorityDoesNotReadOrRequireContent(t *testing.T
 		}
 	}
 	assertPrivateErrorEnvelope(t, request(base+"/access"+query+"&revision=revision-a"), 400, "invalid_request", false)
-	for _, path := range []string{"/private/v1/allocations/allocation-1/sitemap", "/private/v1/allocations/allocation-1/sitemap/access?operation=list_sitemap_entries"} {
-		assertPrivateErrorEnvelope(t, request(path), 404, "not_found", false)
-	}
 	projectErr = projectstore.ErrNotFound
 	assertPrivateErrorEnvelope(t, request(base+"/access"+query), 403, "artifact_access_denied", false)
 	projectErr, runErr = nil, runstore.ErrNotFound

@@ -3,7 +3,6 @@ package privateartifacts
 import (
 	"context"
 	"errors"
-	"net/http"
 	"slices"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -18,39 +17,6 @@ import (
 // withReadTarget keeps Project read authority stable through the entire read,
 // using the same gate as allocation fence/release. Ordinary Run reads preserve
 // their existing grant and namespace policy.
-func (h *handler) withReadTarget(r *http.Request, accessOnly bool, read func(context.Context, artifacts.ScopedStore, contracts.ArtifactRef) error) error {
-	allowed := []string{"scope", "operation"}
-	if !accessOnly {
-		allowed = append(allowed, "revision")
-	}
-	query, err := exactQuery(r.URL.RawQuery, allowed...)
-	if err != nil {
-		return err
-	}
-	ref := contracts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")}
-	if contracts.ValidateArtifactName(ref.Namespace) != nil || contracts.ValidateArtifactName(ref.Name) != nil {
-		return errInvalidRequest
-	}
-	if values, present := query["revision"]; present {
-		if !contracts.ValidResourceID(values[0]) {
-			return errInvalidRequest
-		}
-		ref.Revision = &values[0]
-	}
-	var scope, operation *string
-	if values, present := query["scope"]; present {
-		scope = &values[0]
-	}
-	if values, present := query["operation"]; present {
-		operation = &values[0]
-	}
-	_, identity, err := h.allocationGrant(r)
-	if err != nil {
-		return err
-	}
-	return h.withArtifactTarget(r.Context(), r.PathValue("allocationID"), identity, ref, scope, operation, accessOnly, read)
-}
-
 func (h *handler) withArtifactTarget(ctx context.Context, allocationID string, identity authenticatedRuntime, ref contracts.ArtifactRef, scope, operation *string, accessOnly bool, read func(context.Context, artifacts.ScopedStore, contracts.ArtifactRef) error) error {
 	if ref.Validate() != nil {
 		return errInvalidRequest

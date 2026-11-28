@@ -73,7 +73,7 @@ async def sitemap_server(tmp_path: Path, nodes: list[dict[str, Any]], *, descend
             run_id="sitemap-run",
             namespace="analyst",
             runtime_settings=RuntimeSettings(
-                artifactApiUrl="https://control.example/private/v1",
+                artifactApiUrl="https://control.example",
                 requestTimeoutSeconds=10,
                 caido=settings,
             ),

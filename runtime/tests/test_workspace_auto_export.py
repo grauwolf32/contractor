@@ -804,7 +804,7 @@ def build_context(
         runtime_settings=RuntimeSettings(
             llmGatewayUrl="https://llm.example/v1",
             llmGatewayToken="test-token",
-            artifactApiUrl="https://control.example/private/v1",
+            artifactApiUrl="https://control.example",
             requestTimeoutSeconds=30,
         ),
         project_workspace=session,

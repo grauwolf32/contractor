@@ -1454,7 +1454,11 @@
         },
         "artifactApiUrl": {
           "title": "Artifactapiurl",
-          "type": "string"
+          "type": "string",
+          "description": "Private Server HTTPS origin for native gRPC; no path, credentials, query or fragment.",
+          "maxLength": 2048,
+          "x-maxBytes": 2048,
+          "pattern": "^https://[^/?#@]+/?$"
         },
         "telemetry": {
           "anyOf": [

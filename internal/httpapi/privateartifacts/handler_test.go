@@ -144,7 +144,7 @@ func TestPrivateArtifactWriteEnforcesCASAndReservedOutputs(t *testing.T) {
 	if created.Code != http.StatusCreated {
 		t.Fatalf("create = %d %s", created.Code, created.Body.String())
 	}
-	var result contracts.ArtifactWriteResult
+	var result artifactWriteFixture
 	if err := json.Unmarshal(created.Body.Bytes(), &result); err != nil || result.Artifact.Revision == nil {
 		t.Fatalf("decode exact write result = (%+v, %v)", result, err)
 	}
@@ -283,7 +283,7 @@ func TestFindingReceiptReplaySurvivesFenceButNewSubmissionDoesNot(t *testing.T) 
 	repository := newMemoryRepository()
 	registry := &fakeRegistry{grant: testGrant("run-a")}
 	findings := &fakeFindingIntake{}
-	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
+	handler, err := newPayloadNativeRecorder(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry: registry, Artifacts: artifacts.NewService(repository), Findings: findings,
 		NewRequestID: func() (string, error) { return "artifact-request-fixed", nil },
 	})
@@ -524,7 +524,7 @@ func newTestHandler(t *testing.T, registry *fakeRegistry, repository *memoryRepo
 	if len(transfers) > 0 {
 		admission = transfers[0]
 	}
-	handler, err := NewHandler(Dependencies{Transfers: admission,
+	handler, err := newPayloadNativeRecorder(Dependencies{Transfers: admission,
 		Registry: registry, Artifacts: artifacts.NewService(repository),
 		NewRequestID: func() (string, error) { return "artifact-request-fixed", nil },
 	})
@@ -671,7 +671,7 @@ func newProductionGrantHandler(
 	if err != nil || len(reservations) != 1 {
 		t.Fatalf("production reservation = (%+v, %v)", reservations, err)
 	}
-	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
+	handler, err := newPayloadNativeRecorder(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry: registry, Artifacts: artifacts.NewService(repository),
 		NewRequestID: func() (string, error) { return "artifact-request-fixed", nil },
 	})

@@ -232,7 +232,7 @@ def test_cancelled_validator_reaps_child_before_tool_and_workspace_close(
             resources=WorkerState().resources,
             runtime_settings=RuntimeSettings(
                 llmGatewayUrl="https://gateway.example/v1",
-                artifactApiUrl="https://control.example/private/v1",
+                artifactApiUrl="https://control.example",
                 requestTimeoutSeconds=30,
             ),
             adapter_handles=AdapterHandles(tool_subprocess=launcher),

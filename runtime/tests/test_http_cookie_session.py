@@ -46,7 +46,7 @@ async def tools_for(
     settings = RuntimeSettings(
         llmGatewayUrl="https://gateway.example",
         llmGatewayToken="infrastructure-canary",
-        artifactApiUrl="https://control.example/private/v1",
+        artifactApiUrl="https://control.example",
         requestTimeoutSeconds=5,
         httpOriginTarget=HTTPOriginTargetSettings(url=origin, bearerToken=origin_token),
     )

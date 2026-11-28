@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import grpc
 import pytest
 from fakes.worker_state import WorkerState
 from shared_config_defaults import MAX_ARTIFACT_BYTES
@@ -133,8 +134,11 @@ def test_shared_artifact_history_document_writes(error: dict[str, Any]) -> None:
         with pytest.raises(ArtifactAPIError) as failure:
             await write()
         decoded = failure.value
+        expected_status = (
+            grpc.StatusCode.UNAVAILABLE if error["resend"] else grpc.StatusCode.FAILED_PRECONDITION
+        )
         if (decoded.status_code, decoded.code, decoded.retryable) != (
-            error["status"],
+            expected_status,
             error["code"],
             error["retryable"],
         ):

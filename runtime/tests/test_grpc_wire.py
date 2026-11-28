@@ -71,6 +71,11 @@ def test_shared_grpc_bounds():
         "stateMessageBytes": limits.MAX_STATE_MESSAGE_BYTES,
         "metadataBytes": limits.MAX_METADATA_BYTES,
         "concurrentRPCs": limits.MAX_CONCURRENT_RPCS,
+        "bulkChunkBytes": limits.BULK_CHUNK_BYTES,
+        "bulkHeaderBytes": limits.BULK_HEADER_BYTES,
+        "bulkFrameBytes": limits.BULK_FRAME_BYTES,
+        "bulkServerWindowBytes": 1 << 20,  # Server-owned receive window.
+        "bulkClientLookaheadBytes": limits.BULK_LOOKAHEAD_BYTES,
     }
 
 

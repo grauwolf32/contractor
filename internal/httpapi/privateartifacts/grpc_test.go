@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -33,17 +32,18 @@ import (
 )
 
 type allocationTestHarness struct {
-	Client  pb.AllocationClient
-	Context context.Context
-	HTTP    *http.Client
-	URL     string
+	Artifact pb.ArtifactClient
+	Client   pb.AllocationClient
+	Context  context.Context
+	HTTP     *http.Client
+	URL      string
 }
 
 func allocationRPCFixture(t *testing.T, owner *handler) (pb.AllocationClient, context.Context) {
 	fixture := newAllocationNativeHarness(t, owner)
 	return fixture.Client, fixture.Context
 }
-func newAllocationNativeHarness(t *testing.T, owner *handler) allocationTestHarness {
+func newAllocationNativeHarness(t *testing.T, owner *handler, wrappers ...func(http.Handler) http.Handler) allocationTestHarness {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "pki")
 	generator := localpki.Generator{}
@@ -86,17 +86,10 @@ func newAllocationNativeHarness(t *testing.T, owner *handler) allocationTestHarn
 	if err != nil {
 		t.Fatal(err)
 	}
-	remaining, err := NewHandler(owner.dependencies)
-	if err != nil {
-		t.Fatal(err)
+	dispatch := native
+	for _, wrap := range wrappers {
+		dispatch = wrap(dispatch)
 	}
-	dispatch := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/contractor.runtime.v1alpha1.Allocation/") {
-			native.ServeHTTP(w, r)
-		} else {
-			remaining.ServeHTTP(w, r)
-		}
-	})
 	server := httptest.NewUnstartedServer(dispatch)
 	server.EnableHTTP2 = true
 	server.Config.MaxHeaderBytes = runtimewire.MaxMetadataBytes
@@ -120,7 +113,7 @@ func newAllocationNativeHarness(t *testing.T, owner *handler) allocationTestHarn
 	ctx = metadata.AppendToOutgoingContext(ctx, strings.ToLower(RuntimeInstanceHeader), "runtime-1", strings.ToLower(allocationIDHeader), "allocation-1")
 	httpTransport := &http.Transport{TLSClientConfig: clientTLS, ForceAttemptHTTP2: true}
 	t.Cleanup(httpTransport.CloseIdleConnections)
-	return allocationTestHarness{Client: pb.NewAllocationClient(connection), Context: ctx, HTTP: &http.Client{Transport: httpTransport}, URL: server.URL}
+	return allocationTestHarness{Artifact: pb.NewArtifactClient(connection), Client: pb.NewAllocationClient(connection), Context: ctx, HTTP: &http.Client{Transport: httpTransport}, URL: server.URL}
 }
 
 type unreadAllocationBody struct{}
@@ -245,29 +238,100 @@ func (h allocationTestHarness) payloadRequest(t *testing.T, method, path string)
 		return h.artifactRequest(t, path)
 	}
 
-	request, err := http.NewRequestWithContext(h.Context, method, h.URL+"/private/v1/allocations/allocation-1"+path, nil)
-	if err != nil {
-		t.Fatal(err)
+	if method != http.MethodGet {
+		t.Fatalf("payload fixture method=%s", method)
 	}
-	request.Header.Set(RuntimeInstanceHeader, "runtime-1")
-	received, err := h.HTTP.Do(request)
-	if err != nil {
-		t.Fatal(err)
+	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+	input := map[string]any{}
+	ref := map[string]any{}
+	if len(parts) == 3 && parts[0] == "artifacts" {
+		ref["namespace"] = parts[1]
+		ref["name"] = parts[2]
 	}
-	defer received.Body.Close()
+	query, err := exactQuery(parsed.RawQuery, "revision", "scope", "operation")
+	for key, values := range query {
+		if key == "revision" {
+			ref[key] = values[0]
+		} else {
+			input[key] = values[0]
+		}
+	}
+	input["artifact"] = ref
+	request := new(pb.ArtifactReadTarget)
+	if err == nil {
+		err = runtimewire.EncodeDomain(input, request, runtimewire.BulkHeaderBytes, runtimewire.BulkFrameBytes)
+	}
+	var frames []*pb.ArtifactReadFrame
+	if err == nil {
+		stream, callErr := h.Artifact.Read(h.Context, request)
+		err = callErr
+		if err == nil {
+			for {
+				frame, receiveErr := stream.Recv()
+				if receiveErr == io.EOF {
+					break
+				}
+				if receiveErr != nil {
+					err = receiveErr
+					break
+				}
+				frames = append(frames, frame)
+			}
+		}
+	} else {
+		err = runtimewire.Error(h.Context, codes.InvalidArgument, "invalid_request", false)
+	}
 	response := httptest.NewRecorder()
-	for key, values := range received.Header {
-		response.Header()[key] = append([]string(nil), values...)
+	if err != nil {
+		return payloadFixtureFailure(t, err)
 	}
-	response.WriteHeader(received.StatusCode)
-	if _, err = io.Copy(response, received.Body); err != nil {
-		t.Fatal(fmt.Errorf("payload response: %w", err))
+	if len(frames) == 0 || frames[0].GetHeader() == nil {
+		t.Fatal("native read omitted metadata")
 	}
+	header := frames[0].GetHeader()
+	response.Header().Set("Content-Type", header.GetMediaType())
+	response.Header().Set("ETag", strconv.Quote(header.GetArtifact().GetRevision()))
+	response.Header().Set(bindingCreatedAtHeader, header.GetBindingCreatedAt())
+	response.Header().Set(revisionCreatedAtHeader, header.GetRevisionCreatedAt())
+	response.Header().Set("Cache-Control", "no-store")
+	response.WriteHeader(200)
+	for _, frame := range frames[1:] {
+		_, _ = response.Write(frame.GetChunk())
+	}
+	return response
+}
+func payloadFixtureFailure(t *testing.T, err error) *httptest.ResponseRecorder {
+	t.Helper()
+	response := httptest.NewRecorder()
+	current := status.Convert(err)
+	var detail *pb.ErrorDetail
+	for _, value := range current.Details() {
+		if typed, ok := value.(*pb.ErrorDetail); ok {
+			detail = typed
+		}
+	}
+	if detail == nil {
+		t.Fatal(err)
+	}
+	code := 500
+	switch current.Code() {
+	case codes.InvalidArgument:
+		code = 400
+	case codes.PermissionDenied:
+		code = 403
+	case codes.NotFound:
+		code = 404
+	case codes.FailedPrecondition:
+		code = 409
+	case codes.Aborted, codes.Unavailable, codes.ResourceExhausted:
+		code = 503
+	}
+	writeJSON(response, code, errorResponse{Code: detail.GetCode(), Message: "operation rejected", Retryable: detail.GetRetryable(), RequestID: detail.GetRequestId()})
 	return response
 }
 
 // artifactRequest translates the existing domain fixtures to named RPCs.
-// Only payload reads use the remaining HTTP listener.
+// Payload reads use the same native mTLS listener.
 func (h allocationTestHarness) artifactRequest(t *testing.T, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	path = strings.TrimPrefix(path, "/private/v1/allocations/allocation-1")

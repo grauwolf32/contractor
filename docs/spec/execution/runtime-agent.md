@@ -592,8 +592,8 @@ changing `local-workdir@1` semantics.
 telemetry settings only through allocation-owned adapter objects. It does not
 mutate process-global proxy environment or trust stores.
 
-**RTA-R57.** Registration, heartbeat, control, A2A and Artifact API
-traffic always bypasses the Worker proxy. MemoryTools uses that same Artifact
+**RTA-R57.** Registration, heartbeat, control, official A2A gRPC and
+Artifact gRPC traffic always bypasses the Worker proxy. MemoryTools uses that same Artifact
 client and adds no proxied endpoint.
 
 **RTA-R58.** Finalization and abort close adapters after a bounded

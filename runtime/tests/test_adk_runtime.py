@@ -4090,7 +4090,7 @@ def runtime_settings() -> RuntimeSettings:
     return RuntimeSettings(
         llmGatewayUrl="https://llm.example/v1",
         llmGatewayToken=SECRET,
-        artifactApiUrl="https://control.example/private/v1",
+        artifactApiUrl="https://control.example",
         requestTimeoutSeconds=30,
     )
 

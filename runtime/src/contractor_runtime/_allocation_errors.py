@@ -43,3 +43,7 @@ class ArtifactAPIError(ArtifactClientError):
                 grpc.StatusCode.CANCELLED,
             }
         )
+        self.transient_failure = retryable and (
+            self.server_failure
+            or status_code in {grpc.StatusCode.ABORTED, grpc.StatusCode.RESOURCE_EXHAUSTED}
+        )

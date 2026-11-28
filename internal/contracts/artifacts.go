@@ -203,13 +203,6 @@ func (r ArtifactMetadataResult) Validate() error {
 	return nil
 }
 
-type ArtifactWriteResult struct {
-	APIVersion string      `json:"apiVersion"`
-	Artifact   ArtifactRef `json:"artifact"`
-	MediaType  string      `json:"mediaType"`
-	Size       int64       `json:"size"`
-}
-
 // ArtifactListResult is one page of versionless refs. NextCursor continues a
 // paged listing and is absent on its last page and from a namePrefix listing.
 type ArtifactListResult struct {
@@ -239,16 +232,6 @@ func (r ArtifactListResult) Validate() error {
 		}
 	}
 	return nil
-}
-
-func (r ArtifactWriteResult) Validate() error {
-	if err := ValidateAPIVersion(r.APIVersion); err != nil {
-		return err
-	}
-	if err := r.Artifact.ValidateExact(); err != nil {
-		return err
-	}
-	return validateArtifactMetadata(r.MediaType, r.Size)
 }
 
 func validateArtifactMetadata(mediaType string, size int64) error {

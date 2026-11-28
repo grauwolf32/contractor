@@ -5,7 +5,7 @@ milestone: server-runtime-grpc-2026-11
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V490-004
 languages:
@@ -28,6 +28,9 @@ context:
   proposal: docs/proposals/0038-server-runtime-transport.md
   specification:
   - docs/spec/execution/control-plane.md#CTL-R163
+  - docs/spec/execution/control-plane.md#CTL-R177
+  - docs/spec/artifacts/artifact-store.md#ART-R43
+  - docs/spec/findings/findings.md#FND-R56
   - docs/spec/execution/runtime-agent.md#RTA-R75
   - docs/spec/platform/security.md#SEC-R5
   - docs/spec/platform/failure-model.md
@@ -49,6 +52,25 @@ context:
     or allocation unary limit. Use a typed submission header and bounded
     chunks for its named proposal/evidence documents, preserving their domain
     decoding, aggregate size checks and the existing receipt/fence order.
+    Agent binding decision 2026-11-28: one typed header, exact-size chunks up to
+    256 KiB and clean EOF before publication; finding document order is proposal,
+    derived anchors, captured HTTP. Header/receipt messages are at most 1 MiB,
+    protobuf frames at most 1 MiB plus 1 KiB. Explicit 1 MiB Server HTTP/2
+    windows and a separate four-channel/32-call Runtime bulk owner preserve
+    bounded transport work. Malformed framing is permanent; ungraceful loss is
+    unconfirmed delivery for the existing CAS/receipt owner. The smaller framing
+    budget does not replace the 64 MiB aggregate domain buffer.
+    Native cancellation verification exposed grpc-go ServeHTTP returning before
+    its application handler joins; its eager request reader also bypasses
+    application receive backpressure. The HTTP adapter now owns message credit
+    (one bounded message ahead) and joins application work before returning,
+    shared by allocation streams/unaries and Control Plane unaries.
+    Verification decomposition correction 2026-11-28 (agent proposal): this
+    implementation task owns the focused production-process demonstration;
+    the complete process matrix runs once in the V490-006 deterministic release
+    gate after obsolete transport cleanup. No milestone check is removed or
+    weakened, and component/real-PostgreSQL failure regressions stay here. Reopen only for
+    measured throughput needs or a separately requested streaming storage change.
 scope:
   in:
   - Use separate data channels and bounded protobuf chunks for read/write; retain existing transfer admission,
@@ -131,8 +153,22 @@ tests:
   - A1
   - A2
   - A3
-- command: make test-e2e
+- command: >-
+    go test -tags=e2e -count=1 -timeout=20m ./tests/e2e
+    -run '^(TestRuntimeManagedArtifactWritesAcrossProcesses|TestArtifactFilePublicationAcrossProcesses|TestRuntimeAllocationSlotsAcrossProductionProcesses|TestFindingsProducerAndReaderAcrossProcesses|TestProjectSitemapToolsAcrossProductionProcesses)$'
   covers:
   - A1
   - A2
   - A3
+
+implementation_notes:
+- Removed the final private HTTP payload/finding handlers and callers. The retained
+  recorder vocabulary is test-only and sends real protobuf frames through the native
+  server; public HTTP and the existing storage/fencing/receipt owners are unchanged.
+- The shared grpc-limits and grpc-allocation fixtures pin bulk sizes, framing-header
+  shapes, presence and conflicting-oneof rejection in Go and Python.
+- A native Go/Python/mTLS/PostgreSQL regression loses the committed Artifact terminal
+  reply and verifies existing Runtime CAS reconciliation leaves exactly one revision.
+- Native cancellation exposed grpc-go HTTP-handler eager reads and early return.
+  Shared request receive credit and application joins now bound both allocation and
+  Control Plane HTTP/2 adapters without a new connection or storage subsystem.

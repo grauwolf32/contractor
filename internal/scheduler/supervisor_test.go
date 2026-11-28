@@ -230,7 +230,7 @@ func newLaneTestScheduler(
 			PlannerTimeout: time.Second, FinalizationTimeout: time.Second, AbortTimeout: time.Second,
 			LeaseScanInterval: time.Second,
 			RuntimeTransport: RuntimeTransportSettings{
-				ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 1,
+				ArtifactAPIURL: "https://control.test", RequestTimeoutSeconds: 1,
 			},
 			Reports: store, Settings: settings, Clock: &unsynchronizedLaneClock{now: time.Now().UTC()},
 			NewID: func(prefix string) (string, error) {

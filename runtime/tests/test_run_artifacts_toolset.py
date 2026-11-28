@@ -556,7 +556,7 @@ async def create_tools(
     settings = RuntimeSettings(
         llmGatewayUrl="https://llm.example/v1",
         llmGatewayToken=SECRET,
-        artifactApiUrl="https://control.example/private/v1",
+        artifactApiUrl="https://control.example",
         requestTimeoutSeconds=30,
     )
     workspace_path = Path("/tmp/contractor-tool-test/allocation-test")

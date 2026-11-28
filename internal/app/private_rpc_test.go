@@ -18,7 +18,7 @@ func TestPrivateRPCFamiliesShareProcessAdmissionBeforeDecode(t *testing.T) {
 	entered := make(chan struct{}, runtimewire.MaxConcurrentRPCs)
 	returned := make(chan *httptest.ResponseRecorder, 2*runtimewire.MaxConcurrentRPCs)
 	release := make(chan struct{})
-	handler := newPrivateHandler(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { entered <- struct{}{}; <-release }), http.NotFoundHandler())
+	handler := newPrivateHandler(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { entered <- struct{}{}; <-release }))
 	var calls sync.WaitGroup
 	defer func() { close(release); calls.Wait() }()
 	dispatch := func(path string, body bool) {
@@ -72,4 +72,21 @@ func TestPrivateRPCFamiliesShareProcessAdmissionBeforeDecode(t *testing.T) {
 	}
 	rejected(domain)
 	rejected(control)
+}
+
+func TestPrivateHTTPPayloadRoutesAreRemoved(t *testing.T) {
+	handler := newPrivateHandler(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("private HTTP reached an RPC handler") }))
+	for _, test := range []struct{ method, path string }{
+		{http.MethodGet, "/private/v1/allocations/a/artifacts/b/c"},
+		{http.MethodPut, "/private/v1/allocations/a/artifacts/b/c"},
+		{http.MethodPost, "/private/v1/allocations/a/finding-proposals"},
+	} {
+		request := httptest.NewRequest(test.method, test.path, nil)
+		request.Body = unreadRPCBody{}
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("old private route %s = %d", test.path, response.Code)
+		}
+	}
 }

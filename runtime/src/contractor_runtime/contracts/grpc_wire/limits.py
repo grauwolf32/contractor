@@ -12,3 +12,8 @@ METADATA_OPTIONS = (
     ("grpc.max_metadata_size", MAX_METADATA_BYTES),
     ("grpc.absolute_max_metadata_size", MAX_METADATA_BYTES),
 )
+
+BULK_CHUNK_BYTES = 256 << 10
+BULK_HEADER_BYTES = 1 << 20
+BULK_FRAME_BYTES = BULK_HEADER_BYTES + 1024
+BULK_LOOKAHEAD_BYTES = 64 << 10

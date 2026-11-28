@@ -217,8 +217,7 @@ def _retryable(error: ArtifactAPIError) -> bool:
             "unauthorized",
             "forbidden",
         }
-        and error.status_code in (429, 500, 502, 503, 504)
-        and error.retryable
+        and error.transient_failure
     )
 
 

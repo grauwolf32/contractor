@@ -39,14 +39,13 @@ retry; process loss follows ordinary Stage interruption. The shared
 
 The official A2A SDK represents DataPart numbers through protobuf Struct.
 The A2A adapter restores exact integral values before strict DTO validation;
-fractional and unsafe integral values remain invalid. Private HTTP JSON keeps
-its original strict numeric rules. Planner invocation data is bounded to
+fractional and unsafe integral values remain invalid. Named protobuf JSON documents keep
+their original strict numeric rules. Planner invocation data is bounded to
 512 KiB, Worker invocation data to 256 KiB; the A2A envelope is bounded to
 4 MiB to account for SDK framing and escaping.
 
 This is the single private contract catalog. There is no separate protocol
-number, alternate DTO family or conversion path. HTTP routes retain their
-`/private/v1` prefix. The schemas are review artifacts and wire definitions. Go and Python
+number, alternate DTO family or conversion path. Private operations use native gRPC; no `/private/v1` routes remain. The schemas are review artifacts and wire definitions. Go and Python
 DTOs are maintained explicitly and are checked against shared golden fixtures
 under `api/testdata/v1alpha1`. Its `index.json` assigns each fixture a message
 type and schema; each implementation validates the wire types it owns and
@@ -343,3 +342,22 @@ including false/zero presence, empty arrays, explicit nullable assessments,
 Audit material field names, sitemap commands and exact uint64 bounds. These
 projection cases complement the owning domain validation and native adapter
 failure tests; protobuf shape validity alone does not authorize an operation.
+
+
+`Artifact.Read` is a server stream with one typed metadata header followed by
+exact-size chunks of at most 256 KiB. `Artifact.Write` and
+`Artifact.SubmitFinding` are client streams with one typed header and bounded
+chunks; a clean EOF precedes every publication and the existing terminal
+receipt. Write preconditions are a create-only/opaque expected-revision oneof,
+without entity-tag quoting. The finding stream carries named proposal,
+derived-anchor and captured-HTTP documents in that order. Named JSON documents
+retain their domain codecs and canonical digest owners.
+
+`runtimeSettings.artifactApiUrl` is the private Server HTTPS origin, with no
+path, credentials, query or fragment. Bulk transport has a separate four-channel,
+32-call Runtime owner. Each message is at most 1 MiB plus 1 KiB, header and receipt
+at most 1 MiB; the aggregate Artifact/finding submission bound remains 64 MiB
+under the same four Server transfer permits. Server request-body credit limits
+grpc-go HTTP-handler read-ahead to one bounded message beyond the application,
+and joins the RPC handler before releasing its HTTP writer and admission.
+`grpc-limits.json` pins the chunk/message/window/lookahead bounds on both sides.

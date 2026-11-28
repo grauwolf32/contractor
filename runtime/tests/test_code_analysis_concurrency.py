@@ -298,7 +298,7 @@ def _runtime_settings() -> RuntimeSettings:
     return RuntimeSettings(
         llm_gateway_url="https://llm.example/v1",
         llm_gateway_token="temporary-token",
-        artifact_api_url="https://server.example/private/v1/artifacts",
+        artifact_api_url="https://server.example",
         request_timeout_seconds=10,
     )
 

@@ -194,7 +194,7 @@ def test_omitted_http_timeout_is_bounded_when_allocation_timeout_exceeds_tool_li
         settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
             llmGatewayToken="gateway-token",
-            artifactApiUrl="https://control.example/private/v1",
+            artifactApiUrl="https://control.example",
             requestTimeoutSeconds=180,
         )
         tools = await make_tools(factory, tmp_path, settings=settings)

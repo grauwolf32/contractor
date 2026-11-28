@@ -559,7 +559,7 @@ async def create_tools(
         runtime_settings=RuntimeSettings(
             llmGatewayUrl="https://llm.example/v1",
             llmGatewayToken="test-token",
-            artifactApiUrl="https://control.example/private/v1",
+            artifactApiUrl="https://control.example",
             requestTimeoutSeconds=30,
         ),
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),

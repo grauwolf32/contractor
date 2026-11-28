@@ -1,146 +1,22 @@
 package privateartifacts
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/json"
-	"errors"
-	"fmt"
+	"github.com/grauwolf32/contractor/internal/runtimewire"
 	"io"
-	"net"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
-
-// The production HTTP server, not a recorder, must apply deadlines before
-// touching the body and release admission before writing either answer.
-func TestFindingTransferBoundsSocketAndStorageAndReleasesBeforeResponse(t *testing.T) {
-	runtime := artifactpgtest.NewRuntime()
-	base := &fakeFindingIntake{}
-	var reads, writes, storage atomic.Int32
-	intake := &findingBudgetIntake{FindingIntake: base, check: func(ctx context.Context) {
-		if _, ok := ctx.Deadline(); !ok {
-			t.Error("finding storage has no independent deadline")
-		}
-		if reads.Load() == 0 {
-			t.Error("finding intake reached without a read deadline")
-		}
-		storage.Add(1)
-	}}
-	inner, err := NewHandler(Dependencies{Transfers: runtime, Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(newMemoryRepository()), Findings: intake})
-	if err != nil {
-		t.Fatal(err)
-	}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		certificate := &x509.Certificate{RawSubjectPublicKeyInfo: []byte("artifact-test-key")}
-		r.TLS = &tls.ConnectionState{PeerCertificates: []*x509.Certificate{certificate}, VerifiedChains: [][]*x509.Certificate{{certificate}}}
-		r.Header.Set(RuntimeInstanceHeader, "runtime-1")
-		r = r.WithContext(r.Context())
-		inner.ServeHTTP(&findingBudgetWriter{ResponseWriter: w, runtime: runtime, t: t, reads: &reads, writes: &writes}, r)
-	}))
-	t.Cleanup(server.Close)
-	// Use the existing accepted submission fixture; replay and fencing retain
-	// their existing service authority and require no different wire shape.
-	postFinding(t, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		body, readErr := io.ReadAll(r.Body)
-		if readErr != nil {
-			t.Error(readErr)
-			return
-		}
-		for _, want := range []int{http.StatusCreated, http.StatusOK} {
-			response, callErr := http.Post(server.URL+r.URL.Path, "application/json", bytes.NewReader(body))
-			if callErr != nil {
-				t.Error(callErr)
-				return
-			}
-			data, _ := io.ReadAll(response.Body)
-			response.Body.Close()
-			if response.StatusCode != want {
-				t.Errorf("finding = %d %s, want %d", response.StatusCode, data, want)
-			}
-		}
-	}), "deadline")
-	before := storage.Load()
-	conn, err := net.Dial("tcp", server.Listener.Addr().String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	if _, err = fmt.Fprintf(conn, "POST /private/v1/allocations/allocation-1/finding-proposals HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 20\r\nConnection: close\r\n\r\n{"); err != nil {
-		t.Fatal(err)
-	}
-	if err := conn.(*net.TCPConn).CloseWrite(); err != nil {
-		t.Fatal(err)
-	}
-	response, err := http.ReadResponse(bufio.NewReader(conn), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer response.Body.Close()
-	var envelope errorResponse
-	if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
-		t.Fatal(err)
-	}
-	if response.StatusCode != 400 || envelope.Code != "invalid_finding_request" || envelope.Retryable {
-		t.Fatalf("interrupted finding = %d %+v", response.StatusCode, envelope)
-	}
-	if storage.Load() != before {
-		t.Fatal("interrupted JSON reached finding intake")
-	}
-	if reads.Load() < 3 || writes.Load() < 3 {
-		t.Fatalf("socket deadlines: reads=%d writes=%d", reads.Load(), writes.Load())
-	}
-}
-
-type findingBudgetWriter struct {
-	http.ResponseWriter
-	runtime       *blob.Runtime
-	t             *testing.T
-	reads, writes *atomic.Int32
-}
-
-func (w *findingBudgetWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
-func (w *findingBudgetWriter) SetReadDeadline(deadline time.Time) error {
-	if !deadline.IsZero() {
-		w.reads.Add(1)
-	}
-	return http.NewResponseController(w.ResponseWriter).SetReadDeadline(deadline)
-}
-func (w *findingBudgetWriter) SetWriteDeadline(deadline time.Time) error {
-	if !deadline.IsZero() {
-		w.writes.Add(1)
-	}
-	return http.NewResponseController(w.ResponseWriter).SetWriteDeadline(deadline)
-}
-func (w *findingBudgetWriter) WriteHeader(status int) {
-	ctx := context.Background()
-	releases := []func(){}
-	for range 4 {
-		_, release, err := w.runtime.AcquireTransfer(ctx)
-		if err != nil {
-			w.t.Errorf("finding response retains transfer admission: %v", err)
-			break
-		}
-		releases = append(releases, release)
-	}
-	for _, release := range releases {
-		release()
-	}
-	w.ResponseWriter.WriteHeader(status)
-}
 
 type findingBudgetIntake struct {
 	FindingIntake
@@ -152,60 +28,100 @@ func (i *findingBudgetIntake) FindReplay(ctx context.Context, g controlplane.All
 	return i.FindingIntake.FindReplay(ctx, g, s)
 }
 
-// Trigger timeout from the body itself after observing the armed deadline,
-// without waiting for elapsed wall time or starting storage work.
-func TestFindingTransferTimeoutReleasesAllSlots(t *testing.T) {
-	runtime := artifactpgtest.NewRuntime()
-	h := handler{dependencies: Dependencies{Transfers: runtime, Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(newMemoryRepository()), Findings: &fakeFindingIntake{}}}
-	for range 4 {
-		writer := &findingTimeoutWriter{ResponseRecorder: httptest.NewRecorder()}
-		r := httptest.NewRequest(http.MethodPost, "/", nil)
-		r.Header.Set("Content-Type", "application/json")
-		r.SetPathValue("allocationID", "allocation-1")
-		r.Body = io.NopCloser(findingTimeoutReader{t: t, writer: writer})
-		r.ContentLength = -1
-		ctx := context.WithValue(t.Context(), authenticatedRuntimeContextKey{}, authenticatedRuntime{principalID: testGrant("run-a").RuntimeAgentID, instanceID: "runtime-1"})
-		h.postFindingProposal(writer, r.WithContext(ctx))
-		if writer.Code != 400 || !strings.Contains(writer.Body.String(), "invalid_finding_request") {
-			t.Fatalf("timeout response = %d %s", writer.Code, writer.Body.String())
+func TestFindingTransferBoundsSocketAndStorageAndReleasesBeforeResponse(t *testing.T) {
+	admission := observedTransfers()
+	var readArmed, writeArmed atomic.Bool
+	calls := 0
+	intake := &findingBudgetIntake{FindingIntake: &fakeFindingIntake{}, check: func(ctx context.Context) {
+		calls++
+		if _, ok := ctx.Deadline(); !ok {
+			t.Error("finding storage has no independent deadline")
 		}
-	}
-	ctx := t.Context()
-	releases := []func(){}
-	defer func() {
-		for _, release := range releases {
-			release()
+		if readArmed.Load() || writeArmed.Load() {
+			t.Error("finding storage inherited payload socket deadline")
 		}
-	}()
-	for range 4 {
-		_, release, err := runtime.AcquireTransfer(ctx)
+	}}
+	owner := &handler{dependencies: Dependencies{Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(newMemoryRepository()), Transfers: admission, Findings: intake}}
+	fixture := newAllocationNativeHarness(t, owner, func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(&nativeDeadlineWriter{w, &readArmed, &writeArmed}, r)
+		})
+	})
+	adapter := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reader, err := payloadFixtureFrames(r, strings.Split(strings.TrimPrefix(r.URL.Path, "/private/v1/allocations/"), "/"), pb.Artifact_SubmitFinding_FullMethodName)
 		if err != nil {
 			t.Fatal(err)
 		}
-		releases = append(releases, release)
+		raw, err := io.ReadAll(reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		frames, err := fixtureMessages(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stream, err := fixture.Artifact.SubmitFinding(fixture.Context)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, raw := range frames {
+			frame := new(pb.FindingSubmissionFrame)
+			if err = proto.Unmarshal(raw, frame); err != nil {
+				t.Fatal(err)
+			}
+			if err = stream.Send(frame); err != nil {
+				t.Fatal(err)
+			}
+		}
+		reply, err := stream.CloseAndRecv()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var value map[string]any
+		if err = runtimewire.DecodeDomain(reply, &value, runtimewire.BulkHeaderBytes, runtimewire.BulkFrameBytes); err != nil {
+			t.Fatal(err)
+		}
+		httpStatus := 201
+		if reply.GetReplayed() {
+			httpStatus = 200
+		}
+		writeJSON(w, httpStatus, value)
+	})
+	for _, want := range []int{201, 200} {
+		if response := postFinding(t, adapter, "deadline"); response.Code != want {
+			t.Fatalf("native finding=%d %s", response.Code, response.Body.String())
+		}
 	}
-	_, _, err := runtime.AcquireTransfer(ctx)
-	if !errors.Is(err, blob.ErrTransferCapacity) {
-		t.Fatalf("capacity after four acquisitions: %v", err)
+
+	if calls != 2 {
+		t.Fatalf("finding storage calls=%d", calls)
 	}
+	awaitTransferSignals(t, admission.released, 2)
 }
 
-type findingTimeoutWriter struct {
-	*httptest.ResponseRecorder
-	armed bool
-}
-
-func (w *findingTimeoutWriter) SetReadDeadline(d time.Time) error { w.armed = !d.IsZero(); return nil }
-func (*findingTimeoutWriter) SetWriteDeadline(time.Time) error    { return nil }
-
-type findingTimeoutReader struct {
-	t      *testing.T
-	writer *findingTimeoutWriter
-}
-
-func (r findingTimeoutReader) Read([]byte) (int, error) {
-	if !r.writer.armed {
-		r.t.Error("finding body read without socket deadline")
+func TestFindingTransferTimeoutReleasesAllSlots(t *testing.T) {
+	admission := observedTransfers()
+	intake := &fakeFindingIntake{}
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(newMemoryRepository()), Transfers: admission, Findings: intake}})
+	for range 4 {
+		ctx, cancel := context.WithCancel(fixture.Context)
+		stream, err := fixture.Artifact.SubmitFinding(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = stream.Send(&pb.FindingSubmissionFrame{Frame: &pb.FindingSubmissionFrame_Header{Header: &pb.FindingSubmissionHeader{ApiVersion: proto.String("contractor/v1alpha1"), InvocationId: proto.String("invocation-1"), SubmissionId: proto.String("submission-1"), EvidenceRefs: &pb.ListOfArtifactRef{}, ProposalSize: proto.Uint64(2)}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		awaitTransferSignals(t, admission.entered, 1)
+		cancel()
+		_, err = stream.CloseAndRecv()
+		if status.Code(err) != codes.Canceled {
+			t.Fatalf("cancelled finding stream=%v", err)
+		}
+		awaitTransferSignals(t, admission.released, 1)
 	}
-	return 0, context.DeadlineExceeded
+	if intake.submits != 0 {
+		t.Fatal("partial finding reached intake")
+	}
 }

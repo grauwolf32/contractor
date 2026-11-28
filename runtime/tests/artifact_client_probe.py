@@ -9,12 +9,11 @@ from pathlib import Path
 
 from fakes.worker_state import WorkerState
 
-from contractor_runtime._allocation_rpc import AllocationConnections
-from contractor_runtime._https import PrivateConnections
+from contractor_runtime._rpc_connections import RPCConnections
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient, MTLSArtifactTransport
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
-from contractor_runtime.mtls import runtime_agent_client_context, verify_control_plane_peer
+from contractor_runtime.mtls import runtime_agent_client_context
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -29,15 +28,15 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
             SharedConfig, (Path(__file__).parent / "testdata/shared-config.json").read_bytes()
         ).snapshot()
     )
-    connections = PrivateConnections(
+    connections = RPCConnections(
         runtime_agent_client_context(
             ca_file=args.ca,
             certificate_file=args.certificate,
             private_key_file=args.private_key,
         ),
-        verify_control_plane_peer,
+        bulk=True,
     )
-    rpc_connections = AllocationConnections(
+    rpc_connections = RPCConnections(
         runtime_agent_client_context(
             ca_file=args.ca, certificate_file=args.certificate, private_key_file=args.private_key
         )
@@ -51,19 +50,38 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
 
 async def probe(
     args: argparse.Namespace,
-    connections: PrivateConnections,
-    rpc_connections: AllocationConnections,
+    connections: RPCConnections,
+    rpc_connections: RPCConnections,
 ) -> dict[str, object]:
     client = ArtifactClient(
         args.allocation_id,
         MTLSArtifactTransport(
             args.api_url,
-            connections,
+            bulk_connections=connections,
             timeout_seconds=3,
             runtime_instance_id=args.instance_id,
             rpc_connections=rpc_connections,
         ),
     )
+    if args.mode == "reconcile":
+        from contractor_runtime.toolsets.common.artifact_write import (
+            AUTHORITY_DENIALS,
+            definite_write_rejection,
+            write_artifact_exact,
+        )
+
+        payload = bytes(range(256)) * 2049
+        result = await write_artifact_exact(
+            client,
+            ArtifactRef(namespace="builder", name="reconciled"),
+            data=payload,
+            media_type="application/octet-stream",
+            expected_revision=None,
+            max_bytes=len(payload),
+            reject_first=definite_write_rejection,
+            reject_replay=lambda error: error.code in AUTHORITY_DENIALS,
+        )
+        return {"revision": result.artifact.revision, "size": len(payload)}
     if args.mode == "cookies":
         from http_cookie_probe import cookie_probe
 
@@ -162,7 +180,7 @@ async def read_binary(client: ArtifactClient) -> dict[str, object]:
         namespace="builder",
         runtime_settings=RuntimeSettings(
             llmGatewayUrl="https://llm.invalid/v1",
-            artifactApiUrl="https://control.invalid/private/v1",
+            artifactApiUrl="https://control.invalid",
             requestTimeoutSeconds=30,
         ),
         workspace=AllocationWorkspace(
@@ -199,7 +217,7 @@ async def page_through(client: ArtifactClient, limit: int) -> dict[str, object]:
         namespace="builder",
         runtime_settings=RuntimeSettings(
             llmGatewayUrl="https://llm.invalid/v1",
-            artifactApiUrl="https://control.invalid/private/v1",
+            artifactApiUrl="https://control.invalid",
             requestTimeoutSeconds=30,
         ),
         workspace=AllocationWorkspace(
@@ -235,7 +253,9 @@ def main() -> None:
     parser.add_argument("--certificate", type=Path, required=True)
     parser.add_argument("--private-key", type=Path, required=True)
     parser.add_argument(
-        "--mode", choices=("normal", "fenced", "page", "binary-read", "cookies"), default="normal"
+        "--mode",
+        choices=("normal", "fenced", "page", "binary-read", "cookies", "reconcile"),
+        default="normal",
     )
     parser.add_argument(
         "--cookie-action",

@@ -3,24 +3,8 @@ package privateartifacts
 import (
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
-	"strings"
-
-	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
-	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
-	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
-
-func exactQuery(raw string, allowed ...string) (url.Values, error) {
-	return httpx.ExactQuery(errInvalidRequest, raw, allowed...)
-}
-
-func requestMediaType(r *http.Request) (string, error) {
-	return httpx.RequestMediaType(errInvalidRequest, r)
-}
 
 func decodeRequestJSON(data []byte, target any) error {
 	if strictjson.HasNULEscape(data) {
@@ -32,42 +16,4 @@ func decodeRequestJSON(data []byte, target any) error {
 		return fmt.Errorf("%w: decode JSON body", errInvalidRequest)
 	}
 	return nil
-}
-
-// readArtifactBody deliberately differs from the public adapter: it also
-// rejects negative lengths other than "unknown" and hides the read cause.
-func readArtifactBody(r *http.Request, transfer *artifacttransfer.Transfer) ([]byte, error) {
-	if r.ContentLength < -1 {
-		return nil, blob.ErrTooLarge
-	}
-	data, err := transfer.ReadBody(r, artifacts.MaxPayloadSize)
-	if err != nil && !errors.Is(err, blob.ErrTooLarge) {
-		return nil, errors.New("read private artifact body")
-	}
-	return data, err
-}
-
-func artifactWritePrecondition(r *http.Request) (expectedRevision *string, create bool, err error) {
-	ifMatch := r.Header.Values("If-Match")
-	ifNoneMatch := r.Header.Values("If-None-Match")
-	if len(ifMatch) > 0 && len(ifNoneMatch) > 0 {
-		return nil, false, fmt.Errorf("%w: If-Match and If-None-Match are mutually exclusive", errInvalidRequest)
-	}
-	if len(ifNoneMatch) > 0 {
-		if len(ifNoneMatch) != 1 || strings.TrimSpace(ifNoneMatch[0]) != "*" {
-			return nil, false, fmt.Errorf("%w: If-None-Match only supports *", errInvalidRequest)
-		}
-		return nil, true, nil
-	}
-	if len(ifMatch) != 1 {
-		return nil, false, fmt.Errorf("%w: exactly one create/update precondition is required", errInvalidRequest)
-	}
-	revision, err := httpx.ParseStrongETag(ifMatch[0])
-	switch {
-	case errors.Is(err, httpx.ErrWeakETag):
-		return nil, false, fmt.Errorf("%w: If-Match requires one strong revision ETag", errInvalidRequest)
-	case err != nil:
-		return nil, false, fmt.Errorf("%w: If-Match requires one quoted revision", errInvalidRequest)
-	}
-	return &revision, false, nil
 }

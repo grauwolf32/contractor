@@ -24,7 +24,7 @@ func TestPostgresPrivateSelectedHTTPArtifactIsFrozenScopedAndReplayable(t *testi
 	grant := testGrant("run-a")
 	grant.HTTPResultEvidence = true
 	registry := &fakeRegistry{grant: grant}
-	handler, err := NewHandler(Dependencies{Transfers: storage, Registry: registry, Artifacts: service})
+	handler, err := newPayloadNativeRecorder(Dependencies{Transfers: storage, Registry: registry, Artifacts: service})
 	if err != nil {
 		t.Fatal(err)
 	}

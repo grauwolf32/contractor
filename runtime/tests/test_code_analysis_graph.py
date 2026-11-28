@@ -783,7 +783,7 @@ async def _tools(
         runtime_settings=RuntimeSettings(
             llm_gateway_url="https://llm.example/v1",
             llm_gateway_token="temporary-token",
-            artifact_api_url="https://server.example/private/v1/artifacts",
+            artifact_api_url="https://server.example",
             request_timeout_seconds=10,
         ),
         workspace=AllocationWorkspace(root=root, path=scratch),

@@ -684,3 +684,78 @@ message FindingSelectionResponse {
   optional int64 entry_count = 3;
   optional bool replayed = 4;
 }
+
+// Bulk RPCs retain allocation authority in the same verified metadata as
+// Allocation. One header precedes ordered bounded chunks; EOF precedes commit.
+service Artifact {
+  rpc Read(ArtifactReadTarget) returns (stream ArtifactReadFrame);
+  rpc Write(stream ArtifactWriteFrame) returns (ArtifactPayloadMetadata);
+  rpc SubmitFinding(stream FindingSubmissionFrame) returns (FindingSubmissionReceipt);
+}
+message ArtifactPayloadMetadata {
+  optional string api_version = 1;
+  ArtifactRef artifact = 2;
+  optional string media_type = 3;
+  optional int64 size = 4;
+  optional string binding_created_at = 5;
+  optional string revision_created_at = 6;
+}
+message ArtifactReadFrame {
+  oneof frame {
+    ArtifactPayloadMetadata header = 1;
+    bytes chunk = 2;
+  }
+}
+message ArtifactWriteHeader {
+  ArtifactRef artifact = 1;
+  optional string media_type = 2;
+  optional uint64 size = 3;
+  oneof precondition {
+    bool create_only = 4;
+    string expected_revision = 5;
+  }
+}
+message ArtifactWriteFrame {
+  oneof frame {
+    ArtifactWriteHeader header = 1;
+    bytes chunk = 2;
+  }
+}
+message FindingSubmissionHeader {
+  optional string api_version = 1;
+  optional string invocation_id = 2;
+  optional string submission_id = 3;
+  optional bool incidental = 4;
+  optional string item_key = 5;
+  ListOfArtifactRef evidence_refs = 6;
+  optional string http_evidence_invocation_id = 7;
+  optional uint64 proposal_size = 8;
+  optional uint64 derived_anchors_size = 9;
+  optional uint64 http_evidence_size = 10;
+}
+enum FindingDocumentKind {
+  FINDING_DOCUMENT_UNSPECIFIED = 0;
+  FINDING_DOCUMENT_PROPOSAL = 1;
+  FINDING_DOCUMENT_DERIVED_ANCHORS = 2;
+  FINDING_DOCUMENT_HTTP_EVIDENCE = 3;
+}
+message FindingDocumentChunk {
+  optional FindingDocumentKind document = 1;
+  optional bytes data = 2;
+}
+message FindingSubmissionFrame {
+  oneof frame {
+    FindingSubmissionHeader header = 1;
+    FindingDocumentChunk chunk = 2;
+  }
+}
+message ListOfExactArtifact { repeated ExactArtifact values = 1; }
+message FindingSubmissionReceipt {
+  optional string api_version = 1;
+  optional string finding_id = 2;
+  optional string proposal_id = 3;
+  optional string receipt_id = 4;
+  ExactArtifact proposal = 5;
+  ListOfExactArtifact evidence = 6;
+  optional bool replayed = 7;
+}

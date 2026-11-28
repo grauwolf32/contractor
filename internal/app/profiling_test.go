@@ -15,7 +15,7 @@ import (
 func TestApplicationListenersDoNotExposeProfilingRoutes(t *testing.T) {
 	handlers := []http.Handler{
 		newProcessHandler(http.HandlerFunc(writeHealthy)),
-		newPrivateHandler(http.HandlerFunc(writeHealthy), http.HandlerFunc(writeHealthy)),
+		newPrivateHandler(http.HandlerFunc(writeHealthy)),
 	}
 	for index, handler := range handlers {
 		for _, path := range []string{"/debug/pprof", "/debug/pprof/", "/debug/pprof/cmdline"} {

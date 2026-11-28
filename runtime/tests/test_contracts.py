@@ -530,7 +530,7 @@ def test_shared_runtime_settings_repr_is_redacted_but_json_is_wire_usable() -> N
         {
             "llmGatewayUrl": "https://gateway.example/v1",
             "llmGatewayToken": token,
-            "artifactApiUrl": "https://server.example/private/v1",
+            "artifactApiUrl": "https://server.example",
             "requestTimeoutSeconds": 30,
         }
     )
@@ -542,7 +542,7 @@ def test_shared_runtime_settings_repr_is_redacted_but_json_is_wire_usable() -> N
 def test_shared_runtime_settings_unauthenticated_gateway_omits_the_token() -> None:
     unauthenticated = {
         "llmGatewayUrl": "http://127.0.0.1:4000/v1",
-        "artifactApiUrl": "https://server.example/private/v1",
+        "artifactApiUrl": "https://server.example",
         "requestTimeoutSeconds": 30,
     }
     assert RuntimeSettings.model_validate(unauthenticated).llm_gateway_token is None
@@ -577,7 +577,7 @@ def test_shared_runtime_settings_failure_signatures_require_gateway_url() -> Non
         {
             "llmGatewayUrl": "http://127.0.0.1:4000/v1",
             "llmGatewayFailureSignatures": signatures,
-            "artifactApiUrl": "https://server.example/private/v1",
+            "artifactApiUrl": "https://server.example",
             "requestTimeoutSeconds": 30,
         }
     )
@@ -587,7 +587,7 @@ def test_shared_runtime_settings_failure_signatures_require_gateway_url() -> Non
         RuntimeSettings.model_validate(
             {
                 "llmGatewayFailureSignatures": signatures,
-                "artifactApiUrl": "https://server.example/private/v1",
+                "artifactApiUrl": "https://server.example",
                 "requestTimeoutSeconds": 30,
             }
         )

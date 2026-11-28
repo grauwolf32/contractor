@@ -10,9 +10,8 @@ import signal
 import time
 from collections.abc import Callable, Sequence
 
-from contractor_runtime._allocation_rpc import AllocationConnections
 from contractor_runtime._grpc_client import ControlRPC
-from contractor_runtime._https import PrivateConnections
+from contractor_runtime._rpc_connections import RPCConnections
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.archive_cache import (
     ImmutableArchiveCache,
@@ -36,7 +35,6 @@ from contractor_runtime.mtls import (
     log_runtime_certificate_expiry,
     runtime_agent_client_context,
     runtime_agent_server_context,
-    verify_control_plane_peer,
 )
 from contractor_runtime.sandbox.podman.lifecycle import PodmanLifecycle
 from contractor_runtime.sandbox.podman.workroots import check_root_policy
@@ -273,8 +271,8 @@ async def _serve(
     )
     # The process owns its private connections and closes them last (CTL-R164):
     # registration and heartbeats never wait behind Artifact transfers.
-    artifact_connections = PrivateConnections(outgoing_tls, verify_control_plane_peer)
-    allocation_connections = AllocationConnections(
+    bulk_connections = RPCConnections(outgoing_tls, bulk=True)
+    allocation_connections = RPCConnections(
         runtime_agent_client_context(
             ca_file=settings.ca_file,
             certificate_file=settings.certificate_file,
@@ -292,10 +290,10 @@ async def _serve(
                 allocation_id,
                 MTLSArtifactTransport(
                     runtime_settings.artifact_api_url,
-                    artifact_connections,
+                    allocation_connections,
+                    bulk_connections,
                     runtime_settings.request_timeout_seconds,
                     runtime_state.instance_id,
-                    allocation_connections,
                 ),
                 archive_cache=archive_cache,
                 archive_trust_domain=archive_trust_domain(
@@ -416,7 +414,7 @@ async def _serve(
             try:
                 await allocation_connections.aclose()
             finally:
-                await artifact_connections.aclose()
+                await bulk_connections.aclose()
 
 
 def _target_policy(settings: Settings) -> TargetPolicyConfig:

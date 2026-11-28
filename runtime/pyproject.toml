@@ -108,7 +108,7 @@ layers = [
   # subprocess pipes, line splitting, tool metrics and input errors, and the
   # Worker completion protocol; reasoning: the provider-reasoning projection that
   # the terminal summarizer and other model consumers share)
-  "_allocation_errors : _allocation_rpc : _grpc_client : _grpc_metadata : _grpc_tls : _https : backoff : contracts : core : digests : http_body : log : mtls : probe : reasoning : redaction : shared_config : strict_json : threads",
+  "_allocation_errors : _allocation_rpc : _rpc_connections : _bulk_rpc : _grpc_client : _grpc_metadata : _grpc_tls : _https : backoff : contracts : core : digests : http_body : log : mtls : probe : reasoning : redaction : shared_config : strict_json : threads",
 ]
 unmatched_ignore_imports_alerting = "error"
 broken_contract_guidance = """

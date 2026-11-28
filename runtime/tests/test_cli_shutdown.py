@@ -69,19 +69,14 @@ class ShutdownRuntime:
             lambda grace: deadline(grace, monotonic=self.clock, force_exit=force_exit),
         )
 
-        class Connections(runtime_cli.PrivateConnections):
-            def __init__(self, *args):
-                super().__init__(*args)
-                self.phase = "artifacts"
+        class RPCConnections(runtime_cli.RPCConnections):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.phase = "bulk-rpc" if self._bulk else "allocation-rpc"
                 owner.connections.append(self)
 
             async def aclose(self):
                 await owner.step(self.phase)
-                await super().aclose()
-
-        class AllocationConnections(runtime_cli.AllocationConnections):
-            async def aclose(self):
-                await owner.step("allocation-rpc")
                 await super().aclose()
 
         class Transport(InflightTransport):
@@ -140,8 +135,7 @@ class ShutdownRuntime:
 
         self.transport = Transport()
         self.server = Server()
-        monkeypatch.setattr(runtime_cli, "PrivateConnections", Connections)
-        monkeypatch.setattr(runtime_cli, "AllocationConnections", AllocationConnections)
+        monkeypatch.setattr(runtime_cli, "RPCConnections", RPCConnections)
         monkeypatch.setattr(runtime_cli, "ControlRPC", lambda *args: self.transport)
         monkeypatch.setattr(runtime_cli, "AllocationService", Allocation)
         monkeypatch.setattr(runtime_cli, "LeaseWatchdog", Watchdog)
@@ -204,7 +198,7 @@ def test_shutdown_shares_budget_with_outer_resource_owners(
             "allocation": 2,
             "listener": 2,
             "allocation-rpc": 1,
-            "artifacts": 1,
+            "bulk-rpc": 1,
             "cache": 1,
         }
         serving = runtime.start()
@@ -220,7 +214,7 @@ def test_shutdown_shares_budget_with_outer_resource_owners(
             "allocation",
             "listener",
             "allocation-rpc",
-            "artifacts",
+            "bulk-rpc",
             "cache",
             *(["podman-owner"] if podman else []),
             "control-connections",
@@ -243,7 +237,7 @@ def test_shutdown_shares_budget_with_outer_resource_owners(
         "allocation",
         "listener",
         "allocation-rpc",
-        "artifacts",
+        "bulk-rpc",
         "cache",
         "podman-owner",
         "control-connections",
@@ -336,7 +330,7 @@ def test_listener_construction_failure_closes_connections_and_outer_resources(
             await runtime.start(server_factory=failed)
         assert runtime.steps == [
             "allocation-rpc",
-            "artifacts",
+            "bulk-rpc",
             "cache",
             "podman-owner",
             "control-connections",

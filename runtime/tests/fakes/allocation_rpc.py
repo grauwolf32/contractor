@@ -1,7 +1,7 @@
 """Named RPC adapters for existing scripted domain fixtures.
 
 The request recorder keeps its historical tuple shape for domain assertions;
-production uses AllocationConnections and the native interop suites cover it.
+production uses RPCConnections and the native interop suites cover it.
 """
 
 import json
@@ -9,9 +9,11 @@ from urllib.parse import quote, urlencode
 
 import grpc
 
+from contractor_runtime._bulk_rpc import PayloadDownload
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactTransportError,
+    _strong_etag,
     raise_for_status,
     require_json,
 )
@@ -45,6 +47,66 @@ def raise_rpc_status(response):
 
 
 class AllocationRPCFixture:
+    async def read_artifact(self, allocation_id, value, *, max_response_bytes):
+        response = await self.request(
+            "GET",
+            self._target(allocation_id, value, ""),
+            headers={"Accept": "*/*"},
+            body=b"",
+            max_response_bytes=max_response_bytes,
+        )
+        raise_rpc_status(response)
+        return PayloadDownload(
+            {
+                "apiVersion": "contractor/v1alpha1",
+                "artifact": {**value["artifact"], "revision": _strong_etag(response.headers)},
+                "mediaType": response.headers.get("content-type", ""),
+                "size": len(response.body),
+                "bindingCreatedAt": response.headers.get("x-contractor-binding-created-at", ""),
+                "revisionCreatedAt": response.headers.get("x-contractor-revision-created-at", ""),
+            },
+            response.body,
+        )
+
+    async def write_artifact(self, allocation_id, value, data):
+        response = await self.request(
+            "PUT",
+            self._target(allocation_id, value, ""),
+            headers={
+                "Accept": "application/json",
+                "Content-Type": value["mediaType"],
+                **(
+                    {"If-None-Match": "*"}
+                    if value.get("createOnly")
+                    else {"If-Match": '"' + value["expectedRevision"] + '"'}
+                ),
+            },
+            body=data,
+            max_response_bytes=1 << 20,
+        )
+        raise_rpc_status(response)
+        require_json(response.headers)
+        result = strict_json_loads(response.body)
+        if result.get("artifact", {}).get("revision") != _strong_etag(response.headers):
+            raise ArtifactTransportError("fixture write returned inconsistent metadata")
+        return {
+            **result,
+            "bindingCreatedAt": response.headers.get("x-contractor-binding-created-at", ""),
+            "revisionCreatedAt": response.headers.get("x-contractor-revision-created-at", ""),
+        }
+
+    async def submit_finding(self, allocation_id, submission):
+        value = {
+            key: item
+            for key, item in submission.header.items()
+            if key not in {"proposalSize", "derivedAnchorsSize", "httpEvidenceSize"}
+        }
+        names = {1: "proposal", 2: "derived_anchors", 3: "httpEvidence"}
+        value.update({names[kind]: strict_json_loads(data) for kind, data in submission.documents})
+        return await self._rpc_json(
+            "POST", f"/allocations/{allocation_id}/finding-proposals", value
+        )
+
     async def submit_audit_evidence(self, allocation_id, value):
         return await self._rpc_json("POST", f"/allocations/{allocation_id}/audit-evidence", value)
 

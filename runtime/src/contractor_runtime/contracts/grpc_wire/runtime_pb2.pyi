@@ -1,11 +1,23 @@
 from google.protobuf import struct_pb2 as _struct_pb2
 from google.protobuf.internal import containers as _containers
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from collections.abc import Iterable as _Iterable, Mapping as _Mapping
 from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
+
+class FindingDocumentKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    FINDING_DOCUMENT_UNSPECIFIED: _ClassVar[FindingDocumentKind]
+    FINDING_DOCUMENT_PROPOSAL: _ClassVar[FindingDocumentKind]
+    FINDING_DOCUMENT_DERIVED_ANCHORS: _ClassVar[FindingDocumentKind]
+    FINDING_DOCUMENT_HTTP_EVIDENCE: _ClassVar[FindingDocumentKind]
+FINDING_DOCUMENT_UNSPECIFIED: FindingDocumentKind
+FINDING_DOCUMENT_PROPOSAL: FindingDocumentKind
+FINDING_DOCUMENT_DERIVED_ANCHORS: FindingDocumentKind
+FINDING_DOCUMENT_HTTP_EVIDENCE: FindingDocumentKind
 
 class BootstrapRequest(_message.Message):
     __slots__ = ()
@@ -1399,3 +1411,113 @@ class FindingSelectionResponse(_message.Message):
     entry_count: int
     replayed: bool
     def __init__(self, artifact: _Optional[_Union[ExactArtifact, _Mapping]] = ..., snapshot_at: _Optional[str] = ..., entry_count: _Optional[int] = ..., replayed: _Optional[bool] = ...) -> None: ...
+
+class ArtifactPayloadMetadata(_message.Message):
+    __slots__ = ("api_version", "artifact", "media_type", "size", "binding_created_at", "revision_created_at")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    ARTIFACT_FIELD_NUMBER: _ClassVar[int]
+    MEDIA_TYPE_FIELD_NUMBER: _ClassVar[int]
+    SIZE_FIELD_NUMBER: _ClassVar[int]
+    BINDING_CREATED_AT_FIELD_NUMBER: _ClassVar[int]
+    REVISION_CREATED_AT_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    artifact: ArtifactRef
+    media_type: str
+    size: int
+    binding_created_at: str
+    revision_created_at: str
+    def __init__(self, api_version: _Optional[str] = ..., artifact: _Optional[_Union[ArtifactRef, _Mapping]] = ..., media_type: _Optional[str] = ..., size: _Optional[int] = ..., binding_created_at: _Optional[str] = ..., revision_created_at: _Optional[str] = ...) -> None: ...
+
+class ArtifactReadFrame(_message.Message):
+    __slots__ = ("header", "chunk")
+    HEADER_FIELD_NUMBER: _ClassVar[int]
+    CHUNK_FIELD_NUMBER: _ClassVar[int]
+    header: ArtifactPayloadMetadata
+    chunk: bytes
+    def __init__(self, header: _Optional[_Union[ArtifactPayloadMetadata, _Mapping]] = ..., chunk: _Optional[bytes] = ...) -> None: ...
+
+class ArtifactWriteHeader(_message.Message):
+    __slots__ = ("artifact", "media_type", "size", "create_only", "expected_revision")
+    ARTIFACT_FIELD_NUMBER: _ClassVar[int]
+    MEDIA_TYPE_FIELD_NUMBER: _ClassVar[int]
+    SIZE_FIELD_NUMBER: _ClassVar[int]
+    CREATE_ONLY_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_REVISION_FIELD_NUMBER: _ClassVar[int]
+    artifact: ArtifactRef
+    media_type: str
+    size: int
+    create_only: bool
+    expected_revision: str
+    def __init__(self, artifact: _Optional[_Union[ArtifactRef, _Mapping]] = ..., media_type: _Optional[str] = ..., size: _Optional[int] = ..., create_only: _Optional[bool] = ..., expected_revision: _Optional[str] = ...) -> None: ...
+
+class ArtifactWriteFrame(_message.Message):
+    __slots__ = ("header", "chunk")
+    HEADER_FIELD_NUMBER: _ClassVar[int]
+    CHUNK_FIELD_NUMBER: _ClassVar[int]
+    header: ArtifactWriteHeader
+    chunk: bytes
+    def __init__(self, header: _Optional[_Union[ArtifactWriteHeader, _Mapping]] = ..., chunk: _Optional[bytes] = ...) -> None: ...
+
+class FindingSubmissionHeader(_message.Message):
+    __slots__ = ("api_version", "invocation_id", "submission_id", "incidental", "item_key", "evidence_refs", "http_evidence_invocation_id", "proposal_size", "derived_anchors_size", "http_evidence_size")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    INVOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    SUBMISSION_ID_FIELD_NUMBER: _ClassVar[int]
+    INCIDENTAL_FIELD_NUMBER: _ClassVar[int]
+    ITEM_KEY_FIELD_NUMBER: _ClassVar[int]
+    EVIDENCE_REFS_FIELD_NUMBER: _ClassVar[int]
+    HTTP_EVIDENCE_INVOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    PROPOSAL_SIZE_FIELD_NUMBER: _ClassVar[int]
+    DERIVED_ANCHORS_SIZE_FIELD_NUMBER: _ClassVar[int]
+    HTTP_EVIDENCE_SIZE_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    invocation_id: str
+    submission_id: str
+    incidental: bool
+    item_key: str
+    evidence_refs: ListOfArtifactRef
+    http_evidence_invocation_id: str
+    proposal_size: int
+    derived_anchors_size: int
+    http_evidence_size: int
+    def __init__(self, api_version: _Optional[str] = ..., invocation_id: _Optional[str] = ..., submission_id: _Optional[str] = ..., incidental: _Optional[bool] = ..., item_key: _Optional[str] = ..., evidence_refs: _Optional[_Union[ListOfArtifactRef, _Mapping]] = ..., http_evidence_invocation_id: _Optional[str] = ..., proposal_size: _Optional[int] = ..., derived_anchors_size: _Optional[int] = ..., http_evidence_size: _Optional[int] = ...) -> None: ...
+
+class FindingDocumentChunk(_message.Message):
+    __slots__ = ("document", "data")
+    DOCUMENT_FIELD_NUMBER: _ClassVar[int]
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    document: FindingDocumentKind
+    data: bytes
+    def __init__(self, document: _Optional[_Union[FindingDocumentKind, str]] = ..., data: _Optional[bytes] = ...) -> None: ...
+
+class FindingSubmissionFrame(_message.Message):
+    __slots__ = ("header", "chunk")
+    HEADER_FIELD_NUMBER: _ClassVar[int]
+    CHUNK_FIELD_NUMBER: _ClassVar[int]
+    header: FindingSubmissionHeader
+    chunk: FindingDocumentChunk
+    def __init__(self, header: _Optional[_Union[FindingSubmissionHeader, _Mapping]] = ..., chunk: _Optional[_Union[FindingDocumentChunk, _Mapping]] = ...) -> None: ...
+
+class ListOfExactArtifact(_message.Message):
+    __slots__ = ("values",)
+    VALUES_FIELD_NUMBER: _ClassVar[int]
+    values: _containers.RepeatedCompositeFieldContainer[ExactArtifact]
+    def __init__(self, values: _Optional[_Iterable[_Union[ExactArtifact, _Mapping]]] = ...) -> None: ...
+
+class FindingSubmissionReceipt(_message.Message):
+    __slots__ = ("api_version", "finding_id", "proposal_id", "receipt_id", "proposal", "evidence", "replayed")
+    API_VERSION_FIELD_NUMBER: _ClassVar[int]
+    FINDING_ID_FIELD_NUMBER: _ClassVar[int]
+    PROPOSAL_ID_FIELD_NUMBER: _ClassVar[int]
+    RECEIPT_ID_FIELD_NUMBER: _ClassVar[int]
+    PROPOSAL_FIELD_NUMBER: _ClassVar[int]
+    EVIDENCE_FIELD_NUMBER: _ClassVar[int]
+    REPLAYED_FIELD_NUMBER: _ClassVar[int]
+    api_version: str
+    finding_id: str
+    proposal_id: str
+    receipt_id: str
+    proposal: ExactArtifact
+    evidence: ListOfExactArtifact
+    replayed: bool
+    def __init__(self, api_version: _Optional[str] = ..., finding_id: _Optional[str] = ..., proposal_id: _Optional[str] = ..., receipt_id: _Optional[str] = ..., proposal: _Optional[_Union[ExactArtifact, _Mapping]] = ..., evidence: _Optional[_Union[ListOfExactArtifact, _Mapping]] = ..., replayed: _Optional[bool] = ...) -> None: ...

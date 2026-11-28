@@ -279,7 +279,7 @@ def test_header_definitions_found_by_search_def_are_annotatable(
             runtime_settings=RuntimeSettings(
                 llmGatewayUrl="https://llm.example/v1",
                 llmGatewayToken="secret-token",
-                artifactApiUrl="https://server.example/private/v1",
+                artifactApiUrl="https://server.example",
                 requestTimeoutSeconds=30,
             ),
             workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
@@ -660,7 +660,7 @@ def test_factory_requires_a_writer_and_successful_positive_probe(
             "runtime_settings": RuntimeSettings(
                 llmGatewayUrl="https://llm.example/v1",
                 llmGatewayToken="secret-token",
-                artifactApiUrl="https://server.example/private/v1",
+                artifactApiUrl="https://server.example",
                 requestTimeoutSeconds=30,
             ),
             "workspace": AllocationWorkspace(root=tmp_path, path=tmp_path),
@@ -733,7 +733,7 @@ async def make_tools(
         runtime_settings=RuntimeSettings(
             llmGatewayUrl="https://llm.example/v1",
             llmGatewayToken="secret-token",
-            artifactApiUrl="https://server.example/private/v1",
+            artifactApiUrl="https://server.example",
             requestTimeoutSeconds=30,
         ),
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),

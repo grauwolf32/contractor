@@ -106,7 +106,7 @@ func TestSharedGRPCBounds(t *testing.T) {
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "grpc-limits.json"), &bounds); err != nil {
 		t.Fatal(err)
 	}
-	actual := map[string]int{"controlMessageBytes": MaxControlBytes, "a2aMessageBytes": MaxA2ABytes, "stateMessageBytes": MaxStateMessageBytes, "metadataBytes": MaxMetadataBytes, "concurrentRPCs": MaxConcurrentRPCs}
+	actual := map[string]int{"controlMessageBytes": MaxControlBytes, "a2aMessageBytes": MaxA2ABytes, "stateMessageBytes": MaxStateMessageBytes, "metadataBytes": MaxMetadataBytes, "concurrentRPCs": MaxConcurrentRPCs, "bulkChunkBytes": BulkChunkBytes, "bulkHeaderBytes": BulkHeaderBytes, "bulkFrameBytes": BulkFrameBytes, "bulkServerWindowBytes": BulkWindowBytes, "bulkClientLookaheadBytes": 64 << 10}
 	if !reflect.DeepEqual(bounds, actual) {
 		t.Fatalf("gRPC bounds drift: %v != %v", actual, bounds)
 	}

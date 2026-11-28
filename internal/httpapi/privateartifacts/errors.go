@@ -1,20 +1,15 @@
 package privateartifacts
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
-	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -45,14 +40,6 @@ func (f privateFailure) Retryable() bool { return f.retryable }
 func newPrivateFailure(status int, code, message string, retryable bool) privateFailure {
 	return privateFailure{status, code, message, retryable}
 }
-func (h *handler) handleError(w http.ResponseWriter, err error) {
-	failure := classifyPrivateError(err)
-	if failure.code == "artifact_history_maintenance_pending" {
-		w.Header().Set("Retry-After", strconv.Itoa(int(artifactpostgres.HistoryRetryAfter/time.Second)))
-	}
-	h.writeError(w, failure.Status(), failure.Code(), failure.message, failure.Retryable())
-}
-
 func classifyPrivateError(err error) privateFailure {
 	var validation *auditdomain.ValidationError
 	switch {
@@ -128,25 +115,4 @@ func classifyPrivateError(err error) privateFailure {
 	default:
 		return newPrivateFailure(http.StatusInternalServerError, "internal_error", "artifact operation could not be processed", true)
 	}
-}
-
-func (h *handler) writeError(w http.ResponseWriter, status int, code, message string, retryable bool) {
-	writeJSON(w, status, errorResponse{
-		Code: code, Message: message, Retryable: retryable,
-		RequestID: requestid.FromResponse(w),
-	})
-}
-
-func writeJSON(w http.ResponseWriter, status int, value any) {
-	body, err := json.Marshal(value)
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	body = append(body, '\n')
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(status)
-	_, _ = w.Write(body)
 }

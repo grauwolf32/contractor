@@ -22,6 +22,58 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type FindingDocumentKind int32
+
+const (
+	FindingDocumentKind_FINDING_DOCUMENT_UNSPECIFIED     FindingDocumentKind = 0
+	FindingDocumentKind_FINDING_DOCUMENT_PROPOSAL        FindingDocumentKind = 1
+	FindingDocumentKind_FINDING_DOCUMENT_DERIVED_ANCHORS FindingDocumentKind = 2
+	FindingDocumentKind_FINDING_DOCUMENT_HTTP_EVIDENCE   FindingDocumentKind = 3
+)
+
+// Enum value maps for FindingDocumentKind.
+var (
+	FindingDocumentKind_name = map[int32]string{
+		0: "FINDING_DOCUMENT_UNSPECIFIED",
+		1: "FINDING_DOCUMENT_PROPOSAL",
+		2: "FINDING_DOCUMENT_DERIVED_ANCHORS",
+		3: "FINDING_DOCUMENT_HTTP_EVIDENCE",
+	}
+	FindingDocumentKind_value = map[string]int32{
+		"FINDING_DOCUMENT_UNSPECIFIED":     0,
+		"FINDING_DOCUMENT_PROPOSAL":        1,
+		"FINDING_DOCUMENT_DERIVED_ANCHORS": 2,
+		"FINDING_DOCUMENT_HTTP_EVIDENCE":   3,
+	}
+)
+
+func (x FindingDocumentKind) Enum() *FindingDocumentKind {
+	p := new(FindingDocumentKind)
+	*p = x
+	return p
+}
+
+func (x FindingDocumentKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (FindingDocumentKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_runtime_proto_enumTypes[0].Descriptor()
+}
+
+func (FindingDocumentKind) Type() protoreflect.EnumType {
+	return &file_runtime_proto_enumTypes[0]
+}
+
+func (x FindingDocumentKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use FindingDocumentKind.Descriptor instead.
+func (FindingDocumentKind) EnumDescriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{0}
+}
+
 type BootstrapRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -8470,6 +8522,746 @@ func (x *FindingSelectionResponse) GetReplayed() bool {
 	return false
 }
 
+type ArtifactPayloadMetadata struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion        *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	Artifact          *ArtifactRef           `protobuf:"bytes,2,opt,name=artifact,proto3" json:"artifact,omitempty"`
+	MediaType         *string                `protobuf:"bytes,3,opt,name=media_type,json=mediaType,proto3,oneof" json:"media_type,omitempty"`
+	Size              *int64                 `protobuf:"varint,4,opt,name=size,proto3,oneof" json:"size,omitempty"`
+	BindingCreatedAt  *string                `protobuf:"bytes,5,opt,name=binding_created_at,json=bindingCreatedAt,proto3,oneof" json:"binding_created_at,omitempty"`
+	RevisionCreatedAt *string                `protobuf:"bytes,6,opt,name=revision_created_at,json=revisionCreatedAt,proto3,oneof" json:"revision_created_at,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ArtifactPayloadMetadata) Reset() {
+	*x = ArtifactPayloadMetadata{}
+	mi := &file_runtime_proto_msgTypes[131]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtifactPayloadMetadata) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtifactPayloadMetadata) ProtoMessage() {}
+
+func (x *ArtifactPayloadMetadata) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[131]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtifactPayloadMetadata.ProtoReflect.Descriptor instead.
+func (*ArtifactPayloadMetadata) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{131}
+}
+
+func (x *ArtifactPayloadMetadata) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *ArtifactPayloadMetadata) GetArtifact() *ArtifactRef {
+	if x != nil {
+		return x.Artifact
+	}
+	return nil
+}
+
+func (x *ArtifactPayloadMetadata) GetMediaType() string {
+	if x != nil && x.MediaType != nil {
+		return *x.MediaType
+	}
+	return ""
+}
+
+func (x *ArtifactPayloadMetadata) GetSize() int64 {
+	if x != nil && x.Size != nil {
+		return *x.Size
+	}
+	return 0
+}
+
+func (x *ArtifactPayloadMetadata) GetBindingCreatedAt() string {
+	if x != nil && x.BindingCreatedAt != nil {
+		return *x.BindingCreatedAt
+	}
+	return ""
+}
+
+func (x *ArtifactPayloadMetadata) GetRevisionCreatedAt() string {
+	if x != nil && x.RevisionCreatedAt != nil {
+		return *x.RevisionCreatedAt
+	}
+	return ""
+}
+
+type ArtifactReadFrame struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Frame:
+	//
+	//	*ArtifactReadFrame_Header
+	//	*ArtifactReadFrame_Chunk
+	Frame         isArtifactReadFrame_Frame `protobuf_oneof:"frame"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArtifactReadFrame) Reset() {
+	*x = ArtifactReadFrame{}
+	mi := &file_runtime_proto_msgTypes[132]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtifactReadFrame) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtifactReadFrame) ProtoMessage() {}
+
+func (x *ArtifactReadFrame) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[132]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtifactReadFrame.ProtoReflect.Descriptor instead.
+func (*ArtifactReadFrame) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{132}
+}
+
+func (x *ArtifactReadFrame) GetFrame() isArtifactReadFrame_Frame {
+	if x != nil {
+		return x.Frame
+	}
+	return nil
+}
+
+func (x *ArtifactReadFrame) GetHeader() *ArtifactPayloadMetadata {
+	if x != nil {
+		if x, ok := x.Frame.(*ArtifactReadFrame_Header); ok {
+			return x.Header
+		}
+	}
+	return nil
+}
+
+func (x *ArtifactReadFrame) GetChunk() []byte {
+	if x != nil {
+		if x, ok := x.Frame.(*ArtifactReadFrame_Chunk); ok {
+			return x.Chunk
+		}
+	}
+	return nil
+}
+
+type isArtifactReadFrame_Frame interface {
+	isArtifactReadFrame_Frame()
+}
+
+type ArtifactReadFrame_Header struct {
+	Header *ArtifactPayloadMetadata `protobuf:"bytes,1,opt,name=header,proto3,oneof"`
+}
+
+type ArtifactReadFrame_Chunk struct {
+	Chunk []byte `protobuf:"bytes,2,opt,name=chunk,proto3,oneof"`
+}
+
+func (*ArtifactReadFrame_Header) isArtifactReadFrame_Frame() {}
+
+func (*ArtifactReadFrame_Chunk) isArtifactReadFrame_Frame() {}
+
+type ArtifactWriteHeader struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Artifact  *ArtifactRef           `protobuf:"bytes,1,opt,name=artifact,proto3" json:"artifact,omitempty"`
+	MediaType *string                `protobuf:"bytes,2,opt,name=media_type,json=mediaType,proto3,oneof" json:"media_type,omitempty"`
+	Size      *uint64                `protobuf:"varint,3,opt,name=size,proto3,oneof" json:"size,omitempty"`
+	// Types that are valid to be assigned to Precondition:
+	//
+	//	*ArtifactWriteHeader_CreateOnly
+	//	*ArtifactWriteHeader_ExpectedRevision
+	Precondition  isArtifactWriteHeader_Precondition `protobuf_oneof:"precondition"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArtifactWriteHeader) Reset() {
+	*x = ArtifactWriteHeader{}
+	mi := &file_runtime_proto_msgTypes[133]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtifactWriteHeader) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtifactWriteHeader) ProtoMessage() {}
+
+func (x *ArtifactWriteHeader) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[133]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtifactWriteHeader.ProtoReflect.Descriptor instead.
+func (*ArtifactWriteHeader) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{133}
+}
+
+func (x *ArtifactWriteHeader) GetArtifact() *ArtifactRef {
+	if x != nil {
+		return x.Artifact
+	}
+	return nil
+}
+
+func (x *ArtifactWriteHeader) GetMediaType() string {
+	if x != nil && x.MediaType != nil {
+		return *x.MediaType
+	}
+	return ""
+}
+
+func (x *ArtifactWriteHeader) GetSize() uint64 {
+	if x != nil && x.Size != nil {
+		return *x.Size
+	}
+	return 0
+}
+
+func (x *ArtifactWriteHeader) GetPrecondition() isArtifactWriteHeader_Precondition {
+	if x != nil {
+		return x.Precondition
+	}
+	return nil
+}
+
+func (x *ArtifactWriteHeader) GetCreateOnly() bool {
+	if x != nil {
+		if x, ok := x.Precondition.(*ArtifactWriteHeader_CreateOnly); ok {
+			return x.CreateOnly
+		}
+	}
+	return false
+}
+
+func (x *ArtifactWriteHeader) GetExpectedRevision() string {
+	if x != nil {
+		if x, ok := x.Precondition.(*ArtifactWriteHeader_ExpectedRevision); ok {
+			return x.ExpectedRevision
+		}
+	}
+	return ""
+}
+
+type isArtifactWriteHeader_Precondition interface {
+	isArtifactWriteHeader_Precondition()
+}
+
+type ArtifactWriteHeader_CreateOnly struct {
+	CreateOnly bool `protobuf:"varint,4,opt,name=create_only,json=createOnly,proto3,oneof"`
+}
+
+type ArtifactWriteHeader_ExpectedRevision struct {
+	ExpectedRevision string `protobuf:"bytes,5,opt,name=expected_revision,json=expectedRevision,proto3,oneof"`
+}
+
+func (*ArtifactWriteHeader_CreateOnly) isArtifactWriteHeader_Precondition() {}
+
+func (*ArtifactWriteHeader_ExpectedRevision) isArtifactWriteHeader_Precondition() {}
+
+type ArtifactWriteFrame struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Frame:
+	//
+	//	*ArtifactWriteFrame_Header
+	//	*ArtifactWriteFrame_Chunk
+	Frame         isArtifactWriteFrame_Frame `protobuf_oneof:"frame"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArtifactWriteFrame) Reset() {
+	*x = ArtifactWriteFrame{}
+	mi := &file_runtime_proto_msgTypes[134]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArtifactWriteFrame) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArtifactWriteFrame) ProtoMessage() {}
+
+func (x *ArtifactWriteFrame) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[134]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArtifactWriteFrame.ProtoReflect.Descriptor instead.
+func (*ArtifactWriteFrame) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{134}
+}
+
+func (x *ArtifactWriteFrame) GetFrame() isArtifactWriteFrame_Frame {
+	if x != nil {
+		return x.Frame
+	}
+	return nil
+}
+
+func (x *ArtifactWriteFrame) GetHeader() *ArtifactWriteHeader {
+	if x != nil {
+		if x, ok := x.Frame.(*ArtifactWriteFrame_Header); ok {
+			return x.Header
+		}
+	}
+	return nil
+}
+
+func (x *ArtifactWriteFrame) GetChunk() []byte {
+	if x != nil {
+		if x, ok := x.Frame.(*ArtifactWriteFrame_Chunk); ok {
+			return x.Chunk
+		}
+	}
+	return nil
+}
+
+type isArtifactWriteFrame_Frame interface {
+	isArtifactWriteFrame_Frame()
+}
+
+type ArtifactWriteFrame_Header struct {
+	Header *ArtifactWriteHeader `protobuf:"bytes,1,opt,name=header,proto3,oneof"`
+}
+
+type ArtifactWriteFrame_Chunk struct {
+	Chunk []byte `protobuf:"bytes,2,opt,name=chunk,proto3,oneof"`
+}
+
+func (*ArtifactWriteFrame_Header) isArtifactWriteFrame_Frame() {}
+
+func (*ArtifactWriteFrame_Chunk) isArtifactWriteFrame_Frame() {}
+
+type FindingSubmissionHeader struct {
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion               *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	InvocationId             *string                `protobuf:"bytes,2,opt,name=invocation_id,json=invocationId,proto3,oneof" json:"invocation_id,omitempty"`
+	SubmissionId             *string                `protobuf:"bytes,3,opt,name=submission_id,json=submissionId,proto3,oneof" json:"submission_id,omitempty"`
+	Incidental               *bool                  `protobuf:"varint,4,opt,name=incidental,proto3,oneof" json:"incidental,omitempty"`
+	ItemKey                  *string                `protobuf:"bytes,5,opt,name=item_key,json=itemKey,proto3,oneof" json:"item_key,omitempty"`
+	EvidenceRefs             *ListOfArtifactRef     `protobuf:"bytes,6,opt,name=evidence_refs,json=evidenceRefs,proto3" json:"evidence_refs,omitempty"`
+	HttpEvidenceInvocationId *string                `protobuf:"bytes,7,opt,name=http_evidence_invocation_id,json=httpEvidenceInvocationId,proto3,oneof" json:"http_evidence_invocation_id,omitempty"`
+	ProposalSize             *uint64                `protobuf:"varint,8,opt,name=proposal_size,json=proposalSize,proto3,oneof" json:"proposal_size,omitempty"`
+	DerivedAnchorsSize       *uint64                `protobuf:"varint,9,opt,name=derived_anchors_size,json=derivedAnchorsSize,proto3,oneof" json:"derived_anchors_size,omitempty"`
+	HttpEvidenceSize         *uint64                `protobuf:"varint,10,opt,name=http_evidence_size,json=httpEvidenceSize,proto3,oneof" json:"http_evidence_size,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *FindingSubmissionHeader) Reset() {
+	*x = FindingSubmissionHeader{}
+	mi := &file_runtime_proto_msgTypes[135]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindingSubmissionHeader) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindingSubmissionHeader) ProtoMessage() {}
+
+func (x *FindingSubmissionHeader) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[135]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindingSubmissionHeader.ProtoReflect.Descriptor instead.
+func (*FindingSubmissionHeader) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{135}
+}
+
+func (x *FindingSubmissionHeader) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *FindingSubmissionHeader) GetInvocationId() string {
+	if x != nil && x.InvocationId != nil {
+		return *x.InvocationId
+	}
+	return ""
+}
+
+func (x *FindingSubmissionHeader) GetSubmissionId() string {
+	if x != nil && x.SubmissionId != nil {
+		return *x.SubmissionId
+	}
+	return ""
+}
+
+func (x *FindingSubmissionHeader) GetIncidental() bool {
+	if x != nil && x.Incidental != nil {
+		return *x.Incidental
+	}
+	return false
+}
+
+func (x *FindingSubmissionHeader) GetItemKey() string {
+	if x != nil && x.ItemKey != nil {
+		return *x.ItemKey
+	}
+	return ""
+}
+
+func (x *FindingSubmissionHeader) GetEvidenceRefs() *ListOfArtifactRef {
+	if x != nil {
+		return x.EvidenceRefs
+	}
+	return nil
+}
+
+func (x *FindingSubmissionHeader) GetHttpEvidenceInvocationId() string {
+	if x != nil && x.HttpEvidenceInvocationId != nil {
+		return *x.HttpEvidenceInvocationId
+	}
+	return ""
+}
+
+func (x *FindingSubmissionHeader) GetProposalSize() uint64 {
+	if x != nil && x.ProposalSize != nil {
+		return *x.ProposalSize
+	}
+	return 0
+}
+
+func (x *FindingSubmissionHeader) GetDerivedAnchorsSize() uint64 {
+	if x != nil && x.DerivedAnchorsSize != nil {
+		return *x.DerivedAnchorsSize
+	}
+	return 0
+}
+
+func (x *FindingSubmissionHeader) GetHttpEvidenceSize() uint64 {
+	if x != nil && x.HttpEvidenceSize != nil {
+		return *x.HttpEvidenceSize
+	}
+	return 0
+}
+
+type FindingDocumentChunk struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Document      *FindingDocumentKind   `protobuf:"varint,1,opt,name=document,proto3,enum=contractor.runtime.v1alpha1.FindingDocumentKind,oneof" json:"document,omitempty"`
+	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3,oneof" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FindingDocumentChunk) Reset() {
+	*x = FindingDocumentChunk{}
+	mi := &file_runtime_proto_msgTypes[136]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindingDocumentChunk) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindingDocumentChunk) ProtoMessage() {}
+
+func (x *FindingDocumentChunk) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[136]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindingDocumentChunk.ProtoReflect.Descriptor instead.
+func (*FindingDocumentChunk) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{136}
+}
+
+func (x *FindingDocumentChunk) GetDocument() FindingDocumentKind {
+	if x != nil && x.Document != nil {
+		return *x.Document
+	}
+	return FindingDocumentKind_FINDING_DOCUMENT_UNSPECIFIED
+}
+
+func (x *FindingDocumentChunk) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+type FindingSubmissionFrame struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Frame:
+	//
+	//	*FindingSubmissionFrame_Header
+	//	*FindingSubmissionFrame_Chunk
+	Frame         isFindingSubmissionFrame_Frame `protobuf_oneof:"frame"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FindingSubmissionFrame) Reset() {
+	*x = FindingSubmissionFrame{}
+	mi := &file_runtime_proto_msgTypes[137]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindingSubmissionFrame) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindingSubmissionFrame) ProtoMessage() {}
+
+func (x *FindingSubmissionFrame) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[137]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindingSubmissionFrame.ProtoReflect.Descriptor instead.
+func (*FindingSubmissionFrame) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{137}
+}
+
+func (x *FindingSubmissionFrame) GetFrame() isFindingSubmissionFrame_Frame {
+	if x != nil {
+		return x.Frame
+	}
+	return nil
+}
+
+func (x *FindingSubmissionFrame) GetHeader() *FindingSubmissionHeader {
+	if x != nil {
+		if x, ok := x.Frame.(*FindingSubmissionFrame_Header); ok {
+			return x.Header
+		}
+	}
+	return nil
+}
+
+func (x *FindingSubmissionFrame) GetChunk() *FindingDocumentChunk {
+	if x != nil {
+		if x, ok := x.Frame.(*FindingSubmissionFrame_Chunk); ok {
+			return x.Chunk
+		}
+	}
+	return nil
+}
+
+type isFindingSubmissionFrame_Frame interface {
+	isFindingSubmissionFrame_Frame()
+}
+
+type FindingSubmissionFrame_Header struct {
+	Header *FindingSubmissionHeader `protobuf:"bytes,1,opt,name=header,proto3,oneof"`
+}
+
+type FindingSubmissionFrame_Chunk struct {
+	Chunk *FindingDocumentChunk `protobuf:"bytes,2,opt,name=chunk,proto3,oneof"`
+}
+
+func (*FindingSubmissionFrame_Header) isFindingSubmissionFrame_Frame() {}
+
+func (*FindingSubmissionFrame_Chunk) isFindingSubmissionFrame_Frame() {}
+
+type ListOfExactArtifact struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []*ExactArtifact       `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfExactArtifact) Reset() {
+	*x = ListOfExactArtifact{}
+	mi := &file_runtime_proto_msgTypes[138]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfExactArtifact) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfExactArtifact) ProtoMessage() {}
+
+func (x *ListOfExactArtifact) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[138]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfExactArtifact.ProtoReflect.Descriptor instead.
+func (*ListOfExactArtifact) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{138}
+}
+
+func (x *ListOfExactArtifact) GetValues() []*ExactArtifact {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type FindingSubmissionReceipt struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion    *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	FindingId     *string                `protobuf:"bytes,2,opt,name=finding_id,json=findingId,proto3,oneof" json:"finding_id,omitempty"`
+	ProposalId    *string                `protobuf:"bytes,3,opt,name=proposal_id,json=proposalId,proto3,oneof" json:"proposal_id,omitempty"`
+	ReceiptId     *string                `protobuf:"bytes,4,opt,name=receipt_id,json=receiptId,proto3,oneof" json:"receipt_id,omitempty"`
+	Proposal      *ExactArtifact         `protobuf:"bytes,5,opt,name=proposal,proto3" json:"proposal,omitempty"`
+	Evidence      *ListOfExactArtifact   `protobuf:"bytes,6,opt,name=evidence,proto3" json:"evidence,omitempty"`
+	Replayed      *bool                  `protobuf:"varint,7,opt,name=replayed,proto3,oneof" json:"replayed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FindingSubmissionReceipt) Reset() {
+	*x = FindingSubmissionReceipt{}
+	mi := &file_runtime_proto_msgTypes[139]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FindingSubmissionReceipt) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FindingSubmissionReceipt) ProtoMessage() {}
+
+func (x *FindingSubmissionReceipt) ProtoReflect() protoreflect.Message {
+	mi := &file_runtime_proto_msgTypes[139]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FindingSubmissionReceipt.ProtoReflect.Descriptor instead.
+func (*FindingSubmissionReceipt) Descriptor() ([]byte, []int) {
+	return file_runtime_proto_rawDescGZIP(), []int{139}
+}
+
+func (x *FindingSubmissionReceipt) GetApiVersion() string {
+	if x != nil && x.ApiVersion != nil {
+		return *x.ApiVersion
+	}
+	return ""
+}
+
+func (x *FindingSubmissionReceipt) GetFindingId() string {
+	if x != nil && x.FindingId != nil {
+		return *x.FindingId
+	}
+	return ""
+}
+
+func (x *FindingSubmissionReceipt) GetProposalId() string {
+	if x != nil && x.ProposalId != nil {
+		return *x.ProposalId
+	}
+	return ""
+}
+
+func (x *FindingSubmissionReceipt) GetReceiptId() string {
+	if x != nil && x.ReceiptId != nil {
+		return *x.ReceiptId
+	}
+	return ""
+}
+
+func (x *FindingSubmissionReceipt) GetProposal() *ExactArtifact {
+	if x != nil {
+		return x.Proposal
+	}
+	return nil
+}
+
+func (x *FindingSubmissionReceipt) GetEvidence() *ListOfExactArtifact {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
+func (x *FindingSubmissionReceipt) GetReplayed() bool {
+	if x != nil && x.Replayed != nil {
+		return *x.Replayed
+	}
+	return false
+}
+
 var File_runtime_proto protoreflect.FileDescriptor
 
 const file_runtime_proto_rawDesc = "" +
@@ -9447,7 +10239,97 @@ const file_runtime_proto_rawDesc = "" +
 	"\breplayed\x18\x04 \x01(\bH\x02R\breplayed\x88\x01\x01B\x0e\n" +
 	"\f_snapshot_atB\x0e\n" +
 	"\f_entry_countB\v\n" +
-	"\t_replayed2\xd3\x02\n" +
+	"\t_replayed\"\x81\x03\n" +
+	"\x17ArtifactPayloadMetadata\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12D\n" +
+	"\bartifact\x18\x02 \x01(\v2(.contractor.runtime.v1alpha1.ArtifactRefR\bartifact\x12\"\n" +
+	"\n" +
+	"media_type\x18\x03 \x01(\tH\x01R\tmediaType\x88\x01\x01\x12\x17\n" +
+	"\x04size\x18\x04 \x01(\x03H\x02R\x04size\x88\x01\x01\x121\n" +
+	"\x12binding_created_at\x18\x05 \x01(\tH\x03R\x10bindingCreatedAt\x88\x01\x01\x123\n" +
+	"\x13revision_created_at\x18\x06 \x01(\tH\x04R\x11revisionCreatedAt\x88\x01\x01B\x0e\n" +
+	"\f_api_versionB\r\n" +
+	"\v_media_typeB\a\n" +
+	"\x05_sizeB\x15\n" +
+	"\x13_binding_created_atB\x16\n" +
+	"\x14_revision_created_at\"\x84\x01\n" +
+	"\x11ArtifactReadFrame\x12N\n" +
+	"\x06header\x18\x01 \x01(\v24.contractor.runtime.v1alpha1.ArtifactPayloadMetadataH\x00R\x06header\x12\x16\n" +
+	"\x05chunk\x18\x02 \x01(\fH\x00R\x05chunkB\a\n" +
+	"\x05frame\"\x92\x02\n" +
+	"\x13ArtifactWriteHeader\x12D\n" +
+	"\bartifact\x18\x01 \x01(\v2(.contractor.runtime.v1alpha1.ArtifactRefR\bartifact\x12\"\n" +
+	"\n" +
+	"media_type\x18\x02 \x01(\tH\x01R\tmediaType\x88\x01\x01\x12\x17\n" +
+	"\x04size\x18\x03 \x01(\x04H\x02R\x04size\x88\x01\x01\x12!\n" +
+	"\vcreate_only\x18\x04 \x01(\bH\x00R\n" +
+	"createOnly\x12-\n" +
+	"\x11expected_revision\x18\x05 \x01(\tH\x00R\x10expectedRevisionB\x0e\n" +
+	"\fpreconditionB\r\n" +
+	"\v_media_typeB\a\n" +
+	"\x05_size\"\x81\x01\n" +
+	"\x12ArtifactWriteFrame\x12J\n" +
+	"\x06header\x18\x01 \x01(\v20.contractor.runtime.v1alpha1.ArtifactWriteHeaderH\x00R\x06header\x12\x16\n" +
+	"\x05chunk\x18\x02 \x01(\fH\x00R\x05chunkB\a\n" +
+	"\x05frame\"\xb7\x05\n" +
+	"\x17FindingSubmissionHeader\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12(\n" +
+	"\rinvocation_id\x18\x02 \x01(\tH\x01R\finvocationId\x88\x01\x01\x12(\n" +
+	"\rsubmission_id\x18\x03 \x01(\tH\x02R\fsubmissionId\x88\x01\x01\x12#\n" +
+	"\n" +
+	"incidental\x18\x04 \x01(\bH\x03R\n" +
+	"incidental\x88\x01\x01\x12\x1e\n" +
+	"\bitem_key\x18\x05 \x01(\tH\x04R\aitemKey\x88\x01\x01\x12S\n" +
+	"\revidence_refs\x18\x06 \x01(\v2..contractor.runtime.v1alpha1.ListOfArtifactRefR\fevidenceRefs\x12B\n" +
+	"\x1bhttp_evidence_invocation_id\x18\a \x01(\tH\x05R\x18httpEvidenceInvocationId\x88\x01\x01\x12(\n" +
+	"\rproposal_size\x18\b \x01(\x04H\x06R\fproposalSize\x88\x01\x01\x125\n" +
+	"\x14derived_anchors_size\x18\t \x01(\x04H\aR\x12derivedAnchorsSize\x88\x01\x01\x121\n" +
+	"\x12http_evidence_size\x18\n" +
+	" \x01(\x04H\bR\x10httpEvidenceSize\x88\x01\x01B\x0e\n" +
+	"\f_api_versionB\x10\n" +
+	"\x0e_invocation_idB\x10\n" +
+	"\x0e_submission_idB\r\n" +
+	"\v_incidentalB\v\n" +
+	"\t_item_keyB\x1e\n" +
+	"\x1c_http_evidence_invocation_idB\x10\n" +
+	"\x0e_proposal_sizeB\x17\n" +
+	"\x15_derived_anchors_sizeB\x15\n" +
+	"\x13_http_evidence_size\"\x98\x01\n" +
+	"\x14FindingDocumentChunk\x12Q\n" +
+	"\bdocument\x18\x01 \x01(\x0e20.contractor.runtime.v1alpha1.FindingDocumentKindH\x00R\bdocument\x88\x01\x01\x12\x17\n" +
+	"\x04data\x18\x02 \x01(\fH\x01R\x04data\x88\x01\x01B\v\n" +
+	"\t_documentB\a\n" +
+	"\x05_data\"\xbc\x01\n" +
+	"\x16FindingSubmissionFrame\x12N\n" +
+	"\x06header\x18\x01 \x01(\v24.contractor.runtime.v1alpha1.FindingSubmissionHeaderH\x00R\x06header\x12I\n" +
+	"\x05chunk\x18\x02 \x01(\v21.contractor.runtime.v1alpha1.FindingDocumentChunkH\x00R\x05chunkB\a\n" +
+	"\x05frame\"Y\n" +
+	"\x13ListOfExactArtifact\x12B\n" +
+	"\x06values\x18\x01 \x03(\v2*.contractor.runtime.v1alpha1.ExactArtifactR\x06values\"\xb0\x03\n" +
+	"\x18FindingSubmissionReceipt\x12$\n" +
+	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
+	"apiVersion\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"finding_id\x18\x02 \x01(\tH\x01R\tfindingId\x88\x01\x01\x12$\n" +
+	"\vproposal_id\x18\x03 \x01(\tH\x02R\n" +
+	"proposalId\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"receipt_id\x18\x04 \x01(\tH\x03R\treceiptId\x88\x01\x01\x12F\n" +
+	"\bproposal\x18\x05 \x01(\v2*.contractor.runtime.v1alpha1.ExactArtifactR\bproposal\x12L\n" +
+	"\bevidence\x18\x06 \x01(\v20.contractor.runtime.v1alpha1.ListOfExactArtifactR\bevidence\x12\x1f\n" +
+	"\breplayed\x18\a \x01(\bH\x04R\breplayed\x88\x01\x01B\x0e\n" +
+	"\f_api_versionB\r\n" +
+	"\v_finding_idB\x0e\n" +
+	"\f_proposal_idB\r\n" +
+	"\v_receipt_idB\v\n" +
+	"\t_replayed*\xa0\x01\n" +
+	"\x13FindingDocumentKind\x12 \n" +
+	"\x1cFINDING_DOCUMENT_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19FINDING_DOCUMENT_PROPOSAL\x10\x01\x12$\n" +
+	" FINDING_DOCUMENT_DERIVED_ANCHORS\x10\x02\x12\"\n" +
+	"\x1eFINDING_DOCUMENT_HTTP_EVIDENCE\x10\x032\xd3\x02\n" +
 	"\fControlPlane\x12e\n" +
 	"\tBootstrap\x12-.contractor.runtime.v1alpha1.BootstrapRequest\x1a).contractor.runtime.v1alpha1.SharedConfig\x12r\n" +
 	"\bRegister\x12..contractor.runtime.v1alpha1.AgentRegistration\x1a6.contractor.runtime.v1alpha1.AgentRegistrationResponse\x12h\n" +
@@ -9472,7 +10354,11 @@ const file_runtime_proto_rawDesc = "" +
 	"\bFinalize\x126.contractor.runtime.v1alpha1.FinalizeAllocationRequest\x1a4.contractor.runtime.v1alpha1.AllocationFinalResponse\x12r\n" +
 	"\x05Abort\x123.contractor.runtime.v1alpha1.AbortAllocationRequest\x1a4.contractor.runtime.v1alpha1.AllocationFinalResponse\x12x\n" +
 	"\aRelease\x125.contractor.runtime.v1alpha1.ReleaseAllocationRequest\x1a6.contractor.runtime.v1alpha1.ReleaseAllocationResponse\x12j\n" +
-	"\tReadState\x12-.contractor.runtime.v1alpha1.StateReadRequest\x1a..contractor.runtime.v1alpha1.StateReadResponseB9Z7github.com/grauwolf32/contractor/api/v1alpha1/runtimepbb\x06proto3"
+	"\tReadState\x12-.contractor.runtime.v1alpha1.StateReadRequest\x1a..contractor.runtime.v1alpha1.StateReadResponse2\xe6\x02\n" +
+	"\bArtifact\x12i\n" +
+	"\x04Read\x12/.contractor.runtime.v1alpha1.ArtifactReadTarget\x1a..contractor.runtime.v1alpha1.ArtifactReadFrame0\x01\x12p\n" +
+	"\x05Write\x12/.contractor.runtime.v1alpha1.ArtifactWriteFrame\x1a4.contractor.runtime.v1alpha1.ArtifactPayloadMetadata(\x01\x12}\n" +
+	"\rSubmitFinding\x123.contractor.runtime.v1alpha1.FindingSubmissionFrame\x1a5.contractor.runtime.v1alpha1.FindingSubmissionReceipt(\x01B9Z7github.com/grauwolf32/contractor/api/v1alpha1/runtimepbb\x06proto3"
 
 var (
 	file_runtime_proto_rawDescOnce sync.Once
@@ -9486,350 +10372,378 @@ func file_runtime_proto_rawDescGZIP() []byte {
 	return file_runtime_proto_rawDescData
 }
 
-var file_runtime_proto_msgTypes = make([]protoimpl.MessageInfo, 132)
+var file_runtime_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_runtime_proto_msgTypes = make([]protoimpl.MessageInfo, 141)
 var file_runtime_proto_goTypes = []any{
-	(*BootstrapRequest)(nil),                  // 0: contractor.runtime.v1alpha1.BootstrapRequest
-	(*SharedConfig)(nil),                      // 1: contractor.runtime.v1alpha1.SharedConfig
-	(*SharedLimits)(nil),                      // 2: contractor.runtime.v1alpha1.SharedLimits
-	(*AgentHeartbeat)(nil),                    // 3: contractor.runtime.v1alpha1.AgentHeartbeat
-	(*HeartbeatResponse)(nil),                 // 4: contractor.runtime.v1alpha1.HeartbeatResponse
-	(*AllocationAction)(nil),                  // 5: contractor.runtime.v1alpha1.AllocationAction
-	(*ListOfAllocationAction)(nil),            // 6: contractor.runtime.v1alpha1.ListOfAllocationAction
-	(*ListOfString)(nil),                      // 7: contractor.runtime.v1alpha1.ListOfString
-	(*ListOfInteger)(nil),                     // 8: contractor.runtime.v1alpha1.ListOfInteger
-	(*ListOfToolsetCapability)(nil),           // 9: contractor.runtime.v1alpha1.ListOfToolsetCapability
-	(*ListOfObservedAllocation)(nil),          // 10: contractor.runtime.v1alpha1.ListOfObservedAllocation
-	(*AgentRegistration)(nil),                 // 11: contractor.runtime.v1alpha1.AgentRegistration
-	(*AgentRegistrationResponse)(nil),         // 12: contractor.runtime.v1alpha1.AgentRegistrationResponse
-	(*ToolsetCapability)(nil),                 // 13: contractor.runtime.v1alpha1.ToolsetCapability
-	(*ObservedAllocation)(nil),                // 14: contractor.runtime.v1alpha1.ObservedAllocation
-	(*CompletionCapabilities)(nil),            // 15: contractor.runtime.v1alpha1.CompletionCapabilities
-	(*NullableCompletionCapabilities)(nil),    // 16: contractor.runtime.v1alpha1.NullableCompletionCapabilities
-	(*WorkspaceCapabilities)(nil),             // 17: contractor.runtime.v1alpha1.WorkspaceCapabilities
-	(*WorkspaceLimits)(nil),                   // 18: contractor.runtime.v1alpha1.WorkspaceLimits
-	(*NullableWorkspaceCapabilities)(nil),     // 19: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities
-	(*ErrorDetail)(nil),                       // 20: contractor.runtime.v1alpha1.ErrorDetail
-	(*PlannerOperationRequest)(nil),           // 21: contractor.runtime.v1alpha1.PlannerOperationRequest
-	(*PlannerOperationResponse)(nil),          // 22: contractor.runtime.v1alpha1.PlannerOperationResponse
-	(*PlannerArgumentsDocument)(nil),          // 23: contractor.runtime.v1alpha1.PlannerArgumentsDocument
-	(*PlannerResultDocument)(nil),             // 24: contractor.runtime.v1alpha1.PlannerResultDocument
-	(*GatewayRecoveryRequest)(nil),            // 25: contractor.runtime.v1alpha1.GatewayRecoveryRequest
-	(*GatewayRecoveryResponse)(nil),           // 26: contractor.runtime.v1alpha1.GatewayRecoveryResponse
-	(*StateReadRequest)(nil),                  // 27: contractor.runtime.v1alpha1.StateReadRequest
-	(*StateReadResponse)(nil),                 // 28: contractor.runtime.v1alpha1.StateReadResponse
-	(*StateNotModified)(nil),                  // 29: contractor.runtime.v1alpha1.StateNotModified
-	(*AgentStateDocument)(nil),                // 30: contractor.runtime.v1alpha1.AgentStateDocument
-	(*PrepareAllocationRequest)(nil),          // 31: contractor.runtime.v1alpha1.PrepareAllocationRequest
-	(*PrepareAllocationResponse)(nil),         // 32: contractor.runtime.v1alpha1.PrepareAllocationResponse
-	(*FinalizeAllocationRequest)(nil),         // 33: contractor.runtime.v1alpha1.FinalizeAllocationRequest
-	(*AbortAllocationRequest)(nil),            // 34: contractor.runtime.v1alpha1.AbortAllocationRequest
-	(*ReleaseAllocationRequest)(nil),          // 35: contractor.runtime.v1alpha1.ReleaseAllocationRequest
-	(*ReleaseAllocationResponse)(nil),         // 36: contractor.runtime.v1alpha1.ReleaseAllocationResponse
-	(*TerminationError)(nil),                  // 37: contractor.runtime.v1alpha1.TerminationError
-	(*AllocationSpec)(nil),                    // 38: contractor.runtime.v1alpha1.AllocationSpec
-	(*AgentTemplateDocument)(nil),             // 39: contractor.runtime.v1alpha1.AgentTemplateDocument
-	(*ModelPolicyDocument)(nil),               // 40: contractor.runtime.v1alpha1.ModelPolicyDocument
-	(*RuntimeSettingsDocument)(nil),           // 41: contractor.runtime.v1alpha1.RuntimeSettingsDocument
-	(*RuntimeConfigProvenanceDocument)(nil),   // 42: contractor.runtime.v1alpha1.RuntimeConfigProvenanceDocument
-	(*AgentCardDocument)(nil),                 // 43: contractor.runtime.v1alpha1.AgentCardDocument
-	(*ExecutionReportDocument)(nil),           // 44: contractor.runtime.v1alpha1.ExecutionReportDocument
-	(*RuntimeReportDocument)(nil),             // 45: contractor.runtime.v1alpha1.RuntimeReportDocument
-	(*MapOfString)(nil),                       // 46: contractor.runtime.v1alpha1.MapOfString
-	(*ResolvedInstructions)(nil),              // 47: contractor.runtime.v1alpha1.ResolvedInstructions
-	(*WorkerContextManagement)(nil),           // 48: contractor.runtime.v1alpha1.WorkerContextManagement
-	(*ArtifactRef)(nil),                       // 49: contractor.runtime.v1alpha1.ArtifactRef
-	(*ResolvedSkill)(nil),                     // 50: contractor.runtime.v1alpha1.ResolvedSkill
-	(*ListOfResolvedSkill)(nil),               // 51: contractor.runtime.v1alpha1.ListOfResolvedSkill
-	(*WorkerCompletionContract)(nil),          // 52: contractor.runtime.v1alpha1.WorkerCompletionContract
-	(*AgentTemplateRef)(nil),                  // 53: contractor.runtime.v1alpha1.AgentTemplateRef
-	(*WorkerRuntimeRef)(nil),                  // 54: contractor.runtime.v1alpha1.WorkerRuntimeRef
-	(*WorkerHandle)(nil),                      // 55: contractor.runtime.v1alpha1.WorkerHandle
-	(*AllocationWorkspace)(nil),               // 56: contractor.runtime.v1alpha1.AllocationWorkspace
-	(*WorkspaceSource)(nil),                   // 57: contractor.runtime.v1alpha1.WorkspaceSource
-	(*ListOfWorkspaceSource)(nil),             // 58: contractor.runtime.v1alpha1.ListOfWorkspaceSource
-	(*WorkspaceState)(nil),                    // 59: contractor.runtime.v1alpha1.WorkspaceState
-	(*WorkspaceExport)(nil),                   // 60: contractor.runtime.v1alpha1.WorkspaceExport
-	(*NullableAllocationWorkspace)(nil),       // 61: contractor.runtime.v1alpha1.NullableAllocationWorkspace
-	(*NullableWorkspaceState)(nil),            // 62: contractor.runtime.v1alpha1.NullableWorkspaceState
-	(*NullableWorkspaceExport)(nil),           // 63: contractor.runtime.v1alpha1.NullableWorkspaceExport
-	(*PerformanceMetricsRequest)(nil),         // 64: contractor.runtime.v1alpha1.PerformanceMetricsRequest
-	(*NullablePerformanceMetricsRequest)(nil), // 65: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest
-	(*EngagementAllocation)(nil),              // 66: contractor.runtime.v1alpha1.EngagementAllocation
-	(*HTTPAssignment)(nil),                    // 67: contractor.runtime.v1alpha1.HTTPAssignment
-	(*HTTPLimits)(nil),                        // 68: contractor.runtime.v1alpha1.HTTPLimits
-	(*HTTPRoute)(nil),                         // 69: contractor.runtime.v1alpha1.HTTPRoute
-	(*HTTPIdentity)(nil),                      // 70: contractor.runtime.v1alpha1.HTTPIdentity
-	(*RuntimeCredentialRef)(nil),              // 71: contractor.runtime.v1alpha1.RuntimeCredentialRef
-	(*ProtectedDestination)(nil),              // 72: contractor.runtime.v1alpha1.ProtectedDestination
-	(*ListOfHTTPRoute)(nil),                   // 73: contractor.runtime.v1alpha1.ListOfHTTPRoute
-	(*ListOfHTTPIdentity)(nil),                // 74: contractor.runtime.v1alpha1.ListOfHTTPIdentity
-	(*ListOfProtectedDestination)(nil),        // 75: contractor.runtime.v1alpha1.ListOfProtectedDestination
-	(*AllocationFinalResponse)(nil),           // 76: contractor.runtime.v1alpha1.AllocationFinalResponse
-	(*AllocationFinalReport)(nil),             // 77: contractor.runtime.v1alpha1.AllocationFinalReport
-	(*NullableString)(nil),                    // 78: contractor.runtime.v1alpha1.NullableString
-	(*ExactArtifact)(nil),                     // 79: contractor.runtime.v1alpha1.ExactArtifact
-	(*Material)(nil),                          // 80: contractor.runtime.v1alpha1.Material
-	(*ListOfMaterial)(nil),                    // 81: contractor.runtime.v1alpha1.ListOfMaterial
-	(*ListOfArtifactRef)(nil),                 // 82: contractor.runtime.v1alpha1.ListOfArtifactRef
-	(*AuditEvidenceRequest)(nil),              // 83: contractor.runtime.v1alpha1.AuditEvidenceRequest
-	(*AuditEvidenceReceipt)(nil),              // 84: contractor.runtime.v1alpha1.AuditEvidenceReceipt
-	(*AuditConclusion)(nil),                   // 85: contractor.runtime.v1alpha1.AuditConclusion
-	(*AuditJudgmentUpdate)(nil),               // 86: contractor.runtime.v1alpha1.AuditJudgmentUpdate
-	(*ListOfAuditJudgmentUpdate)(nil),         // 87: contractor.runtime.v1alpha1.ListOfAuditJudgmentUpdate
-	(*AuditJudgmentsRequest)(nil),             // 88: contractor.runtime.v1alpha1.AuditJudgmentsRequest
-	(*AuditGeneration)(nil),                   // 89: contractor.runtime.v1alpha1.AuditGeneration
-	(*ListOfAuditGeneration)(nil),             // 90: contractor.runtime.v1alpha1.ListOfAuditGeneration
-	(*AuditJudgmentReceipt)(nil),              // 91: contractor.runtime.v1alpha1.AuditJudgmentReceipt
-	(*AuditJudgmentStale)(nil),                // 92: contractor.runtime.v1alpha1.AuditJudgmentStale
-	(*AuditJudgmentsResponse)(nil),            // 93: contractor.runtime.v1alpha1.AuditJudgmentsResponse
-	(*SitemapProvenance)(nil),                 // 94: contractor.runtime.v1alpha1.SitemapProvenance
-	(*SitemapSource)(nil),                     // 95: contractor.runtime.v1alpha1.SitemapSource
-	(*SitemapStructuralParameter)(nil),        // 96: contractor.runtime.v1alpha1.SitemapStructuralParameter
-	(*ListOfSitemapStructuralParameter)(nil),  // 97: contractor.runtime.v1alpha1.ListOfSitemapStructuralParameter
-	(*SitemapEditorRule)(nil),                 // 98: contractor.runtime.v1alpha1.SitemapEditorRule
-	(*ListOfSitemapEditorRule)(nil),           // 99: contractor.runtime.v1alpha1.ListOfSitemapEditorRule
-	(*SitemapEditorSource)(nil),               // 100: contractor.runtime.v1alpha1.SitemapEditorSource
-	(*SitemapEditorMutation)(nil),             // 101: contractor.runtime.v1alpha1.SitemapEditorMutation
-	(*SitemapMutationRequest)(nil),            // 102: contractor.runtime.v1alpha1.SitemapMutationRequest
-	(*SitemapMutationResult)(nil),             // 103: contractor.runtime.v1alpha1.SitemapMutationResult
-	(*SitemapMutationResponse)(nil),           // 104: contractor.runtime.v1alpha1.SitemapMutationResponse
-	(*SitemapSnapshotSelection)(nil),          // 105: contractor.runtime.v1alpha1.SitemapSnapshotSelection
-	(*SitemapSnapshotRequest)(nil),            // 106: contractor.runtime.v1alpha1.SitemapSnapshotRequest
-	(*SitemapSnapshotResult)(nil),             // 107: contractor.runtime.v1alpha1.SitemapSnapshotResult
-	(*SitemapSnapshotResponse)(nil),           // 108: contractor.runtime.v1alpha1.SitemapSnapshotResponse
-	(*SitemapObservation)(nil),                // 109: contractor.runtime.v1alpha1.SitemapObservation
-	(*ListOfSitemapObservation)(nil),          // 110: contractor.runtime.v1alpha1.ListOfSitemapObservation
-	(*SitemapCollectionGap)(nil),              // 111: contractor.runtime.v1alpha1.SitemapCollectionGap
-	(*ListOfSitemapCollectionGap)(nil),        // 112: contractor.runtime.v1alpha1.ListOfSitemapCollectionGap
-	(*SitemapCollectionIngress)(nil),          // 113: contractor.runtime.v1alpha1.SitemapCollectionIngress
-	(*SitemapCollectionRequest)(nil),          // 114: contractor.runtime.v1alpha1.SitemapCollectionRequest
-	(*ArtifactListRequest)(nil),               // 115: contractor.runtime.v1alpha1.ArtifactListRequest
-	(*ArtifactListResponse)(nil),              // 116: contractor.runtime.v1alpha1.ArtifactListResponse
-	(*ArtifactReadTarget)(nil),                // 117: contractor.runtime.v1alpha1.ArtifactReadTarget
-	(*ArtifactMetadataResponse)(nil),          // 118: contractor.runtime.v1alpha1.ArtifactMetadataResponse
-	(*ArtifactAccessResponse)(nil),            // 119: contractor.runtime.v1alpha1.ArtifactAccessResponse
-	(*FindingListRequest)(nil),                // 120: contractor.runtime.v1alpha1.FindingListRequest
-	(*ProjectFindingSummary)(nil),             // 121: contractor.runtime.v1alpha1.ProjectFindingSummary
-	(*ListOfProjectFindingSummary)(nil),       // 122: contractor.runtime.v1alpha1.ListOfProjectFindingSummary
-	(*FindingListResponse)(nil),               // 123: contractor.runtime.v1alpha1.FindingListResponse
-	(*FindingReadRequest)(nil),                // 124: contractor.runtime.v1alpha1.FindingReadRequest
-	(*ProjectFinding)(nil),                    // 125: contractor.runtime.v1alpha1.ProjectFinding
-	(*FindingClaimDocument)(nil),              // 126: contractor.runtime.v1alpha1.FindingClaimDocument
-	(*FindingRevisionSelection)(nil),          // 127: contractor.runtime.v1alpha1.FindingRevisionSelection
-	(*ListOfFindingRevisionSelection)(nil),    // 128: contractor.runtime.v1alpha1.ListOfFindingRevisionSelection
-	(*FindingSelectionRequest)(nil),           // 129: contractor.runtime.v1alpha1.FindingSelectionRequest
-	(*FindingSelectionResponse)(nil),          // 130: contractor.runtime.v1alpha1.FindingSelectionResponse
-	nil,                                       // 131: contractor.runtime.v1alpha1.MapOfString.ValuesEntry
-	(structpb.NullValue)(0),                   // 132: google.protobuf.NullValue
+	(FindingDocumentKind)(0),                  // 0: contractor.runtime.v1alpha1.FindingDocumentKind
+	(*BootstrapRequest)(nil),                  // 1: contractor.runtime.v1alpha1.BootstrapRequest
+	(*SharedConfig)(nil),                      // 2: contractor.runtime.v1alpha1.SharedConfig
+	(*SharedLimits)(nil),                      // 3: contractor.runtime.v1alpha1.SharedLimits
+	(*AgentHeartbeat)(nil),                    // 4: contractor.runtime.v1alpha1.AgentHeartbeat
+	(*HeartbeatResponse)(nil),                 // 5: contractor.runtime.v1alpha1.HeartbeatResponse
+	(*AllocationAction)(nil),                  // 6: contractor.runtime.v1alpha1.AllocationAction
+	(*ListOfAllocationAction)(nil),            // 7: contractor.runtime.v1alpha1.ListOfAllocationAction
+	(*ListOfString)(nil),                      // 8: contractor.runtime.v1alpha1.ListOfString
+	(*ListOfInteger)(nil),                     // 9: contractor.runtime.v1alpha1.ListOfInteger
+	(*ListOfToolsetCapability)(nil),           // 10: contractor.runtime.v1alpha1.ListOfToolsetCapability
+	(*ListOfObservedAllocation)(nil),          // 11: contractor.runtime.v1alpha1.ListOfObservedAllocation
+	(*AgentRegistration)(nil),                 // 12: contractor.runtime.v1alpha1.AgentRegistration
+	(*AgentRegistrationResponse)(nil),         // 13: contractor.runtime.v1alpha1.AgentRegistrationResponse
+	(*ToolsetCapability)(nil),                 // 14: contractor.runtime.v1alpha1.ToolsetCapability
+	(*ObservedAllocation)(nil),                // 15: contractor.runtime.v1alpha1.ObservedAllocation
+	(*CompletionCapabilities)(nil),            // 16: contractor.runtime.v1alpha1.CompletionCapabilities
+	(*NullableCompletionCapabilities)(nil),    // 17: contractor.runtime.v1alpha1.NullableCompletionCapabilities
+	(*WorkspaceCapabilities)(nil),             // 18: contractor.runtime.v1alpha1.WorkspaceCapabilities
+	(*WorkspaceLimits)(nil),                   // 19: contractor.runtime.v1alpha1.WorkspaceLimits
+	(*NullableWorkspaceCapabilities)(nil),     // 20: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities
+	(*ErrorDetail)(nil),                       // 21: contractor.runtime.v1alpha1.ErrorDetail
+	(*PlannerOperationRequest)(nil),           // 22: contractor.runtime.v1alpha1.PlannerOperationRequest
+	(*PlannerOperationResponse)(nil),          // 23: contractor.runtime.v1alpha1.PlannerOperationResponse
+	(*PlannerArgumentsDocument)(nil),          // 24: contractor.runtime.v1alpha1.PlannerArgumentsDocument
+	(*PlannerResultDocument)(nil),             // 25: contractor.runtime.v1alpha1.PlannerResultDocument
+	(*GatewayRecoveryRequest)(nil),            // 26: contractor.runtime.v1alpha1.GatewayRecoveryRequest
+	(*GatewayRecoveryResponse)(nil),           // 27: contractor.runtime.v1alpha1.GatewayRecoveryResponse
+	(*StateReadRequest)(nil),                  // 28: contractor.runtime.v1alpha1.StateReadRequest
+	(*StateReadResponse)(nil),                 // 29: contractor.runtime.v1alpha1.StateReadResponse
+	(*StateNotModified)(nil),                  // 30: contractor.runtime.v1alpha1.StateNotModified
+	(*AgentStateDocument)(nil),                // 31: contractor.runtime.v1alpha1.AgentStateDocument
+	(*PrepareAllocationRequest)(nil),          // 32: contractor.runtime.v1alpha1.PrepareAllocationRequest
+	(*PrepareAllocationResponse)(nil),         // 33: contractor.runtime.v1alpha1.PrepareAllocationResponse
+	(*FinalizeAllocationRequest)(nil),         // 34: contractor.runtime.v1alpha1.FinalizeAllocationRequest
+	(*AbortAllocationRequest)(nil),            // 35: contractor.runtime.v1alpha1.AbortAllocationRequest
+	(*ReleaseAllocationRequest)(nil),          // 36: contractor.runtime.v1alpha1.ReleaseAllocationRequest
+	(*ReleaseAllocationResponse)(nil),         // 37: contractor.runtime.v1alpha1.ReleaseAllocationResponse
+	(*TerminationError)(nil),                  // 38: contractor.runtime.v1alpha1.TerminationError
+	(*AllocationSpec)(nil),                    // 39: contractor.runtime.v1alpha1.AllocationSpec
+	(*AgentTemplateDocument)(nil),             // 40: contractor.runtime.v1alpha1.AgentTemplateDocument
+	(*ModelPolicyDocument)(nil),               // 41: contractor.runtime.v1alpha1.ModelPolicyDocument
+	(*RuntimeSettingsDocument)(nil),           // 42: contractor.runtime.v1alpha1.RuntimeSettingsDocument
+	(*RuntimeConfigProvenanceDocument)(nil),   // 43: contractor.runtime.v1alpha1.RuntimeConfigProvenanceDocument
+	(*AgentCardDocument)(nil),                 // 44: contractor.runtime.v1alpha1.AgentCardDocument
+	(*ExecutionReportDocument)(nil),           // 45: contractor.runtime.v1alpha1.ExecutionReportDocument
+	(*RuntimeReportDocument)(nil),             // 46: contractor.runtime.v1alpha1.RuntimeReportDocument
+	(*MapOfString)(nil),                       // 47: contractor.runtime.v1alpha1.MapOfString
+	(*ResolvedInstructions)(nil),              // 48: contractor.runtime.v1alpha1.ResolvedInstructions
+	(*WorkerContextManagement)(nil),           // 49: contractor.runtime.v1alpha1.WorkerContextManagement
+	(*ArtifactRef)(nil),                       // 50: contractor.runtime.v1alpha1.ArtifactRef
+	(*ResolvedSkill)(nil),                     // 51: contractor.runtime.v1alpha1.ResolvedSkill
+	(*ListOfResolvedSkill)(nil),               // 52: contractor.runtime.v1alpha1.ListOfResolvedSkill
+	(*WorkerCompletionContract)(nil),          // 53: contractor.runtime.v1alpha1.WorkerCompletionContract
+	(*AgentTemplateRef)(nil),                  // 54: contractor.runtime.v1alpha1.AgentTemplateRef
+	(*WorkerRuntimeRef)(nil),                  // 55: contractor.runtime.v1alpha1.WorkerRuntimeRef
+	(*WorkerHandle)(nil),                      // 56: contractor.runtime.v1alpha1.WorkerHandle
+	(*AllocationWorkspace)(nil),               // 57: contractor.runtime.v1alpha1.AllocationWorkspace
+	(*WorkspaceSource)(nil),                   // 58: contractor.runtime.v1alpha1.WorkspaceSource
+	(*ListOfWorkspaceSource)(nil),             // 59: contractor.runtime.v1alpha1.ListOfWorkspaceSource
+	(*WorkspaceState)(nil),                    // 60: contractor.runtime.v1alpha1.WorkspaceState
+	(*WorkspaceExport)(nil),                   // 61: contractor.runtime.v1alpha1.WorkspaceExport
+	(*NullableAllocationWorkspace)(nil),       // 62: contractor.runtime.v1alpha1.NullableAllocationWorkspace
+	(*NullableWorkspaceState)(nil),            // 63: contractor.runtime.v1alpha1.NullableWorkspaceState
+	(*NullableWorkspaceExport)(nil),           // 64: contractor.runtime.v1alpha1.NullableWorkspaceExport
+	(*PerformanceMetricsRequest)(nil),         // 65: contractor.runtime.v1alpha1.PerformanceMetricsRequest
+	(*NullablePerformanceMetricsRequest)(nil), // 66: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest
+	(*EngagementAllocation)(nil),              // 67: contractor.runtime.v1alpha1.EngagementAllocation
+	(*HTTPAssignment)(nil),                    // 68: contractor.runtime.v1alpha1.HTTPAssignment
+	(*HTTPLimits)(nil),                        // 69: contractor.runtime.v1alpha1.HTTPLimits
+	(*HTTPRoute)(nil),                         // 70: contractor.runtime.v1alpha1.HTTPRoute
+	(*HTTPIdentity)(nil),                      // 71: contractor.runtime.v1alpha1.HTTPIdentity
+	(*RuntimeCredentialRef)(nil),              // 72: contractor.runtime.v1alpha1.RuntimeCredentialRef
+	(*ProtectedDestination)(nil),              // 73: contractor.runtime.v1alpha1.ProtectedDestination
+	(*ListOfHTTPRoute)(nil),                   // 74: contractor.runtime.v1alpha1.ListOfHTTPRoute
+	(*ListOfHTTPIdentity)(nil),                // 75: contractor.runtime.v1alpha1.ListOfHTTPIdentity
+	(*ListOfProtectedDestination)(nil),        // 76: contractor.runtime.v1alpha1.ListOfProtectedDestination
+	(*AllocationFinalResponse)(nil),           // 77: contractor.runtime.v1alpha1.AllocationFinalResponse
+	(*AllocationFinalReport)(nil),             // 78: contractor.runtime.v1alpha1.AllocationFinalReport
+	(*NullableString)(nil),                    // 79: contractor.runtime.v1alpha1.NullableString
+	(*ExactArtifact)(nil),                     // 80: contractor.runtime.v1alpha1.ExactArtifact
+	(*Material)(nil),                          // 81: contractor.runtime.v1alpha1.Material
+	(*ListOfMaterial)(nil),                    // 82: contractor.runtime.v1alpha1.ListOfMaterial
+	(*ListOfArtifactRef)(nil),                 // 83: contractor.runtime.v1alpha1.ListOfArtifactRef
+	(*AuditEvidenceRequest)(nil),              // 84: contractor.runtime.v1alpha1.AuditEvidenceRequest
+	(*AuditEvidenceReceipt)(nil),              // 85: contractor.runtime.v1alpha1.AuditEvidenceReceipt
+	(*AuditConclusion)(nil),                   // 86: contractor.runtime.v1alpha1.AuditConclusion
+	(*AuditJudgmentUpdate)(nil),               // 87: contractor.runtime.v1alpha1.AuditJudgmentUpdate
+	(*ListOfAuditJudgmentUpdate)(nil),         // 88: contractor.runtime.v1alpha1.ListOfAuditJudgmentUpdate
+	(*AuditJudgmentsRequest)(nil),             // 89: contractor.runtime.v1alpha1.AuditJudgmentsRequest
+	(*AuditGeneration)(nil),                   // 90: contractor.runtime.v1alpha1.AuditGeneration
+	(*ListOfAuditGeneration)(nil),             // 91: contractor.runtime.v1alpha1.ListOfAuditGeneration
+	(*AuditJudgmentReceipt)(nil),              // 92: contractor.runtime.v1alpha1.AuditJudgmentReceipt
+	(*AuditJudgmentStale)(nil),                // 93: contractor.runtime.v1alpha1.AuditJudgmentStale
+	(*AuditJudgmentsResponse)(nil),            // 94: contractor.runtime.v1alpha1.AuditJudgmentsResponse
+	(*SitemapProvenance)(nil),                 // 95: contractor.runtime.v1alpha1.SitemapProvenance
+	(*SitemapSource)(nil),                     // 96: contractor.runtime.v1alpha1.SitemapSource
+	(*SitemapStructuralParameter)(nil),        // 97: contractor.runtime.v1alpha1.SitemapStructuralParameter
+	(*ListOfSitemapStructuralParameter)(nil),  // 98: contractor.runtime.v1alpha1.ListOfSitemapStructuralParameter
+	(*SitemapEditorRule)(nil),                 // 99: contractor.runtime.v1alpha1.SitemapEditorRule
+	(*ListOfSitemapEditorRule)(nil),           // 100: contractor.runtime.v1alpha1.ListOfSitemapEditorRule
+	(*SitemapEditorSource)(nil),               // 101: contractor.runtime.v1alpha1.SitemapEditorSource
+	(*SitemapEditorMutation)(nil),             // 102: contractor.runtime.v1alpha1.SitemapEditorMutation
+	(*SitemapMutationRequest)(nil),            // 103: contractor.runtime.v1alpha1.SitemapMutationRequest
+	(*SitemapMutationResult)(nil),             // 104: contractor.runtime.v1alpha1.SitemapMutationResult
+	(*SitemapMutationResponse)(nil),           // 105: contractor.runtime.v1alpha1.SitemapMutationResponse
+	(*SitemapSnapshotSelection)(nil),          // 106: contractor.runtime.v1alpha1.SitemapSnapshotSelection
+	(*SitemapSnapshotRequest)(nil),            // 107: contractor.runtime.v1alpha1.SitemapSnapshotRequest
+	(*SitemapSnapshotResult)(nil),             // 108: contractor.runtime.v1alpha1.SitemapSnapshotResult
+	(*SitemapSnapshotResponse)(nil),           // 109: contractor.runtime.v1alpha1.SitemapSnapshotResponse
+	(*SitemapObservation)(nil),                // 110: contractor.runtime.v1alpha1.SitemapObservation
+	(*ListOfSitemapObservation)(nil),          // 111: contractor.runtime.v1alpha1.ListOfSitemapObservation
+	(*SitemapCollectionGap)(nil),              // 112: contractor.runtime.v1alpha1.SitemapCollectionGap
+	(*ListOfSitemapCollectionGap)(nil),        // 113: contractor.runtime.v1alpha1.ListOfSitemapCollectionGap
+	(*SitemapCollectionIngress)(nil),          // 114: contractor.runtime.v1alpha1.SitemapCollectionIngress
+	(*SitemapCollectionRequest)(nil),          // 115: contractor.runtime.v1alpha1.SitemapCollectionRequest
+	(*ArtifactListRequest)(nil),               // 116: contractor.runtime.v1alpha1.ArtifactListRequest
+	(*ArtifactListResponse)(nil),              // 117: contractor.runtime.v1alpha1.ArtifactListResponse
+	(*ArtifactReadTarget)(nil),                // 118: contractor.runtime.v1alpha1.ArtifactReadTarget
+	(*ArtifactMetadataResponse)(nil),          // 119: contractor.runtime.v1alpha1.ArtifactMetadataResponse
+	(*ArtifactAccessResponse)(nil),            // 120: contractor.runtime.v1alpha1.ArtifactAccessResponse
+	(*FindingListRequest)(nil),                // 121: contractor.runtime.v1alpha1.FindingListRequest
+	(*ProjectFindingSummary)(nil),             // 122: contractor.runtime.v1alpha1.ProjectFindingSummary
+	(*ListOfProjectFindingSummary)(nil),       // 123: contractor.runtime.v1alpha1.ListOfProjectFindingSummary
+	(*FindingListResponse)(nil),               // 124: contractor.runtime.v1alpha1.FindingListResponse
+	(*FindingReadRequest)(nil),                // 125: contractor.runtime.v1alpha1.FindingReadRequest
+	(*ProjectFinding)(nil),                    // 126: contractor.runtime.v1alpha1.ProjectFinding
+	(*FindingClaimDocument)(nil),              // 127: contractor.runtime.v1alpha1.FindingClaimDocument
+	(*FindingRevisionSelection)(nil),          // 128: contractor.runtime.v1alpha1.FindingRevisionSelection
+	(*ListOfFindingRevisionSelection)(nil),    // 129: contractor.runtime.v1alpha1.ListOfFindingRevisionSelection
+	(*FindingSelectionRequest)(nil),           // 130: contractor.runtime.v1alpha1.FindingSelectionRequest
+	(*FindingSelectionResponse)(nil),          // 131: contractor.runtime.v1alpha1.FindingSelectionResponse
+	(*ArtifactPayloadMetadata)(nil),           // 132: contractor.runtime.v1alpha1.ArtifactPayloadMetadata
+	(*ArtifactReadFrame)(nil),                 // 133: contractor.runtime.v1alpha1.ArtifactReadFrame
+	(*ArtifactWriteHeader)(nil),               // 134: contractor.runtime.v1alpha1.ArtifactWriteHeader
+	(*ArtifactWriteFrame)(nil),                // 135: contractor.runtime.v1alpha1.ArtifactWriteFrame
+	(*FindingSubmissionHeader)(nil),           // 136: contractor.runtime.v1alpha1.FindingSubmissionHeader
+	(*FindingDocumentChunk)(nil),              // 137: contractor.runtime.v1alpha1.FindingDocumentChunk
+	(*FindingSubmissionFrame)(nil),            // 138: contractor.runtime.v1alpha1.FindingSubmissionFrame
+	(*ListOfExactArtifact)(nil),               // 139: contractor.runtime.v1alpha1.ListOfExactArtifact
+	(*FindingSubmissionReceipt)(nil),          // 140: contractor.runtime.v1alpha1.FindingSubmissionReceipt
+	nil,                                       // 141: contractor.runtime.v1alpha1.MapOfString.ValuesEntry
+	(structpb.NullValue)(0),                   // 142: google.protobuf.NullValue
 }
 var file_runtime_proto_depIdxs = []int32{
-	2,   // 0: contractor.runtime.v1alpha1.SharedConfig.limits:type_name -> contractor.runtime.v1alpha1.SharedLimits
-	10,  // 1: contractor.runtime.v1alpha1.AgentHeartbeat.allocations:type_name -> contractor.runtime.v1alpha1.ListOfObservedAllocation
-	6,   // 2: contractor.runtime.v1alpha1.HeartbeatResponse.allocation_actions:type_name -> contractor.runtime.v1alpha1.ListOfAllocationAction
-	5,   // 3: contractor.runtime.v1alpha1.ListOfAllocationAction.values:type_name -> contractor.runtime.v1alpha1.AllocationAction
-	13,  // 4: contractor.runtime.v1alpha1.ListOfToolsetCapability.values:type_name -> contractor.runtime.v1alpha1.ToolsetCapability
-	14,  // 5: contractor.runtime.v1alpha1.ListOfObservedAllocation.values:type_name -> contractor.runtime.v1alpha1.ObservedAllocation
-	7,   // 6: contractor.runtime.v1alpha1.AgentRegistration.supported_runtimes:type_name -> contractor.runtime.v1alpha1.ListOfString
-	9,   // 7: contractor.runtime.v1alpha1.AgentRegistration.supported_toolsets:type_name -> contractor.runtime.v1alpha1.ListOfToolsetCapability
-	7,   // 8: contractor.runtime.v1alpha1.AgentRegistration.supported_sandbox_profiles:type_name -> contractor.runtime.v1alpha1.ListOfString
-	16,  // 9: contractor.runtime.v1alpha1.AgentRegistration.capabilities:type_name -> contractor.runtime.v1alpha1.NullableCompletionCapabilities
-	7,   // 10: contractor.runtime.v1alpha1.AgentRegistration.supported_runtime_adapters:type_name -> contractor.runtime.v1alpha1.ListOfString
-	19,  // 11: contractor.runtime.v1alpha1.AgentRegistration.workspace_capabilities:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceCapabilities
-	8,   // 12: contractor.runtime.v1alpha1.AgentRegistration.supported_performance_metrics_versions:type_name -> contractor.runtime.v1alpha1.ListOfInteger
-	7,   // 13: contractor.runtime.v1alpha1.AgentRegistration.placement_labels:type_name -> contractor.runtime.v1alpha1.ListOfString
-	10,  // 14: contractor.runtime.v1alpha1.AgentRegistration.allocations:type_name -> contractor.runtime.v1alpha1.ListOfObservedAllocation
-	7,   // 15: contractor.runtime.v1alpha1.ToolsetCapability.tools:type_name -> contractor.runtime.v1alpha1.ListOfString
-	7,   // 16: contractor.runtime.v1alpha1.CompletionCapabilities.completion_contracts:type_name -> contractor.runtime.v1alpha1.ListOfString
-	15,  // 17: contractor.runtime.v1alpha1.NullableCompletionCapabilities.value:type_name -> contractor.runtime.v1alpha1.CompletionCapabilities
-	132, // 18: contractor.runtime.v1alpha1.NullableCompletionCapabilities.null:type_name -> google.protobuf.NullValue
-	7,   // 19: contractor.runtime.v1alpha1.WorkspaceCapabilities.modes:type_name -> contractor.runtime.v1alpha1.ListOfString
-	18,  // 20: contractor.runtime.v1alpha1.WorkspaceCapabilities.limits:type_name -> contractor.runtime.v1alpha1.WorkspaceLimits
-	17,  // 21: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities.value:type_name -> contractor.runtime.v1alpha1.WorkspaceCapabilities
-	132, // 22: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities.null:type_name -> google.protobuf.NullValue
-	23,  // 23: contractor.runtime.v1alpha1.PlannerOperationRequest.arguments:type_name -> contractor.runtime.v1alpha1.PlannerArgumentsDocument
-	24,  // 24: contractor.runtime.v1alpha1.PlannerOperationResponse.result:type_name -> contractor.runtime.v1alpha1.PlannerResultDocument
-	37,  // 25: contractor.runtime.v1alpha1.PlannerOperationResponse.failure:type_name -> contractor.runtime.v1alpha1.TerminationError
-	30,  // 26: contractor.runtime.v1alpha1.StateReadResponse.snapshot:type_name -> contractor.runtime.v1alpha1.AgentStateDocument
-	29,  // 27: contractor.runtime.v1alpha1.StateReadResponse.not_modified:type_name -> contractor.runtime.v1alpha1.StateNotModified
-	38,  // 28: contractor.runtime.v1alpha1.PrepareAllocationRequest.spec:type_name -> contractor.runtime.v1alpha1.AllocationSpec
-	55,  // 29: contractor.runtime.v1alpha1.PrepareAllocationResponse.worker_handle:type_name -> contractor.runtime.v1alpha1.WorkerHandle
-	37,  // 30: contractor.runtime.v1alpha1.AbortAllocationRequest.reason:type_name -> contractor.runtime.v1alpha1.TerminationError
-	48,  // 31: contractor.runtime.v1alpha1.AllocationSpec.context_management:type_name -> contractor.runtime.v1alpha1.WorkerContextManagement
-	46,  // 32: contractor.runtime.v1alpha1.AllocationSpec.run_metadata_labels:type_name -> contractor.runtime.v1alpha1.MapOfString
-	39,  // 33: contractor.runtime.v1alpha1.AllocationSpec.agent_template:type_name -> contractor.runtime.v1alpha1.AgentTemplateDocument
-	51,  // 34: contractor.runtime.v1alpha1.AllocationSpec.resolved_skills:type_name -> contractor.runtime.v1alpha1.ListOfResolvedSkill
-	40,  // 35: contractor.runtime.v1alpha1.AllocationSpec.model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
-	40,  // 36: contractor.runtime.v1alpha1.AllocationSpec.summarizer_model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
-	40,  // 37: contractor.runtime.v1alpha1.AllocationSpec.compactor_model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
-	41,  // 38: contractor.runtime.v1alpha1.AllocationSpec.runtime_settings:type_name -> contractor.runtime.v1alpha1.RuntimeSettingsDocument
-	42,  // 39: contractor.runtime.v1alpha1.AllocationSpec.resolved_runtime_config_provenance:type_name -> contractor.runtime.v1alpha1.RuntimeConfigProvenanceDocument
-	61,  // 40: contractor.runtime.v1alpha1.AllocationSpec.workspace:type_name -> contractor.runtime.v1alpha1.NullableAllocationWorkspace
-	65,  // 41: contractor.runtime.v1alpha1.AllocationSpec.performance_metrics:type_name -> contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest
-	52,  // 42: contractor.runtime.v1alpha1.AllocationSpec.completion_contract:type_name -> contractor.runtime.v1alpha1.WorkerCompletionContract
-	66,  // 43: contractor.runtime.v1alpha1.AllocationSpec.engagement:type_name -> contractor.runtime.v1alpha1.EngagementAllocation
-	131, // 44: contractor.runtime.v1alpha1.MapOfString.values:type_name -> contractor.runtime.v1alpha1.MapOfString.ValuesEntry
-	47,  // 45: contractor.runtime.v1alpha1.WorkerContextManagement.instructions:type_name -> contractor.runtime.v1alpha1.ResolvedInstructions
-	49,  // 46: contractor.runtime.v1alpha1.ResolvedSkill.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	50,  // 47: contractor.runtime.v1alpha1.ListOfResolvedSkill.values:type_name -> contractor.runtime.v1alpha1.ResolvedSkill
-	49,  // 48: contractor.runtime.v1alpha1.WorkerCompletionContract.context:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	49,  // 49: contractor.runtime.v1alpha1.WorkerCompletionContract.result_artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	53,  // 50: contractor.runtime.v1alpha1.WorkerHandle.agent_template_ref:type_name -> contractor.runtime.v1alpha1.AgentTemplateRef
-	54,  // 51: contractor.runtime.v1alpha1.WorkerHandle.worker_runtime_ref:type_name -> contractor.runtime.v1alpha1.WorkerRuntimeRef
-	43,  // 52: contractor.runtime.v1alpha1.WorkerHandle.agent_card:type_name -> contractor.runtime.v1alpha1.AgentCardDocument
-	58,  // 53: contractor.runtime.v1alpha1.AllocationWorkspace.sources:type_name -> contractor.runtime.v1alpha1.ListOfWorkspaceSource
-	62,  // 54: contractor.runtime.v1alpha1.AllocationWorkspace.state:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceState
-	63,  // 55: contractor.runtime.v1alpha1.AllocationWorkspace.export:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceExport
-	49,  // 56: contractor.runtime.v1alpha1.WorkspaceSource.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	57,  // 57: contractor.runtime.v1alpha1.ListOfWorkspaceSource.values:type_name -> contractor.runtime.v1alpha1.WorkspaceSource
-	49,  // 58: contractor.runtime.v1alpha1.WorkspaceState.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	56,  // 59: contractor.runtime.v1alpha1.NullableAllocationWorkspace.value:type_name -> contractor.runtime.v1alpha1.AllocationWorkspace
-	132, // 60: contractor.runtime.v1alpha1.NullableAllocationWorkspace.null:type_name -> google.protobuf.NullValue
-	59,  // 61: contractor.runtime.v1alpha1.NullableWorkspaceState.value:type_name -> contractor.runtime.v1alpha1.WorkspaceState
-	132, // 62: contractor.runtime.v1alpha1.NullableWorkspaceState.null:type_name -> google.protobuf.NullValue
-	60,  // 63: contractor.runtime.v1alpha1.NullableWorkspaceExport.value:type_name -> contractor.runtime.v1alpha1.WorkspaceExport
-	132, // 64: contractor.runtime.v1alpha1.NullableWorkspaceExport.null:type_name -> google.protobuf.NullValue
-	64,  // 65: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest.value:type_name -> contractor.runtime.v1alpha1.PerformanceMetricsRequest
-	132, // 66: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest.null:type_name -> google.protobuf.NullValue
-	49,  // 67: contractor.runtime.v1alpha1.EngagementAllocation.engagement:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	67,  // 68: contractor.runtime.v1alpha1.EngagementAllocation.http:type_name -> contractor.runtime.v1alpha1.HTTPAssignment
-	68,  // 69: contractor.runtime.v1alpha1.HTTPAssignment.limits:type_name -> contractor.runtime.v1alpha1.HTTPLimits
-	73,  // 70: contractor.runtime.v1alpha1.HTTPAssignment.routes:type_name -> contractor.runtime.v1alpha1.ListOfHTTPRoute
-	73,  // 71: contractor.runtime.v1alpha1.HTTPAssignment.exclusions:type_name -> contractor.runtime.v1alpha1.ListOfHTTPRoute
-	74,  // 72: contractor.runtime.v1alpha1.HTTPAssignment.identities:type_name -> contractor.runtime.v1alpha1.ListOfHTTPIdentity
-	75,  // 73: contractor.runtime.v1alpha1.HTTPAssignment.protected_destinations:type_name -> contractor.runtime.v1alpha1.ListOfProtectedDestination
-	7,   // 74: contractor.runtime.v1alpha1.HTTPRoute.path_prefixes:type_name -> contractor.runtime.v1alpha1.ListOfString
-	7,   // 75: contractor.runtime.v1alpha1.HTTPRoute.methods:type_name -> contractor.runtime.v1alpha1.ListOfString
-	7,   // 76: contractor.runtime.v1alpha1.HTTPRoute.address_ranges:type_name -> contractor.runtime.v1alpha1.ListOfString
-	7,   // 77: contractor.runtime.v1alpha1.HTTPIdentity.origins:type_name -> contractor.runtime.v1alpha1.ListOfString
-	71,  // 78: contractor.runtime.v1alpha1.HTTPIdentity.credential:type_name -> contractor.runtime.v1alpha1.RuntimeCredentialRef
-	7,   // 79: contractor.runtime.v1alpha1.ProtectedDestination.addresses:type_name -> contractor.runtime.v1alpha1.ListOfString
-	69,  // 80: contractor.runtime.v1alpha1.ListOfHTTPRoute.values:type_name -> contractor.runtime.v1alpha1.HTTPRoute
-	70,  // 81: contractor.runtime.v1alpha1.ListOfHTTPIdentity.values:type_name -> contractor.runtime.v1alpha1.HTTPIdentity
-	72,  // 82: contractor.runtime.v1alpha1.ListOfProtectedDestination.values:type_name -> contractor.runtime.v1alpha1.ProtectedDestination
-	77,  // 83: contractor.runtime.v1alpha1.AllocationFinalResponse.report:type_name -> contractor.runtime.v1alpha1.AllocationFinalReport
-	44,  // 84: contractor.runtime.v1alpha1.AllocationFinalReport.worker:type_name -> contractor.runtime.v1alpha1.ExecutionReportDocument
-	45,  // 85: contractor.runtime.v1alpha1.AllocationFinalReport.runtime:type_name -> contractor.runtime.v1alpha1.RuntimeReportDocument
-	132, // 86: contractor.runtime.v1alpha1.NullableString.null:type_name -> google.protobuf.NullValue
-	49,  // 87: contractor.runtime.v1alpha1.ExactArtifact.ref:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	49,  // 88: contractor.runtime.v1alpha1.Material.ref:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	80,  // 89: contractor.runtime.v1alpha1.ListOfMaterial.values:type_name -> contractor.runtime.v1alpha1.Material
-	49,  // 90: contractor.runtime.v1alpha1.ListOfArtifactRef.values:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	82,  // 91: contractor.runtime.v1alpha1.AuditEvidenceRequest.sources:type_name -> contractor.runtime.v1alpha1.ListOfArtifactRef
-	7,   // 92: contractor.runtime.v1alpha1.AuditEvidenceRequest.tested_conditions:type_name -> contractor.runtime.v1alpha1.ListOfString
-	7,   // 93: contractor.runtime.v1alpha1.AuditEvidenceRequest.limitations:type_name -> contractor.runtime.v1alpha1.ListOfString
-	81,  // 94: contractor.runtime.v1alpha1.AuditEvidenceReceipt.selected_sources:type_name -> contractor.runtime.v1alpha1.ListOfMaterial
-	80,  // 95: contractor.runtime.v1alpha1.AuditEvidenceReceipt.material:type_name -> contractor.runtime.v1alpha1.Material
-	81,  // 96: contractor.runtime.v1alpha1.AuditEvidenceReceipt.sources:type_name -> contractor.runtime.v1alpha1.ListOfMaterial
-	7,   // 97: contractor.runtime.v1alpha1.AuditConclusion.tested_conditions:type_name -> contractor.runtime.v1alpha1.ListOfString
-	7,   // 98: contractor.runtime.v1alpha1.AuditConclusion.limitations:type_name -> contractor.runtime.v1alpha1.ListOfString
-	81,  // 99: contractor.runtime.v1alpha1.AuditConclusion.evidence:type_name -> contractor.runtime.v1alpha1.ListOfMaterial
-	85,  // 100: contractor.runtime.v1alpha1.AuditJudgmentUpdate.conclusion:type_name -> contractor.runtime.v1alpha1.AuditConclusion
-	86,  // 101: contractor.runtime.v1alpha1.ListOfAuditJudgmentUpdate.values:type_name -> contractor.runtime.v1alpha1.AuditJudgmentUpdate
-	87,  // 102: contractor.runtime.v1alpha1.AuditJudgmentsRequest.items:type_name -> contractor.runtime.v1alpha1.ListOfAuditJudgmentUpdate
-	89,  // 103: contractor.runtime.v1alpha1.ListOfAuditGeneration.values:type_name -> contractor.runtime.v1alpha1.AuditGeneration
-	80,  // 104: contractor.runtime.v1alpha1.AuditJudgmentReceipt.material:type_name -> contractor.runtime.v1alpha1.Material
-	90,  // 105: contractor.runtime.v1alpha1.AuditJudgmentReceipt.generations:type_name -> contractor.runtime.v1alpha1.ListOfAuditGeneration
-	90,  // 106: contractor.runtime.v1alpha1.AuditJudgmentStale.current_generations:type_name -> contractor.runtime.v1alpha1.ListOfAuditGeneration
-	91,  // 107: contractor.runtime.v1alpha1.AuditJudgmentsResponse.receipt:type_name -> contractor.runtime.v1alpha1.AuditJudgmentReceipt
-	92,  // 108: contractor.runtime.v1alpha1.AuditJudgmentsResponse.stale:type_name -> contractor.runtime.v1alpha1.AuditJudgmentStale
-	94,  // 109: contractor.runtime.v1alpha1.SitemapSource.provenance:type_name -> contractor.runtime.v1alpha1.SitemapProvenance
-	79,  // 110: contractor.runtime.v1alpha1.SitemapSource.artifact:type_name -> contractor.runtime.v1alpha1.ExactArtifact
-	7,   // 111: contractor.runtime.v1alpha1.SitemapStructuralParameter.allowed:type_name -> contractor.runtime.v1alpha1.ListOfString
-	96,  // 112: contractor.runtime.v1alpha1.ListOfSitemapStructuralParameter.values:type_name -> contractor.runtime.v1alpha1.SitemapStructuralParameter
-	7,   // 113: contractor.runtime.v1alpha1.SitemapEditorRule.parameters:type_name -> contractor.runtime.v1alpha1.ListOfString
-	97,  // 114: contractor.runtime.v1alpha1.SitemapEditorRule.structural:type_name -> contractor.runtime.v1alpha1.ListOfSitemapStructuralParameter
-	98,  // 115: contractor.runtime.v1alpha1.ListOfSitemapEditorRule.values:type_name -> contractor.runtime.v1alpha1.SitemapEditorRule
-	95,  // 116: contractor.runtime.v1alpha1.SitemapEditorSource.expected:type_name -> contractor.runtime.v1alpha1.SitemapSource
-	99,  // 117: contractor.runtime.v1alpha1.SitemapEditorSource.rules:type_name -> contractor.runtime.v1alpha1.ListOfSitemapEditorRule
-	7,   // 118: contractor.runtime.v1alpha1.SitemapEditorMutation.member_ids:type_name -> contractor.runtime.v1alpha1.ListOfString
-	7,   // 119: contractor.runtime.v1alpha1.SitemapEditorMutation.tags:type_name -> contractor.runtime.v1alpha1.ListOfString
-	100, // 120: contractor.runtime.v1alpha1.SitemapEditorMutation.source:type_name -> contractor.runtime.v1alpha1.SitemapEditorSource
-	101, // 121: contractor.runtime.v1alpha1.SitemapMutationRequest.mutation:type_name -> contractor.runtime.v1alpha1.SitemapEditorMutation
-	49,  // 122: contractor.runtime.v1alpha1.SitemapMutationResult.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	103, // 123: contractor.runtime.v1alpha1.SitemapMutationResponse.result:type_name -> contractor.runtime.v1alpha1.SitemapMutationResult
-	7,   // 124: contractor.runtime.v1alpha1.SitemapSnapshotSelection.groups:type_name -> contractor.runtime.v1alpha1.ListOfString
-	7,   // 125: contractor.runtime.v1alpha1.SitemapSnapshotSelection.members:type_name -> contractor.runtime.v1alpha1.ListOfString
-	105, // 126: contractor.runtime.v1alpha1.SitemapSnapshotRequest.selection:type_name -> contractor.runtime.v1alpha1.SitemapSnapshotSelection
-	79,  // 127: contractor.runtime.v1alpha1.SitemapSnapshotResult.artifact:type_name -> contractor.runtime.v1alpha1.ExactArtifact
-	107, // 128: contractor.runtime.v1alpha1.SitemapSnapshotResponse.result:type_name -> contractor.runtime.v1alpha1.SitemapSnapshotResult
-	7,   // 129: contractor.runtime.v1alpha1.SitemapObservation.tags:type_name -> contractor.runtime.v1alpha1.ListOfString
-	7,   // 130: contractor.runtime.v1alpha1.SitemapObservation.parameters:type_name -> contractor.runtime.v1alpha1.ListOfString
-	109, // 131: contractor.runtime.v1alpha1.ListOfSitemapObservation.values:type_name -> contractor.runtime.v1alpha1.SitemapObservation
-	111, // 132: contractor.runtime.v1alpha1.ListOfSitemapCollectionGap.values:type_name -> contractor.runtime.v1alpha1.SitemapCollectionGap
-	110, // 133: contractor.runtime.v1alpha1.SitemapCollectionIngress.observations:type_name -> contractor.runtime.v1alpha1.ListOfSitemapObservation
-	112, // 134: contractor.runtime.v1alpha1.SitemapCollectionIngress.gaps:type_name -> contractor.runtime.v1alpha1.ListOfSitemapCollectionGap
-	49,  // 135: contractor.runtime.v1alpha1.SitemapCollectionIngress.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	113, // 136: contractor.runtime.v1alpha1.SitemapCollectionRequest.input:type_name -> contractor.runtime.v1alpha1.SitemapCollectionIngress
-	82,  // 137: contractor.runtime.v1alpha1.ArtifactListResponse.artifacts:type_name -> contractor.runtime.v1alpha1.ListOfArtifactRef
-	49,  // 138: contractor.runtime.v1alpha1.ArtifactReadTarget.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	49,  // 139: contractor.runtime.v1alpha1.ArtifactMetadataResponse.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
-	78,  // 140: contractor.runtime.v1alpha1.ProjectFindingSummary.state:type_name -> contractor.runtime.v1alpha1.NullableString
-	78,  // 141: contractor.runtime.v1alpha1.ProjectFindingSummary.analyst_verdict:type_name -> contractor.runtime.v1alpha1.NullableString
-	78,  // 142: contractor.runtime.v1alpha1.ProjectFindingSummary.analyst_severity:type_name -> contractor.runtime.v1alpha1.NullableString
-	78,  // 143: contractor.runtime.v1alpha1.ProjectFindingSummary.duplicate_target_id:type_name -> contractor.runtime.v1alpha1.NullableString
-	121, // 144: contractor.runtime.v1alpha1.ListOfProjectFindingSummary.values:type_name -> contractor.runtime.v1alpha1.ProjectFindingSummary
-	122, // 145: contractor.runtime.v1alpha1.FindingListResponse.items:type_name -> contractor.runtime.v1alpha1.ListOfProjectFindingSummary
-	78,  // 146: contractor.runtime.v1alpha1.FindingListResponse.next_cursor:type_name -> contractor.runtime.v1alpha1.NullableString
-	79,  // 147: contractor.runtime.v1alpha1.ProjectFinding.first_proposal:type_name -> contractor.runtime.v1alpha1.ExactArtifact
-	126, // 148: contractor.runtime.v1alpha1.ProjectFinding.claim:type_name -> contractor.runtime.v1alpha1.FindingClaimDocument
-	78,  // 149: contractor.runtime.v1alpha1.ProjectFinding.state:type_name -> contractor.runtime.v1alpha1.NullableString
-	78,  // 150: contractor.runtime.v1alpha1.ProjectFinding.analyst_verdict:type_name -> contractor.runtime.v1alpha1.NullableString
-	78,  // 151: contractor.runtime.v1alpha1.ProjectFinding.analyst_severity:type_name -> contractor.runtime.v1alpha1.NullableString
-	78,  // 152: contractor.runtime.v1alpha1.ProjectFinding.rationale:type_name -> contractor.runtime.v1alpha1.NullableString
-	78,  // 153: contractor.runtime.v1alpha1.ProjectFinding.actor_id:type_name -> contractor.runtime.v1alpha1.NullableString
-	78,  // 154: contractor.runtime.v1alpha1.ProjectFinding.assessed_at:type_name -> contractor.runtime.v1alpha1.NullableString
-	78,  // 155: contractor.runtime.v1alpha1.ProjectFinding.duplicate_target_id:type_name -> contractor.runtime.v1alpha1.NullableString
-	127, // 156: contractor.runtime.v1alpha1.ListOfFindingRevisionSelection.values:type_name -> contractor.runtime.v1alpha1.FindingRevisionSelection
-	128, // 157: contractor.runtime.v1alpha1.FindingSelectionRequest.findings:type_name -> contractor.runtime.v1alpha1.ListOfFindingRevisionSelection
-	7,   // 158: contractor.runtime.v1alpha1.FindingSelectionRequest.receipt_ids:type_name -> contractor.runtime.v1alpha1.ListOfString
-	79,  // 159: contractor.runtime.v1alpha1.FindingSelectionResponse.artifact:type_name -> contractor.runtime.v1alpha1.ExactArtifact
-	0,   // 160: contractor.runtime.v1alpha1.ControlPlane.Bootstrap:input_type -> contractor.runtime.v1alpha1.BootstrapRequest
-	11,  // 161: contractor.runtime.v1alpha1.ControlPlane.Register:input_type -> contractor.runtime.v1alpha1.AgentRegistration
-	3,   // 162: contractor.runtime.v1alpha1.ControlPlane.Heartbeat:input_type -> contractor.runtime.v1alpha1.AgentHeartbeat
-	21,  // 163: contractor.runtime.v1alpha1.Allocation.PlannerOperation:input_type -> contractor.runtime.v1alpha1.PlannerOperationRequest
-	25,  // 164: contractor.runtime.v1alpha1.Allocation.GatewayRecovery:input_type -> contractor.runtime.v1alpha1.GatewayRecoveryRequest
-	83,  // 165: contractor.runtime.v1alpha1.Allocation.SubmitAuditEvidence:input_type -> contractor.runtime.v1alpha1.AuditEvidenceRequest
-	88,  // 166: contractor.runtime.v1alpha1.Allocation.SubmitAuditJudgments:input_type -> contractor.runtime.v1alpha1.AuditJudgmentsRequest
-	102, // 167: contractor.runtime.v1alpha1.Allocation.MutateSitemap:input_type -> contractor.runtime.v1alpha1.SitemapMutationRequest
-	106, // 168: contractor.runtime.v1alpha1.Allocation.SnapshotSitemap:input_type -> contractor.runtime.v1alpha1.SitemapSnapshotRequest
-	114, // 169: contractor.runtime.v1alpha1.Allocation.CollectSitemap:input_type -> contractor.runtime.v1alpha1.SitemapCollectionRequest
-	115, // 170: contractor.runtime.v1alpha1.Allocation.ListArtifacts:input_type -> contractor.runtime.v1alpha1.ArtifactListRequest
-	117, // 171: contractor.runtime.v1alpha1.Allocation.ReadArtifactMetadata:input_type -> contractor.runtime.v1alpha1.ArtifactReadTarget
-	117, // 172: contractor.runtime.v1alpha1.Allocation.CheckArtifactAccess:input_type -> contractor.runtime.v1alpha1.ArtifactReadTarget
-	120, // 173: contractor.runtime.v1alpha1.Allocation.ListFindings:input_type -> contractor.runtime.v1alpha1.FindingListRequest
-	124, // 174: contractor.runtime.v1alpha1.Allocation.ReadFinding:input_type -> contractor.runtime.v1alpha1.FindingReadRequest
-	129, // 175: contractor.runtime.v1alpha1.Allocation.SelectFindings:input_type -> contractor.runtime.v1alpha1.FindingSelectionRequest
-	31,  // 176: contractor.runtime.v1alpha1.RuntimeLifecycle.Prepare:input_type -> contractor.runtime.v1alpha1.PrepareAllocationRequest
-	33,  // 177: contractor.runtime.v1alpha1.RuntimeLifecycle.Finalize:input_type -> contractor.runtime.v1alpha1.FinalizeAllocationRequest
-	34,  // 178: contractor.runtime.v1alpha1.RuntimeLifecycle.Abort:input_type -> contractor.runtime.v1alpha1.AbortAllocationRequest
-	35,  // 179: contractor.runtime.v1alpha1.RuntimeLifecycle.Release:input_type -> contractor.runtime.v1alpha1.ReleaseAllocationRequest
-	27,  // 180: contractor.runtime.v1alpha1.RuntimeLifecycle.ReadState:input_type -> contractor.runtime.v1alpha1.StateReadRequest
-	1,   // 181: contractor.runtime.v1alpha1.ControlPlane.Bootstrap:output_type -> contractor.runtime.v1alpha1.SharedConfig
-	12,  // 182: contractor.runtime.v1alpha1.ControlPlane.Register:output_type -> contractor.runtime.v1alpha1.AgentRegistrationResponse
-	4,   // 183: contractor.runtime.v1alpha1.ControlPlane.Heartbeat:output_type -> contractor.runtime.v1alpha1.HeartbeatResponse
-	22,  // 184: contractor.runtime.v1alpha1.Allocation.PlannerOperation:output_type -> contractor.runtime.v1alpha1.PlannerOperationResponse
-	26,  // 185: contractor.runtime.v1alpha1.Allocation.GatewayRecovery:output_type -> contractor.runtime.v1alpha1.GatewayRecoveryResponse
-	84,  // 186: contractor.runtime.v1alpha1.Allocation.SubmitAuditEvidence:output_type -> contractor.runtime.v1alpha1.AuditEvidenceReceipt
-	93,  // 187: contractor.runtime.v1alpha1.Allocation.SubmitAuditJudgments:output_type -> contractor.runtime.v1alpha1.AuditJudgmentsResponse
-	104, // 188: contractor.runtime.v1alpha1.Allocation.MutateSitemap:output_type -> contractor.runtime.v1alpha1.SitemapMutationResponse
-	108, // 189: contractor.runtime.v1alpha1.Allocation.SnapshotSitemap:output_type -> contractor.runtime.v1alpha1.SitemapSnapshotResponse
-	104, // 190: contractor.runtime.v1alpha1.Allocation.CollectSitemap:output_type -> contractor.runtime.v1alpha1.SitemapMutationResponse
-	116, // 191: contractor.runtime.v1alpha1.Allocation.ListArtifacts:output_type -> contractor.runtime.v1alpha1.ArtifactListResponse
-	118, // 192: contractor.runtime.v1alpha1.Allocation.ReadArtifactMetadata:output_type -> contractor.runtime.v1alpha1.ArtifactMetadataResponse
-	119, // 193: contractor.runtime.v1alpha1.Allocation.CheckArtifactAccess:output_type -> contractor.runtime.v1alpha1.ArtifactAccessResponse
-	123, // 194: contractor.runtime.v1alpha1.Allocation.ListFindings:output_type -> contractor.runtime.v1alpha1.FindingListResponse
-	125, // 195: contractor.runtime.v1alpha1.Allocation.ReadFinding:output_type -> contractor.runtime.v1alpha1.ProjectFinding
-	130, // 196: contractor.runtime.v1alpha1.Allocation.SelectFindings:output_type -> contractor.runtime.v1alpha1.FindingSelectionResponse
-	32,  // 197: contractor.runtime.v1alpha1.RuntimeLifecycle.Prepare:output_type -> contractor.runtime.v1alpha1.PrepareAllocationResponse
-	76,  // 198: contractor.runtime.v1alpha1.RuntimeLifecycle.Finalize:output_type -> contractor.runtime.v1alpha1.AllocationFinalResponse
-	76,  // 199: contractor.runtime.v1alpha1.RuntimeLifecycle.Abort:output_type -> contractor.runtime.v1alpha1.AllocationFinalResponse
-	36,  // 200: contractor.runtime.v1alpha1.RuntimeLifecycle.Release:output_type -> contractor.runtime.v1alpha1.ReleaseAllocationResponse
-	28,  // 201: contractor.runtime.v1alpha1.RuntimeLifecycle.ReadState:output_type -> contractor.runtime.v1alpha1.StateReadResponse
-	181, // [181:202] is the sub-list for method output_type
-	160, // [160:181] is the sub-list for method input_type
-	160, // [160:160] is the sub-list for extension type_name
-	160, // [160:160] is the sub-list for extension extendee
-	0,   // [0:160] is the sub-list for field type_name
+	3,   // 0: contractor.runtime.v1alpha1.SharedConfig.limits:type_name -> contractor.runtime.v1alpha1.SharedLimits
+	11,  // 1: contractor.runtime.v1alpha1.AgentHeartbeat.allocations:type_name -> contractor.runtime.v1alpha1.ListOfObservedAllocation
+	7,   // 2: contractor.runtime.v1alpha1.HeartbeatResponse.allocation_actions:type_name -> contractor.runtime.v1alpha1.ListOfAllocationAction
+	6,   // 3: contractor.runtime.v1alpha1.ListOfAllocationAction.values:type_name -> contractor.runtime.v1alpha1.AllocationAction
+	14,  // 4: contractor.runtime.v1alpha1.ListOfToolsetCapability.values:type_name -> contractor.runtime.v1alpha1.ToolsetCapability
+	15,  // 5: contractor.runtime.v1alpha1.ListOfObservedAllocation.values:type_name -> contractor.runtime.v1alpha1.ObservedAllocation
+	8,   // 6: contractor.runtime.v1alpha1.AgentRegistration.supported_runtimes:type_name -> contractor.runtime.v1alpha1.ListOfString
+	10,  // 7: contractor.runtime.v1alpha1.AgentRegistration.supported_toolsets:type_name -> contractor.runtime.v1alpha1.ListOfToolsetCapability
+	8,   // 8: contractor.runtime.v1alpha1.AgentRegistration.supported_sandbox_profiles:type_name -> contractor.runtime.v1alpha1.ListOfString
+	17,  // 9: contractor.runtime.v1alpha1.AgentRegistration.capabilities:type_name -> contractor.runtime.v1alpha1.NullableCompletionCapabilities
+	8,   // 10: contractor.runtime.v1alpha1.AgentRegistration.supported_runtime_adapters:type_name -> contractor.runtime.v1alpha1.ListOfString
+	20,  // 11: contractor.runtime.v1alpha1.AgentRegistration.workspace_capabilities:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceCapabilities
+	9,   // 12: contractor.runtime.v1alpha1.AgentRegistration.supported_performance_metrics_versions:type_name -> contractor.runtime.v1alpha1.ListOfInteger
+	8,   // 13: contractor.runtime.v1alpha1.AgentRegistration.placement_labels:type_name -> contractor.runtime.v1alpha1.ListOfString
+	11,  // 14: contractor.runtime.v1alpha1.AgentRegistration.allocations:type_name -> contractor.runtime.v1alpha1.ListOfObservedAllocation
+	8,   // 15: contractor.runtime.v1alpha1.ToolsetCapability.tools:type_name -> contractor.runtime.v1alpha1.ListOfString
+	8,   // 16: contractor.runtime.v1alpha1.CompletionCapabilities.completion_contracts:type_name -> contractor.runtime.v1alpha1.ListOfString
+	16,  // 17: contractor.runtime.v1alpha1.NullableCompletionCapabilities.value:type_name -> contractor.runtime.v1alpha1.CompletionCapabilities
+	142, // 18: contractor.runtime.v1alpha1.NullableCompletionCapabilities.null:type_name -> google.protobuf.NullValue
+	8,   // 19: contractor.runtime.v1alpha1.WorkspaceCapabilities.modes:type_name -> contractor.runtime.v1alpha1.ListOfString
+	19,  // 20: contractor.runtime.v1alpha1.WorkspaceCapabilities.limits:type_name -> contractor.runtime.v1alpha1.WorkspaceLimits
+	18,  // 21: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities.value:type_name -> contractor.runtime.v1alpha1.WorkspaceCapabilities
+	142, // 22: contractor.runtime.v1alpha1.NullableWorkspaceCapabilities.null:type_name -> google.protobuf.NullValue
+	24,  // 23: contractor.runtime.v1alpha1.PlannerOperationRequest.arguments:type_name -> contractor.runtime.v1alpha1.PlannerArgumentsDocument
+	25,  // 24: contractor.runtime.v1alpha1.PlannerOperationResponse.result:type_name -> contractor.runtime.v1alpha1.PlannerResultDocument
+	38,  // 25: contractor.runtime.v1alpha1.PlannerOperationResponse.failure:type_name -> contractor.runtime.v1alpha1.TerminationError
+	31,  // 26: contractor.runtime.v1alpha1.StateReadResponse.snapshot:type_name -> contractor.runtime.v1alpha1.AgentStateDocument
+	30,  // 27: contractor.runtime.v1alpha1.StateReadResponse.not_modified:type_name -> contractor.runtime.v1alpha1.StateNotModified
+	39,  // 28: contractor.runtime.v1alpha1.PrepareAllocationRequest.spec:type_name -> contractor.runtime.v1alpha1.AllocationSpec
+	56,  // 29: contractor.runtime.v1alpha1.PrepareAllocationResponse.worker_handle:type_name -> contractor.runtime.v1alpha1.WorkerHandle
+	38,  // 30: contractor.runtime.v1alpha1.AbortAllocationRequest.reason:type_name -> contractor.runtime.v1alpha1.TerminationError
+	49,  // 31: contractor.runtime.v1alpha1.AllocationSpec.context_management:type_name -> contractor.runtime.v1alpha1.WorkerContextManagement
+	47,  // 32: contractor.runtime.v1alpha1.AllocationSpec.run_metadata_labels:type_name -> contractor.runtime.v1alpha1.MapOfString
+	40,  // 33: contractor.runtime.v1alpha1.AllocationSpec.agent_template:type_name -> contractor.runtime.v1alpha1.AgentTemplateDocument
+	52,  // 34: contractor.runtime.v1alpha1.AllocationSpec.resolved_skills:type_name -> contractor.runtime.v1alpha1.ListOfResolvedSkill
+	41,  // 35: contractor.runtime.v1alpha1.AllocationSpec.model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
+	41,  // 36: contractor.runtime.v1alpha1.AllocationSpec.summarizer_model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
+	41,  // 37: contractor.runtime.v1alpha1.AllocationSpec.compactor_model_policy:type_name -> contractor.runtime.v1alpha1.ModelPolicyDocument
+	42,  // 38: contractor.runtime.v1alpha1.AllocationSpec.runtime_settings:type_name -> contractor.runtime.v1alpha1.RuntimeSettingsDocument
+	43,  // 39: contractor.runtime.v1alpha1.AllocationSpec.resolved_runtime_config_provenance:type_name -> contractor.runtime.v1alpha1.RuntimeConfigProvenanceDocument
+	62,  // 40: contractor.runtime.v1alpha1.AllocationSpec.workspace:type_name -> contractor.runtime.v1alpha1.NullableAllocationWorkspace
+	66,  // 41: contractor.runtime.v1alpha1.AllocationSpec.performance_metrics:type_name -> contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest
+	53,  // 42: contractor.runtime.v1alpha1.AllocationSpec.completion_contract:type_name -> contractor.runtime.v1alpha1.WorkerCompletionContract
+	67,  // 43: contractor.runtime.v1alpha1.AllocationSpec.engagement:type_name -> contractor.runtime.v1alpha1.EngagementAllocation
+	141, // 44: contractor.runtime.v1alpha1.MapOfString.values:type_name -> contractor.runtime.v1alpha1.MapOfString.ValuesEntry
+	48,  // 45: contractor.runtime.v1alpha1.WorkerContextManagement.instructions:type_name -> contractor.runtime.v1alpha1.ResolvedInstructions
+	50,  // 46: contractor.runtime.v1alpha1.ResolvedSkill.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	51,  // 47: contractor.runtime.v1alpha1.ListOfResolvedSkill.values:type_name -> contractor.runtime.v1alpha1.ResolvedSkill
+	50,  // 48: contractor.runtime.v1alpha1.WorkerCompletionContract.context:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	50,  // 49: contractor.runtime.v1alpha1.WorkerCompletionContract.result_artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	54,  // 50: contractor.runtime.v1alpha1.WorkerHandle.agent_template_ref:type_name -> contractor.runtime.v1alpha1.AgentTemplateRef
+	55,  // 51: contractor.runtime.v1alpha1.WorkerHandle.worker_runtime_ref:type_name -> contractor.runtime.v1alpha1.WorkerRuntimeRef
+	44,  // 52: contractor.runtime.v1alpha1.WorkerHandle.agent_card:type_name -> contractor.runtime.v1alpha1.AgentCardDocument
+	59,  // 53: contractor.runtime.v1alpha1.AllocationWorkspace.sources:type_name -> contractor.runtime.v1alpha1.ListOfWorkspaceSource
+	63,  // 54: contractor.runtime.v1alpha1.AllocationWorkspace.state:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceState
+	64,  // 55: contractor.runtime.v1alpha1.AllocationWorkspace.export:type_name -> contractor.runtime.v1alpha1.NullableWorkspaceExport
+	50,  // 56: contractor.runtime.v1alpha1.WorkspaceSource.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	58,  // 57: contractor.runtime.v1alpha1.ListOfWorkspaceSource.values:type_name -> contractor.runtime.v1alpha1.WorkspaceSource
+	50,  // 58: contractor.runtime.v1alpha1.WorkspaceState.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	57,  // 59: contractor.runtime.v1alpha1.NullableAllocationWorkspace.value:type_name -> contractor.runtime.v1alpha1.AllocationWorkspace
+	142, // 60: contractor.runtime.v1alpha1.NullableAllocationWorkspace.null:type_name -> google.protobuf.NullValue
+	60,  // 61: contractor.runtime.v1alpha1.NullableWorkspaceState.value:type_name -> contractor.runtime.v1alpha1.WorkspaceState
+	142, // 62: contractor.runtime.v1alpha1.NullableWorkspaceState.null:type_name -> google.protobuf.NullValue
+	61,  // 63: contractor.runtime.v1alpha1.NullableWorkspaceExport.value:type_name -> contractor.runtime.v1alpha1.WorkspaceExport
+	142, // 64: contractor.runtime.v1alpha1.NullableWorkspaceExport.null:type_name -> google.protobuf.NullValue
+	65,  // 65: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest.value:type_name -> contractor.runtime.v1alpha1.PerformanceMetricsRequest
+	142, // 66: contractor.runtime.v1alpha1.NullablePerformanceMetricsRequest.null:type_name -> google.protobuf.NullValue
+	50,  // 67: contractor.runtime.v1alpha1.EngagementAllocation.engagement:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	68,  // 68: contractor.runtime.v1alpha1.EngagementAllocation.http:type_name -> contractor.runtime.v1alpha1.HTTPAssignment
+	69,  // 69: contractor.runtime.v1alpha1.HTTPAssignment.limits:type_name -> contractor.runtime.v1alpha1.HTTPLimits
+	74,  // 70: contractor.runtime.v1alpha1.HTTPAssignment.routes:type_name -> contractor.runtime.v1alpha1.ListOfHTTPRoute
+	74,  // 71: contractor.runtime.v1alpha1.HTTPAssignment.exclusions:type_name -> contractor.runtime.v1alpha1.ListOfHTTPRoute
+	75,  // 72: contractor.runtime.v1alpha1.HTTPAssignment.identities:type_name -> contractor.runtime.v1alpha1.ListOfHTTPIdentity
+	76,  // 73: contractor.runtime.v1alpha1.HTTPAssignment.protected_destinations:type_name -> contractor.runtime.v1alpha1.ListOfProtectedDestination
+	8,   // 74: contractor.runtime.v1alpha1.HTTPRoute.path_prefixes:type_name -> contractor.runtime.v1alpha1.ListOfString
+	8,   // 75: contractor.runtime.v1alpha1.HTTPRoute.methods:type_name -> contractor.runtime.v1alpha1.ListOfString
+	8,   // 76: contractor.runtime.v1alpha1.HTTPRoute.address_ranges:type_name -> contractor.runtime.v1alpha1.ListOfString
+	8,   // 77: contractor.runtime.v1alpha1.HTTPIdentity.origins:type_name -> contractor.runtime.v1alpha1.ListOfString
+	72,  // 78: contractor.runtime.v1alpha1.HTTPIdentity.credential:type_name -> contractor.runtime.v1alpha1.RuntimeCredentialRef
+	8,   // 79: contractor.runtime.v1alpha1.ProtectedDestination.addresses:type_name -> contractor.runtime.v1alpha1.ListOfString
+	70,  // 80: contractor.runtime.v1alpha1.ListOfHTTPRoute.values:type_name -> contractor.runtime.v1alpha1.HTTPRoute
+	71,  // 81: contractor.runtime.v1alpha1.ListOfHTTPIdentity.values:type_name -> contractor.runtime.v1alpha1.HTTPIdentity
+	73,  // 82: contractor.runtime.v1alpha1.ListOfProtectedDestination.values:type_name -> contractor.runtime.v1alpha1.ProtectedDestination
+	78,  // 83: contractor.runtime.v1alpha1.AllocationFinalResponse.report:type_name -> contractor.runtime.v1alpha1.AllocationFinalReport
+	45,  // 84: contractor.runtime.v1alpha1.AllocationFinalReport.worker:type_name -> contractor.runtime.v1alpha1.ExecutionReportDocument
+	46,  // 85: contractor.runtime.v1alpha1.AllocationFinalReport.runtime:type_name -> contractor.runtime.v1alpha1.RuntimeReportDocument
+	142, // 86: contractor.runtime.v1alpha1.NullableString.null:type_name -> google.protobuf.NullValue
+	50,  // 87: contractor.runtime.v1alpha1.ExactArtifact.ref:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	50,  // 88: contractor.runtime.v1alpha1.Material.ref:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	81,  // 89: contractor.runtime.v1alpha1.ListOfMaterial.values:type_name -> contractor.runtime.v1alpha1.Material
+	50,  // 90: contractor.runtime.v1alpha1.ListOfArtifactRef.values:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	83,  // 91: contractor.runtime.v1alpha1.AuditEvidenceRequest.sources:type_name -> contractor.runtime.v1alpha1.ListOfArtifactRef
+	8,   // 92: contractor.runtime.v1alpha1.AuditEvidenceRequest.tested_conditions:type_name -> contractor.runtime.v1alpha1.ListOfString
+	8,   // 93: contractor.runtime.v1alpha1.AuditEvidenceRequest.limitations:type_name -> contractor.runtime.v1alpha1.ListOfString
+	82,  // 94: contractor.runtime.v1alpha1.AuditEvidenceReceipt.selected_sources:type_name -> contractor.runtime.v1alpha1.ListOfMaterial
+	81,  // 95: contractor.runtime.v1alpha1.AuditEvidenceReceipt.material:type_name -> contractor.runtime.v1alpha1.Material
+	82,  // 96: contractor.runtime.v1alpha1.AuditEvidenceReceipt.sources:type_name -> contractor.runtime.v1alpha1.ListOfMaterial
+	8,   // 97: contractor.runtime.v1alpha1.AuditConclusion.tested_conditions:type_name -> contractor.runtime.v1alpha1.ListOfString
+	8,   // 98: contractor.runtime.v1alpha1.AuditConclusion.limitations:type_name -> contractor.runtime.v1alpha1.ListOfString
+	82,  // 99: contractor.runtime.v1alpha1.AuditConclusion.evidence:type_name -> contractor.runtime.v1alpha1.ListOfMaterial
+	86,  // 100: contractor.runtime.v1alpha1.AuditJudgmentUpdate.conclusion:type_name -> contractor.runtime.v1alpha1.AuditConclusion
+	87,  // 101: contractor.runtime.v1alpha1.ListOfAuditJudgmentUpdate.values:type_name -> contractor.runtime.v1alpha1.AuditJudgmentUpdate
+	88,  // 102: contractor.runtime.v1alpha1.AuditJudgmentsRequest.items:type_name -> contractor.runtime.v1alpha1.ListOfAuditJudgmentUpdate
+	90,  // 103: contractor.runtime.v1alpha1.ListOfAuditGeneration.values:type_name -> contractor.runtime.v1alpha1.AuditGeneration
+	81,  // 104: contractor.runtime.v1alpha1.AuditJudgmentReceipt.material:type_name -> contractor.runtime.v1alpha1.Material
+	91,  // 105: contractor.runtime.v1alpha1.AuditJudgmentReceipt.generations:type_name -> contractor.runtime.v1alpha1.ListOfAuditGeneration
+	91,  // 106: contractor.runtime.v1alpha1.AuditJudgmentStale.current_generations:type_name -> contractor.runtime.v1alpha1.ListOfAuditGeneration
+	92,  // 107: contractor.runtime.v1alpha1.AuditJudgmentsResponse.receipt:type_name -> contractor.runtime.v1alpha1.AuditJudgmentReceipt
+	93,  // 108: contractor.runtime.v1alpha1.AuditJudgmentsResponse.stale:type_name -> contractor.runtime.v1alpha1.AuditJudgmentStale
+	95,  // 109: contractor.runtime.v1alpha1.SitemapSource.provenance:type_name -> contractor.runtime.v1alpha1.SitemapProvenance
+	80,  // 110: contractor.runtime.v1alpha1.SitemapSource.artifact:type_name -> contractor.runtime.v1alpha1.ExactArtifact
+	8,   // 111: contractor.runtime.v1alpha1.SitemapStructuralParameter.allowed:type_name -> contractor.runtime.v1alpha1.ListOfString
+	97,  // 112: contractor.runtime.v1alpha1.ListOfSitemapStructuralParameter.values:type_name -> contractor.runtime.v1alpha1.SitemapStructuralParameter
+	8,   // 113: contractor.runtime.v1alpha1.SitemapEditorRule.parameters:type_name -> contractor.runtime.v1alpha1.ListOfString
+	98,  // 114: contractor.runtime.v1alpha1.SitemapEditorRule.structural:type_name -> contractor.runtime.v1alpha1.ListOfSitemapStructuralParameter
+	99,  // 115: contractor.runtime.v1alpha1.ListOfSitemapEditorRule.values:type_name -> contractor.runtime.v1alpha1.SitemapEditorRule
+	96,  // 116: contractor.runtime.v1alpha1.SitemapEditorSource.expected:type_name -> contractor.runtime.v1alpha1.SitemapSource
+	100, // 117: contractor.runtime.v1alpha1.SitemapEditorSource.rules:type_name -> contractor.runtime.v1alpha1.ListOfSitemapEditorRule
+	8,   // 118: contractor.runtime.v1alpha1.SitemapEditorMutation.member_ids:type_name -> contractor.runtime.v1alpha1.ListOfString
+	8,   // 119: contractor.runtime.v1alpha1.SitemapEditorMutation.tags:type_name -> contractor.runtime.v1alpha1.ListOfString
+	101, // 120: contractor.runtime.v1alpha1.SitemapEditorMutation.source:type_name -> contractor.runtime.v1alpha1.SitemapEditorSource
+	102, // 121: contractor.runtime.v1alpha1.SitemapMutationRequest.mutation:type_name -> contractor.runtime.v1alpha1.SitemapEditorMutation
+	50,  // 122: contractor.runtime.v1alpha1.SitemapMutationResult.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	104, // 123: contractor.runtime.v1alpha1.SitemapMutationResponse.result:type_name -> contractor.runtime.v1alpha1.SitemapMutationResult
+	8,   // 124: contractor.runtime.v1alpha1.SitemapSnapshotSelection.groups:type_name -> contractor.runtime.v1alpha1.ListOfString
+	8,   // 125: contractor.runtime.v1alpha1.SitemapSnapshotSelection.members:type_name -> contractor.runtime.v1alpha1.ListOfString
+	106, // 126: contractor.runtime.v1alpha1.SitemapSnapshotRequest.selection:type_name -> contractor.runtime.v1alpha1.SitemapSnapshotSelection
+	80,  // 127: contractor.runtime.v1alpha1.SitemapSnapshotResult.artifact:type_name -> contractor.runtime.v1alpha1.ExactArtifact
+	108, // 128: contractor.runtime.v1alpha1.SitemapSnapshotResponse.result:type_name -> contractor.runtime.v1alpha1.SitemapSnapshotResult
+	8,   // 129: contractor.runtime.v1alpha1.SitemapObservation.tags:type_name -> contractor.runtime.v1alpha1.ListOfString
+	8,   // 130: contractor.runtime.v1alpha1.SitemapObservation.parameters:type_name -> contractor.runtime.v1alpha1.ListOfString
+	110, // 131: contractor.runtime.v1alpha1.ListOfSitemapObservation.values:type_name -> contractor.runtime.v1alpha1.SitemapObservation
+	112, // 132: contractor.runtime.v1alpha1.ListOfSitemapCollectionGap.values:type_name -> contractor.runtime.v1alpha1.SitemapCollectionGap
+	111, // 133: contractor.runtime.v1alpha1.SitemapCollectionIngress.observations:type_name -> contractor.runtime.v1alpha1.ListOfSitemapObservation
+	113, // 134: contractor.runtime.v1alpha1.SitemapCollectionIngress.gaps:type_name -> contractor.runtime.v1alpha1.ListOfSitemapCollectionGap
+	50,  // 135: contractor.runtime.v1alpha1.SitemapCollectionIngress.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	114, // 136: contractor.runtime.v1alpha1.SitemapCollectionRequest.input:type_name -> contractor.runtime.v1alpha1.SitemapCollectionIngress
+	83,  // 137: contractor.runtime.v1alpha1.ArtifactListResponse.artifacts:type_name -> contractor.runtime.v1alpha1.ListOfArtifactRef
+	50,  // 138: contractor.runtime.v1alpha1.ArtifactReadTarget.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	50,  // 139: contractor.runtime.v1alpha1.ArtifactMetadataResponse.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	79,  // 140: contractor.runtime.v1alpha1.ProjectFindingSummary.state:type_name -> contractor.runtime.v1alpha1.NullableString
+	79,  // 141: contractor.runtime.v1alpha1.ProjectFindingSummary.analyst_verdict:type_name -> contractor.runtime.v1alpha1.NullableString
+	79,  // 142: contractor.runtime.v1alpha1.ProjectFindingSummary.analyst_severity:type_name -> contractor.runtime.v1alpha1.NullableString
+	79,  // 143: contractor.runtime.v1alpha1.ProjectFindingSummary.duplicate_target_id:type_name -> contractor.runtime.v1alpha1.NullableString
+	122, // 144: contractor.runtime.v1alpha1.ListOfProjectFindingSummary.values:type_name -> contractor.runtime.v1alpha1.ProjectFindingSummary
+	123, // 145: contractor.runtime.v1alpha1.FindingListResponse.items:type_name -> contractor.runtime.v1alpha1.ListOfProjectFindingSummary
+	79,  // 146: contractor.runtime.v1alpha1.FindingListResponse.next_cursor:type_name -> contractor.runtime.v1alpha1.NullableString
+	80,  // 147: contractor.runtime.v1alpha1.ProjectFinding.first_proposal:type_name -> contractor.runtime.v1alpha1.ExactArtifact
+	127, // 148: contractor.runtime.v1alpha1.ProjectFinding.claim:type_name -> contractor.runtime.v1alpha1.FindingClaimDocument
+	79,  // 149: contractor.runtime.v1alpha1.ProjectFinding.state:type_name -> contractor.runtime.v1alpha1.NullableString
+	79,  // 150: contractor.runtime.v1alpha1.ProjectFinding.analyst_verdict:type_name -> contractor.runtime.v1alpha1.NullableString
+	79,  // 151: contractor.runtime.v1alpha1.ProjectFinding.analyst_severity:type_name -> contractor.runtime.v1alpha1.NullableString
+	79,  // 152: contractor.runtime.v1alpha1.ProjectFinding.rationale:type_name -> contractor.runtime.v1alpha1.NullableString
+	79,  // 153: contractor.runtime.v1alpha1.ProjectFinding.actor_id:type_name -> contractor.runtime.v1alpha1.NullableString
+	79,  // 154: contractor.runtime.v1alpha1.ProjectFinding.assessed_at:type_name -> contractor.runtime.v1alpha1.NullableString
+	79,  // 155: contractor.runtime.v1alpha1.ProjectFinding.duplicate_target_id:type_name -> contractor.runtime.v1alpha1.NullableString
+	128, // 156: contractor.runtime.v1alpha1.ListOfFindingRevisionSelection.values:type_name -> contractor.runtime.v1alpha1.FindingRevisionSelection
+	129, // 157: contractor.runtime.v1alpha1.FindingSelectionRequest.findings:type_name -> contractor.runtime.v1alpha1.ListOfFindingRevisionSelection
+	8,   // 158: contractor.runtime.v1alpha1.FindingSelectionRequest.receipt_ids:type_name -> contractor.runtime.v1alpha1.ListOfString
+	80,  // 159: contractor.runtime.v1alpha1.FindingSelectionResponse.artifact:type_name -> contractor.runtime.v1alpha1.ExactArtifact
+	50,  // 160: contractor.runtime.v1alpha1.ArtifactPayloadMetadata.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	132, // 161: contractor.runtime.v1alpha1.ArtifactReadFrame.header:type_name -> contractor.runtime.v1alpha1.ArtifactPayloadMetadata
+	50,  // 162: contractor.runtime.v1alpha1.ArtifactWriteHeader.artifact:type_name -> contractor.runtime.v1alpha1.ArtifactRef
+	134, // 163: contractor.runtime.v1alpha1.ArtifactWriteFrame.header:type_name -> contractor.runtime.v1alpha1.ArtifactWriteHeader
+	83,  // 164: contractor.runtime.v1alpha1.FindingSubmissionHeader.evidence_refs:type_name -> contractor.runtime.v1alpha1.ListOfArtifactRef
+	0,   // 165: contractor.runtime.v1alpha1.FindingDocumentChunk.document:type_name -> contractor.runtime.v1alpha1.FindingDocumentKind
+	136, // 166: contractor.runtime.v1alpha1.FindingSubmissionFrame.header:type_name -> contractor.runtime.v1alpha1.FindingSubmissionHeader
+	137, // 167: contractor.runtime.v1alpha1.FindingSubmissionFrame.chunk:type_name -> contractor.runtime.v1alpha1.FindingDocumentChunk
+	80,  // 168: contractor.runtime.v1alpha1.ListOfExactArtifact.values:type_name -> contractor.runtime.v1alpha1.ExactArtifact
+	80,  // 169: contractor.runtime.v1alpha1.FindingSubmissionReceipt.proposal:type_name -> contractor.runtime.v1alpha1.ExactArtifact
+	139, // 170: contractor.runtime.v1alpha1.FindingSubmissionReceipt.evidence:type_name -> contractor.runtime.v1alpha1.ListOfExactArtifact
+	1,   // 171: contractor.runtime.v1alpha1.ControlPlane.Bootstrap:input_type -> contractor.runtime.v1alpha1.BootstrapRequest
+	12,  // 172: contractor.runtime.v1alpha1.ControlPlane.Register:input_type -> contractor.runtime.v1alpha1.AgentRegistration
+	4,   // 173: contractor.runtime.v1alpha1.ControlPlane.Heartbeat:input_type -> contractor.runtime.v1alpha1.AgentHeartbeat
+	22,  // 174: contractor.runtime.v1alpha1.Allocation.PlannerOperation:input_type -> contractor.runtime.v1alpha1.PlannerOperationRequest
+	26,  // 175: contractor.runtime.v1alpha1.Allocation.GatewayRecovery:input_type -> contractor.runtime.v1alpha1.GatewayRecoveryRequest
+	84,  // 176: contractor.runtime.v1alpha1.Allocation.SubmitAuditEvidence:input_type -> contractor.runtime.v1alpha1.AuditEvidenceRequest
+	89,  // 177: contractor.runtime.v1alpha1.Allocation.SubmitAuditJudgments:input_type -> contractor.runtime.v1alpha1.AuditJudgmentsRequest
+	103, // 178: contractor.runtime.v1alpha1.Allocation.MutateSitemap:input_type -> contractor.runtime.v1alpha1.SitemapMutationRequest
+	107, // 179: contractor.runtime.v1alpha1.Allocation.SnapshotSitemap:input_type -> contractor.runtime.v1alpha1.SitemapSnapshotRequest
+	115, // 180: contractor.runtime.v1alpha1.Allocation.CollectSitemap:input_type -> contractor.runtime.v1alpha1.SitemapCollectionRequest
+	116, // 181: contractor.runtime.v1alpha1.Allocation.ListArtifacts:input_type -> contractor.runtime.v1alpha1.ArtifactListRequest
+	118, // 182: contractor.runtime.v1alpha1.Allocation.ReadArtifactMetadata:input_type -> contractor.runtime.v1alpha1.ArtifactReadTarget
+	118, // 183: contractor.runtime.v1alpha1.Allocation.CheckArtifactAccess:input_type -> contractor.runtime.v1alpha1.ArtifactReadTarget
+	121, // 184: contractor.runtime.v1alpha1.Allocation.ListFindings:input_type -> contractor.runtime.v1alpha1.FindingListRequest
+	125, // 185: contractor.runtime.v1alpha1.Allocation.ReadFinding:input_type -> contractor.runtime.v1alpha1.FindingReadRequest
+	130, // 186: contractor.runtime.v1alpha1.Allocation.SelectFindings:input_type -> contractor.runtime.v1alpha1.FindingSelectionRequest
+	32,  // 187: contractor.runtime.v1alpha1.RuntimeLifecycle.Prepare:input_type -> contractor.runtime.v1alpha1.PrepareAllocationRequest
+	34,  // 188: contractor.runtime.v1alpha1.RuntimeLifecycle.Finalize:input_type -> contractor.runtime.v1alpha1.FinalizeAllocationRequest
+	35,  // 189: contractor.runtime.v1alpha1.RuntimeLifecycle.Abort:input_type -> contractor.runtime.v1alpha1.AbortAllocationRequest
+	36,  // 190: contractor.runtime.v1alpha1.RuntimeLifecycle.Release:input_type -> contractor.runtime.v1alpha1.ReleaseAllocationRequest
+	28,  // 191: contractor.runtime.v1alpha1.RuntimeLifecycle.ReadState:input_type -> contractor.runtime.v1alpha1.StateReadRequest
+	118, // 192: contractor.runtime.v1alpha1.Artifact.Read:input_type -> contractor.runtime.v1alpha1.ArtifactReadTarget
+	135, // 193: contractor.runtime.v1alpha1.Artifact.Write:input_type -> contractor.runtime.v1alpha1.ArtifactWriteFrame
+	138, // 194: contractor.runtime.v1alpha1.Artifact.SubmitFinding:input_type -> contractor.runtime.v1alpha1.FindingSubmissionFrame
+	2,   // 195: contractor.runtime.v1alpha1.ControlPlane.Bootstrap:output_type -> contractor.runtime.v1alpha1.SharedConfig
+	13,  // 196: contractor.runtime.v1alpha1.ControlPlane.Register:output_type -> contractor.runtime.v1alpha1.AgentRegistrationResponse
+	5,   // 197: contractor.runtime.v1alpha1.ControlPlane.Heartbeat:output_type -> contractor.runtime.v1alpha1.HeartbeatResponse
+	23,  // 198: contractor.runtime.v1alpha1.Allocation.PlannerOperation:output_type -> contractor.runtime.v1alpha1.PlannerOperationResponse
+	27,  // 199: contractor.runtime.v1alpha1.Allocation.GatewayRecovery:output_type -> contractor.runtime.v1alpha1.GatewayRecoveryResponse
+	85,  // 200: contractor.runtime.v1alpha1.Allocation.SubmitAuditEvidence:output_type -> contractor.runtime.v1alpha1.AuditEvidenceReceipt
+	94,  // 201: contractor.runtime.v1alpha1.Allocation.SubmitAuditJudgments:output_type -> contractor.runtime.v1alpha1.AuditJudgmentsResponse
+	105, // 202: contractor.runtime.v1alpha1.Allocation.MutateSitemap:output_type -> contractor.runtime.v1alpha1.SitemapMutationResponse
+	109, // 203: contractor.runtime.v1alpha1.Allocation.SnapshotSitemap:output_type -> contractor.runtime.v1alpha1.SitemapSnapshotResponse
+	105, // 204: contractor.runtime.v1alpha1.Allocation.CollectSitemap:output_type -> contractor.runtime.v1alpha1.SitemapMutationResponse
+	117, // 205: contractor.runtime.v1alpha1.Allocation.ListArtifacts:output_type -> contractor.runtime.v1alpha1.ArtifactListResponse
+	119, // 206: contractor.runtime.v1alpha1.Allocation.ReadArtifactMetadata:output_type -> contractor.runtime.v1alpha1.ArtifactMetadataResponse
+	120, // 207: contractor.runtime.v1alpha1.Allocation.CheckArtifactAccess:output_type -> contractor.runtime.v1alpha1.ArtifactAccessResponse
+	124, // 208: contractor.runtime.v1alpha1.Allocation.ListFindings:output_type -> contractor.runtime.v1alpha1.FindingListResponse
+	126, // 209: contractor.runtime.v1alpha1.Allocation.ReadFinding:output_type -> contractor.runtime.v1alpha1.ProjectFinding
+	131, // 210: contractor.runtime.v1alpha1.Allocation.SelectFindings:output_type -> contractor.runtime.v1alpha1.FindingSelectionResponse
+	33,  // 211: contractor.runtime.v1alpha1.RuntimeLifecycle.Prepare:output_type -> contractor.runtime.v1alpha1.PrepareAllocationResponse
+	77,  // 212: contractor.runtime.v1alpha1.RuntimeLifecycle.Finalize:output_type -> contractor.runtime.v1alpha1.AllocationFinalResponse
+	77,  // 213: contractor.runtime.v1alpha1.RuntimeLifecycle.Abort:output_type -> contractor.runtime.v1alpha1.AllocationFinalResponse
+	37,  // 214: contractor.runtime.v1alpha1.RuntimeLifecycle.Release:output_type -> contractor.runtime.v1alpha1.ReleaseAllocationResponse
+	29,  // 215: contractor.runtime.v1alpha1.RuntimeLifecycle.ReadState:output_type -> contractor.runtime.v1alpha1.StateReadResponse
+	133, // 216: contractor.runtime.v1alpha1.Artifact.Read:output_type -> contractor.runtime.v1alpha1.ArtifactReadFrame
+	132, // 217: contractor.runtime.v1alpha1.Artifact.Write:output_type -> contractor.runtime.v1alpha1.ArtifactPayloadMetadata
+	140, // 218: contractor.runtime.v1alpha1.Artifact.SubmitFinding:output_type -> contractor.runtime.v1alpha1.FindingSubmissionReceipt
+	195, // [195:219] is the sub-list for method output_type
+	171, // [171:195] is the sub-list for method input_type
+	171, // [171:171] is the sub-list for extension type_name
+	171, // [171:171] is the sub-list for extension extendee
+	0,   // [0:171] is the sub-list for field type_name
 }
 
 func init() { file_runtime_proto_init() }
@@ -9967,18 +10881,39 @@ func file_runtime_proto_init() {
 	file_runtime_proto_msgTypes[127].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[129].OneofWrappers = []any{}
 	file_runtime_proto_msgTypes[130].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[131].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[132].OneofWrappers = []any{
+		(*ArtifactReadFrame_Header)(nil),
+		(*ArtifactReadFrame_Chunk)(nil),
+	}
+	file_runtime_proto_msgTypes[133].OneofWrappers = []any{
+		(*ArtifactWriteHeader_CreateOnly)(nil),
+		(*ArtifactWriteHeader_ExpectedRevision)(nil),
+	}
+	file_runtime_proto_msgTypes[134].OneofWrappers = []any{
+		(*ArtifactWriteFrame_Header)(nil),
+		(*ArtifactWriteFrame_Chunk)(nil),
+	}
+	file_runtime_proto_msgTypes[135].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[136].OneofWrappers = []any{}
+	file_runtime_proto_msgTypes[137].OneofWrappers = []any{
+		(*FindingSubmissionFrame_Header)(nil),
+		(*FindingSubmissionFrame_Chunk)(nil),
+	}
+	file_runtime_proto_msgTypes[139].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_runtime_proto_rawDesc), len(file_runtime_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   132,
+			NumEnums:      1,
+			NumMessages:   141,
 			NumExtensions: 0,
-			NumServices:   3,
+			NumServices:   4,
 		},
 		GoTypes:           file_runtime_proto_goTypes,
 		DependencyIndexes: file_runtime_proto_depIdxs,
+		EnumInfos:         file_runtime_proto_enumTypes,
 		MessageInfos:      file_runtime_proto_msgTypes,
 	}.Build()
 	File_runtime_proto = out.File

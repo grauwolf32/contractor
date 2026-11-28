@@ -1,54 +1,52 @@
 package privateartifacts
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"strings"
 	"testing"
 )
 
-// TestPrivateArtifactNamesRejectBeforeStore rejects a malformed namespace or
-// name as request syntax: 400 invalid_request before the allocation is
-// looked up and before a byte of the payload is read or stored, so the answer
-// is the same for an unknown allocation (ART-R45). The router answers first:
-// HEAD on the same path is 405 whatever the names (ART-R120).
+// The allocation principal is checked before protobuf decoding. Once authority
+// is established, malformed names reject the typed header before payload/store.
 func TestPrivateArtifactNamesRejectBeforeStore(t *testing.T) {
 	repository := newMemoryRepository()
-	handler := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository)
-	malformed := []string{"review notes", "отчет", "_report", strings.Repeat("a", 129)}
-	for _, allocationID := range []string{"allocation-1", "allocation-missing"} {
-		for _, name := range malformed {
-			for _, path := range []string{"worker/" + url.PathEscape(name), url.PathEscape(name) + "/report"} {
-				body := &countingReader{data: []byte("report")}
-				request := trustedRequest(http.MethodPut,
-					fmt.Sprintf("/private/v1/allocations/%s/artifacts/%s", allocationID, path), body)
-				request.Header.Set("Content-Type", "text/plain")
-				request.Header.Set("If-None-Match", "*")
-				response := httptest.NewRecorder()
-				handler.ServeHTTP(response, request)
-				var failure errorResponse
-				_ = json.Unmarshal(response.Body.Bytes(), &failure)
-				if response.Code != http.StatusBadRequest || failure.Code != "invalid_request" {
-					t.Errorf("%s %q: %d %s", allocationID, path, response.Code, response.Body.String())
-				}
-				if body.reads != 0 || repository.writeCalls != 0 {
-					t.Errorf("%s %q read the body %d times and wrote %d times", allocationID, path, body.reads, repository.writeCalls)
-				}
-				target := fmt.Sprintf("/private/v1/allocations/%s/artifacts/%s", allocationID, path)
-				head := httptest.NewRecorder()
-				handler.ServeHTTP(head, trustedRequest(http.MethodHead, target, nil))
-				checkPrivateMethodNotAllowed(t, head, target)
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository)}})
+	for _, name := range []string{"review notes", "отчет", "_report", strings.Repeat("a", 129)} {
+		for _, namespace := range []bool{false, true} {
+			frame := uploadHeader(1)
+			if namespace {
+				frame.GetHeader().Artifact.Namespace = proto.String(name)
+			} else {
+				frame.GetHeader().Artifact.Name = proto.String(name)
+			}
+			stream, err := fixture.Artifact.Write(fixture.Context)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = stream.Send(frame)
+			_, err = stream.CloseAndRecv()
+			if status.Code(err) != codes.InvalidArgument {
+				t.Fatalf("malformed name=%q: %v", name, err)
 			}
 		}
 	}
-	if repository.readCalls != 0 || repository.metadataCalls != 0 {
-		t.Fatalf("malformed names reached the store: %d payload and %d metadata reads", repository.readCalls, repository.metadataCalls)
+	ctx := metadata.NewOutgoingContext(fixture.Context, metadata.Pairs("x-contractor-runtime-instance-id", "runtime-1", "x-contractor-allocation-id", "allocation-missing"))
+	stream, err := fixture.Artifact.Write(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
-	response := putArtifact(t, handler, "worker", "review_notes", "*", []byte("report"))
-	if response.Code != http.StatusCreated {
-		t.Fatalf("portable name: %d %s", response.Code, response.Body.String())
+	_ = stream.Send(uploadHeader(1))
+	_, err = stream.CloseAndRecv()
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("unknown allocation=%v", err)
+	}
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	if repository.writeCalls != 0 || repository.readCalls != 0 {
+		t.Fatal("invalid request reached storage")
 	}
 }

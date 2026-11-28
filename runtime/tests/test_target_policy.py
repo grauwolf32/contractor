@@ -37,7 +37,7 @@ def resolver(table: dict[str, tuple[str, ...]]):
 def settings(**overrides) -> RuntimeSettings:
     values = {
         "llmGatewayUrl": "https://gateway.internal:8443/v1",
-        "artifactApiUrl": "https://artifacts.internal:9443/private/v1",
+        "artifactApiUrl": "https://artifacts.internal:9443",
         "requestTimeoutSeconds": 30,
     }
     values.update(overrides)
@@ -256,7 +256,7 @@ def test_project_target_allows_only_its_resolved_loopback_origin() -> None:
         # A target on a Runtime endpoint does not unlock that endpoint.
         protected = await config.build(
             settings(
-                artifactApiUrl="https://127.0.0.1:3000/private/v1",
+                artifactApiUrl="https://127.0.0.1:3000",
                 httpOriginTarget=HTTPOriginTargetSettings(url="http://127.0.0.1:3000/"),
             )
         )

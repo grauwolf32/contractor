@@ -1028,3 +1028,167 @@ class RuntimeLifecycle:
             timeout,
             metadata,
             _registered_method=True)
+
+
+class ArtifactStub:
+    """Bulk RPCs retain allocation authority in the same verified metadata as
+    Allocation. One header precedes ordered bounded chunks; EOF precedes commit.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.Read = channel.unary_stream(
+                '/contractor.runtime.v1alpha1.Artifact/Read',
+                request_serializer=runtime__pb2.ArtifactReadTarget.SerializeToString,
+                response_deserializer=runtime__pb2.ArtifactReadFrame.FromString,
+                _registered_method=True)
+        self.Write = channel.stream_unary(
+                '/contractor.runtime.v1alpha1.Artifact/Write',
+                request_serializer=runtime__pb2.ArtifactWriteFrame.SerializeToString,
+                response_deserializer=runtime__pb2.ArtifactPayloadMetadata.FromString,
+                _registered_method=True)
+        self.SubmitFinding = channel.stream_unary(
+                '/contractor.runtime.v1alpha1.Artifact/SubmitFinding',
+                request_serializer=runtime__pb2.FindingSubmissionFrame.SerializeToString,
+                response_deserializer=runtime__pb2.FindingSubmissionReceipt.FromString,
+                _registered_method=True)
+
+
+class ArtifactServicer:
+    """Bulk RPCs retain allocation authority in the same verified metadata as
+    Allocation. One header precedes ordered bounded chunks; EOF precedes commit.
+    """
+
+    def Read(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Write(self, request_iterator, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SubmitFinding(self, request_iterator, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_ArtifactServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'Read': grpc.unary_stream_rpc_method_handler(
+                    servicer.Read,
+                    request_deserializer=runtime__pb2.ArtifactReadTarget.FromString,
+                    response_serializer=runtime__pb2.ArtifactReadFrame.SerializeToString,
+            ),
+            'Write': grpc.stream_unary_rpc_method_handler(
+                    servicer.Write,
+                    request_deserializer=runtime__pb2.ArtifactWriteFrame.FromString,
+                    response_serializer=runtime__pb2.ArtifactPayloadMetadata.SerializeToString,
+            ),
+            'SubmitFinding': grpc.stream_unary_rpc_method_handler(
+                    servicer.SubmitFinding,
+                    request_deserializer=runtime__pb2.FindingSubmissionFrame.FromString,
+                    response_serializer=runtime__pb2.FindingSubmissionReceipt.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'contractor.runtime.v1alpha1.Artifact', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('contractor.runtime.v1alpha1.Artifact', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class Artifact:
+    """Bulk RPCs retain allocation authority in the same verified metadata as
+    Allocation. One header precedes ordered bounded chunks; EOF precedes commit.
+    """
+
+    @staticmethod
+    def Read(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/contractor.runtime.v1alpha1.Artifact/Read',
+            runtime__pb2.ArtifactReadTarget.SerializeToString,
+            runtime__pb2.ArtifactReadFrame.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Write(request_iterator,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.stream_unary(
+            request_iterator,
+            target,
+            '/contractor.runtime.v1alpha1.Artifact/Write',
+            runtime__pb2.ArtifactWriteFrame.SerializeToString,
+            runtime__pb2.ArtifactPayloadMetadata.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SubmitFinding(request_iterator,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.stream_unary(
+            request_iterator,
+            target,
+            '/contractor.runtime.v1alpha1.Artifact/SubmitFinding',
+            runtime__pb2.FindingSubmissionFrame.SerializeToString,
+            runtime__pb2.FindingSubmissionReceipt.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

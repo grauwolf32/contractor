@@ -1914,8 +1914,7 @@ control/A2A addresses remain HTTPS origins; the A2A Agent Card advertises a
 `host:port` gRPC authority and allocation `tenant`. Origins use the bounded
 Runtime endpoint grammar, require HTTPS and have no path except an optional
 root slash; queries, fragments and user information are rejected before
-registration or connection. Allocation domain services use CTL-R176; raw
-Artifact payload and finding proposal submission retain their separate binding. Public HTTP, Gateway and target HTTP are not
+registration or connection. Allocation domain services use CTL-R176; Artifact payload and finding proposal submission use CTL-R177. Public HTTP, Gateway and target HTTP are not
 part of this private transport boundary.
 
 Protobuf envelopes carry typed identity, authority, lifecycle and presence.
@@ -2011,3 +2010,73 @@ Boundary decision (2026-11-27): preserve domain ownership and receipts while
 replacing adaptation only. A generic HTTP-over-gRPC tunnel and internal A2A
 removal were rejected. Reopen the named document choices only when their domain
 schemas cease to be dynamic; changing transport alone is insufficient reason.
+
+
+**CTL-R177.** Allocation bulk traffic uses the named `Artifact.Read`,
+`Artifact.Write` and `Artifact.SubmitFinding` gRPC methods. All three use the
+same actual TLS principal, process and allocation metadata checks as CTL-R176,
+before protobuf decoding. They share the existing four Artifact transfer
+permits, acquired before buffering a request or reading a stored payload, and
+the Server non-control admission bound. The private payload HTTP routes are
+absent. Public Artifact HTTP and operational health probes retain their own
+bindings.
+
+LIM-CTL-30 bounds chunks, headers and frames. A read sends exactly one typed
+metadata header, then chunks containing exactly `min(256 KiB, remaining)`
+bytes, and ends at its declared size. A write starts with exactly one typed
+header, then the same chunk sequence, and must reach clean EOF before payload
+preparation or publication. A zero-byte payload has one header and no chunks.
+Missing/repeated headers, unknown fields, empty/short/extra chunks, invalid
+ordering and premature clean EOF are permanent `InvalidArgument` /
+`invalid_request`; interruption or cancellation never exposes a partial revision.
+The write header has a versionless ArtifactRef, media type, declared size and
+exactly one precondition: `create_only=true` or a nonblank expected revision.
+The response carries the exact committed ref, media type, size and canonical
+UTC binding/revision timestamps. Public entity-tag syntax is not used here.
+
+Finding submission has a typed header with invocation/submission identity,
+optional item/incidental selection, exact evidence refs and declared lengths
+of its named JSON proposal, optional derived anchors and optional captured HTTP
+exchange. Chunks identify their document and arrive in that order; a document
+is present exactly when its declared length is present. Capture invocation
+identity is present exactly with its capture. The complete logical JSON
+submission (compact typed header projection plus document bytes and member
+separators) remains at most 64 MiB, and the proposal remains at most 8 MiB.
+The decoder rejects JSON duplicate/unknown members and NUL escapes through the
+existing domain decoders. One aggregate buffer owns document slices; no list
+of protobuf frames or second complete transport copy is retained. Existing
+finding receipt lookup precedes the new-write fence and optional source reads;
+only the existing intake owner publishes findings/evidence.
+
+Runtime bulk calls use a separate process-owned four-channel owner with at
+most 32 calls including waiters (LIM-CTL-31). No bulk call queues on a control
+or allocation-domain channel. Admission, encoding, TLS, all chunks and final
+receipt consume one original caller deadline; no per-chunk renewal or automatic
+transport replay exists. Writes use awaited SDK writes and reads consume one
+frame at a time, applying backpressure. Cancellation cancels and joins the RPC
+before releasing its leased channel or deleting its TLS socket directory.
+
+The Server initially bounds header socket I/O, then starts one whole-stream
+socket budget from the declared total size (the existing minimum-throughput
+formula), not one budget per chunk. Once incoming EOF is confirmed, socket
+deadlines are cleared before the separate storage budget begins. A download
+gets one response socket budget after storage returns. Upload/finding permits
+are released before writing their small final receipt; downloads retain their
+permit until their payload send joins. Domain/storage code continues to accept
+one bounded payload buffer of at most 64 MiB under these permits. A lost final
+reply reconciles the original CAS or finding identity, never an append or a
+new semantic submission. No upload session, durable queue or new receipt store
+is introduced.
+
+Boundary decision (2026-11-28): replace framing while preserving the existing
+storage, validation, publication and retention owners. Constant-memory storage
+is a separate outcome requiring a separately requested storage design. Reopen
+this boundary only for that outcome or measured limits of the four-slot shape.
+
+The Go HTTP/2 adapter additionally gates request-body reads by application
+`RecvMsg` completion: grpc-go's eager HTTP request reader may retain at most
+one bounded message plus a five-byte header beyond application receive.
+Non-client-streaming RPCs permit the second bounded message needed for the SDK
+cardinality check. HTTP/2 windows alone do not bound that eager queue. Cancellation closes receive credit and joins admitted unary
+or streaming application handlers before the listener releases admission or
+its HTTP/2 writer. This also applies to Control Plane unary RPCs.

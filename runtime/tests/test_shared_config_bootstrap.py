@@ -4,14 +4,14 @@ import asyncio
 import hashlib
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import grpc
 import pytest
 from pydantic import ValidationError
 from test_cli import ConfigTransport, make_settings
 
-from contractor_runtime import _https, cli, shared_config
+from contractor_runtime import cli, shared_config
 from contractor_runtime._grpc_client import ControlRPCError
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, decode_private
@@ -62,12 +62,13 @@ def test_snapshot_is_required_immutable_and_controls_artifact_operations(monkeyp
             )
         with pytest.raises(ValueError, match="read byte limit"):
             await client.read_artifact(ref, max_bytes=18)
-        transport.request.assert_not_called()
+        transport.read_artifact.assert_not_called()
+        transport.write_artifact.assert_not_called()
         # The default is evaluated per operation, not frozen at module import.
-        transport.request.side_effect = OSError("observed transport")
+        transport.read_artifact.side_effect = OSError("observed transport")
         with pytest.raises(OSError):
             await client.read_artifact(ref)
-        assert transport.request.call_args.kwargs["max_response_bytes"] == 17
+        assert transport.read_artifact.call_args.kwargs["max_response_bytes"] == 17
 
     asyncio.run(scenario())
 
@@ -197,27 +198,25 @@ def test_shutdown_joins_inflight_config_before_preparation(tmp_path, monkeypatch
 
 
 def test_small_payload_policy_keeps_metadata_transport_budget(monkeypatch):
-    from contractor_runtime.artifacts import MAX_ARTIFACT_JSON_BYTES, MTLSArtifactTransport
+    from contractor_runtime.artifacts import MTLSArtifactTransport
+    from contractor_runtime.contracts.grpc_wire.limits import BULK_FRAME_BYTES
 
     async def scenario():
         monkeypatch.setattr(shared_config, "_snapshot", None)
         config = decode_private(SharedConfig, json.dumps(document()).encode())
         shared_config.install_shared_config(config.snapshot())
-        connections = AsyncMock()
-        connections.exchange.return_value = _https.HTTPResponse(200, {}, b"{}")
+        unary = Mock(execute=AsyncMock())
+        bulk = Mock(execute=AsyncMock())
         transport = MTLSArtifactTransport(
-            "https://control.test:8443/private/v1", connections, 7, "runtime-test", AsyncMock()
+            "https://control.test:8443", unary, bulk, 7, "runtime-test"
         )
-        await transport.request(
-            "GET",
-            "/allocations/a/artifacts/n/name/metadata",
-            headers={},
-            body=b"",
-            max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
-        )
-        assert (
-            connections.exchange.call_args.kwargs["max_response_bytes"] == MAX_ARTIFACT_JSON_BYTES
-        )
+        await transport.read_artifact_metadata("allocation-1", {})
+        await transport.read_artifact("allocation-1", {}, max_response_bytes=17)
+        assert unary.execute.call_args.args[2] == (1 << 20) + AllocationRPC_ENVELOPE
+        assert bulk.execute.call_args.args[2] == BULK_FRAME_BYTES
+        assert shared_config.artifact_payload_max_bytes() == 17
+
+    from contractor_runtime._allocation_rpc import ENVELOPE_BYTES as AllocationRPC_ENVELOPE
 
     asyncio.run(scenario())
 

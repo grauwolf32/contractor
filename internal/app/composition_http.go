@@ -157,10 +157,6 @@ func configureHTTP(
 		RunProjects: runStore,
 		Projects:    projects,
 	}
-	artifactHandler, err := privateartifacts.NewHandler(allocationDependencies)
-	if err != nil {
-		return serverHandlers{}, fmt.Errorf("configure private Artifact API: %w", err)
-	}
 	rpcHandler, err := controlplane.NewGRPCHandler(control.registry, control.principals)
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure private Control Plane gRPC: %w", err)
@@ -170,12 +166,12 @@ func configureHTTP(
 		return serverHandlers{}, fmt.Errorf("configure allocation gRPC: %w", err)
 	}
 	privateHandler := newPrivateHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/contractor.runtime.v1alpha1.Allocation/") {
+		if strings.HasPrefix(r.URL.Path, "/contractor.runtime.v1alpha1.Allocation/") || strings.HasPrefix(r.URL.Path, "/contractor.runtime.v1alpha1.Artifact/") {
 			allocationRPC.ServeHTTP(w, r)
 			return
 		}
 		rpcHandler.ServeHTTP(w, r)
-	}), artifactHandler)
+	}))
 	processHandler, instrumentedPrivate, _ := instrumentPerformance(
 		cfg.PerformanceMetrics, NewReadyHandler(pool.Ping, publicHandler), privateHandler,
 		func() *performance.Collector { return performanceCollector },
@@ -194,7 +190,7 @@ func configureHTTP(
 
 const privateControlRPCReserve = 4
 
-func newPrivateHandler(rpc, artifacts http.Handler) http.Handler {
+func newPrivateHandler(rpc http.Handler) http.Handler {
 	// All private RPC families share the process bound even though each
 	// service also protects its standalone composition before decoding.
 	permits := make(chan struct{}, runtimewire.MaxConcurrentRPCs)
@@ -223,8 +219,6 @@ func newPrivateHandler(rpc, artifacts http.Handler) http.Handler {
 				return
 			}
 			rpc.ServeHTTP(w, r)
-		} else if strings.HasPrefix(r.URL.Path, "/private/v1/allocations/") {
-			artifacts.ServeHTTP(w, r)
 		} else {
 			http.NotFound(w, r)
 		}

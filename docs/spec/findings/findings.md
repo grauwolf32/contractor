@@ -526,7 +526,7 @@ the HTTP body/header and complete private-submission bounds; the ordinary
 Audit document/string limits must not shrink a valid base64 body.
 
 **FND-R56.** Runtime submits a proposal through the allocation-bound private
-route `POST /private/v1/allocations/{allocation_id}/finding-proposals`.
+gRPC stream `Artifact.SubmitFinding` (CTL-R177).
 
 **FND-R57.** The trusted adapter supplies the correlated invocation and
 stable submission IDs.
@@ -616,7 +616,7 @@ sequenceDiagram
     participant DB as PostgreSQL
     M->>R: finding(title, description, location arguments, optional cwe, evidence_refs, standard_refs)
     R->>R: Reject unknown or deprecated CWE IDs locally, derive client_key from the ADK function-call ID
-    R->>S: POST /private/v1/allocations/{allocation_id}/finding-proposals with invocation and submission IDs
+    R->>S: Artifact.SubmitFinding with typed invocation/submission IDs and named document chunks
     S->>S: Derive Run and optional Audit from the allocation, verify Toolset selection, write fence, exact evidence refs and limits
     S->>DB: One transaction: proposal, selected HTTP evidence, exact pins, receipt, retention row
     S-->>R: Receipt (the original receipt on a replay with the same digest)
@@ -1661,8 +1661,7 @@ analysis still exports its identity, text and independent review, with
   arguments of FND-R16 and FND-R18 and the result of FND-R27.
 - `list_findings(subject_kind?, subject_key?, limit?, cursor?)`: the reader
   tool (FND-R126).
-- `POST /private/v1/allocations/{allocation_id}/finding-proposals`: the
-  allocation-bound private intake route (FND-R56).
+- `Artifact.SubmitFinding`: the allocation-bound private intake stream (FND-R56, CTL-R177).
 - `POST /v1/finding-collections`: operation `publishFindingCollection` in the
   [public API schema](../../../api/openapi/contractor-public-v1.yaml), which
   owns the precise HTTP field spelling and the error envelopes.

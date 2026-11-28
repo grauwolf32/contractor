@@ -12,7 +12,8 @@ from google.rpc.status_pb2 import Status
 from test_grpc_interop import pki as pki
 from test_grpc_interop import runtime_context
 
-from contractor_runtime._allocation_rpc import AllocationConnections, AllocationRPC
+from contractor_runtime._allocation_rpc import AllocationRPC
+from contractor_runtime._rpc_connections import RPCConnections
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
 from contractor_runtime.contracts.grpc_wire import runtime_pb2 as pb
 from contractor_runtime.contracts.grpc_wire import runtime_pb2_grpc as rpc
@@ -37,7 +38,7 @@ def test_untyped_stream_loss_reconciles_the_original_planner_sequence(pki):
     async def scenario():
         service = LostReply()
         server, origin = await serve(pki, service)
-        owner = AllocationConnections(runtime_context(pki))
+        owner = RPCConnections(runtime_context(pki))
         try:
             host = ServerPlannerHost(
                 "allocation-1",
@@ -72,7 +73,7 @@ def test_native_metadata_ceiling_remains_hard_above_the_soft_threshold(pki, monk
 
     async def scenario():
         server, origin = await serve(pki, MetadataReply())
-        owner = AllocationConnections(runtime_context(pki))
+        owner = RPCConnections(runtime_context(pki))
         try:
             with pytest.raises(ArtifactAPIError) as failure:
                 await AllocationRPC(owner, origin, "runtime-1", 3).planner_operation(
@@ -140,9 +141,11 @@ class Operations(rpc.AllocationServicer):
         )
 
 
-async def serve(pki, service, *, wrong_role=False):
+async def serve(pki, service, *, wrong_role=False, bulk=None):
     server = grpc.aio.server()
     rpc.add_AllocationServicer_to_server(service, server)
+    if bulk is not None:
+        rpc.add_ArtifactServicer_to_server(bulk, server)
     certificate = pki.agent_certificate if wrong_role else pki.control_plane_certificate
     key = pki.agent_key if wrong_role else pki.control_plane_key
     credentials = grpc.ssl_server_credentials(
@@ -164,7 +167,7 @@ def test_pool_bounds_admission_rotates_idle_channels_and_joins_shutdown(pki):
         service = Operations()
         server, origin = await serve(pki, service)
         clock = [0.0]
-        owner = AllocationConnections(runtime_context(pki), clock=lambda: clock[0])
+        owner = RPCConnections(runtime_context(pki), clock=lambda: clock[0])
         client = AllocationRPC(owner, origin, "runtime-1", 3)
         try:
             calls = [
@@ -227,7 +230,7 @@ def test_wrong_control_plane_role_is_permanent_and_never_calls_domain(pki):
     async def scenario():
         service = Operations()
         server, origin = await serve(pki, service, wrong_role=True)
-        owner = AllocationConnections(runtime_context(pki))
+        owner = RPCConnections(runtime_context(pki))
         try:
             with pytest.raises(ArtifactAPIError) as caught:
                 await AllocationRPC(owner, origin, "runtime-1", 3).planner_operation(
@@ -246,7 +249,7 @@ def test_wrong_control_plane_role_is_permanent_and_never_calls_domain(pki):
 def test_typed_domain_retry_delay_survives_native_status(pki):
     async def scenario():
         server, origin = await serve(pki, Operations())
-        owner = AllocationConnections(runtime_context(pki))
+        owner = RPCConnections(runtime_context(pki))
         try:
             client = AllocationRPC(owner, origin, "runtime-1", 3)
             for _ in range(2):
@@ -300,7 +303,7 @@ def test_malformed_committed_receipt_reconciles_same_native_mutation(pki):
     async def scenario():
         service = EvidenceMutation()
         server, origin = await serve(pki, service)
-        owner = AllocationConnections(runtime_context(pki))
+        owner = RPCConnections(runtime_context(pki))
         try:
             client = AuditEvidenceClient(
                 SimpleNamespace(

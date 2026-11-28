@@ -431,9 +431,9 @@ Namespace and the `memory.` and `http.body.` names.
 **ART-R37.** The baseline allocation write grant permits `inputs`
 and non-reserved Namespaces, so Workers can modify their working input copies
 and intermediate artifacts. In `inputs` it permits only a CAS update
-(`If-Match`, `expected_revision`) of an existing binding: a create
-(`If-None-Match: *`, `expected_revision=None`) there is rejected with
-`artifact_access_denied` (HTTP 403, `retryable` false), whether or not the name
+(`expected_revision`) of an existing binding: a typed create-only write
+(`expected_revision=None`) there is rejected with
+`artifact_access_denied` (gRPC `PermissionDenied`, `retryable` false), whether or not the name
 exists, and creates nothing. Every `inputs` binding is therefore a declared
 Workflow input forked by the trusted Run-creation operation (ART-R76). It
 denies writes to `outputs` and `skills`, whose bindings are created only by
@@ -496,11 +496,10 @@ ID. The principal has no broader scope or role: the check only proves that the
 caller is the process to which Control Plane issued the grant
 ([Control Plane](../execution/control-plane.md)).
 
-**ART-R43.** The allocation is the path identity for remaining payload HTTP
-operations and the required `x-contractor-allocation-id` metadata value for
-allocation RPCs. The client repeats its process identity in the bounded
-`X-Contractor-Runtime-Instance-ID` header/metadata. The Server validates that header
-against the mTLS principal-bound grant before reading a request body.
+**ART-R43.** Every private Artifact RPC requires one bounded
+`x-contractor-allocation-id` and `x-contractor-runtime-instance-id` metadata
+value. The Server matches both against the actual verified mTLS principal and
+allocation grant before decoding a request (CTL-R176, CTL-R177).
 
 **ART-R44.** The allocation ID is the only
 caller-selected scope authority of the private API: neither URL nor body accepts
@@ -509,22 +508,18 @@ by the Server through the current allocation's durable Run, under ART-R135.
 Neither the public nor the private interface lets
 its caller supply an arbitrary scope ID.
 
-**ART-R45.** The private HTTP binding has one unambiguous
-write protocol. Creating a binding requires `If-None-Match: *`; updating it
-requires exactly one quoted, strong `If-Match` value containing the expected
-opaque revision, read verbatim in the entity-tag grammar of
-[API-R70](../api/public-api.md). A PUT without one of those preconditions,
-with a weak validator, with a list of validators or with an escaped or
-otherwise quoted value is `400 invalid_request` before the store is read. A
-PUT whose namespace or name is not a portable Artifact name is `400
-invalid_request` before the allocation is looked up and before a byte of the
-payload is read, so its answer is the same for an unknown allocation. The
-mTLS checks and the router's method answers (ART-R120) come before these
-request checks.
+**ART-R45.** The private `Artifact.Write` stream has one initial typed
+header with a portable, versionless ArtifactRef, media type and declared size.
+Exactly one precondition is required: `create_only=true` or a nonblank opaque
+`expected_revision`. Missing/false create, empty expected revision and invalid
+names/media type are `InvalidArgument` / `invalid_request` before payload
+buffering or storage. Verified allocation authority precedes header decoding;
+the write fence is checked again at the existing publication boundary.
+CTL-R177 owns stream ordering, size, EOF and cancellation semantics.
 
-**ART-R46.** Successful private reads return the resolved revision in
-`ETag`; successful writes return the same exact revision in both `ETag` and the
-versioned `ArtifactWriteResult`.
+**ART-R46.** Private reads and writes return the resolved exact ArtifactRef in
+typed metadata. A successful write returns its committed revision once, without
+an HTTP entity tag. Public reads/writes keep their public ETag contract.
 
 **ART-R47.** The allocation `ListArtifacts` RPC
 always requires an integer `limit` in `1..256` (LIM-ART-3) and has two forms;
@@ -586,18 +581,11 @@ hit records the consuming allocation's exact binding ref, like a payload read.
 The key grants no authority and only the eligible Runtime archive callers may
 reuse bytes under [RTA-R119](../execution/runtime-agent.md).
 
-**ART-R120.** The private allocation API serves exactly its routes: the
-raw Artifact read and write of this section and finding
-proposal submission ([FND-R56](../findings/findings.md)). List, metadata and
-authority-only checks use named gRPC operations (CTL-R176). Another method on one
-of their paths is `405 method_not_allowed`, and any other path is
-`404 not_found`. No route defines `HEAD`, so the router answers `HEAD` on a
-`GET` path with `405` itself, after the mTLS and Runtime instance checks
-(ART-R43) and before the allocation grant check, any store read and any
-Artifact transfer slot ([LIM-BLB-1](../platform/limits.md)): a `HEAD` never
-costs a payload read. The Runtime client sends only `GET`, `PUT` and `POST`.
-The public API applies the same rule from the same route registration
-([API-R111](../api/public-api.md)).
+**ART-R120.** The private allocation Artifact interface consists only of
+its named gRPC methods: list, metadata and authority-only operations in
+CTL-R176, payload read/write and finding submission in CTL-R177. Replaced private
+HTTP routes are absent; no HTTP `HEAD` or alternate HTTP binding reads storage.
+Unknown RPC methods are `Unimplemented`. Public routes retain API-R111.
 
 **ART-R117.** The common reader `read_artifact` returns bounded UTF-8 text or
 an admitted native image. It first resolves a ref through the metadata read
@@ -694,14 +682,11 @@ identifies when the exact returned binding revision was committed and advances
 on update. They are metadata, not part of ArtifactRef identity or of the
 caller-supplied payload.
 
-**ART-R56.** The raw private GET returns the timestamps as
-strict RFC 3339 UTC values in `X-Contractor-Binding-Created-At` and
-`X-Contractor-Revision-Created-At`, and the private PUT returns the same two
-headers. Both use RFC 3339 with nanosecond-capable precision and canonical UTC
-`Z`. The timestamps do not change the JSON bodies or ETags; the trusted client
-assembles the conceptual result metadata from the headers and exposes it to
-trusted wrappers without changing ArtifactRef or exposing the values as model
-arguments.
+**ART-R56.** Private payload read headers and write receipts carry
+`bindingCreatedAt` and `revisionCreatedAt` as strict RFC 3339 UTC strings with
+nanosecond-capable precision and canonical `Z`. Trusted clients expose these
+as result metadata to wrappers without changing ArtifactRef or exposing them
+as model arguments. They are not caller-selected payload fields.
 
 Rationale: purpose-specific wrappers such as MemoryTools can project stable
 creation and update order without trusting a Runtime Agent clock or adding
@@ -1215,16 +1200,16 @@ ART-R56, ART-R116, ART-R120):
 | Element | Value |
 | --- | --- |
 | Authentication | mTLS Runtime Agent principal plus `X-Contractor-Runtime-Instance-ID` |
-| Path identity | `allocationID` |
+| Allocation identity | Required verified allocation metadata |
 | List | `Allocation.ListArtifacts` with `limit` and optional `namespace` and `cursor` (model-visible pages), or `limit` with `namespace` and `namePrefix` |
-| Raw read | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}` with optional `revision`; explicit Project targets add `scope=project` and `operation` (ART-R135) |
+| Raw read | `Artifact.Read` with typed ArtifactRef, optional exact revision and explicit Project relation/operation (ART-R135); typed header followed by bounded chunks |
 | Metadata read | `Allocation.ReadArtifactMetadata` with typed ArtifactRef and the same Project-target selectors; typed ArtifactMetadataResult (ART-R116) |
 | Cached-read authorization | `Allocation.CheckArtifactAccess` with versionless ArtifactRef, Project relation and operation; empty typed success, no content lookup (ART-R135) |
-| Other methods | `HEAD` and any undeclared method on a route's path: `405 method_not_allowed` before the grant check; any other path: `404 not_found` (ART-R120) |
-| Create precondition | `If-None-Match: *` |
-| Update precondition | exactly one quoted strong `If-Match: "<revision>"` |
-| Revision on read and write | `ETag` |
-| Timestamp headers | `X-Contractor-Binding-Created-At`, `X-Contractor-Revision-Created-At` |
+| Other methods | Unknown gRPC method: `Unimplemented`; no private HTTP routes (ART-R120) |
+| Create precondition | `ArtifactWriteHeader.create_only=true` |
+| Update precondition | `ArtifactWriteHeader.expected_revision` |
+| Revision on read and write | Exact ArtifactRef in typed metadata |
+| Timestamps | Typed `bindingCreatedAt`, `revisionCreatedAt` values |
 
 The registry protocol behind ArtifactStore; `resolve` follows ART-R111 (the
 matching ArtifactBlobStore protocol is in [Blob storage](blob-storage.md)):
@@ -1247,15 +1232,15 @@ ART-R60):
 sequenceDiagram
     participant C as Caller
     participant A as Artifact API
-    C->>A: PUT with If-None-Match *
-    A-->>C: ETag revision 1, binding created
-    C->>A: PUT with If-Match revision 1
+    C->>A: Write stream with create_only=true
+    A-->>C: Receipt: revision 1, binding created
+    C->>A: Write stream with expected_revision 1
     Note over A: revision 2 commits, response is lost
     A--xC: response lost
-    C->>A: repeat PUT with If-Match revision 1
+    C->>A: repeat Write stream with expected_revision 1
     A-->>C: ArtifactConflict, no new version
-    C->>A: GET current binding
-    A-->>C: ETag revision 2
+    C->>A: Read current binding stream
+    A-->>C: Metadata: revision 2
 ```
 
 ## Limits, failures and errors

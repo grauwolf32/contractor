@@ -140,7 +140,7 @@ async def caido_server(tmp_path: Path, responses: dict[str, Any]):
             run_id="catalog-run",
             namespace="analyst",
             runtime_settings=RuntimeSettings(
-                artifactApiUrl="https://control.example/private/v1",
+                artifactApiUrl="https://control.example",
                 requestTimeoutSeconds=10,
                 caido=settings,
             ),

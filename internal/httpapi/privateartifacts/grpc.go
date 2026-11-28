@@ -35,6 +35,7 @@ type allocationRPCContextKey struct{}
 
 type allocationRPCServer struct {
 	pb.UnimplementedAllocationServer
+	pb.UnimplementedArtifactServer
 	owner *handler
 }
 
@@ -60,9 +61,13 @@ func newAllocationGRPCHandler(owner *handler) (http.Handler, error) {
 			grpc.MaxRecvMsgSize(limit+rpcEnvelopeBytes),
 			grpc.MaxSendMsgSize(limit+rpcEnvelopeBytes),
 			grpc.MaxHeaderListSize(runtimewire.MaxMetadataBytes),
-			grpc.UnaryInterceptor(allocationRPCDecoded),
+			grpc.UnaryInterceptor(runtimewire.UnaryHTTP(allocationRPCDecoded)),
+			grpc.StreamInterceptor(runtimewire.StreamHTTP),
 		)
 		pb.RegisterAllocationServer(server, rpc)
+		if limit == runtimewire.BulkHeaderBytes {
+			pb.RegisterArtifactServer(server, rpc)
+		}
 		servers[limit] = server
 	}
 	permits := make(chan struct{}, runtimewire.MaxConcurrentRPCs)
@@ -108,7 +113,7 @@ func newAllocationGRPCHandler(owner *handler) (http.Handler, error) {
 			return
 		}
 		var releaseTransfer func()
-		if isAuditRPC(r.URL.Path) {
+		if isAuditRPC(r.URL.Path) || isBulkRPC(r.URL.Path) {
 			admitted, release, admissionErr := dependencies.Transfers.AcquireTransfer(r.Context())
 			if admissionErr != nil {
 				runtimewire.WriteError(w, allocationDomainError(r.Context(), admissionErr))
@@ -132,13 +137,15 @@ func newAllocationGRPCHandler(owner *handler) (http.Handler, error) {
 		_ = controller.SetWriteDeadline(deadline)
 		scope := allocationRPCContext{grant: grant, identity: authenticatedRuntime{principalID: identity, instanceID: instances[0]}, controller: controller, releaseTransfer: releaseTransfer}
 		ctx := context.WithValue(r.Context(), allocationRPCContextKey{}, scope)
-		servers[limit].ServeHTTP(w, r.WithContext(ctx))
+		runtimewire.ServeHTTP(w, r.WithContext(ctx), servers[limit], limit+rpcEnvelopeBytes, r.URL.Path == pb.Artifact_Write_FullMethodName || r.URL.Path == pb.Artifact_SubmitFinding_FullMethodName)
 	})
 	return native, nil
 }
 
 func allocationRPCLimit(method string) int {
 	switch method {
+	case pb.Artifact_Read_FullMethodName, pb.Artifact_Write_FullMethodName, pb.Artifact_SubmitFinding_FullMethodName:
+		return runtimewire.BulkHeaderBytes
 	case pb.Allocation_PlannerOperation_FullMethodName:
 		return contracts.MaxPlannerOperationBytes
 	case pb.Allocation_GatewayRecovery_FullMethodName:

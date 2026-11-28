@@ -604,7 +604,7 @@ def test_factory_rejects_missing_workspace_and_unadvertised_graph_selection(
             "runtime_settings": RuntimeSettings(
                 llm_gateway_url="https://llm.example/v1",
                 llm_gateway_token="temporary-token",
-                artifact_api_url="https://server.example/private/v1/artifacts",
+                artifact_api_url="https://server.example",
                 request_timeout_seconds=10,
             ),
             "workspace": AllocationWorkspace(root=tmp_path, path=tmp_path),
@@ -1278,7 +1278,7 @@ async def _tools(
         runtime_settings=RuntimeSettings(
             llm_gateway_url="https://llm.example/v1",
             llm_gateway_token="temporary-token",
-            artifact_api_url="https://server.example/private/v1/artifacts",
+            artifact_api_url="https://server.example",
             request_timeout_seconds=10,
         ),
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),

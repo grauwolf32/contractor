@@ -925,7 +925,7 @@ func testRuntimeSettings() runtimesettings.RuntimeSettings {
 	token := contracts.NewSecretString("recognizable-runtime-secret")
 	return runtimesettings.RuntimeSettings{
 		LLMGatewayURL: "https://llm.example/v1", LLMGatewayToken: &token,
-		ArtifactAPIURL: "https://control.example/private/v1", RequestTimeoutSeconds: 30,
+		ArtifactAPIURL: "https://control.example", RequestTimeoutSeconds: 30,
 	}
 }
 

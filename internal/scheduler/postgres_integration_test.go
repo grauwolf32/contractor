@@ -1488,7 +1488,7 @@ func (i *postgresTestWorkerInvoker) Invoke(
 
 func testSchedulerRuntimeTransport() RuntimeTransportSettings {
 	return RuntimeTransportSettings{
-		ArtifactAPIURL:        "https://control.test/private/v1",
+		ArtifactAPIURL:        "https://control.test",
 		RequestTimeoutSeconds: 5,
 	}
 }

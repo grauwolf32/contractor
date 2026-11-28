@@ -554,11 +554,9 @@ def test_refused_authority_connection_is_retried_as_transport_loss():
     import socket
     import ssl
 
-    from contractor_runtime._allocation_rpc import AllocationConnections
-    from contractor_runtime._https import PrivateConnections
+    from contractor_runtime._rpc_connections import RPCConnections
     from contractor_runtime.artifacts import MTLSArtifactTransport
     from contractor_runtime.llm.recovery import GatewayRecoveryClient
-    from contractor_runtime.mtls import verify_control_plane_peer
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
         listener.bind(("127.0.0.1", 0))
@@ -572,21 +570,21 @@ def test_refused_authority_connection_is_retried_as_transport_loss():
 
     async def scenario():
         causes = []
+        unary = RPCConnections(ssl.create_default_context())
+        bulk = RPCConnections(ssl.create_default_context(), bulk=True)
         client = GatewayRecoveryClient(
             "alloc-1",
-            MTLSArtifactTransport(
-                f"https://127.0.0.1:{port}/private/v1",
-                PrivateConnections(ssl.create_default_context(), verify_control_plane_peer),
-                timeout_seconds=3,
-                runtime_instance_id="runtime-1",
-                rpc_connections=AllocationConnections(ssl.create_default_context()),
-            ),
+            MTLSArtifactTransport(f"https://127.0.0.1:{port}", unary, bulk, 3, "runtime-1"),
             on_retry=causes.append,
             sleep=stop_after_first_retry,
         )
-        with pytest.raises(Stop):
-            await client.update("worker", "req-1", "acquire")
-        assert causes == ["transport"]
+        try:
+            with pytest.raises(Stop):
+                await client.update("worker", "req-1", "acquire")
+            assert causes == ["transport"]
+        finally:
+            await unary.aclose()
+            await bulk.aclose()
 
     asyncio.run(scenario())
 

@@ -43,6 +43,7 @@ func NewGRPCHandler(registry Registry, principals PrincipalRegistrar) (http.Hand
 		grpc.MaxRecvMsgSize(runtimewire.MaxControlBytes),
 		grpc.MaxSendMsgSize(runtimewire.MaxControlBytes),
 		grpc.MaxHeaderListSize(runtimewire.MaxMetadataBytes),
+		grpc.UnaryInterceptor(runtimewire.UnaryHTTP(nil)),
 	)
 	pb.RegisterControlPlaneServer(server, &controlRPCServer{registry: registry, principals: principals})
 	return &boundedControlRPC{next: server, permits: make(chan struct{}, runtimewire.MaxConcurrentRPCs)}, nil
@@ -172,7 +173,7 @@ func (h *boundedControlRPC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	select {
 	case h.permits <- struct{}{}:
 		defer func() { <-h.permits }()
-		h.next.ServeHTTP(w, r)
+		runtimewire.ServeHTTP(w, r, h.next, runtimewire.MaxControlBytes, false)
 	default:
 		runtimewire.WriteError(w, runtimewire.Error(r.Context(), codes.ResourceExhausted, "control_rpc_capacity", true))
 	}

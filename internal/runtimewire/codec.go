@@ -174,6 +174,9 @@ func encodeMessage(data []byte, message protoreflect.Message) error {
 		if field == nil {
 			return ErrInvalid
 		}
+		if oneof := field.ContainingOneof(); oneof != nil && message.WhichOneof(oneof) != nil {
+			return ErrInvalid
+		}
 		if field.Kind() == protoreflect.MessageKind {
 			if err := encodeMessage(raw, message.Mutable(field).Message()); err != nil {
 				return err

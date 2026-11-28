@@ -800,7 +800,7 @@ def test_factory_rejects_purpose_reserved_memory_namespace(namespace: str) -> No
         settings = RuntimeSettings(
             llmGatewayUrl="https://llm.example/v1",
             llmGatewayToken="unused",
-            artifactApiUrl="https://control.example/private/v1",
+            artifactApiUrl="https://control.example",
             requestTimeoutSeconds=30,
         )
         workspace_path = Path("/tmp/contractor-memory-tool-test/reserved")
@@ -874,7 +874,7 @@ async def create_tools(
     settings = RuntimeSettings(
         llmGatewayUrl="https://llm.example/v1",
         llmGatewayToken="secret-not-needed-by-memory",
-        artifactApiUrl="https://control.example/private/v1",
+        artifactApiUrl="https://control.example",
         requestTimeoutSeconds=30,
     )
     workspace_path = Path("/tmp/contractor-memory-tool-test/allocation-test")

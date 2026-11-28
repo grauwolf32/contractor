@@ -114,7 +114,7 @@
   "runId": "019c-run-summarizer",
   "runMetadataLabels": {},
   "runtimeSettings": {
-    "artifactApiUrl": "https://127.0.0.1:8443/private/v1",
+    "artifactApiUrl": "https://127.0.0.1:8443",
     "llmGatewayToken": "golden-secret-token",
     "llmGatewayUrl": "http://127.0.0.1:4000/v1",
     "requestTimeoutSeconds": 30

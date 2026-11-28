@@ -51,7 +51,7 @@ def test_code_analysis_retained_state_metrics_errors_and_scratch_are_content_fre
                 runtime_settings=RuntimeSettings(
                     llm_gateway_url="https://llm.example/v1",
                     llm_gateway_token=credential_canary,
-                    artifact_api_url="https://server.example/private/v1/artifacts",
+                    artifact_api_url="https://server.example",
                     request_timeout_seconds=10,
                 ),
                 workspace=AllocationWorkspace(root=root, path=scratch),

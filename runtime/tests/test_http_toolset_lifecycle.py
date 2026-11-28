@@ -34,7 +34,7 @@ def test_close_erases_ephemeral_auth_and_replacement_restores_cookies(tmp_path: 
         settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
             llmGatewayToken="gateway-token",
-            artifactApiUrl="https://control.example/private/v1",
+            artifactApiUrl="https://control.example",
             requestTimeoutSeconds=30,
         )
         result = await factory.create_selected(
@@ -87,7 +87,7 @@ def test_tool_cleanup_succeeds_after_terminal_proxy_adapter_detach(tmp_path: Pat
         settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
             llmGatewayToken="gateway-token",
-            artifactApiUrl="https://control.example/private/v1",
+            artifactApiUrl="https://control.example",
             httpProxy=HTTPProxySettings(
                 adapter="http-proxy@1",
                 proxyUrl="https://proxy.example",

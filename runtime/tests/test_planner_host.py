@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from contractor_runtime import _https
 from contractor_runtime.artifacts import ArtifactTransportError
 from contractor_runtime.contracts import API_VERSION
 from contractor_runtime.contracts.planner import MAX_PLANNER_OPERATION_BYTES, PlannerOperationResult
@@ -60,24 +59,14 @@ def test_planner_host_expires_before_sending_an_operation(monkeypatch):
 
 
 def test_private_transport_operation_deadline_does_not_change_other_requests():
-    from test_artifacts import mtls_transport
+    from contractor_runtime._allocation_rpc import AllocationRPC
 
     async def scenario():
-        connections = Mock(exchange=AsyncMock(return_value=_https.HTTPResponse(200, {}, b"{}")))
-        transport = mtls_transport(connections)
-        await transport.request(
-            "POST",
-            "/planner-operations",
-            headers={},
-            body=b"{}",
-            max_response_bytes=2,
-            timeout_seconds=3600,
-        )
-        await transport.request("GET", "/artifacts", headers={}, body=b"", max_response_bytes=2)
-        assert [call.kwargs["timeout_seconds"] for call in connections.exchange.call_args_list] == [
-            3600,
-            1,
-        ]
+        owner = Mock(execute=AsyncMock())
+        client = AllocationRPC(owner, "https://control.test", "runtime-1", 1)
+        await client.planner_operation("allocation-1", {}, timeout_seconds=3600)
+        await client.list_artifacts("allocation-1", {})
+        assert [call.args[3] for call in owner.execute.call_args_list] == [3600, 1]
 
     asyncio.run(scenario())
 

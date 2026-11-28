@@ -1121,7 +1121,7 @@ def make_spec(
         runtimeSettings=RuntimeSettings(
             llmGatewayUrl="https://llm.example/v1",
             llmGatewayToken=SECRET,
-            artifactApiUrl="https://control.example/private/v1",
+            artifactApiUrl="https://control.example",
             requestTimeoutSeconds=30,
         ),
     )
@@ -2125,7 +2125,7 @@ def test_release_retains_no_adapter_secret_or_session_credential(
         spec.runtime_settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
             llmGatewayToken=f"gateway-{marker}",
-            artifactApiUrl="https://control.example/private/v1",
+            artifactApiUrl="https://control.example",
             httpProxy=HTTPProxySettings(
                 adapter="http-proxy@1",
                 proxyUrl="https://proxy.example",

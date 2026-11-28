@@ -1021,3 +1021,176 @@ var RuntimeLifecycle_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "runtime.proto",
 }
+
+const (
+	Artifact_Read_FullMethodName          = "/contractor.runtime.v1alpha1.Artifact/Read"
+	Artifact_Write_FullMethodName         = "/contractor.runtime.v1alpha1.Artifact/Write"
+	Artifact_SubmitFinding_FullMethodName = "/contractor.runtime.v1alpha1.Artifact/SubmitFinding"
+)
+
+// ArtifactClient is the client API for Artifact service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Bulk RPCs retain allocation authority in the same verified metadata as
+// Allocation. One header precedes ordered bounded chunks; EOF precedes commit.
+type ArtifactClient interface {
+	Read(ctx context.Context, in *ArtifactReadTarget, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ArtifactReadFrame], error)
+	Write(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[ArtifactWriteFrame, ArtifactPayloadMetadata], error)
+	SubmitFinding(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[FindingSubmissionFrame, FindingSubmissionReceipt], error)
+}
+
+type artifactClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewArtifactClient(cc grpc.ClientConnInterface) ArtifactClient {
+	return &artifactClient{cc}
+}
+
+func (c *artifactClient) Read(ctx context.Context, in *ArtifactReadTarget, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ArtifactReadFrame], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Artifact_ServiceDesc.Streams[0], Artifact_Read_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ArtifactReadTarget, ArtifactReadFrame]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Artifact_ReadClient = grpc.ServerStreamingClient[ArtifactReadFrame]
+
+func (c *artifactClient) Write(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[ArtifactWriteFrame, ArtifactPayloadMetadata], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Artifact_ServiceDesc.Streams[1], Artifact_Write_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ArtifactWriteFrame, ArtifactPayloadMetadata]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Artifact_WriteClient = grpc.ClientStreamingClient[ArtifactWriteFrame, ArtifactPayloadMetadata]
+
+func (c *artifactClient) SubmitFinding(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[FindingSubmissionFrame, FindingSubmissionReceipt], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Artifact_ServiceDesc.Streams[2], Artifact_SubmitFinding_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[FindingSubmissionFrame, FindingSubmissionReceipt]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Artifact_SubmitFindingClient = grpc.ClientStreamingClient[FindingSubmissionFrame, FindingSubmissionReceipt]
+
+// ArtifactServer is the server API for Artifact service.
+// All implementations must embed UnimplementedArtifactServer
+// for forward compatibility.
+//
+// Bulk RPCs retain allocation authority in the same verified metadata as
+// Allocation. One header precedes ordered bounded chunks; EOF precedes commit.
+type ArtifactServer interface {
+	Read(*ArtifactReadTarget, grpc.ServerStreamingServer[ArtifactReadFrame]) error
+	Write(grpc.ClientStreamingServer[ArtifactWriteFrame, ArtifactPayloadMetadata]) error
+	SubmitFinding(grpc.ClientStreamingServer[FindingSubmissionFrame, FindingSubmissionReceipt]) error
+	mustEmbedUnimplementedArtifactServer()
+}
+
+// UnimplementedArtifactServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedArtifactServer struct{}
+
+func (UnimplementedArtifactServer) Read(*ArtifactReadTarget, grpc.ServerStreamingServer[ArtifactReadFrame]) error {
+	return status.Error(codes.Unimplemented, "method Read not implemented")
+}
+func (UnimplementedArtifactServer) Write(grpc.ClientStreamingServer[ArtifactWriteFrame, ArtifactPayloadMetadata]) error {
+	return status.Error(codes.Unimplemented, "method Write not implemented")
+}
+func (UnimplementedArtifactServer) SubmitFinding(grpc.ClientStreamingServer[FindingSubmissionFrame, FindingSubmissionReceipt]) error {
+	return status.Error(codes.Unimplemented, "method SubmitFinding not implemented")
+}
+func (UnimplementedArtifactServer) mustEmbedUnimplementedArtifactServer() {}
+func (UnimplementedArtifactServer) testEmbeddedByValue()                  {}
+
+// UnsafeArtifactServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ArtifactServer will
+// result in compilation errors.
+type UnsafeArtifactServer interface {
+	mustEmbedUnimplementedArtifactServer()
+}
+
+func RegisterArtifactServer(s grpc.ServiceRegistrar, srv ArtifactServer) {
+	// If the following call panics, it indicates UnimplementedArtifactServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&Artifact_ServiceDesc, srv)
+}
+
+func _Artifact_Read_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ArtifactReadTarget)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(ArtifactServer).Read(m, &grpc.GenericServerStream[ArtifactReadTarget, ArtifactReadFrame]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Artifact_ReadServer = grpc.ServerStreamingServer[ArtifactReadFrame]
+
+func _Artifact_Write_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ArtifactServer).Write(&grpc.GenericServerStream[ArtifactWriteFrame, ArtifactPayloadMetadata]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Artifact_WriteServer = grpc.ClientStreamingServer[ArtifactWriteFrame, ArtifactPayloadMetadata]
+
+func _Artifact_SubmitFinding_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ArtifactServer).SubmitFinding(&grpc.GenericServerStream[FindingSubmissionFrame, FindingSubmissionReceipt]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Artifact_SubmitFindingServer = grpc.ClientStreamingServer[FindingSubmissionFrame, FindingSubmissionReceipt]
+
+// Artifact_ServiceDesc is the grpc.ServiceDesc for Artifact service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var Artifact_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "contractor.runtime.v1alpha1.Artifact",
+	HandlerType: (*ArtifactServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Read",
+			Handler:       _Artifact_Read_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "Write",
+			Handler:       _Artifact_Write_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "SubmitFinding",
+			Handler:       _Artifact_SubmitFinding_Handler,
+			ClientStreams: true,
+		},
+	},
+	Metadata: "runtime.proto",
+}

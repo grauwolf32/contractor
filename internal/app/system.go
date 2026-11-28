@@ -71,7 +71,7 @@ func ServeSystem(
 		IdleTimeout: mtls.PrivateListenerIdleTimeout, BaseContext: baseContext,
 		MaxHeaderBytes: runtimewire.MaxMetadataBytes,
 	}
-	if err := http2.ConfigureServer(privateServer, &http2.Server{MaxConcurrentStreams: runtimewire.MaxConcurrentRPCs}); err != nil {
+	if err := http2.ConfigureServer(privateServer, &http2.Server{MaxConcurrentStreams: runtimewire.MaxConcurrentRPCs, MaxUploadBufferPerStream: runtimewire.BulkWindowBytes, MaxUploadBufferPerConnection: runtimewire.BulkWindowBytes}); err != nil {
 		return fmt.Errorf("configure private HTTP/2 listener: %w", err)
 	}
 

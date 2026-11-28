@@ -38,7 +38,7 @@ WHERE scope_kind = 'run' AND scope_id = 'run-a' AND namespace = 'builder' AND na
 	if err != nil || tag.RowsAffected() != 1 {
 		t.Fatalf("freeze binding = %v, %v", tag, err)
 	}
-	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
+	handler, err := newPayloadNativeRecorder(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: service,
 		NewRequestID: func() (string, error) { return "artifact-frozen", nil },
 	})

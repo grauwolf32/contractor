@@ -76,6 +76,8 @@ def _encode(value: Any, message: Message) -> None:
         field = fields.get(key)
         if field is None:
             raise InvalidWireValue
+        if field.containing_oneof and message.WhichOneof(field.containing_oneof.name) is not None:
+            raise InvalidWireValue
         if field.type == FieldDescriptor.TYPE_MESSAGE:
             _encode(item, getattr(message, field.name))
         else:
