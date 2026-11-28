@@ -6,12 +6,17 @@ epic: evals
 kind: defect
 introduced_by: V417-008
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [python, json, markdown]
 goal: Make a future context study distinguish invalid output, domain mistakes and continuation misses without rejecting valid unprohibited API representations.
 context:
-  authority: 'Agent-proposed follow-up from user-authorized research on 2026-11-28; no live execution or retrospective R5 rescoring is authorized by this task.'
+  authority: >-
+    User decision 2026-11-28 explicitly requests checking refreshed main,
+    fixing the discovered problems, investigating partial usage and repeating
+    compaction with debug on the existing demo stand. No separate demo copy;
+    record observations/results and push changes. Prior agent proposal is now
+    assigned. Preserve historical frozen executions and assessments.
   review: docs/research/context-compaction-evaluation.md
   finding: >-
     tests/eval/context_compaction/harness.py:216-248 indexes every operation's
@@ -22,6 +27,11 @@ context:
     In R5 all 13 published API documents pass that validator. Source finding
     metadata and exact observed/uncertain set shapes also need a declared
     output contract rather than hidden assumptions.
+  refreshed_main: >-
+    main 1fb495a56 contains accepted V501-004: standards-valid API encodings
+    and independent API checks are already repaired. Retain that implementation;
+    this task finishes explicit source/negative-memory output schema and
+    remaining check-level diagnostics without duplicating V501-004.
   siblings: >-
     Review all three visible cases, private recorded answers, independent
     scorers, offline corruptions, public check pins and the controlled future
