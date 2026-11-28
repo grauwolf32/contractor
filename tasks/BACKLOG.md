@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 11 in progress, 46 pending, 13 deferred. 1772 finished: 1753 completed, 19 archived.
+69 open tasks: 10 in progress, 46 pending, 13 deferred. 1773 finished: 1754 completed, 19 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V500-007](v500-007-zero-model-token-report.yml) | operations | defect | P1 | Report explicit zero tokens when Runtime observed no direct model calls |
 | [V502-001](v502-001-finding-http-format-migration.yml) | findings | defect | P1 | Migrate stored HTTP Finding proposals and exact references in place |
 
 ## Pending
@@ -182,7 +181,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 4 | 25 | 52 | 27 | 59 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
 | Web UI (`ui`) | 2 | 58 | 83 | 38 | 81 |
-| Operations, authentication, CLI and deployment (`operations`) | 2 | 23 | 56 | 16 | 35 |
+| Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 56 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 3 | 44 | 30 | 22 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 29 | 54 | 22 |
 | Quality, CI and process (`quality`) | 11 | 1 | 38 | 157 | 32 |

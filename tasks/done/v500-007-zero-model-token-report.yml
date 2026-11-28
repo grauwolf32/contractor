@@ -5,7 +5,7 @@ milestone: runtime-telemetry-2026-10
 epic: operations
 kind: defect
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, go, markdown]
 goal: A model-free allocation report does not make otherwise complete handoff usage partial, while started calls with unknown usage remain unknown.
@@ -56,3 +56,5 @@ tests:
     covers: [A1, A3]
   - command: make lint
     covers: [A1, A2, A3]
+
+implementation_commit: ca0370e75065fa67087ec3c1857d4fcad1da0e77

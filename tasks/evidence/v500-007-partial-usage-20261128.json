@@ -28,6 +28,8 @@
     "sharedFixtureRegression": "corrected executor yields complete155 tokens/4calls; absent executor counters retain partial155; each actual Worker/Planner/summary contribution counted once",
     "wire": "passed443 fixtures,477 Go and311 Python shared tests;1647 Python passes; one optional heavy I/O skip is not passing coverage",
     "before": "four zero-call producer assertions failed on the original code",
-    "fullRuntime": "first run failed on a stale loaded trim fixture and Homebrew ffuf2.1.0-dev; shared fixture corrected and pinned demo ffuf2.3.0 selected for full rerun; acceptance waits for its result"
+    "fullRuntime": "Passed final make test-runtime with pinned demo ffuf2.3.0; previous pinned run hit an isolated gRPC TLS context deadline, its38-case metrics/TLS recheck passed and the whole Runtime suite was repeated. See final exact summary recorded with study evidence.",
+    "realPostgresRefreshedMain": "Both full touched Go packages passed again after cfe6a7217 refresh, with the owned disposable database",
+    "lint": "Full lint passed before acceptance; refreshed-main gate repeats separately"
   }
 }
