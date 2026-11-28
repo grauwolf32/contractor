@@ -297,3 +297,8 @@ Artifact pagination may set the tool response's `truncated` flag while returning
 a complete observed page. That is valid evidence. Only the native telemetry
 encoder's `{truncated, preview}` envelope makes captured arguments/output
 unavailable; regression tests exercise the actual encoder and protobuf form.
+
+For controlled templates, the observer requires the private after-callback
+projection file and the same number of records as native main-model calls.
+Missing/partial optional recorder output is unavailable evidence, not zero
+activation. Ordinary Workflows do not require controlled projection records.

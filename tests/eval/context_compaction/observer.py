@@ -39,7 +39,7 @@ def attributes(items):
     return {item["key"]: item["value"].get("stringValue") for item in items}
 
 
-def observe(directory, run_id, *, planner_stages=()):
+def observe(directory, run_id, *, planner_stages=(), projection_requests=None):
     require(ID.fullmatch(run_id), "invalid Run identity")
     directory = Path(directory)
     require(not (directory / "collector-gap").exists(), "collector coverage unavailable")
@@ -117,9 +117,14 @@ def observe(directory, run_id, *, planner_stages=()):
             effects.append(hashlib.sha256(encoded).hexdigest())
     require(set(planner_stages).issubset(planners), "Planner invocation trace unavailable")
     projection = directory / "projections" / (run_id + ".jsonl")
+    if projection_requests is not None:
+        require(projection.exists(), "controlled request projection unavailable")
     if projection.exists():
         require(projection.stat().st_size <= 2 * 1024 * 1024, "projection evidence exceeds bound")
-        for line in projection.read_text().splitlines():
+        lines = projection.read_text().splitlines()
+        if projection_requests is not None:
+            require(len(lines) == projection_requests, "controlled request coverage incomplete")
+        for line in lines:
             record = json.loads(line)
             require(record["runId"] == run_id, "foreign controlled evidence")
             if record["questionSha256"] and (
@@ -190,6 +195,11 @@ def main():
     run = client.request("GET", "/v1/runs/" + run_id)
     require(run["state"] in h.TERMINAL and run["deletable"], "Run has not released")
     planner_stages = set()
+    controlled = run["workflow"].split("@", 1)[0] in {
+        "context-eval-controlled-compact",
+        "context-eval-masking",
+    }
+    projection_requests = 0 if controlled else None
     for attempt in run["attempts"]:
         diagnostics = client.pages(
             "/v1/runs/"
@@ -205,8 +215,16 @@ def main():
             has_planner="planner" in attempt["executionConfig"],
         ):
             planner_stages.add(attempt["stageExecutionId"])
+        if controlled:
+            for row in diagnostics:
+                phases = row.get("modelPhases", {})
+                require("main" in phases, "controlled main-model accounting unavailable")
+                projection_requests += phases["main"]["modelCalls"]
     result = observe(
-        os.environ["CONTRACTOR_CONTEXT_EVAL_EVIDENCE"], run_id, planner_stages=planner_stages
+        os.environ["CONTRACTOR_CONTEXT_EVAL_EVIDENCE"],
+        run_id,
+        planner_stages=planner_stages,
+        projection_requests=projection_requests,
     )
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))
 

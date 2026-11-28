@@ -49,6 +49,7 @@ class ObserverTests(unittest.TestCase):
         }
         responses = {
             "/v1/runs/run-test": {
+                "workflow": "context-eval-compact-off@1",
                 "state": "succeeded",
                 "deletable": True,
                 "attempts": [
@@ -186,6 +187,15 @@ class ObserverTests(unittest.TestCase):
                 + "\n"
             )
             self.assertEqual(observer.observe(folder, "run-test")["usefulAfterCheckpoint"], 1)
+            observer.observe(folder, "run-test", projection_requests=1)
+            with self.assertRaises(ValueError):
+                observer.observe(folder, "run-test", projection_requests=2)
+
+    def test_controlled_projection_missing_is_unavailable_instead_of_zero_activation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.fixture(folder)
+            with self.assertRaises(ValueError):
+                observer.observe(folder, "run-test", projection_requests=1)
 
     def test_native_compactor_phase_is_independent_of_the_configured_model_alias(self):
         for start, failed, expected in [(10, False, 0), (31, False, 1), (31, True, 0)]:
