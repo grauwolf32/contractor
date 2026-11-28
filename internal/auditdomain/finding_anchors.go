@@ -179,7 +179,7 @@ func ResolveFindingAnchors(basis FindingAnchorDerivation, repository, commit str
 }
 
 func qualifiesLocalAnchor(proposal FindingProposal) bool {
-	return len(proposal.Locations) == 1 && len(proposal.StandardRefs) == 1 && proposal.StandardRefs[0].Scheme == "CWE" && proposal.StandardRefs[0].RequirementID == "CWE-321" && proposal.Subject == nil && proposal.Hypothesis == "" && len(proposal.Preconditions) == 0 && len(proposal.ProposedChecks) == 0 && len(proposal.Limitations) == 0 && proposal.HTTPExchange == nil
+	return len(proposal.Locations) == 1 && len(proposal.StandardRefs) == 1 && proposal.StandardRefs[0].Scheme == "CWE" && proposal.StandardRefs[0].RequirementID == "CWE-321" && proposal.Subject == nil && proposal.Hypothesis == "" && len(proposal.Preconditions) == 0 && len(proposal.ProposedChecks) == 0 && len(proposal.Limitations) == 0 && proposal.HTTPExchanges == nil
 }
 
 func anchorKeys(basis FindingAnchorDerivation, repository, commit, digest string) []FindingAnchorKeys {

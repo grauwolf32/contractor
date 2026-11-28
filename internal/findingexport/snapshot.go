@@ -61,7 +61,7 @@ func NewSnapshot(auditID string, request Request, at time.Time) (Snapshot, error
 // bodies remain in the original access-controlled evidence, not export fields.
 func (s *Snapshot) AddReceipt(value Receipt) error {
 	proposal := value.Proposal
-	proposal.HTTPExchange = nil
+	proposal.HTTPExchanges = nil
 	proposal.Locations = append([]auditdomain.FindingLocation(nil), proposal.Locations...)
 	for i := range proposal.Locations {
 		if proposal.Locations[i].URL != "" {
@@ -154,7 +154,7 @@ func validateSnapshot(value Snapshot) error {
 	}
 	receipts := map[string]bool{}
 	for _, r := range value.Receipts {
-		if !contracts.ValidIdempotencyKey(r.ReceiptID) || !contracts.ValidIdempotencyKey(r.ProposalID) || receipts[r.ReceiptID] || r.Evidence == nil || len(r.Evidence) > auditdomain.MaximumEvidencePerItem || r.Proposal.HTTPExchange != nil || len(r.Evidence) != len(r.Proposal.EvidenceIDs) {
+		if !contracts.ValidIdempotencyKey(r.ReceiptID) || !contracts.ValidIdempotencyKey(r.ProposalID) || receipts[r.ReceiptID] || r.Evidence == nil || len(r.Evidence) > auditdomain.MaximumEvidencePerItem || r.Proposal.HTTPExchanges != nil || len(r.Evidence) != len(r.Proposal.EvidenceIDs) {
 			return ErrInvalid
 		}
 		receipts[r.ReceiptID] = true

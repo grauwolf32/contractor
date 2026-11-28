@@ -212,8 +212,13 @@ def test_finding_stream_freezes_documents_and_uses_named_order(pki):
             "evidenceRefs": [],
             "proposal": {"description": "x" * (BULK_CHUNK_BYTES + 3)},
             "derived_anchors": {"anchors": []},
-            "httpEvidence": {"source": "http"},
-            "httpEvidenceInvocationId": "invocation-1",
+            "httpEvidence": [
+                {"invocationId": "invocation-1", "capture": {"source": "http", "request_id": "1"}},
+                {
+                    "invocationId": "earlier-invocation",
+                    "capture": {"source": "http", "request_id": "2"},
+                },
+            ],
         }
         prepared = prepare_finding_submission(source, 64 << 20, 8 << 20)
         source["proposal"]["description"] = "changed"
@@ -304,8 +309,7 @@ def test_native_finding_lost_reply_reuses_capture_and_original_receipt(pki):
         "submissionId": "finding-" + "a" * 64,
         "proposal": {"client_key": "candidate-1"},
         "evidenceRefs": [],
-        "httpEvidence": capture(),
-        "httpEvidenceInvocationId": "worker-invocation-1",
+        "httpEvidence": [{"invocationId": "worker-invocation-1", "capture": capture()}],
     }
 
     class LostReceipt(Payloads):

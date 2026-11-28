@@ -50,12 +50,14 @@ class FindingProposalClient:
         a second submission identity after an ambiguous commit.
         """
 
-        capture = request.get("httpEvidence")
-        capture_identity = (
-            {key: capture.get(key) for key in ("source", "request_id")}
-            if isinstance(capture, Mapping)
-            else None
-        )
+        captures = [
+            {
+                "invocationId": item["invocationId"],
+                "source": item["capture"]["source"],
+                "request_id": item["capture"]["request_id"],
+            }
+            for item in request.get("httpEvidence", [])
+        ]
         submission = await threads.to_thread_until_done(
             prepare_finding_submission,
             request,
@@ -68,8 +70,6 @@ class FindingProposalClient:
             for key, item in submission.header.items()
             if key not in {"proposalSize", "derivedAnchorsSize", "httpEvidenceSize"}
         }
-        if capture_identity is not None:
-            request["httpEvidence"] = capture_identity
         value = None
         for attempt in range(2):
             try:
@@ -127,7 +127,7 @@ class FindingProposalClient:
         ):
             raise ArtifactTransportError("finding proposal API returned invalid artifact metadata")
         evidence = value.get("evidence")
-        expected_count = len(request.get("evidenceRefs", [])) + ("httpEvidence" in request)
+        expected_count = len(request.get("evidenceRefs", [])) + len(captures)
         if not isinstance(evidence, list) or len(evidence) != expected_count or len(evidence) > 256:
             raise ArtifactTransportError("finding proposal API returned invalid evidence")
         seen = set()
@@ -164,15 +164,15 @@ class FindingProposalClient:
         for item in request.get("evidenceRefs", []):
             if (item["namespace"], item["name"], item["revision"]) not in seen:
                 raise ArtifactTransportError("finding proposal API omitted requested evidence")
-        if "httpEvidence" in request:
-            selected = evidence[-1]
+        for index, capture in enumerate(captures):
+            selected = evidence[len(request.get("evidenceRefs", [])) + index]
             if (
                 selected["ref"]["namespace"] != HTTP_EXCHANGE_NAMESPACE
                 or selected["ref"]["name"]
                 != http_exchange_artifact_name(
-                    request["httpEvidenceInvocationId"],
-                    request["httpEvidence"]["source"],
-                    request["httpEvidence"]["request_id"],
+                    capture["invocationId"],
+                    capture["source"],
+                    capture["request_id"],
                 )
                 or selected["mediaType"] != "application/vnd.contractor.http-exchange+json"
             ):

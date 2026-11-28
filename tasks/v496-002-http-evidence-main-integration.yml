@@ -1,0 +1,48 @@
+schema_version: "1.0"
+id: V496-002
+title: Merge verified multiple HTTP evidence support into main
+milestone: findings-tools
+epic: findings
+kind: chore
+priority: P1
+status: in_progress
+depends_on: [V496-001]
+languages: [go, python, typescript, yaml, markdown]
+goal: Main supports multiple selected HTTP evidence per Finding while retaining the current Semgrep, Playground and shared widget deliveries and the user's local portable-kit work.
+context:
+  authority: User instruction 2026-11-28 explicitly requests merging the completed HTTP evidence branch.
+  main_before: d4129a54004aa6023beb506d24d573dd3178ac88
+  source_branch: codex/multiple-http-evidence
+  source_head: 71df3a580dc7cb83c08803babd36d5c8e8fb99c8
+  boundary: Prepare a two-parent no-fast-forward merge in an isolated checkout, resolve generated and UI integration through their current owners, verify combined behavior, then compare-and-swap local main and install only clean changed paths. Preserve raw local task bytes/mode and staged delta; regenerate the derived backlog with its original local contribution. Do not stage the portable task, push, deploy, change models or migrate the demo database.
+  source_verification: V496-001 passed complete Go/PostgreSQL, Runtime (6746 passed, 136 declared skips), API/wire, lint, complete UI and twenty browser cases; combined verification checks the newer main boundaries rather than treating that old tree as current evidence.
+scope:
+  in:
+    - Reconcile the completed branch with current main, retain widgets without compatibility re-exports, regenerate clients and task/catalog graphs through their owners, and record integration evidence.
+    - Verify combined Server/Runtime/API/UI paths and guarded preservation of the user's local work.
+  out:
+    - New feature behavior, live models, deployment, demo migrations or remote push.
+acceptance_criteria:
+  - id: A1
+    text: Local main contains a two-parent merge with the pinned main as first parent and the accepted HTTP evidence source as second parent; all prior main deliveries remain present.
+  - id: A2
+    text: Combined boundary checks pass, multiple HTTP evidence survive the real process lifecycle and the UI retains shared widget ownership and plural evidence presentation.
+  - id: A3
+    text: The portable task retains exact bytes/mode and untracked status, the original staged delta is unchanged, and the regenerated local backlog preserves the portable task contribution.
+tests:
+  - command: go test -tags=integration ./internal/auditdomain ./internal/findingintake ./internal/httpapi/privateartifacts ./internal/findingexport/... ./internal/auditservice ./internal/publicclient/...
+    covers: [A1, A2]
+  - command: make test-runtime
+    covers: [A1, A2]
+  - command: make verify-public-api test-wire-cross-language
+    covers: [A1, A2]
+  - command: VITEST_MAX_WORKERS=4 make ui-verify
+    covers: [A1, A2]
+  - command: make ui-browser-mocked
+    covers: [A1, A2]
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestAuditPartialJudgmentsAcrossProcesses$'
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+  - command: python3 /private/tmp/contractor-v496-merge/install-main.py --verify-only
+    covers: [A1, A3]

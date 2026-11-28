@@ -128,8 +128,8 @@ func (p *CollectionPublisher) PublishFindingExport(ctx context.Context, ownerID,
 					}
 				}
 			}
-			if value.HTTP == nil && analysis == nil && proposal.HTTPExchange != nil {
-				last := proposal.HTTPExchange.Attempts[len(proposal.HTTPExchange.Attempts)-1]
+			if value.HTTP == nil && analysis == nil && len(proposal.HTTPExchanges) != 0 {
+				last := proposal.HTTPExchanges[0].Attempts[len(proposal.HTTPExchanges[0].Attempts)-1]
 				value.HTTP = &findinganalysis.ResolvedHTTP{ID: "proposal-exchange", Method: last.Method, URI: findingexport.SanitizedURI(last.URL), Status: last.Status, Origin: "producer-asserted", Omitted: []string{"bodies", "headers", "query", "fragment", "userinfo"}}
 			}
 			return snapshot.AddReceipt(value)

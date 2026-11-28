@@ -1459,14 +1459,13 @@ class ArtifactWriteFrame(_message.Message):
     def __init__(self, header: _Optional[_Union[ArtifactWriteHeader, _Mapping]] = ..., chunk: _Optional[bytes] = ...) -> None: ...
 
 class FindingSubmissionHeader(_message.Message):
-    __slots__ = ("api_version", "invocation_id", "submission_id", "incidental", "item_key", "evidence_refs", "http_evidence_invocation_id", "proposal_size", "derived_anchors_size", "http_evidence_size")
+    __slots__ = ("api_version", "invocation_id", "submission_id", "incidental", "item_key", "evidence_refs", "proposal_size", "derived_anchors_size", "http_evidence_size")
     API_VERSION_FIELD_NUMBER: _ClassVar[int]
     INVOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     SUBMISSION_ID_FIELD_NUMBER: _ClassVar[int]
     INCIDENTAL_FIELD_NUMBER: _ClassVar[int]
     ITEM_KEY_FIELD_NUMBER: _ClassVar[int]
     EVIDENCE_REFS_FIELD_NUMBER: _ClassVar[int]
-    HTTP_EVIDENCE_INVOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     PROPOSAL_SIZE_FIELD_NUMBER: _ClassVar[int]
     DERIVED_ANCHORS_SIZE_FIELD_NUMBER: _ClassVar[int]
     HTTP_EVIDENCE_SIZE_FIELD_NUMBER: _ClassVar[int]
@@ -1476,11 +1475,10 @@ class FindingSubmissionHeader(_message.Message):
     incidental: bool
     item_key: str
     evidence_refs: ListOfArtifactRef
-    http_evidence_invocation_id: str
     proposal_size: int
     derived_anchors_size: int
     http_evidence_size: int
-    def __init__(self, api_version: _Optional[str] = ..., invocation_id: _Optional[str] = ..., submission_id: _Optional[str] = ..., incidental: _Optional[bool] = ..., item_key: _Optional[str] = ..., evidence_refs: _Optional[_Union[ListOfArtifactRef, _Mapping]] = ..., http_evidence_invocation_id: _Optional[str] = ..., proposal_size: _Optional[int] = ..., derived_anchors_size: _Optional[int] = ..., http_evidence_size: _Optional[int] = ...) -> None: ...
+    def __init__(self, api_version: _Optional[str] = ..., invocation_id: _Optional[str] = ..., submission_id: _Optional[str] = ..., incidental: _Optional[bool] = ..., item_key: _Optional[str] = ..., evidence_refs: _Optional[_Union[ListOfArtifactRef, _Mapping]] = ..., proposal_size: _Optional[int] = ..., derived_anchors_size: _Optional[int] = ..., http_evidence_size: _Optional[int] = ...) -> None: ...
 
 class FindingDocumentChunk(_message.Message):
     __slots__ = ("document", "data")

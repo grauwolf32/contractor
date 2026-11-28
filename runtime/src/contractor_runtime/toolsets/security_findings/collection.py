@@ -425,7 +425,7 @@ def _proposal(data: bytes) -> dict[str, Any]:
         value,
         "schema client_key title description subject preconditions evidence_ids limitations "
         "standard_refs proposed_checks severity_suggestion",
-        "hypothesis locations http_exchange",
+        "hypothesis locations http_exchanges",
     )
     require(value["schema"] == "contractor.audit.finding-proposal.v1")
     require(all(part is not None or field == "subject" for field, part in value.items()))
@@ -440,14 +440,17 @@ def _proposal(data: bytes) -> dict[str, Any]:
             normalize_locations(value["locations"])
         except (ValueError, TypeError):
             raise FindingsError("findings_collection_invalid") from None
-    if "http_exchange" in value:
-        try:
-            exchange = HTTPExchange.model_validate(value["http_exchange"])
-        except (ValueError, TypeError):
-            raise FindingsError("findings_collection_invalid") from None
-        require(identifier(exchange.request_tag))
-        if exchange.response_body_evidence_id is not None:
-            require(exchange.response_body_evidence_id in value["evidence_ids"])
+    if "http_exchanges" in value:
+        exchanges = array(value["http_exchanges"], 256)
+        require(len(exchanges) > 0)
+        for raw in exchanges:
+            try:
+                exchange = HTTPExchange.model_validate(raw)
+            except (ValueError, TypeError):
+                raise FindingsError("findings_collection_invalid") from None
+            require(identifier(exchange.request_tag))
+            if exchange.response_body_evidence_id is not None:
+                require(exchange.response_body_evidence_id in value["evidence_ids"])
     require("hypothesis" not in value or isinstance(value["hypothesis"], str))
     require(
         value["severity_suggestion"]

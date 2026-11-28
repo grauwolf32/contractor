@@ -728,7 +728,7 @@ message FindingSubmissionHeader {
   optional bool incidental = 4;
   optional string item_key = 5;
   ListOfArtifactRef evidence_refs = 6;
-  optional string http_evidence_invocation_id = 7;
+  reserved 7; // Capture origins are carried per element in the HTTP evidence document.
   optional uint64 proposal_size = 8;
   optional uint64 derived_anchors_size = 9;
   optional uint64 http_evidence_size = 10;

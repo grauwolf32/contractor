@@ -3,6 +3,7 @@ import {
   type FindingProposalReceipt,
 } from "../../api/audits";
 import { useFindingSource } from "./source-data";
+import { HTTP_EXCHANGE_MEDIA_TYPE } from "../../api/artifacts";
 import { QueryView } from "../../app/query-view";
 import { useId } from "react";
 
@@ -18,7 +19,7 @@ import "./issues.css";
 
 /**
  * Everything the possible issue rests on: authored locations, the captured
- * HTTP exchange (credential-looking header values masked until shown) and
+ * HTTP exchanges (credential-looking header values masked until shown) and
  * the evidence files the check retained.
  */
 export function EvidencePanel({ finding }: { finding: ProjectFinding }) {
@@ -37,15 +38,16 @@ export function SourceEvidence({ source }: { source: FindingProposalReceipt }) {
   const id = useId();
   const document = source.document;
   const locations = document.locations ?? [];
-  const exchange = document.http_exchange;
+  const exchanges = document.http_exchanges ?? [];
   const files = source.projectEvidence ?? [];
-  const masked =
-    exchange?.attempts.some((attempt) =>
+  const masked = exchanges.some((exchange) =>
+    exchange.attempts.some((attempt) =>
       [...attempt.headers, ...(attempt.response_headers ?? [])].some((header) =>
         isCredentialHeader(header.name),
       ),
-    ) ?? false;
-  if (locations.length === 0 && exchange === undefined && files.length === 0)
+    ),
+  );
+  if (locations.length === 0 && exchanges.length === 0 && files.length === 0)
     return (
       <p className="ui-caption">
         This record names no locations and has no captured evidence.
@@ -64,13 +66,13 @@ export function SourceEvidence({ source }: { source: FindingProposalReceipt }) {
           <LocationList locations={locations} />
         </section>
       )}
-      {exchange === undefined ? null : (
+      {exchanges.length === 0 ? null : (
         <section
           className="issues-evidence-section"
           aria-labelledby={`${id}-http`}
         >
           <h3 id={`${id}-http`} className="issues-heading">
-            Captured HTTP exchange
+            Captured HTTP exchanges
           </h3>
           {masked ? (
             <p className="ui-caption">
@@ -78,7 +80,13 @@ export function SourceEvidence({ source }: { source: FindingProposalReceipt }) {
               time.
             </p>
           ) : null}
-          <CapturedExchange exchange={exchange} collapsible={false} />
+          {exchanges.map((exchange, index) => (
+            <CapturedExchange
+              key={index}
+              exchange={exchange}
+              collapsible={exchanges.length > 1}
+            />
+          ))}
         </section>
       )}
       {files.length === 0 ? null : (
@@ -99,7 +107,8 @@ export function SourceEvidence({ source }: { source: FindingProposalReceipt }) {
           ))}
         </section>
       )}
-      {exchange === undefined ? (
+      {exchanges.length === 0 &&
+      !files.some((file) => file.mediaType === HTTP_EXCHANGE_MEDIA_TYPE) ? (
         <p className="issues-no-http">
           <Icon name="question-circle" size={14} />
           No HTTP exchanges were captured for this record.

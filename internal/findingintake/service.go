@@ -138,17 +138,22 @@ func (s *Service) submit(ctx context.Context, execution intakeExecution, input S
 		return Receipt{}, false, err
 	}
 	receiptID, proposalID := execution.receiptID(input), execution.proposalID(input)
-	var httpPayload *artifacts.Payload
-	if canonical.request.HTTPEvidence != nil {
-		data, encodeErr := auditdomain.EncodeHTTPExchangeArtifact(*canonical.request.HTTPEvidence, execution.RunID, input.HTTPEvidenceInvocationID)
+	httpPayloads := make([]artifacts.Payload, 0, len(canonical.request.HTTPEvidence))
+	var preparedHTTPBytes int64
+	for _, selected := range canonical.request.HTTPEvidence {
+		data, encodeErr := auditdomain.EncodeHTTPExchangeArtifact(selected.Capture, execution.RunID, selected.InvocationID)
 		if encodeErr != nil || len(data) > artifacts.MaxPayloadSize {
 			return Receipt{}, false, fmt.Errorf("%w: HTTP evidence payload", ErrInvalid)
+		}
+		preparedHTTPBytes += int64(len(data))
+		if preparedHTTPBytes > maxProposalEvidenceBytes {
+			return Receipt{}, false, fmt.Errorf("%w: proposal evidence quota exceeded", ErrInvalid)
 		}
 		prepared, prepareErr := s.storage.PreparePayload(ctx, s.pool, artifacts.Payload{MediaType: auditdomain.HTTPExchangeMediaType, Data: data})
 		if prepareErr != nil {
 			return Receipt{}, false, prepareErr
 		}
-		httpPayload = &prepared
+		httpPayloads = append(httpPayloads, prepared)
 	}
 	preparedPayload, err := s.storage.PreparePayload(ctx, s.pool, artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes})
 	if err != nil {
@@ -222,7 +227,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, execution.Run
 		if err != nil {
 			return err
 		}
-		evidence := make([]ExactArtifact, 0, len(canonical.request.EvidenceRefs))
+		evidence := make([]ExactArtifact, 0, len(canonical.request.EvidenceRefs)+len(httpPayloads))
 		var evidenceBytes int64
 		for _, ref := range canonical.request.EvidenceRefs {
 			metadata, metadataErr := runArtifacts.Metadata(ctx, ref)
@@ -246,12 +251,16 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, execution.Run
 			})
 		}
 
-		if httpPayload != nil {
+		if evidenceBytes+preparedHTTPBytes > maxProposalEvidenceBytes {
+			return fmt.Errorf("%w: proposal evidence quota exceeded", ErrInvalid)
+		}
+		for index, httpPayload := range httpPayloads {
+			selected := canonical.request.HTTPEvidence[index]
 			if evidenceBytes+int64(len(httpPayload.Data)) > maxProposalEvidenceBytes {
 				return fmt.Errorf("%w: proposal evidence quota exceeded", ErrInvalid)
 			}
 			written, writeErr := artifactService.CreateFrozen(ctx, mustRunScope(execution.RunID),
-				contracts.ArtifactRef{Namespace: artifactpolicy.HTTPExchangeNamespace, Name: auditdomain.HTTPExchangeArtifactName(input.HTTPEvidenceInvocationID, canonical.request.HTTPEvidence.Source, canonical.request.HTTPEvidence.RequestID)}, *httpPayload)
+				contracts.ArtifactRef{Namespace: artifactpolicy.HTTPExchangeNamespace, Name: auditdomain.HTTPExchangeArtifactName(selected.InvocationID, selected.Capture.Source, selected.Capture.RequestID)}, httpPayload)
 			if writeErr != nil {
 				if errors.Is(writeErr, artifacts.ErrAuditArtifactCollision) {
 					return ErrConflict

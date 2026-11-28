@@ -159,10 +159,6 @@ class SourcePreparer:
     ):
         values = parse_sources(selected, notices, allow_empty=True)
         http = [value for value in values if isinstance(value, HTTPSource)]
-        if len(http) > 1:
-            raise ToolInputError(
-                "sources: a Finding or fact selects at most one local HTTP exchange"
-            )
         other = [value.model_dump() for value in values if not isinstance(value, HTTPSource)]
         remaining = max_sources - additional_sources - len(http)
         if remaining < 0:
@@ -172,7 +168,7 @@ class SourcePreparer:
             if other
             else []
         )
-        return refs, http[0].request_id if http else None
+        return refs, [source.request_id for source in http]
 
     async def prepare(self, selected, invocation_id, call_id, *, max_sources=256, notices=None):
         sources = parse_sources(selected, notices)

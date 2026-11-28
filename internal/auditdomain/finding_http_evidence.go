@@ -35,46 +35,46 @@ type FindingHTTPAttempt struct {
 // proposal evidence ID is checked by validateFindingEvidenceReferences.
 func validateFindingHTTPExchange(exchange FindingHTTPExchange) error {
 	if !validFindingLine(exchange.RequestID) || validateIdentifier(exchange.RequestTag, "request_tag") != nil {
-		return invalid(CodeInvalid, "http_exchange.request_id")
+		return invalid(CodeInvalid, "http_exchanges.request_id")
 	}
 	if len(exchange.Attempts) == 0 || len(exchange.Attempts) > MaximumHTTPExchangeAttempts {
-		return invalid(CodeLimitExceeded, "http_exchange.attempts")
+		return invalid(CodeLimitExceeded, "http_exchanges.attempts")
 	}
 	for _, attempt := range exchange.Attempts {
 		if err := validateFindingHTTPAttempt(attempt); err != nil {
 			return err
 		}
 	}
-	if exchange.ResponseBodyEvidenceID != "" && validateIdentifier(exchange.ResponseBodyEvidenceID, "http_exchange.response_body_evidence_id") != nil {
-		return invalid(CodeReferenceInvalid, "http_exchange.response_body_evidence_id")
+	if exchange.ResponseBodyEvidenceID != "" && validateIdentifier(exchange.ResponseBodyEvidenceID, "http_exchanges.response_body_evidence_id") != nil {
+		return invalid(CodeReferenceInvalid, "http_exchanges.response_body_evidence_id")
 	}
 	return nil
 }
 
 func validateFindingHTTPAttempt(attempt FindingHTTPAttempt) error {
 	if !validFindingURL(attempt.URL) || !validFindingMethod(attempt.Method) {
-		return invalid(CodeInvalid, "http_exchange.request")
+		return invalid(CodeInvalid, "http_exchanges.request")
 	}
 	body, err := base64.StdEncoding.Strict().DecodeString(attempt.BodyBase64)
 	if err != nil || base64.StdEncoding.EncodeToString(body) != attempt.BodyBase64 {
-		return invalid(CodeInvalid, "http_exchange.body_base64")
+		return invalid(CodeInvalid, "http_exchanges.body_base64")
 	}
 	if len(body) > MaximumHTTPRequestBodyBytes {
-		return invalid(CodeLimitExceeded, "http_exchange.body_base64")
+		return invalid(CodeLimitExceeded, "http_exchanges.body_base64")
 	}
 	if attempt.Headers == nil || !validFindingHTTPHeaders(attempt.Headers) || !validFindingHTTPHeaders(attempt.ResponseHeaders) {
-		return invalid(CodeInvalid, "http_exchange.headers")
+		return invalid(CodeInvalid, "http_exchanges.headers")
 	}
 	hasResponse, hasError := attempt.Status != nil, attempt.Error != ""
 	if hasResponse == hasError {
-		return invalid(CodeInvalid, "http_exchange.outcome")
+		return invalid(CodeInvalid, "http_exchanges.outcome")
 	}
 	// RFC 9110 defines HTTP status codes in the range 100–599.
 	if hasResponse && (*attempt.Status < 100 || *attempt.Status > 599) {
-		return invalid(CodeInvalid, "http_exchange.status")
+		return invalid(CodeInvalid, "http_exchanges.status")
 	}
 	if hasError && attempt.Error != "transport_error" && attempt.Error != "cancelled" {
-		return invalid(CodeInvalid, "http_exchange.error")
+		return invalid(CodeInvalid, "http_exchanges.error")
 	}
 	return nil
 }

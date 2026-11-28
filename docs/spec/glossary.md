@@ -972,7 +972,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **`seed_drift`** — The bundled-initialization outcome for an existing owner Skill binding whose digest or media type differs from the bundled source; the binding stays current. Owner: [Agent Skills](tools/skills.md).
 
-**Selected HTTP evidence** — The `http_exchange` snapshot of one captured outgoing request that the HTTP facade copies into a proposal when given a `request_id`. Owner: [Findings](findings/findings.md).
+**Selected HTTP evidence** — The selected captured HTTP/Caido exchanges retained as exact evidence, with representable outgoing-request snapshots in a proposal’s ordered `http_exchanges` array. Owner: [Findings](findings/findings.md).
 
 **Selection** — The explicit choice of exact result and assessment records that a view uses. Owner: [Managed Evals](evals/managed-evals.md).
 

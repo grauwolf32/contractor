@@ -1,0 +1,97 @@
+schema_version: "1.0"
+id: V496-001
+title: Retain multiple selected HTTP exchanges on one Finding
+milestone: findings-tools
+epic: findings
+kind: feature
+priority: P1
+status: completed
+depends_on: []
+languages: [go, python, typescript, json, markdown]
+goal: A researcher can attach a control request and one or more test requests to the same Finding and read every retained exchange in the UI.
+demonstration: Submit two captured HTTP sources with one artifact source through Runtime and the private stream, read the committed receipt from PostgreSQL through the public API, and display both exchanges in the Finding evidence panel.
+context:
+  authority: 'User decision 2026-11-28: create a task and implement multiple HTTP evidence per Finding through Runtime, Server, API and UI, preserving common limits and adding tests.'
+  specification: docs/spec/findings/findings.md#FND-R241
+  verification_budget: The complete UI suite uses four workers; default host concurrency exceeded existing large-list test deadlines while other gates ran. Timeouts and assertions are unchanged.
+  integration_authority: User request on 2026-11-28 authorizes merging into main; parallel Playground delivery has claimed V494-001, so this task is reassigned to V496-001 before integration.
+  prerequisite: The already completed V493-002 code-evidence fixture reader declaration is imported from main as the existing baseline lint repair.
+  boundary: Runtime resolves each selected local HTTP/Caido ID and preserves its original invocation. Finding intake owns common validation, evidence numbering, atomic frozen Artifact publication and receipts. Replace the singular private capture with a bounded array of invocation/capture envelopes and the singular public projection with http_exchanges. Reuse the existing bulk HTTP document, Artifact store and receipt; no new table or compatibility reader. Publishing HTTP separately before intake is simpler but weakens existing atomicity, so retain the current transaction. Reopen only if the bounded array cannot satisfy existing payload limits.
+scope:
+  in:
+    - Shared Finding/fact source selection, private streamed captures, domain proposal/report validation, retained collections, public schemas and generated clients, UI display.
+    - Tests for multiple captures, mixed sources, limits, invalid/duplicate sources, replay/conflict and atomic failure against PostgreSQL.
+  out:
+    - New evidence kinds, automatic capture selection, request replay, new storage or changes to configured models.
+requirements:
+  - id: R1
+    text: Accept multiple HTTP sources with individual original capture provenance; reject invalid or duplicate selections without partial Finding publication.
+  - id: R2
+    text: Preserve 256 total evidence per Finding, four per informational/fact, existing per-capture, proposal, request and aggregate evidence byte limits, receipts and retention.
+  - id: R3
+    text: Strict plural-only contracts carry all projections and exact evidence through read, collection and UI paths; generated clients derive from OpenAPI.
+failure_outcomes:
+  - operation: Resolve sources and submit the Finding
+    permanent: Invalid/missing/foreign or duplicate sources and count/byte overflow return existing tool errors or finding invalid errors; no partial Finding receipt or selected HTTP bindings.
+    retryable: Preserve existing bounded transport and store transaction retries.
+    ambiguous: Replay identical bytes with the same submission key; changed content conflicts.
+    cancelled: Existing allocation and stream owners join work; PostgreSQL rolls back an uncommitted transaction.
+    timeout: Existing private transfer/storage and Worker deadlines remain authoritative.
+cardinality:
+  - collection: Selected evidence for one proposal
+    expected: Two HTTP exchanges and optional artifact/code evidence
+    maximum: 256 total evidence, or four for informational/fact
+    bound: Existing 8 MiB proposal, 64 MiB private request and 64 MiB total evidence bounds; HTTP per-message bounds are unchanged.
+lifecycle:
+  - entity: Existing proposal and exact HTTP evidence
+    delete: Existing Run/Audit/Project deletion rules apply.
+    cascade: Existing Artifact bindings and receipt retention; no new entity.
+    retention: Every selected exchange survives permitted source deletion through existing Project evidence holds.
+acceptance_criteria:
+  - id: A1
+    given: Two local HTTP captures and an artifact source
+    when: A Finding is submitted, replayed and read
+    then: All exact evidence and representable HTTP projections survive with original provenance and appear in UI.
+  - id: A2
+    given: Duplicate, invalid, foreign, excessive or oversized HTTP selections
+    when: Runtime or Server validates the submission
+    then: Existing limits and explicit rejection hold, with no partial committed receipt or evidence bindings.
+  - id: A3
+    given: Multiple saved exchanges and a lost reply or source deletion
+    when: Existing replay, collection and retained-read paths execute
+    then: Exact bindings remain stable and all selected evidence is retained without new traffic.
+tests:
+  - command: go test -tags=integration ./internal/auditdomain ./internal/findingintake ./internal/httpapi/privateartifacts ./internal/findingexport/... ./internal/auditservice
+    covers: [A1, A2, A3]
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: make verify-public-api
+    covers: [A1, A2]
+  - command: make test-wire-cross-language
+    covers: [A1, A2]
+  - command: make ui-generate-check ui-lint ui-typecheck ui-build
+    covers: [A1, A2]
+  - command: cd ui && corepack pnpm exec vitest --run --maxWorkers=4
+    covers: [A1, A2]
+  - command: cd ui && corepack pnpm test:server
+    covers: [A1, A2]
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestAuditPartialJudgmentsAcrossProcesses$'
+    covers: [A1, A3]
+  - command: cd ui && node --input-type=module -e 'import {runBrowserGate} from "./server/browser-gate.mjs"; await runBrowserGate("v493-http-evidence", "Multiple HTTP evidence", ["e2e/issue-review-design.spec.ts"]);'
+    covers: [A1]
+  - command: make lint
+    covers: [A1, A2, A3]
+
+implementation_commit: bc1ec0d79ae3e23c8a2c9691841a4f4a1b1b1ea3
+verification: >-
+  Verified on 2026-11-28 with a private UTF-8 PostgreSQL database and pinned ffuf 2.3.0.
+  Complete affected Go/PostgreSQL suites, public API and cross-language gates pass;
+  Runtime has 6746 passed and 136 declared skips, with all 611 selected compaction cases passing.
+  The complete UI suite has 2614 passed and one expected failure; all 17 static-service
+  tests and all 20 browser cases pass, including 390px in light, dark and black themes.
+  Full lint passes; UI gates, types, generation, build and the complete UI suite were
+  repeated after the final Caido display correction. The real process regression
+  retains both HTTP captures through Runtime loss, Server restart and producer Run deletion.
+  Optional disk-heavy fixtures remain disabled; their skips are not passing coverage.
+  The owned database was explicitly dropped and its private PostgreSQL stopped and removed.
+  Implemented on codex/multiple-http-evidence; not merged into main or deployed.

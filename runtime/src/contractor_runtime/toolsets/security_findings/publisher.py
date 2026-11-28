@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import json
 from contextlib import nullcontext
 from typing import Any
 
 from google.adk.tools.tool_context import ToolContext
 from pydantic import ValidationError
 
+from contractor_runtime import threads
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.finding_proposals import FindingProposalClient
+from contractor_runtime.shared_config import artifact_payload_max_bytes
 from contractor_runtime.toolsets.common.argument_diagnostics import NormalizationNotices
 from contractor_runtime.toolsets.common.call_identity import call_client_key
 from contractor_runtime.toolsets.common.check_plans import ProposedCheck
@@ -85,7 +88,7 @@ class FindingPublisher:
                 raise RuntimeError("Finding source preparation is unavailable")
             context = kwargs["context"]
             notices = NormalizationNotices()
-            refs, request_id = await self.source_preparer.prepare_for_finding(
+            refs, request_ids = await self.source_preparer.prepare_for_finding(
                 selected,
                 context.invocation_id,
                 call_client_key(context),
@@ -97,7 +100,7 @@ class FindingPublisher:
             notices.attach(normalization)
             kwargs["_source_normalization"] = normalization.get("normalization")
             kwargs["evidence_refs"] = [ref.model_dump(exclude_none=True) for ref in refs]
-            kwargs["request_id"] = request_id
+            kwargs["request_ids"] = request_ids
         else:
             kwargs["evidence_refs"] = self._resolve_evidence_refs(kwargs.get("evidence_refs"))
         return kwargs
@@ -135,7 +138,7 @@ class FindingPublisher:
         evidence_refs: list[ArtifactRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
-        request_id: int | None = None,
+        request_ids: list[int] | None = None,
         memory_name: str | None = None,
         severity_suggestion: str | None = None,
         item_key: str | None = None,
@@ -178,7 +181,26 @@ class FindingPublisher:
             for reference in cwe_reference(cwe):
                 if reference not in standards:
                     standards.append(reference)
-            exchange = await self._http_evidence(request_id, context.invocation_id)
+            exchanges = []
+            capture_bytes = 0
+            for request_id in request_ids or []:
+                invocation_id, capture = await self._http_evidence(
+                    request_id, context.invocation_id
+                )
+                selected = {"invocationId": invocation_id, "capture": capture}
+                capture_bytes += await threads.to_thread_until_done(
+                    lambda selected=selected: len(
+                        json.dumps(
+                            selected, ensure_ascii=False, allow_nan=False, separators=(",", ":")
+                        ).encode()
+                    ),
+                    name="finding-http-selection-size",
+                )
+                if capture_bytes > artifact_payload_max_bytes():
+                    raise ToolInputError(
+                        "Selected HTTP evidence exceeds the finding request byte limit"
+                    )
+                exchanges.append(selected)
             request = build_submission(
                 invocation_id=context.invocation_id,
                 client_key=call_client_key(context),
@@ -198,10 +220,10 @@ class FindingPublisher:
                 proposal["evidence_ids"].append(f"evidence-{len(refs) + 1}")
             if normalized:
                 proposal["locations"] = normalized
-            if exchange is not None:
-                request["httpEvidenceInvocationId"], request["httpEvidence"] = exchange
+            if exchanges:
+                request["httpEvidence"] = exchanges
             validate_informational_payload(
-                proposal, len(refs) + (exchange is not None) + (memory_name is not None)
+                proposal, len(refs) + len(exchanges) + (memory_name is not None)
             )
             audit_binding = self.resources.proposal_collector
             audit_collector = audit_binding() if audit_binding is not None else None
@@ -245,7 +267,7 @@ class FindingPublisher:
             }
             if "findingId" in receipt:
                 result["finding_id"] = receipt["findingId"]
-            if exchange is not None or memory_name is not None:
+            if exchanges or memory_name is not None:
                 result["evidence_refs"] = [item["ref"] for item in receipt["evidence"]]
             call.succeed(result, arguments={"location_count": len(normalized)})
             if _source_normalization:

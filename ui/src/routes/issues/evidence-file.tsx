@@ -41,8 +41,9 @@ export function FindingEvidenceFile({
     evidence.mediaType === HTTP_EXCHANGE_MEDIA_TYPE
       ? "Request and available response"
       : evidenceId !== undefined &&
-          evidenceId ===
-            receipt.document.http_exchange?.response_body_evidence_id
+          receipt.document.http_exchanges?.some(
+            (exchange) => exchange.response_body_evidence_id === evidenceId,
+          )
         ? "Response body"
         : undefined;
   return (

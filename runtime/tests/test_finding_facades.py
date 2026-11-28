@@ -201,7 +201,7 @@ def test_check_suggestion_maxima_and_omission():
 
 def request_attempts(submission):
     result = []
-    for attempt in submission["httpEvidence"]["attempts"]:
+    for attempt in submission["httpEvidence"][0]["capture"]["attempts"]:
         value = {**attempt["request"], **attempt["request"]["message"]}
         if "response" in attempt:
             value["status"] = attempt["response"]["status"]
@@ -237,7 +237,7 @@ def test_invalid_final_response_keeps_prior_redirect_evidence(tmp_path):
                 sources=http_sources(history[0]["request_id"]),
                 tool_context=context(),
             )
-            attempts = client.requests[0]["httpEvidence"]["attempts"]
+            attempts = client.requests[0]["httpEvidence"][0]["capture"]["attempts"]
             assert len(attempts) == 2
             assert attempts[0]["response"]["status"] == 302
             assert attempts[0]["response"]["complete"] is False
@@ -305,7 +305,7 @@ def test_caido_evidence_resolves_local_id_without_model_inspection(
                 sources=http_sources(request_id),
                 tool_context=context(),
             )
-            capture = client.requests[0]["httpEvidence"]
+            capture = client.requests[0]["httpEvidence"][0]["capture"]
             attempt = capture["attempts"][0]
             assert capture["source"] == "caido"
             assert base64.b64decode(attempt["request"]["message"]["data_base64"]) == raw_request
@@ -325,8 +325,8 @@ def test_caido_evidence_resolves_local_id_without_model_inspection(
                 sources=http_sources(request_id),
                 tool_context=context(invocation_id="later-invocation"),
             )
-            assert client.requests[-1]["httpEvidence"] == capture
-            assert client.requests[-1]["httpEvidenceInvocationId"] == "invocation-1"
+            assert client.requests[-1]["httpEvidence"][0]["capture"] == capture
+            assert client.requests[-1]["httpEvidence"][0]["invocationId"] == "invocation-1"
             assert client.requests[-1]["invocationId"] == "later-invocation"
             assert observed == ["RequestsByOffset", "RequestDetail"]
         finally:
@@ -708,7 +708,7 @@ def test_http_evidence_captures_actual_request_and_survives_history_eviction(tmp
         assert not any(
             row["name"].lower() in {"authorization", "cookie"} for row in attempts[1]["headers"]
         )
-        response = client.requests[0]["httpEvidence"]["attempts"][-1]["response"]
+        response = client.requests[0]["httpEvidence"][0]["capture"]["attempts"][-1]["response"]
         assert base64.b64decode(response["message"]["body_base64"]) == b"observed response"
         assert response["complete"] is True
         assert client.requests[0]["evidenceRefs"] == []
@@ -725,7 +725,7 @@ def test_http_evidence_captures_actual_request_and_survives_history_eviction(tmp
             tool_context=context(invocation_id="later-invocation"),
         )
         assert client.requests[-1]["httpEvidence"] == client.requests[0]["httpEvidence"]
-        assert client.requests[-1]["httpEvidenceInvocationId"] == "invocation-1"
+        assert client.requests[-1]["httpEvidence"][0]["invocationId"] == "invocation-1"
         assert client.requests[-1]["invocationId"] == "later-invocation"
         retained = json.dumps(document)
         for _ in range(MAX_HISTORY):
@@ -747,7 +747,7 @@ def test_http_evidence_captures_actual_request_and_survives_history_eviction(tmp
             method="GET",
             tool_context=context("call-4"),
         )
-        assert "http_exchange" not in client.requests[-1]["proposal"]
+        assert "http_exchanges" not in client.requests[-1]["proposal"]
         await http["http_session_clear"]()
         await http["http_request"].close()
         assert json.dumps(document) == retained
@@ -1005,5 +1005,108 @@ def test_informational_findings_leave_evidence_equality_to_server(
         assert result["finding_id"] == "finding-1"
         assert "derived_anchors" not in client.requests[-1]
         assert "fingerprint" not in client.requests[-1]
+
+    asyncio.run(scenario())
+
+
+def test_shared_finding_multiple_http_projections():
+    fixture = json.loads(
+        (Path(__file__).parents[2] / "api/testdata/finding-http-evidence-cases.json").read_text()
+    )
+    for case in fixture["cases"]:
+        raw = json.dumps(case["proposal"]).encode()
+        if case["valid"]:
+            assert len(_proposal(raw)["http_exchanges"]) == 2
+        else:
+            with pytest.raises(ValueError):
+                _proposal(raw)
+
+
+def test_multiple_http_sources_preserve_each_capture_origin_and_fact_limit():
+    from test_http_capture import capture
+
+    from contractor_runtime.toolsets.common.http_capture import HTTPObservation
+
+    async def scenario():
+        state = WorkerState()
+        client = FakeFindingClient()
+        for number, invocation in [(1, "invocation-1"), (2, "earlier-invocation")]:
+            assert state.resources.http_captures.new_http_request() == number
+            await state.resources.http_captures.put(
+                capture(str(number)),
+                invocation,
+                observation=HTTPObservation("2026-11-22T12:00:00Z"),
+            )
+        ref = ArtifactRef(namespace="inputs", name="proof", revision="r1")
+        state.resources.selected_versions.assign([ref])
+        tool = await finding_tool(GeneralFindingsToolsetFactory, client, state)
+        await tool(
+            title="Control and probe",
+            description="Compare requests",
+            sources=[
+                {"kind": "http", "request_id": 1},
+                {"kind": "artifact", "namespace": "inputs", "name": "proof"},
+                {"kind": "http", "request_id": 2},
+            ],
+            tool_context=context(),
+        )
+        submitted = client.requests[-1]
+        assert submitted["evidenceRefs"] == [ref.model_dump(exclude_none=True)]
+        assert [item["invocationId"] for item in submitted["httpEvidence"]] == [
+            "invocation-1",
+            "earlier-invocation",
+        ]
+        assert [item["capture"]["request_id"] for item in submitted["httpEvidence"]] == ["1", "2"]
+        before = len(client.requests)
+        with pytest.raises(ToolInputError):
+            await tool(
+                title="Duplicates",
+                description="Duplicate selection",
+                sources=[
+                    {"kind": "http", "request_id": 1},
+                    {"kind": "http", "request_id": 1},
+                ],
+                tool_context=context("duplicate"),
+            )
+        with pytest.raises(ToolInputError):
+            await tool(
+                title="Unavailable",
+                description="Second capture missing",
+                sources=[
+                    {"kind": "http", "request_id": 1},
+                    {"kind": "http", "request_id": 999},
+                ],
+                tool_context=context("missing"),
+            )
+        assert len(client.requests) == before
+        fact = await finding_tool(GeneralFindingsToolsetFactory, client, state, name="fact")
+        await fact(
+            title="Observed requests",
+            description="Two observations",
+            sources=[
+                {"kind": "http", "request_id": 1},
+                {"kind": "http", "request_id": 2},
+            ],
+            tool_context=context("fact"),
+        )
+        assert len(client.requests[-1]["httpEvidence"]) == 2
+        extra = [
+            ArtifactRef(namespace="inputs", name=f"proof-{i}", revision="r1") for i in range(3)
+        ]
+        state.resources.selected_versions.assign(extra)
+        with pytest.raises(ToolInputError):
+            await fact(
+                title="Too many",
+                description="Five sources",
+                sources=[
+                    {"kind": "http", "request_id": 1},
+                    {"kind": "http", "request_id": 2},
+                    *[
+                        {"kind": "artifact", "namespace": r.namespace, "name": r.name}
+                        for r in extra
+                    ],
+                ],
+                tool_context=context("fact-over"),
+            )
 
     asyncio.run(scenario())

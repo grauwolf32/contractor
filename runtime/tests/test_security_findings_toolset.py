@@ -220,7 +220,7 @@ def test_finding_transport_loss_retries_byte_identical_submission() -> None:
 @pytest.mark.parametrize(
     "capture_name", ["received_http_error_is_response", "caido_without_response"]
 )
-@pytest.mark.parametrize("invalid", [None, "namespace", "name"])
+@pytest.mark.parametrize("invalid", [None, "namespace", "name", "missing-second"])
 def test_shared_finding_client_reads_independent_selected_http_receipt(capture_name, invalid):
     async def scenario():
         cases = json.loads(
@@ -236,6 +236,8 @@ def test_shared_finding_client_reads_independent_selected_http_receipt(capture_n
                     receipt["evidence"][-1]["ref"]["namespace"] = FINDING_PROPOSAL_NAMESPACE
                 elif invalid == "name":
                     receipt["evidence"][-1]["ref"]["name"] = "http.exchange.proposal-1"
+                elif invalid == "missing-second":
+                    receipt["evidence"].pop()
                 data = json.dumps(receipt).encode()
                 return ArtifactHTTPResponse(
                     201,
@@ -247,21 +249,25 @@ def test_shared_finding_client_reads_independent_selected_http_receipt(capture_n
         request = {
             "apiVersion": "contractor/v1alpha1",
             "invocationId": "later-invocation",
-            "httpEvidenceInvocationId": "original-invocation",
             "submissionId": "selected-http",
             "proposal": {"client_key": "candidate"},
             "evidenceRefs": [],
-            "httpEvidence": capture,
+            "httpEvidence": [
+                {"invocationId": "another-invocation", "capture": capture},
+                {"invocationId": "original-invocation", "capture": capture},
+            ],
         }
         if invalid:
-            with pytest.raises(ArtifactTransportError, match="invalid HTTP evidence"):
+            with pytest.raises(ArtifactTransportError, match=r"invalid (HTTP )?evidence"):
                 await client.submit(request)
         else:
             receipt = await client.submit(request)
             assert receipt["evidence"][-1]["ref"] == {
                 "namespace": HTTP_EXCHANGE_NAMESPACE,
                 "name": http_exchange_artifact_name(
-                    request["httpEvidenceInvocationId"], capture["source"], capture["request_id"]
+                    request["httpEvidence"][-1]["invocationId"],
+                    capture["source"],
+                    capture["request_id"],
                 ),
                 "revision": "http-rev-1",
             }
@@ -415,17 +421,17 @@ def _receipt_response(
 ) -> ArtifactHTTPResponse:
     request = request or {}
     refs = list(request.get("evidenceRefs", []))
-    if "httpEvidence" in request:
+    for selected in request.get("httpEvidence", []):
         from contractor_runtime.toolsets.common.http_capture import CapturedHTTPExchange
 
-        CapturedHTTPExchange.model_validate(request["httpEvidence"])
+        CapturedHTTPExchange.model_validate(selected["capture"])
         refs.append(
             {
                 "namespace": HTTP_EXCHANGE_NAMESPACE,
                 "name": http_exchange_artifact_name(
-                    request["httpEvidenceInvocationId"],
-                    request["httpEvidence"]["source"],
-                    request["httpEvidence"]["request_id"],
+                    selected["invocationId"],
+                    selected["capture"]["source"],
+                    selected["capture"]["request_id"],
                 ),
                 "revision": "http-rev-1",
             }

@@ -188,16 +188,16 @@ def test_mixed_local_ids_discovery_inspection_and_publication(tmp_path, facade):
             assert operations[-1]["variables"] == {"id": "1"}
             before = len(operations)
             await finding(**args, sources=http_sources(selected), tool_context=context)
-            assert client.requests[-1]["httpEvidence"]["source"] == "caido"
-            assert client.requests[-1]["httpEvidence"]["request_id"] == "1"
+            assert client.requests[-1]["httpEvidence"][0]["capture"]["source"] == "caido"
+            assert client.requests[-1]["httpEvidence"][0]["capture"]["request_id"] == "1"
             context.function_call_id = "http-second"
             await finding(**args, sources=http_sources(sent["request_id"]), tool_context=context)
-            assert client.requests[-1]["httpEvidence"]["source"] == "http"
+            assert client.requests[-1]["httpEvidence"][0]["capture"]["source"] == "http"
             assert len(operations) == before
             context.invocation_id = "foreign"
             context.function_call_id = "caido-later"
             await finding(**args, sources=http_sources(selected), tool_context=context)
-            assert client.requests[-1]["httpEvidence"]["source"] == "caido"
+            assert client.requests[-1]["httpEvidence"][0]["capture"]["source"] == "caido"
             assert len(operations) == before
         finally:
             await close_tools(http)

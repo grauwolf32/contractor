@@ -63,7 +63,6 @@ def prepare_finding_submission(value: Mapping, maximum: int, proposal_limit: int
         "incidental",
         "itemKey",
         "evidenceRefs",
-        "httpEvidenceInvocationId",
     }
     if set(value) - allowed - fields.keys() or "proposal" not in value:
         raise ValueError("invalid finding submission")
@@ -74,7 +73,12 @@ def prepare_finding_submission(value: Mapping, maximum: int, proposal_limit: int
     for name, (kind, size_field) in fields.items():
         if name not in value:
             continue
-        if not isinstance(value[name], Mapping):
+        if name == "httpEvidence":
+            if not isinstance(value[name], list) or not 1 <= len(value[name]) <= 256:
+                raise ValueError("invalid finding HTTP evidence")
+            if len(value.get("evidenceRefs", [])) + len(value[name]) > 256:
+                raise ValueError("finding evidence exceeds its count limit")
+        elif not isinstance(value[name], Mapping):
             raise ValueError("invalid finding document")
         data = _json(value[name])
         if name == "proposal" and len(data) > proposal_limit:

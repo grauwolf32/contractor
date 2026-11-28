@@ -255,27 +255,29 @@ describe("Issues", () => {
       { url: "https://shop.example/orders/1", method: "GET" },
     ];
     source.document.evidence_ids = ["response"];
-    source.document.http_exchange = {
-      request_id: 7,
-      request_tag: "probe",
-      response_body_evidence_id: "response",
-      attempts: [
-        {
-          method: "GET",
-          url: "https://shop.example/orders/1",
-          headers: [
-            { name: "Accept", value: "application/json" },
-            { name: "Authorization", value: "Bearer secret-token" },
-          ],
-          body_base64: btoa('{"note":"probe"}'),
-          status: 200,
-          response_headers: [
-            { name: "Set-Cookie", value: "session=abc123" },
-            { name: "Content-Type", value: "application/json" },
-          ],
-        },
-      ],
-    };
+    source.document.http_exchanges = [
+      {
+        request_id: 7,
+        request_tag: "probe",
+        response_body_evidence_id: "response",
+        attempts: [
+          {
+            method: "GET",
+            url: "https://shop.example/orders/1",
+            headers: [
+              { name: "Accept", value: "application/json" },
+              { name: "Authorization", value: "Bearer secret-token" },
+            ],
+            body_base64: btoa('{"note":"probe"}'),
+            status: 200,
+            response_headers: [
+              { name: "Set-Cookie", value: "session=abc123" },
+              { name: "Content-Type", value: "application/json" },
+            ],
+          },
+        ],
+      },
+    ];
     source.projectEvidence = [
       {
         ref: { namespace: "audit-evidence", name: "body", revision: "r1" },
@@ -317,7 +319,7 @@ describe("Issues", () => {
     );
     const panel = within(review).getByRole("tabpanel", { name: "Evidence 4" });
     expect(
-      within(panel).getByRole("heading", { name: "Captured HTTP exchange" }),
+      within(panel).getByRole("heading", { name: "Captured HTTP exchanges" }),
     ).toBeVisible();
     expect(within(panel).getByText("orders/views.py:42")).toBeVisible();
     expect(

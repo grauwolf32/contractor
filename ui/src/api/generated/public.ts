@@ -4789,7 +4789,7 @@ export interface components {
             limitations: string[];
             /** @description Optional; source and web coordinates are producer claims. */
             locations?: components["schemas"]["FindingLocation"][];
-            http_exchange?: components["schemas"]["FindingHTTPExchange"];
+            http_exchanges?: components["schemas"]["FindingHTTPExchange"][];
         };
         FindingWorkflowOrigin: {
             name: components["schemas"]["ConfigurationName"];
@@ -7056,7 +7056,7 @@ export interface components {
             limitations: string[];
             /** @description Optional; source and web coordinates are producer claims. */
             locations?: components["schemas"]["FindingLocation"][];
-            http_exchange?: components["schemas"]["FindingHTTPExchange"];
+            http_exchanges?: components["schemas"]["FindingHTTPExchange"][];
         };
         ProjectFindingSummary: {
             findingId: components["schemas"]["ResourceId"];

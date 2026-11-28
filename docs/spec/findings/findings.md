@@ -72,8 +72,8 @@ document owns are:
   the model-visible tool `finding` with its own required arguments.
 - **Typed location.** A closed Source or Web object that records where the
   producer claims a finding is.
-- **Selected HTTP evidence.** The `http_exchange` snapshot of one captured
-  outgoing request that the HTTP facade copies into a proposal when it
+- **Selected HTTP evidence.** The `http_exchanges` ordered snapshots of selected captured
+  outgoing requests that the HTTP facade copies into a proposal when it
   receives a `request_id`.
 - **Runtime target credential marker.** The literal
   `[runtime-target-credential]`, captured in place of the Project target
@@ -118,7 +118,7 @@ A proposal is one JSON document under the schema
 | `severity_suggestion` | Suggested severity, for example `medium` |
 | `limitations` | Distinct, nonblank values (FND-R10) |
 | `locations` | Optional typed locations |
-| `http_exchange` | Optional selected HTTP evidence |
+| `http_exchanges` | Optional nonempty array of selected HTTP evidence projections |
 
 ### Location objects
 
@@ -130,8 +130,8 @@ A location is exactly one closed object:
 
 ### HTTP exchange snapshot
 
-`http_exchange` embeds a copied snapshot of one captured request in the
-proposal:
+`http_exchanges` embeds an ordered array of copied snapshots of selected captured
+requests in the proposal. Each element has:
 
 | Field | Content |
 | --- | --- |
@@ -190,7 +190,7 @@ stateDiagram-v2
 **FND-R1.** One current schema, `contractor.audit.finding-proposal.v1`,
 carries the proposal fields and the intake and receipt authority. It permits
 an explicitly unknown `subject: null` and adds optional `locations` and
-`http_exchange`. There is no alternate proposal schema.
+`http_exchanges`. There is no alternate proposal schema.
 
 **FND-R2.** A missing subject is never synthesized from a URL, title or
 run ID. Verification inventory uses the existing receipt identity when a
@@ -263,14 +263,14 @@ creation facade in `AgentTemplate.toolsets`:
 | `security-findings@1` | `title`, `description` | typed `locations` |
 | `security-findings-code@1` | `title`, `description`, `file` | `line` or `range` |
 | `security-findings-trace@1` | `title`, `description`, `file`, one `line` or `range` | current overlay coordinates, automatic exact evidence and translation (FND-R230) |
-| `security-findings-http@1` | `title`, `description`, `url`, `method` | `request_id` |
+| `security-findings-http@1` | `title`, `description`, `url`, `method` | HTTP selectors within `sources` |
 
 **FND-R17.** Each creation facade exports the single visible name
 `finding`. Selection is fixed before the Worker starts, and duplicate visible
 tool names are rejected.
 
-**FND-R18.** Each creation facade also accepts optional `cwe`, exact
-`evidence_refs` and typed `standard_refs`.
+**FND-R18.** Each creation facade also accepts optional `cwe`, typed
+`sources` (FND-R241) and typed `standard_refs`; Runtime resolves exact evidence refs.
 
 **FND-R19.** The creation facades share one publisher for normalization,
 intake and receipt handling. There is no parallel old authoring
@@ -390,9 +390,10 @@ source bytes.
 ### Selected HTTP evidence
 
 **FND-R42.** The HTTP facade requires `url` and `method` even without a
-captured source. The general and HTTP facades and `fact` accept an optional local integer
-`request_id` shared by HTTP and Caido tools (HTP-R72). Omitting it permits
-publication without captured HTTP evidence, subject to the ordinary evidence rules.
+captured source. The creation facades and `fact` accept local integer `request_id`
+values shared by HTTP and Caido tools (HTP-R72) within their typed `sources` array.
+Omitting HTTP selectors permits publication without captured HTTP evidence,
+subject to the ordinary evidence rules.
 
 **FND-R43.** A supplied source resolves only against the allocation's bounded
 HTTP/Caido captures or authorized stored-request locators, as owned by
@@ -412,7 +413,7 @@ exchange through the existing provider adapter. Buffered bytes are reused.
 separate facts; neither silently replaces the other.
 
 **FND-R48.** For direct HTTP capture the Server derives the optional
-`http_exchange` proposal/report projection described in
+`http_exchanges` proposal/report projection described in
 [HTTP exchange snapshot](#http-exchange-snapshot). Each projected attempt has
 exactly one of `status` or `error`; its errors are `transport_error` or
 `cancelled`. The full evidence artifact preserves response completeness and
@@ -491,9 +492,10 @@ allocation and validates the publication origin. It preserves historical origin
 through reuse and ordinary Audit/Project retention forks. The envelope has no
 `finding` member. Proposal/receipt associations stay with Finding intake.
 Embedded origin is historical provenance; an uploaded copy grants neither access
-nor trusted capture authority. A private finding submission with `httpEvidence: capture`
-requires `httpEvidenceInvocationId`, the original capture invocation supplied by
-the allocation's Runtime capture owner. Both fields are omitted without a selection.
+nor trusted capture authority. A private finding submission with selected HTTP evidence
+requires each `httpEvidence` array element to contain `invocationId` and `capture`.
+The former is the original capture invocation supplied by
+the allocation's Runtime capture owner. The array is omitted without a selection.
 The authenticated allocation still supplies the Run and publication authority;
 the capture invocation grants no additional access. It determines the evidence
 origin and frozen binding, while `invocationId` remains the Finding author's
@@ -614,7 +616,7 @@ sequenceDiagram
     participant R as Runtime finding facade
     participant S as Server intake
     participant DB as PostgreSQL
-    M->>R: finding(title, description, location arguments, optional cwe, evidence_refs, standard_refs)
+    M->>R: finding(title, description, location arguments, optional cwe, sources, standard_refs)
     R->>R: Reject unknown or deprecated CWE IDs locally, derive client_key from the ADK function-call ID
     R->>S: Artifact.SubmitFinding with typed invocation/submission IDs and named document chunks
     S->>S: Derive Run and optional Audit from the allocation, verify Toolset selection, write fence, exact evidence refs and limits
@@ -1041,7 +1043,7 @@ decode as a FindingProposal. Its `evidence_ids` set must equal the entry's
 evidence-link IDs exactly; the proposal's array order need not be lexical.
 
 **FND-R93.** The publisher preserves intake's mapping of `evidence-1`,
-`evidence-2` and so on to the receipt's sorted exact refs; it does not
+`evidence-2` and so on to the receipt's sorted exact refs followed by the selected captures in selection order; it does not
 renumber links after sorting the collection.
 
 **FND-R94.** The optional canonical Finding snapshot never rewrites the original proposal, source
@@ -2244,7 +2246,17 @@ invocation exit clears them. No new retention or access grant is created.
 existing independent Project intake, receipts and retention. The former
 model-facing `evidence_refs` and top-level `request_id` arguments are removed;
 internal normalized exact refs and HTTP/Caido intake envelopes remain exact.
-At most one local HTTP exchange is selected per Finding/fact. Informational
+Multiple local HTTP exchanges may be selected per Finding/fact. Runtime resolves all
+selected HTTP IDs before submission and preserves each original capture invocation
+in a closed `{invocationId, capture}` element of the private `httpEvidence` array.
+Server atomically publishes every selected exchange, numbers evidence after the
+sorted exact refs in HTTP selection order, and derives all representable
+`http_exchanges` projections in that order. Duplicate capture identities (including
+an exact ref to the same HTTP binding) are rejected. The array is omitted when
+absent; null, empty arrays and the former singular projection are invalid.
+The total selected refs and captures remain bounded by the existing per-finding evidence capacity, the existing
+proposal/request limits and LIM-FND-50 aggregate evidence bytes. An unrepresentable
+projection does not discard its full exact evidence. Informational
 facts retain their four-source maximum, including a selected memory snapshot.
 No prior Audit evidence record or hypothesis is required for a Finding.
 A fact is attributed reusable knowledge, not an independent verification of its

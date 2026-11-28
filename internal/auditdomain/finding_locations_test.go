@@ -78,14 +78,14 @@ func TestFindingHTTPRetainsRequestAndExactResponseLink(t *testing.T) {
 	proposal := findingFixture()
 	status := 200
 	proposal.EvidenceIDs = []string{"evidence-1"}
-	proposal.HTTPExchange = &FindingHTTPExchange{
+	proposal.HTTPExchanges = []FindingHTTPExchange{{
 		RequestID: 1, RequestTag: "r-test-h000001", ResponseBodyEvidenceID: "evidence-1",
 		Attempts: []FindingHTTPAttempt{{
 			Method: "POST", URL: "https://example.test/?a=%2f&a=2", Status: &status,
 			Headers:    []FindingHTTPHeader{{Name: "Authorization", Value: "Bearer test-token"}},
 			BodyBase64: "AP8=",
 		}},
-	}
+	}}
 	encoded, err := EncodeFindingProposal(proposal)
 	if err != nil {
 		t.Fatal(err)

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contractor.local/schema/v1alpha1/http-exchange.schema.json",
-  "$comment": "Capture in private finding submission httpEvidence. Additional semantic bounds (HTTP identity <= 2^53-1, URL/header grammar, source/message matching, canonical base64 and decoded/aggregate bytes) are enforced by the owning shared-case validators. Stored evidence uses #/$defs/artifact.",
+  "$comment": "Selected HTTP/Caido captures retain their original invocation in each finding httpEvidence envelope. Per-capture grammar and byte bounds remain enforced by the shared validators.",
   "$ref": "#/$defs/capture",
   "$defs": {
     "header": {
@@ -318,20 +318,30 @@
       "additionalProperties": false,
       "properties": {
         "httpEvidence": {
-          "$ref": "#/$defs/capture"
-        },
-        "httpEvidenceInvocationId": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/selectedCapture"
+          }
+        }
+      }
+    },
+    "selectedCapture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "invocationId",
+        "capture"
+      ],
+      "properties": {
+        "invocationId": {
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "capture": {
+          "$ref": "#/$defs/capture"
         }
-      },
-      "dependentRequired": {
-        "httpEvidence": [
-          "httpEvidenceInvocationId"
-        ],
-        "httpEvidenceInvocationId": [
-          "httpEvidence"
-        ]
       }
     }
   }

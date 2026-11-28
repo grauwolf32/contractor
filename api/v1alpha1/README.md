@@ -271,9 +271,13 @@ boundaries, two successful RSS observations and no uncovered interval above 30 s
 Shared Go/Python cases also verify cross-field invariants beyond JSON Schema.
 
 `http-exchange.schema.json` describes the captured exchange submitted as
-`httpEvidence` with an allocation finding. Its required paired
-`httpEvidenceInvocationId` identifies the original capture invocation, independently
-of the Finding's current `invocationId`; `#/$defs/selection` describes that pair.
+the `capture` of each allocation finding `httpEvidence` array element. Each closed
+`{invocationId, capture}` element identifies its original capture invocation,
+independently of the Finding's current `invocationId`; `#/$defs/selection` describes
+this optional nonempty array. Captures and exact refs together stay within 256
+sources (four for informational findings), the 64 MiB request and aggregate evidence
+bounds, and the existing per-capture bounds. The bulk HTTP evidence document carries
+this array as one JSON document; no per-capture stream or receipt is introduced.
 The Runtime capture owner supplies it, and Server derives the Run from the allocation.
 `#/$defs/artifact` describes the
 frozen selected evidence, whose finding association is supplied by Server

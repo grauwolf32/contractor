@@ -8,16 +8,16 @@ import "slices"
 // instead of one proposal artifact per finding. The proposal validator and
 // the projection share one definition of these fields.
 type FindingReportProjection struct {
-	Title              string               `json:"title"`
-	Description        string               `json:"description"`
-	Subject            *FindingSubject      `json:"subject"`
-	Hypothesis         string               `json:"hypothesis,omitempty"`
-	Preconditions      []string             `json:"preconditions"`
-	StandardRefs       []StandardReference  `json:"standard_refs"`
-	SeveritySuggestion string               `json:"severity_suggestion"`
-	Limitations        []string             `json:"limitations"`
-	Locations          []FindingLocation    `json:"locations,omitempty"`
-	HTTPExchange       *FindingHTTPExchange `json:"http_exchange,omitempty"`
+	Title              string                `json:"title"`
+	Description        string                `json:"description"`
+	Subject            *FindingSubject       `json:"subject"`
+	Hypothesis         string                `json:"hypothesis,omitempty"`
+	Preconditions      []string              `json:"preconditions"`
+	StandardRefs       []StandardReference   `json:"standard_refs"`
+	SeveritySuggestion string                `json:"severity_suggestion"`
+	Limitations        []string              `json:"limitations"`
+	Locations          []FindingLocation     `json:"locations,omitempty"`
+	HTTPExchanges      []FindingHTTPExchange `json:"http_exchanges,omitempty"`
 }
 
 // ProjectFindingReport returns the report projection of a proposal.
@@ -27,7 +27,7 @@ func ProjectFindingReport(proposal FindingProposal) FindingReportProjection {
 		Hypothesis: proposal.Hypothesis, Preconditions: slices.Clone(proposal.Preconditions),
 		StandardRefs:       proposal.StandardRefs,
 		SeveritySuggestion: proposal.SeveritySuggestion, Limitations: proposal.Limitations,
-		Locations: proposal.Locations, HTTPExchange: proposal.HTTPExchange,
+		Locations: proposal.Locations, HTTPExchanges: proposal.HTTPExchanges,
 	}
 }
 
@@ -46,7 +46,7 @@ func (projection *FindingReportProjection) UnmarshalJSON(data []byte) error {
 	}
 	err = validateFindingJSONFields(raw,
 		"title description subject preconditions standard_refs severity_suggestion limitations",
-		"hypothesis locations http_exchange", "subject")
+		"hypothesis locations http_exchanges", "subject")
 	if err != nil {
 		return err
 	}
@@ -73,9 +73,15 @@ func validateFindingReportJSON(fields map[string]any, decodedSubject bool) error
 			return err
 		}
 	}
-	if exchange, present := fields["http_exchange"]; present {
-		if err := validateHTTPExchangeJSON(exchange); err != nil {
-			return err
+	if raw, present := fields["http_exchanges"]; present {
+		exchanges, ok := raw.([]any)
+		if !ok || len(exchanges) == 0 || len(exchanges) > MaximumEvidencePerItem {
+			return invalid(CodeInvalid, "http_exchanges")
+		}
+		for _, exchange := range exchanges {
+			if err := validateHTTPExchangeJSON(exchange); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -103,8 +109,11 @@ func validateFindingReportProjection(value FindingReportProjection) error {
 			return err
 		}
 	}
-	if value.HTTPExchange != nil {
-		if err := validateFindingHTTPExchange(*value.HTTPExchange); err != nil {
+	if len(value.HTTPExchanges) > MaximumEvidencePerItem {
+		return invalid(CodeLimitExceeded, "http_exchanges")
+	}
+	for _, exchange := range value.HTTPExchanges {
+		if err := validateFindingHTTPExchange(exchange); err != nil {
 			return err
 		}
 	}
@@ -124,10 +133,10 @@ func validateFindingReportProjection(value FindingReportProjection) error {
 // validateFindingEvidenceReferences checks the proposal-only reference from an
 // HTTP exchange to one of the proposal's evidence IDs.
 func validateFindingEvidenceReferences(proposal FindingProposal) error {
-	exchange := proposal.HTTPExchange
-	if exchange != nil && exchange.ResponseBodyEvidenceID != "" &&
-		!slices.Contains(proposal.EvidenceIDs, exchange.ResponseBodyEvidenceID) {
-		return invalid(CodeReferenceInvalid, "http_exchange.response_body_evidence_id")
+	for _, exchange := range proposal.HTTPExchanges {
+		if exchange.ResponseBodyEvidenceID != "" && !slices.Contains(proposal.EvidenceIDs, exchange.ResponseBodyEvidenceID) {
+			return invalid(CodeReferenceInvalid, "http_exchanges.response_body_evidence_id")
+		}
 	}
 	return nil
 }

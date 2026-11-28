@@ -9423,9 +9423,9 @@ type FindingCandidatesPageTargetBasis string
 
 // FindingClaim defines model for FindingClaim.
 type FindingClaim struct {
-	Description  string               `json:"description"`
-	HttpExchange *FindingHTTPExchange `json:"http_exchange,omitempty"`
-	Hypothesis   *string              `json:"hypothesis,omitempty"`
+	Description   string                 `json:"description"`
+	HttpExchanges *[]FindingHTTPExchange `json:"http_exchanges,omitempty"`
+	Hypothesis    *string                `json:"hypothesis,omitempty"`
 
 	// Limitations Each value is limited to 512 UTF-8 bytes by the Server.
 	Limitations []string `json:"limitations"`
@@ -9721,11 +9721,11 @@ type FindingOriginOperation string
 
 // FindingProposalDocument defines model for FindingProposalDocument.
 type FindingProposalDocument struct {
-	ClientKey    string               `json:"client_key"`
-	Description  string               `json:"description"`
-	EvidenceIds  []string             `json:"evidence_ids"`
-	HttpExchange *FindingHTTPExchange `json:"http_exchange,omitempty"`
-	Hypothesis   *string              `json:"hypothesis,omitempty"`
+	ClientKey     string                 `json:"client_key"`
+	Description   string                 `json:"description"`
+	EvidenceIds   []string               `json:"evidence_ids"`
+	HttpExchanges *[]FindingHTTPExchange `json:"http_exchanges,omitempty"`
+	Hypothesis    *string                `json:"hypothesis,omitempty"`
 
 	// Limitations Each value is limited to 512 UTF-8 bytes by the Server.
 	Limitations []string `json:"limitations"`
