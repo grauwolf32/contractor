@@ -4,9 +4,9 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from google.adk.tools import FunctionTool
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.worker_state import WorkerState
+from google.adk.tools import FunctionTool
 from test_adk_runtime import create_runtime, stage_request
 from test_text_artifacts_toolset import MemoryArtifactClient, make_tools
 
