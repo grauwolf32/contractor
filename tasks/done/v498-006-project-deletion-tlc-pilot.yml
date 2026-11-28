@@ -1,0 +1,122 @@
+schema_version: "1.0"
+id: V498-006
+title: "Verify Project deletion phases and claim handover with TLC"
+milestone: artifact-release-cleanup-2026-11
+epic: projects-artifacts
+kind: chore
+priority: P2
+status: completed
+implementation_commit: a041c9e4daf03a23ff770a11ac1324b9bb5c972d
+depends_on: [V498-005]
+languages: [go]
+goal: >-
+  Establish checked evidence that Project deletion resumes durable progress
+  after restart, cannot purge before children drain, and rejects replaced
+  claims at the phase and Project purge boundaries.
+context:
+  authority:
+    - "User request 2026-11-28: run a TLA+/TLC pilot of Project deletion cancel, drain, purge, restart and claim handover; create a task and bind results to PostgreSQL tests."
+    - "User request 2026-11-28: keep artifacts in /Users/ruslan/src/contractor/.lean/project-deletion."
+  specification:
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R40
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R44
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R45
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R47
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R48
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R49
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R60
+    - docs/spec/platform/persistence.md#PER-R18
+  finding: >-
+    internal/projectlifecycle/controller.go:153 owns one bounded claimed step
+    and fresh-context bookkeeping; controller.go:390 owns locked Project purge
+    transactions. internal/projectstore/deletion_claim.go owns claim ID and phase
+    fencing. Existing real-store tests cover the phases and cleanup budgets,
+    but do not connect a bounded model to restart at every phase or stale
+    operations after actual claim replacement and transaction rollback.
+  boundary: >-
+    ProjectStore owns durable lifecycle, phase and claim identity. Project
+    lifecycle composes Audit deletion intent, ordinary Run cancellation,
+    drain checks, RunDeletion and ordered bounded Eval/receipt/Artifact purge.
+    Lease expiry makes a claim replaceable; it does not itself revoke an
+    unreplaced claim. Advance and Project purge check ID and phase; release
+    and defer intentionally accept the same ID after its phase advanced.
+    Run cancellation and individual Run deletion use their own monotonic
+    lifecycle gates and are not universally fenced by a Project claim.
+  decision: >-
+    Use finite phase/progress and claim/transaction models with named mutation
+    controls and reachability witnesses, joined to real controller/store tests.
+    A model of claim bookkeeping alone would be simpler but miss early purge
+    and committed progress after restart. PostgreSQL atomicity, constraints and
+    row locks are assumptions independently exercised by tests, not proved.
+    Restart tests reconstruct controllers over the real database, not a Server
+    process or physical network. No intended production change; an established
+    defect gets its own scoped task. Project lifecycle and persistence owners
+    reopen on phase, gate, claim, transaction or cleanup ordering changes.
+scope:
+  in:
+    - "Durable cancelling, draining, purging_runs and purging_artifacts phases, terminal/released Run and Audit/Eval drain gates, ordered bounded cleanup."
+    - "Crash/rollback before commit and restart after committed progress but before bookkeeping; retries must not recreate removed resources."
+    - "Expiry before replacement, actual claim handover, stale phase snapshots, release/defer, SKIP LOCKED and Project purge transactions."
+    - "New real PostgreSQL restart/handover/rollback regressions, exact executed-test mapping, full touched packages and lint."
+    - "Local ignored model/config/log artifacts, tracked task/tests/evidence and owned test database cleanup."
+  out:
+    - "Production/schema/API changes, new claim machinery, CI adoption and deployment."
+    - "Unbounded correctness, fairness/liveness, all child-controller internals, full Server process restart, physical network faults and physical blob cleanup."
+    - "A stronger rule forbidding every late Run cancellation/deletion after Project claim expiry or replacement."
+acceptance_criteria:
+  - id: A1
+    text: "Finite baseline graphs exhaust without early purge, resource resurrection, out-of-order cleanup, unbounded batch or lost committed progress; assumptions and code correspondence are recorded."
+  - id: A2
+    text: "Claim model distinguishes expiry from replacement, fences stale phase/ID operations, keeps takeover out of a locked purge transaction and preserves commit/rollback semantics."
+  - id: A3
+    text: "Named negative controls violate their assigned invariants; witnesses reach drain blockers, every phase, restart, replacement, rollback and final deletion."
+  - id: A4
+    text: "Real PostgreSQL regressions reconstruct controllers before/after committed phase work, replace an expired claim in every phase, reject stale operations without changing the new claim, and verify locked-batch commit/rollback and resumed cleanup."
+  - id: A5
+    text: "Required existing cancellation, allocation/Audit/Eval drain, ordered bounded purge and claim tests execute; full packages, exact-test validation and lint pass, skips are explicit and owned resources removed."
+tests:
+  - command: "python3 /Users/ruslan/src/contractor/.lean/project-deletion/run.py"
+    covers: [A1, A2, A3]
+  - command: "go test -json -race -tags=integration -count=1 -timeout 20m ./internal/projectlifecycle ./internal/projectstore"
+    covers: [A4, A5]
+  - command: "python3 /Users/ruslan/src/contractor/.lean/project-deletion/verify_postgres.py"
+    covers: [A4, A5]
+  - command: make lint
+    covers: [A5]
+verification:
+  evidence: tasks/evidence/v498-006-project-deletion.json
+  local_report: /Users/ruslan/src/contractor/.lean/project-deletion/README.md
+  result: >-
+    Eight finite baseline graphs exhaust without violations: phase models
+    explore 61, 209, 895 and 877 distinct states; claim models 85, 925, 1399
+    and 3071. All 16 negative controls violate their assigned invariants and
+    all 41 witnesses are reached, for 65 expected TLC outcomes. Full Go packages
+    pass under race/integration on UTF-8 PostgreSQL: 25 top-level tests, all
+    14 new leaf scenarios and required existing cases, no Go skips. This includes
+    the existing 50000-revision bounded purge and 60000-Run read-budget fixtures.
+    Full make lint passes with one auxiliary Python unittest skip, not coverage.
+    Final owned database, server, data and socket cleanup succeeds after both gates.
+  verification_incident: >-
+    Initial initdb without an explicit encoding produced SQL_ASCII. Three
+    existing read-plan tests failed because pgx simple protocol requires UTF8.
+    After the initial lint stopped, only the owned test cluster was recreated
+    with --encoding=UTF8, including template databases. Both full gates passed
+    on the corrected setup. Failed Go and initial lint logs/results are retained;
+    the failed run is not counted as coverage. No production fix was needed.
+  limits: >-
+    Finite safety, not unbounded/refinement/composition proof or fairness/liveness.
+    Phase model covers one Project, one/two Runs, optional Audit/Eval blockers,
+    one/two abstract items and batch one/two. Claim model covers one/two controllers,
+    three/four unique IDs, starts in cancelling or purging_artifacts, and up to
+    two items. Symbolic generations represent unique opaque IDs, not a new epoch
+    field. Expiry does not revoke an unreplaced ID; release/defer intentionally
+    accept the same ID after phase advance. Late individual Run operations retain
+    their own lifecycle gates. PostgreSQL atomicity/locks, noncolliding IDs and
+    clock comparisons are assumptions checked independently where covered.
+    Restart reconstructs Controllers over real PostgreSQL, not a Server process;
+    the locked rollback fixture exercises the real Artifact tail without Eval
+    or receipt data. Child internals, physical blob/network failures, all table
+    and byte-budget combinations, HTTP authorization and arbitrary histories are
+    excluded. No production defect or production/schema/API change was established.
+    Project lifecycle and persistence owners reopen on gate, phase, claim,
+    transaction or cleanup ordering changes. No automatic CI gate.
