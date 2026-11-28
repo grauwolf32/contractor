@@ -9,10 +9,8 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from contractor_runtime import threads
 from contractor_runtime.artifacts import (
+    ArtifactAPIError,
     ArtifactTransportError,
-    allocation_path,
-    raise_for_status,
-    require_json,
 )
 from contractor_runtime.contracts import API_VERSION, ArtifactRef
 from contractor_runtime.contracts.audit_documents import validate_audit_material
@@ -65,27 +63,27 @@ class AuditEvidenceClient:
         )
         if len(body) > 8 * 1024 * 1024:
             raise ValueError("Audit evidence request exceeds its size limit")
+        value = await threads.to_thread_until_done(
+            strict_json_loads, body, name="audit-evidence-frozen-request"
+        )
         for attempt in range(2):
             try:
-                return await self._attempt(body, value)
+                return await self._attempt(value)
             except ArtifactTransportError:
                 if attempt:
                     raise
 
-    async def _attempt(self, body, value):
-        response = await self.client.transport.request(
-            "POST",
-            allocation_path(self.client.allocation_id, "audit-evidence"),
-            headers={"Accept": "application/json", "Content-Type": "application/json"},
-            body=body,
-            max_response_bytes=1 << 20,
-        )
-        raise_for_status(response)
-        if response.status_code not in {200, 201}:
-            raise ArtifactTransportError("Audit evidence API returned an invalid status")
-        require_json(response.headers)
+    async def _attempt(self, value):
         try:
-            receipt = EvidenceReceipt.model_validate(strict_json_loads(response.body))
+            response = await self.client.transport.submit_audit_evidence(
+                self.client.allocation_id, value
+            )
+        except ArtifactAPIError as error:
+            if error.code in {"invalid_response", "invalid_error_response"}:
+                raise ArtifactTransportError("Audit evidence receipt is unconfirmed") from None
+            raise
+        try:
+            receipt = EvidenceReceipt.model_validate(response)
         except (ValidationError, ValueError):
             raise ArtifactTransportError("Audit evidence API returned an invalid receipt") from None
         result = json.loads(receipt.model_dump_json())

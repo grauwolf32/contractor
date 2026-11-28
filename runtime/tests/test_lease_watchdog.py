@@ -146,11 +146,11 @@ def test_released_allocation_stays_fenced_until_watchdog_is_rearmed(
         allow_registration = asyncio.Event()
 
         class PausingRegistration(ScriptedTransport):
-            async def post_json(self, path: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
-                if path.endswith("/register"):
+            async def exchange(self, path: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+                if path == "register":
                     registration_started.set()
                     await allow_registration.wait()
-                return await super().post_json(path, payload)
+                return await super().exchange(path, payload)
 
         transport = PausingRegistration(
             [
@@ -492,10 +492,16 @@ class GatedRuntimeFactory:
 
 
 class ScriptedTransport:
+    async def register(self, payload):
+        return await self.exchange("register", payload)
+
+    async def heartbeat(self, payload):
+        return await self.exchange("heartbeat", payload)
+
     def __init__(self, responses: list[Mapping[str, Any] | BaseException]) -> None:
         self.responses = list(responses)
 
-    async def post_json(self, _: str, __: Mapping[str, Any]) -> Mapping[str, Any]:
+    async def exchange(self, _: str, __: Mapping[str, Any]) -> Mapping[str, Any]:
         response = self.responses.pop(0)
         if isinstance(response, BaseException):
             raise response

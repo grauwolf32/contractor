@@ -1,0 +1,147 @@
+schema_version: '1.0'
+id: V490-003
+title: Complete gRPC control lifecycle and failure handling
+milestone: server-runtime-grpc-2026-11
+epic: execution-core
+kind: feature
+priority: P1
+status: completed
+depends_on:
+- V490-002
+languages:
+- go
+- python
+- protobuf
+- markdown
+goal: All existing control and State operations retain their behavior across concurrent slots, disconnects
+  and shutdown on gRPC.
+demonstration: One capacity-four Runtime serves four allocations; cancel/release of one leaves the others live,
+  and disconnect/restart cases reconcile through the existing heartbeat and lifecycle identities.
+context:
+  authority: 'User decision 2026-11-27: plan and implement gRPC for Server/Runtime, preserve A2A. Direct connectivity
+    through the existing overlay is an architectural fact, not new scope. NAT, reverse tunnels and removal
+    of A2A were explicitly rejected. Implementation does not authorize deployment or merging main. The task
+    decomposition and typed protobuf design are agent proposals. Subsequent user decision 2026-11-27:
+    preserve the current PKI and use a bounded in-process Runtime TLS adapter with actual-connection
+    Control Plane URI SAN verification and private Unix sockets for native grpcio.'
+  proposal: docs/proposals/0038-server-runtime-transport.md
+  specification:
+  - docs/spec/execution/control-plane.md#CTL-R163
+  - docs/spec/execution/runtime-agent.md#RTA-R75
+  - docs/spec/platform/security.md#SEC-R5
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/persistence.md#PER-R24
+  baseline: main 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b
+  boundary_decision: >-
+    Implementation choice 2026-11-27: ReadState preserves the existing
+    AgentStateSnapshot JSON report boundary and 4 MiB document ceiling. A typed
+    allocation/conditional-revision request and revision/snapshot-or-not-modified
+    response replace HTTP validators; a 1 KiB protobuf envelope allowance does
+    not raise the document or A2A ceiling. The Server derives its existing cache
+    ETag locally. Bootstrap and heartbeat share one process-owned control channel,
+    isolated from Artifact traffic; permanent replies enter the existing joined
+    shutdown owner. Origin validation reuses the common bounded endpoint grammar
+    and rejects paths before registration or connecting. Shared fixtures pin
+    exact uint64 sequences, origin grammar and independent byte limits. Reopen
+    the JSON report boundary only with a separately requested report redesign.
+scope:
+  in:
+  - Cover shared config bootstrap, registration, heartbeat, prepare, finalize, abort, release and conditional
+    AgentState reads.
+  - Retain heartbeat sequence/ack/echo lease semantics and two-phase release; channel connectivity and HTTP/2
+    PING never renew authority.
+  - Own and bound channels per principal/endpoint; preserve certificate refresh, request deadlines, control-vs-bulk
+    isolation and shutdown joins.
+  - Map stable domain code/retryable/requestId to typed gRPC details; distinguish definite rejection from potentially
+    committed mutation.
+  out:
+  - No new receipt table, same-Stage resume, changed Scheduler placement or implicit retries.
+requirements:
+- id: R1
+  text: Preserve existing component/domain ownership, mTLS role and principal checks, allocation fencing, receipts,
+    canonical JSON digests and effective deadlines. Update each changed owning spec and cross-language fixture
+    in the same implementation.
+- id: R2
+  text: Use standard A2A gRPC, direct overlay connectivity and no legacy fallback. No generic HTTP-over-gRPC
+    tunnel or second workflow execution engine.
+failure_outcomes:
+- operation: Each migrated RPC and stream
+  permanent: Invalid request/identity/permission and deterministic store rejection retain a stable domain code
+    in gRPC details and are never retried. The V490-001 contract defines the status mapping.
+  retryable: Use existing caller attempt/backoff bounds and effective deadline; no blanket automatic replay/hedging.
+    Transport reconnect is not mutation retry.
+  ambiguous: Reuse existing operation-specific receipts, sequence, lifecycle ID or Artifact expected revision.
+    A lost reply is not proof of non-commit; do not resubmit with a new identity.
+  cancelled: The existing operation owner fences, cancels and joins tasks before releasing allocation or transfer
+    resources. RPC cancellation alone is not proof of Worker termination.
+  timeout: Keep request, invocation/Stage, heartbeat lease and finalization/abort budgets separate; a channel
+    reconnect never extends them.
+cardinality:
+- collection: Runtime allocations and in-flight operations
+  expected: 1-4 slots per process; one active A2A Task per Worker
+  maximum: Existing domain bounds in docs/spec/platform/limits.md; process capacity 4, heartbeat reconciliation
+    actions 8, Artifact payload 64 MiB, Server payload transfers 4.
+  bound: Bound pending RPC admission, messages, aggregate bytes and per-stream buffers explicitly in V490-001/owning
+    spec before production implementation. Existing domain limits are not replaced with gRPC defaults.
+lifecycle:
+- entity: gRPC channels and request/stream owners
+  delete: Process shutdown closes owned channels after the Scheduler/Workers stop; releasing one allocation
+    must not kill sibling slots.
+  cascade: Cancel/join active work and release transfer permits through the existing owners.
+  retention: No new durable entity, receipt or queue. Existing report and Artifact retention stays with its
+    domain.
+acceptance_criteria:
+- id: A1
+  text: Real PostgreSQL/process cases cover capacities one and four, concurrent release, stale instance, principal
+    replacement and Server/Runtime loss.
+- id: A2
+  text: Deadline budgets cover connection admission, TLS and RPC, while finalization/abort retain independent
+    cleanup budgets; no work outlives release.
+- id: A3
+  text: Lost replies use original heartbeat/finalization/abort identities; malformed or permanent replies never
+    produce an unbounded retry; State revision/not-modified semantics survive.
+tests:
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-go
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: 85ee8515a8d1407902ea3441ae89960e048fad39
+verification:
+  status: passed
+  observed: >-
+    make lint, make test-go with disposable PostgreSQL, and
+    make test-wire-cross-language passed. The final wire gate passed 451
+    Python contract cases and 1684 shared Python cases, covering 437 fixtures
+    through 471 Go and 307 Python readers; one optional disk-heavy case was
+    skipped, not counted as coverage. make test-runtime passed 6840 cases
+    with 136 declared skips and both report verifiers, including 611 compaction
+    cases. Final complete A2A and contract suites also passed after the last
+    response-bound and origin-validation changes. Full controlplane, mtls and
+    runtimewire race suites passed, as did the real native lifecycle integration
+    package. make test-e2e passed all 71 process roots in 4213.171 seconds and
+    its report verifiers, including capacity four, sibling cancellation,
+    lower-capacity restart, lease loss and Server/Runtime restart. Earlier
+    diagnostic failures and a compilation overlapping a test import edit were
+    corrected and superseded by the accepted full gates. Heavy-I/O remained
+    disabled. No live model calls, deployment or merge into main occurred.

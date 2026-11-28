@@ -16,14 +16,12 @@ from urllib.parse import parse_qs, urlsplit
 import jcs
 import pytest
 from fakes import finding_collection
+from fakes.allocation_rpc import AllocationRPCFixture
+from fakes.artifact_responses import ArtifactHTTPResponse
 from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 
-from contractor_runtime.artifacts import (
-    ArtifactClient,
-    ArtifactHTTPResponse,
-    ArtifactTransportError,
-)
+from contractor_runtime.artifacts import ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import API_VERSION, ArtifactRef, RuntimeSettings
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.toolsets.run_artifacts.tools import ReadArtifactTool
@@ -134,7 +132,7 @@ def _replace_proposal(collection, contents, index, transform):
     collection["documents"].sort(key=lambda doc: doc["id"])
 
 
-class Transport:
+class Transport(AllocationRPCFixture):
     """Real ArtifactClient wire behavior in one allocation, with injected faults."""
 
     def __init__(self, payload):
@@ -268,7 +266,7 @@ async def _tools(transport, selected=("list_findings",)):
         runtime_settings=RuntimeSettings(
             llmGatewayUrl="https://llm.example/v1",
             llmGatewayToken="secret",
-            artifactApiUrl="https://cp.example/private/v1",
+            artifactApiUrl="https://cp.example",
             requestTimeoutSeconds=5,
         ),
         workspace=AllocationWorkspace(root=Path("/tmp/findings"), path=Path("/tmp/findings/a")),
@@ -725,11 +723,11 @@ def test_artifact_client_enforces_reader_byte_limit_even_with_unbounded_transpor
         transport = Transport(b"too large")
         client = ArtifactClient("consumer-allocation", transport)
         ref = ArtifactRef(namespace="inputs", name="findings")
-        with pytest.raises(ArtifactTransportError, match="byte limit"):
+        with pytest.raises(ArtifactTransportError, match=r"(?:byte|read) limit"):
             await client.read_artifact(ref, max_bytes=3)
         assert transport.requests[-1][3] == 3
         for bound in (0, True, 64 * 1024 * 1024 + 1):
-            with pytest.raises(ValueError, match="byte limit"):
+            with pytest.raises(ValueError, match=r"(?:byte|read) limit"):
                 await client.read_artifact(ref, max_bytes=bound)
 
     asyncio.run(scenario())

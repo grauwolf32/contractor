@@ -3,123 +3,86 @@ package controlplane
 import (
 	"context"
 	"errors"
-	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/helpers/requestid"
+	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/runtimewire"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
 )
 
 var agentStateETagPattern = regexp.MustCompile(`^"contractor-agent-state-v1-[1-9][0-9]*"$`)
 
-func (c *RuntimeControlClient) ReadWorkerState(
-	ctx context.Context,
-	handle contracts.WorkerHandle,
-	ifNoneMatch string,
-) (reporting.WorkerStateReadResult, error) {
-	if ifNoneMatch != "" && !agentStateETagPattern.MatchString(ifNoneMatch) {
-		return reporting.WorkerStateReadResult{}, workerStateReadError(0, "worker_state_etag_invalid", false)
-	}
-	target, err := c.workerStateEndpoint(handle)
+func (c *RuntimeControlClient) ReadWorkerState(ctx context.Context, handle contracts.WorkerHandle, conditional string) (reporting.WorkerStateReadResult, error) {
+	origin, err := c.workerStateEndpoint(handle)
 	if err != nil {
-		return reporting.WorkerStateReadResult{}, workerStateReadError(0, "worker_state_endpoint_invalid", false)
+		return reporting.WorkerStateReadResult{}, workerStateReadError("worker_state_endpoint_invalid", false)
 	}
-	return c.readWorkerState(ctx, target, handle.RuntimeAgentID, ifNoneMatch)
+	return c.readWorkerState(ctx, origin, handle.AllocationID, handle.RuntimeAgentID, conditional)
 }
 
-func (c *RuntimeControlClient) readWorkerState(ctx context.Context, target, runtimeAgentID, ifNoneMatch string) (reporting.WorkerStateReadResult, error) {
-	headers := map[string]string{}
-	if ifNoneMatch != "" {
-		headers["If-None-Match"] = ifNoneMatch
+func (c *RuntimeControlClient) readWorkerState(ctx context.Context, origin, allocationID, principal, conditional string) (reporting.WorkerStateReadResult, error) {
+	empty := reporting.WorkerStateReadResult{}
+	request := &pb.StateReadRequest{AllocationId: proto.String(allocationID)}
+	if conditional != "" {
+		if !agentStateETagPattern.MatchString(conditional) {
+			return empty, workerStateReadError("worker_state_etag_invalid", false)
+		}
+		revision, err := strconv.ParseUint(strings.TrimSuffix(strings.TrimPrefix(conditional, `"contractor-agent-state-v1-`), `"`), 10, 64)
+		if err != nil {
+			return empty, workerStateReadError("worker_state_etag_invalid", false)
+		}
+		request.IfRevision = proto.Uint64(revision)
 	}
-	response, err := c.doRequest(
-		ctx, http.MethodGet, target, nil, runtimeAgentID, headers,
-	)
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	ctx = metadata.AppendToOutgoingContext(ctx, "x-request-id", requestid.Ensure(ctx))
+	channel, release, err := c.channels.Borrow(ctx, origin, principal)
 	if err != nil {
-		code := "worker_state_transport_failed"
 		if ctx.Err() != nil {
-			code = "worker_state_cancelled"
+			return empty, workerStateReadError("worker_state_cancelled", true)
 		}
-		return reporting.WorkerStateReadResult{}, workerStateReadError(0, code, true)
+		return empty, workerStateReadError("worker_state_transport_failed", true)
 	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNotModified {
-		apiErr := decodeRuntimeError(response)
-		if typed, ok := apiErr.(*RuntimeAPIError); ok {
-			return reporting.WorkerStateReadResult{}, workerStateReadError(
-				typed.StatusCode, typed.Code, typed.Retryable,
-			)
-		}
-		return reporting.WorkerStateReadResult{}, workerStateReadError(
-			response.StatusCode, "worker_state_response_invalid", false,
-		)
-	}
-	if !oneHeaderValue(response, "Cache-Control", "private, no-cache") {
-		return reporting.WorkerStateReadResult{}, workerStateReadError(
-			response.StatusCode, "worker_state_response_invalid", false,
-		)
-	}
-	etagValues := response.Header.Values("ETag")
-	if len(etagValues) != 1 || !agentStateETagPattern.MatchString(etagValues[0]) {
-		return reporting.WorkerStateReadResult{}, workerStateReadError(
-			response.StatusCode, "worker_state_response_invalid", false,
-		)
-	}
-	etag := etagValues[0]
-	if response.StatusCode == http.StatusNotModified {
-		if ifNoneMatch == "" || etag != ifNoneMatch {
-			return reporting.WorkerStateReadResult{}, workerStateReadError(
-				response.StatusCode, "worker_state_response_invalid", false,
-			)
-		}
-		data, readErr := io.ReadAll(io.LimitReader(response.Body, 1))
-		if readErr != nil || len(data) != 0 {
-			return reporting.WorkerStateReadResult{}, workerStateReadError(
-				response.StatusCode, "worker_state_response_invalid", false,
-			)
-		}
-		return reporting.WorkerStateReadResult{ETag: etag, NotModified: true}, nil
-	}
-	if ifNoneMatch != "" && etag == ifNoneMatch {
-		return reporting.WorkerStateReadResult{}, workerStateReadError(
-			response.StatusCode, "worker_state_response_invalid", false,
-		)
-	}
-	if err := requireJSONContentType(response); err != nil {
-		return reporting.WorkerStateReadResult{}, workerStateReadError(
-			response.StatusCode, "worker_state_response_invalid", false,
-		)
-	}
-	data, err := readBoundedBody(response.Body, reporting.MaxAgentStateSnapshotBytes)
+	defer release()
+	response, err := pb.NewRuntimeLifecycleClient(channel).ReadState(ctx, request,
+		grpc.MaxCallRecvMsgSize(runtimewire.MaxStateMessageBytes), grpc.WaitForReady(false))
 	if err != nil {
-		return reporting.WorkerStateReadResult{}, workerStateReadError(
-			response.StatusCode, "worker_state_response_invalid", false,
-		)
+		rejected := c.channels.PeerRejected(channel)
+		c.channels.Evict(principal)
+		if rejected {
+			return empty, workerStateReadError("invalid_worker_handle", false)
+		}
+		if ctx.Err() != nil {
+			return empty, workerStateReadError("worker_state_cancelled", true)
+		}
+		var typed *RuntimeAPIError
+		if errors.As(decodeLifecycleError(err), &typed) {
+			if typed.Code == "transport_unavailable" {
+				return empty, workerStateReadError("worker_state_transport_failed", typed.Retryable)
+			}
+			return empty, workerStateReadError(typed.Code, typed.Retryable)
+		}
+		return empty, workerStateReadError("worker_state_transport_failed", true)
 	}
-	snapshot, err := contracts.DecodePrivateStrict[reporting.AgentStateSnapshot](data)
+	result, err := runtimewire.WorkerStateResult(response, request.GetIfRevision())
 	if err != nil {
-		return reporting.WorkerStateReadResult{}, workerStateReadError(
-			response.StatusCode, "worker_state_response_invalid", false,
-		)
+		c.channels.Evict(principal)
+		return empty, workerStateReadError("worker_state_response_invalid", false)
 	}
-	expectedETag := fmt.Sprintf(
-		"\"contractor-agent-state-v1-%d\"", snapshot.State.StateRevision,
-	)
-	if etag != expectedETag {
-		return reporting.WorkerStateReadResult{}, workerStateReadError(
-			response.StatusCode, "worker_state_response_invalid", false,
-		)
-	}
-	return reporting.WorkerStateReadResult{Snapshot: &snapshot, ETag: etag}, nil
+	return result, nil
 }
 
 func (c *RuntimeControlClient) workerStateEndpoint(handle contracts.WorkerHandle) (string, error) {
-	if !runtimePathIDPattern.MatchString(handle.AllocationID) {
-		return "", errors.New("allocation ID is not a safe URL path segment")
+	if contracts.ValidateResourceID("allocationId", handle.AllocationID) != nil {
+		return "", errors.New("allocation ID is invalid")
 	}
 	interfaces, ok := handle.AgentCard["supportedInterfaces"].([]any)
 	if !ok || len(interfaces) != 1 {
@@ -133,31 +96,16 @@ func (c *RuntimeControlClient) workerStateEndpoint(handle contracts.WorkerHandle
 	if !ok {
 		return "", errors.New("WorkerHandle has no exact A2A endpoint")
 	}
-	parsed, err := url.Parse(rawEndpoint)
-	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" ||
-		parsed.Fragment != "" || parsed.RawPath != "" {
+	if current["protocolBinding"] != "GRPC" || current["tenant"] != handle.AllocationID {
+		return "", errors.New("WorkerHandle A2A interface is invalid")
+	}
+	authority, err := mtls.GRPCAuthority("https://" + rawEndpoint)
+	if err != nil || authority != rawEndpoint {
 		return "", errors.New("WorkerHandle A2A endpoint is invalid")
 	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return "", errors.New("WorkerHandle A2A endpoint scheme is invalid")
-	}
-	if c.requireHTTPS && parsed.Scheme != "https" {
-		return "", errors.New("WorkerHandle A2A endpoint must use HTTPS")
-	}
-	suffix := "/private/v1/allocations/" + handle.AllocationID + "/a2a"
-	if !strings.HasSuffix(parsed.Path, suffix) {
-		return "", errors.New("WorkerHandle A2A endpoint does not match allocation")
-	}
-	parsed.Path = strings.TrimSuffix(parsed.Path, suffix) +
-		"/private/v1/allocations/" + handle.AllocationID + "/agent-state"
-	return parsed.String(), nil
+	return "https://" + authority, nil
 }
 
-func oneHeaderValue(response *http.Response, name, expected string) bool {
-	values := response.Header.Values(name)
-	return len(values) == 1 && values[0] == expected
-}
-
-func workerStateReadError(statusCode int, code string, retryable bool) error {
-	return &reporting.WorkerStateReadError{StatusCode: statusCode, Code: code, Retryable: retryable}
+func workerStateReadError(code string, retryable bool) error {
+	return &reporting.WorkerStateReadError{Code: code, Retryable: retryable}
 }

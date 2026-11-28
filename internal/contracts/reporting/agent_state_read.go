@@ -13,9 +13,8 @@ type WorkerStateReadResult struct {
 // no wrapped transport error, so it is safe to normalize into a model-facing
 // projection failure.
 type WorkerStateReadError struct {
-	StatusCode int
-	Code       string
-	Retryable  bool
+	Code      string
+	Retryable bool
 }
 
 func (e *WorkerStateReadError) Error() string {

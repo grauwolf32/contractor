@@ -79,7 +79,7 @@ class SubmitHypothesisProposalsTool(ArtifactTool):
             try:
                 prior = await self._client.read_artifact(target, max_bytes=1 << 20)
             except ArtifactAPIError as error:
-                if error.status_code != 404:
+                if error.code != "artifact_not_found":
                     raise
             try:
                 if len(selected_materials_json.encode()) > 1 << 20:

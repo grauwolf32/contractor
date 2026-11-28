@@ -26,7 +26,7 @@ func everySecretSettings() RuntimeSettings {
 		HTTPIdentities:  map[string]HTTPIdentityMaterial{"account-a": {Credential: RuntimeCredentialRef{CredentialID: "target-a", Kind: RuntimeCredentialTargetCookies}, Fields: map[string]contracts.SecretString{"password": contracts.NewSecretString("canary-target-password")}}},
 		LLMGatewayURL:   "https://gateway.example/v1",
 		LLMGatewayToken: secret("canary-llm-token"),
-		ArtifactAPIURL:  "https://server.example/private/v1",
+		ArtifactAPIURL:  "https://server.example",
 		Telemetry: &TelemetrySettings{
 			Adapter: RuntimeAdapterOTLPHTTP, Endpoint: "https://otel.example/v1/traces",
 			Headers: map[string]contracts.SecretString{
@@ -164,7 +164,7 @@ func TestRuntimeSettingsWireEncodingKeepsAbsentSecretsAbsent(t *testing.T) {
 	t.Parallel()
 
 	settings := RuntimeSettings{
-		ArtifactAPIURL: "https://server.example/private/v1", RequestTimeoutSeconds: 30,
+		ArtifactAPIURL: "https://server.example", RequestTimeoutSeconds: 30,
 		Telemetry: &TelemetrySettings{
 			Adapter: RuntimeAdapterOTLPHTTP, Endpoint: "https://otel.example/v1/traces",
 			Headers: map[string]contracts.SecretString{}, FlushTimeoutSeconds: 5,
@@ -195,7 +195,7 @@ func TestRuntimeSettingsUnauthenticatedGatewayOmitsTheToken(t *testing.T) {
 	t.Parallel()
 	settings := RuntimeSettings{
 		LLMGatewayURL:         "http://127.0.0.1:4000/v1",
-		ArtifactAPIURL:        "https://server.example/private/v1",
+		ArtifactAPIURL:        "https://server.example",
 		RequestTimeoutSeconds: 30,
 	}
 	if err := settings.Validate(); err != nil {
@@ -207,7 +207,7 @@ func TestRuntimeSettingsUnauthenticatedGatewayOmitsTheToken(t *testing.T) {
 		t.Fatal("an empty llmGatewayToken was accepted")
 	}
 	const wire = `{"llmGatewayUrl":"http://127.0.0.1:4000/v1","llmGatewayToken":"",` +
-		`"artifactApiUrl":"https://server.example/private/v1","requestTimeoutSeconds":30}`
+		`"artifactApiUrl":"https://server.example","requestTimeoutSeconds":30}`
 	if _, err := contracts.DecodePrivateStrict[RuntimeSettings]([]byte(wire)); err == nil {
 		t.Fatal("an empty llmGatewayToken was decoded")
 	}

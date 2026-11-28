@@ -5,6 +5,7 @@ import json
 from copy import deepcopy
 from unittest.mock import AsyncMock
 
+import grpc
 import jcs
 import pytest
 from fakes.source_selectors import artifact_sources
@@ -47,7 +48,9 @@ class MemorySources(MemoryArtifactClient):
         try:
             result = await super().write_artifact(*args, **kwargs)
         except ValueError:
-            raise ArtifactAPIError(409, "artifact_conflict", False) from None
+            raise ArtifactAPIError(
+                grpc.StatusCode.FAILED_PRECONDITION, "artifact_conflict", False
+            ) from None
         if self.lose_reply:
             self.lose_reply = False
             raise ArtifactTransportError("source reply lost")
@@ -197,7 +200,11 @@ def test_intake_rejection_keeps_source_and_retry_reuses_it(monkeypatch):
         )
         tool, client, _state = make_tool(artifacts, source)
         submit = client.submit
-        rejection = AsyncMock(side_effect=ArtifactAPIError(400, "invalid_finding_request", False))
+        rejection = AsyncMock(
+            side_effect=ArtifactAPIError(
+                grpc.StatusCode.INVALID_ARGUMENT, "invalid_finding_request", False
+            )
+        )
         monkeypatch.setattr(client, "submit", rejection)
         arguments = {"title": "Technology", "description": "Reported", "memory_name": "technology"}
         with pytest.raises(ArtifactAPIError):

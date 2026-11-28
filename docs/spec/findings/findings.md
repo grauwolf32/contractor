@@ -526,7 +526,7 @@ the HTTP body/header and complete private-submission bounds; the ordinary
 Audit document/string limits must not shrink a valid base64 body.
 
 **FND-R56.** Runtime submits a proposal through the allocation-bound private
-route `POST /private/v1/allocations/{allocation_id}/finding-proposals`.
+gRPC stream `Artifact.SubmitFinding` (CTL-R177).
 
 **FND-R57.** The trusted adapter supplies the correlated invocation and
 stable submission IDs.
@@ -616,7 +616,7 @@ sequenceDiagram
     participant DB as PostgreSQL
     M->>R: finding(title, description, location arguments, optional cwe, evidence_refs, standard_refs)
     R->>R: Reject unknown or deprecated CWE IDs locally, derive client_key from the ADK function-call ID
-    R->>S: POST /private/v1/allocations/{allocation_id}/finding-proposals with invocation and submission IDs
+    R->>S: Artifact.SubmitFinding with typed invocation/submission IDs and named document chunks
     S->>S: Derive Run and optional Audit from the allocation, verify Toolset selection, write fence, exact evidence refs and limits
     S->>DB: One transaction: proposal, selected HTTP evidence, exact pins, receipt, retention row
     S-->>R: Receipt (the original receipt on a replay with the same digest)
@@ -1661,8 +1661,7 @@ analysis still exports its identity, text and independent review, with
   arguments of FND-R16 and FND-R18 and the result of FND-R27.
 - `list_findings(subject_kind?, subject_key?, limit?, cursor?)`: the reader
   tool (FND-R126).
-- `POST /private/v1/allocations/{allocation_id}/finding-proposals`: the
-  allocation-bound private intake route (FND-R56).
+- `Artifact.SubmitFinding`: the allocation-bound private intake stream (FND-R56, CTL-R177).
 - `POST /v1/finding-collections`: operation `publishFindingCollection` in the
   [public API schema](../../../api/openapi/contractor-public-v1.yaml), which
   owns the precise HTTP field spelling and the error envelopes.
@@ -2000,18 +1999,18 @@ Runtime receives content. The Server derives owner and Project; requests accept 
 Project/Audit/Run IDs. Pause permits reads/collection; terminal cancellation and
 deletion deny new selection. No new authorization token, store or controller exists.
 
-**FND-R225.** `GET /private/v1/allocations/{allocationID}/findings` accepts `limit`
+**FND-R225.** `Allocation.ListFindings` accepts `limit`
 (default 20, 1–100, LIM-FND-26) and `cursor`. It returns bounded current Project
 Finding summaries, `projectRevision` and nullable `nextCursor`. Continuations pin
 the Project revision and containing Project; changed revisions conflict. Each read
 uses indexed, bounded canonical windows and follows empty progress pages.
-`GET .../findings/{findingID}?revision=N` reads one exact current canonical revision;
+`Allocation.ReadFinding` with `findingId` and `revision` reads one exact current canonical revision;
 a stale revision conflicts and a foreign/missing Finding is absent. These are live
 metadata views, not retained snapshots or byte-access grants. No read creates a hold.
 Responses fit LIM-FND-29; cursors retain LIM-FND-30/31. No whole-Project scan or
 lifetime source hydration fills a page.
 
-**FND-R226.** `POST .../finding-selections` accepts a portable `clientKey`, explicit
+**FND-R226.** `Allocation.SelectFindings` accepts a portable `clientKey`, explicit
 `findings` (`findingId`, `revision`) and `receiptIds` arrays. Missing/null arrays are
 invalid; empty arrays explicitly select nothing. At most 128 selectors and 1 MiB
 request metadata use LIM-ACT-2. Finding selection expands its independent Project

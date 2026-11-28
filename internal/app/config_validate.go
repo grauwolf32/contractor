@@ -3,7 +3,6 @@ package app
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -49,12 +48,10 @@ func (c *serveConfigInputs) effectiveConfig() (Config, error) {
 	if c.privateListenAddress == "" || strings.TrimSpace(c.privateURL) == "" {
 		return Config{}, errors.New("private listen address and URL must not be empty")
 	}
-	parsedPrivateURL, err := url.Parse(c.privateURL)
-	if err != nil || parsedPrivateURL.Scheme != "https" || parsedPrivateURL.Host == "" ||
-		parsedPrivateURL.User != nil || parsedPrivateURL.RawQuery != "" || parsedPrivateURL.Fragment != "" ||
-		(parsedPrivateURL.Path != "" && parsedPrivateURL.Path != "/") {
-		return Config{}, errors.New("private URL must be an HTTPS origin without credentials, query, fragment, or path")
+	if _, err := contracts.ParsePrivateRPCOrigin("private URL", c.privateURL); err != nil {
+		return Config{}, err
 	}
+
 	if c.shutdownTimeout <= 0 {
 		return Config{}, errors.New("shutdown timeout must be positive")
 	}

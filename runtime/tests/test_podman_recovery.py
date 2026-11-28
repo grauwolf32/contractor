@@ -286,8 +286,8 @@ def test_cli_shutdown_drains_active_allocation_before_owner_close(tmp_path, monk
     from contractor_runtime.workspace import LocalWorkdirFactory
 
     class WorkspaceTransport(InflightTransport):
-        async def post_json(self, path, payload):
-            response = await super().post_json(path, payload)
+        async def exchange(self, path, payload):
+            response = await super().exchange(path, payload)
             return {
                 **response,
             }

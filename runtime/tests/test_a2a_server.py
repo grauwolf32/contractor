@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import tempfile
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import httpx
+import grpc
 import pytest
 from a2a.client import ClientConfig, ClientFactory
 from a2a.server.agent_execution import RequestContext
@@ -34,6 +36,7 @@ from contractor_runtime.a2a_server import (
     ContractorAgentExecutor,
     _result_message,
     _stage_request,
+    register_a2a_gateway,
 )
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -46,7 +49,6 @@ from contractor_runtime.contracts import (
     WorkerFailure,
 )
 from contractor_runtime.factories import built_in_factories
-from contractor_runtime.server import create_app
 from contractor_runtime.state import RuntimeState
 
 SECRET = "recognizable-a2a-test-token"
@@ -61,7 +63,7 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
 ) -> None:
     async def scenario() -> None:
         model = scripted_model([model_result("done")])
-        state, service = await allocation_service(tmp_path, model, runtime_capabilities)
+        _state, service = await allocation_service(tmp_path, model, runtime_capabilities)
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
         assert (
@@ -76,29 +78,13 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
         assert card.supported_interfaces[0].protocol_version == "1.0"
         assert SECRET not in str(card_dict)
 
-        application = create_app(state, allocation_service=service, require_verified_peer=False)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=application),
-            base_url="https://runtime.example",
-        ) as http_client:
-            card_response = await http_client.get(
-                f"/private/v1/allocations/{spec.allocation_id}/a2a/.well-known/agent-card.json"
-            )
-            assert card_response.status_code == 200
-            assert card_response.json()["supportedInterfaces"][0]["tenant"] == spec.allocation_id
+        async with native_client(service, card) as client:
             sessions = await worker._session_service.list_sessions(  # type: ignore[attr-defined]
                 app_name=worker._app_name,
                 user_id=worker._user_id,  # type: ignore[attr-defined]
             )
             assert sessions.sessions == []
 
-            client = ClientFactory(
-                ClientConfig(
-                    streaming=False,
-                    httpx_client=http_client,
-                    supported_protocol_bindings=[TransportProtocol.JSONRPC],
-                )
-            ).create(card)
             result = await send(client, data_request(spec.allocation_id))
             assert "failure" not in result
             assert result["result"]["result"] == "done"
@@ -133,12 +119,12 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
             assert wrong_version["failure"]["code"] == "invalid_stage_content"
             assert len(model.requests) == 2
 
-            oversized = await http_client.post(
-                f"/private/v1/allocations/{spec.allocation_id}/a2a",
-                content=b"x" * (MAX_A2A_REQUEST_BYTES + 1),
+            oversized = data_request(spec.allocation_id, message_id="oversized")
+            oversized.message.parts[0].data.CopyFrom(
+                ParseDict({"payload": "x" * MAX_A2A_REQUEST_BYTES}, Value())
             )
-            assert oversized.status_code == 413
-            assert oversized.json()["code"] == "request_too_large"
+            with pytest.raises(Exception, match=r"[Rr]esource|[Ll]arger|[Ss]ize|[Ee]xceeds"):
+                await send(client, oversized)
             assert len(model.requests) == 2
             sessions = await worker._session_service.list_sessions(  # type: ignore[attr-defined]
                 app_name=worker._app_name,
@@ -154,14 +140,14 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
                     deadline=datetime.now(UTC) + timedelta(seconds=2),
                 )
             )
-            with pytest.raises(Exception, match="409"):
+            with pytest.raises(Exception, match="allocation_not_active"):
                 await send(client, data_request(spec.allocation_id))
             assert len(model.requests) == 2
 
             await service.release(
                 ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
             )
-            with pytest.raises(Exception, match="409"):
+            with pytest.raises(Exception, match="allocation_not_active"):
                 await send(client, data_request(spec.allocation_id))
             assert len(model.requests) == 2
             await client.close()
@@ -174,7 +160,7 @@ def test_concurrent_a2a_message_receives_worker_busy(
 ) -> None:
     async def scenario() -> None:
         model = scripted_model([model_result("first")], block=True)
-        state, service = await allocation_service(tmp_path, model, runtime_capabilities)
+        _state, service = await allocation_service(tmp_path, model, runtime_capabilities)
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
         card = ParseDict(prepared.worker_handle.agent_card, AgentCard())
@@ -183,18 +169,7 @@ def test_concurrent_a2a_message_receives_worker_busy(
             and allocation_context(service).worker is not None
         )
         worker = allocation_context(service).worker
-        application = create_app(state, allocation_service=service, require_verified_peer=False)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=application),
-            base_url="https://runtime.example",
-        ) as http_client:
-            client = ClientFactory(
-                ClientConfig(
-                    streaming=False,
-                    httpx_client=http_client,
-                    supported_protocol_bindings=[TransportProtocol.JSONRPC],
-                )
-            ).create(card)
+        async with native_client(service, card) as client:
             first = asyncio.create_task(send(client, data_request(spec.allocation_id)))
             await asyncio.wait_for(model.started.wait(), timeout=1)
             sessions = await worker._session_service.list_sessions(  # type: ignore[attr-defined]
@@ -236,22 +211,11 @@ def test_return_immediately_exposes_working_task_while_worker_continues(
 ) -> None:
     async def scenario() -> None:
         model = scripted_model([model_result("done")], block=True)
-        state, service = await allocation_service(tmp_path, model, runtime_capabilities)
+        _state, service = await allocation_service(tmp_path, model, runtime_capabilities)
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
         card = ParseDict(prepared.worker_handle.agent_card, AgentCard())
-        application = create_app(state, allocation_service=service, require_verified_peer=False)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=application),
-            base_url="https://runtime.example",
-        ) as http_client:
-            client = ClientFactory(
-                ClientConfig(
-                    streaming=False,
-                    httpx_client=http_client,
-                    supported_protocol_bindings=[TransportProtocol.JSONRPC],
-                )
-            ).create(card)
+        async with native_client(service, card) as client:
             request = data_request(spec.allocation_id)
             request.configuration.CopyFrom(SendMessageConfiguration(return_immediately=True))
             responses = []
@@ -277,6 +241,33 @@ def test_return_immediately_exposes_working_task_while_worker_continues(
             await client.close()
 
     asyncio.run(scenario())
+
+
+@asynccontextmanager
+async def native_client(service, card):
+    with tempfile.TemporaryDirectory(prefix="ct-grpc-", dir="/tmp") as directory:
+        target = f"unix:{directory}/a2a.sock"
+        server = grpc.aio.server(
+            options=(("grpc.max_receive_message_length", MAX_A2A_REQUEST_BYTES),)
+        )
+        register_a2a_gateway(server, service)
+        server.add_insecure_port(target)
+        await server.start()
+        client = ClientFactory(
+            ClientConfig(
+                streaming=False,
+                grpc_channel_factory=lambda _: grpc.aio.insecure_channel(
+                    target, options=(("grpc.enable_retries", 0),)
+                ),
+                supported_protocol_bindings=[TransportProtocol.GRPC],
+            )
+        ).create(card)
+        try:
+            yield client
+        finally:
+            await client.close()
+            await server.stop(0)
+            await server.wait_for_termination()
 
 
 async def allocation_service(
@@ -574,3 +565,108 @@ def test_shared_planner_a2a_struct_restores_only_exact_integral_budgets():
         context.message.parts[0].data.CopyFrom(ParseDict(payload, Value()))
         with pytest.raises(ValueError):
             _stage_request(context)
+
+
+@pytest.mark.parametrize(
+    ("metadata", "expected"),
+    [
+        ((("x-request-id", "a2a-correlation-1"),), "a2a-correlation-1"),
+        ((), None),
+        ((("x-request-id", "invalid value"),), None),
+        ((("x-request-id", "first"), ("x-request-id", "second")), None),
+    ],
+)
+@pytest.mark.parametrize(
+    ("tenant", "expected_status"),
+    [
+        ("released-1", grpc.StatusCode.FAILED_PRECONDITION),
+        ("a.b:c-" + "x" * 250, grpc.StatusCode.FAILED_PRECONDITION),
+        ("x" * 257, grpc.StatusCode.INVALID_ARGUMENT),
+    ],
+)
+def test_native_a2a_rejection_carries_bounded_correlation(
+    metadata, expected, tenant, expected_status
+):
+    from a2a.types import a2a_pb2_grpc
+
+    from contractor_runtime._grpc_metadata import REQUEST_ID_PATTERN
+
+    class ReleasedAllocation:
+        async def active_a2a_application(self, allocation_id):
+            return None
+
+    async def scenario():
+        with tempfile.TemporaryDirectory(prefix="ct-a2a-meta-", dir="/tmp") as directory:
+            target = f"unix:{directory}/a2a.sock"
+            server = grpc.aio.server()
+            register_a2a_gateway(server, ReleasedAllocation())
+            server.add_insecure_port(target)
+            await server.start()
+            try:
+                async with grpc.aio.insecure_channel(target) as channel:
+                    call = a2a_pb2_grpc.A2AServiceStub(channel).GetTask(
+                        GetTaskRequest(id="task-1", tenant=tenant), metadata=metadata
+                    )
+                    with pytest.raises(grpc.aio.AioRpcError) as error:
+                        await call
+                    assert error.value.code() == expected_status
+                    values = [v for k, v in await call.initial_metadata() if k == "x-request-id"]
+                    assert len(values) == 1 and REQUEST_ID_PATTERN.fullmatch(values[0])
+                    if expected:
+                        assert values == [expected]
+                    else:
+                        assert values[0].startswith("request_")
+            finally:
+                await server.stop(0)
+                await server.wait_for_termination()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_a2a_response_keeps_its_bound_with_larger_state_envelope(streaming):
+    from a2a.types import a2a_pb2 as pb
+    from a2a.types import a2a_pb2_grpc
+
+    from contractor_runtime.contracts.grpc_wire.limits import MAX_STATE_MESSAGE_BYTES
+
+    class Handler:
+        async def GetTask(self, request, context):
+            return pb.Task(id="x" * MAX_A2A_REQUEST_BYTES)
+
+        async def SubscribeToTask(self, request, context):
+            yield pb.StreamResponse(task=pb.Task(id="x" * MAX_A2A_REQUEST_BYTES))
+
+    class Provider:
+        async def active_a2a_application(self, allocation_id):
+            return Handler()
+
+    async def scenario():
+        with tempfile.TemporaryDirectory(prefix="ct-a2a-size-", dir="/tmp") as directory:
+            target = f"unix:{directory}/a2a.sock"
+            options = (
+                ("grpc.max_send_message_length", MAX_STATE_MESSAGE_BYTES),
+                ("grpc.max_receive_message_length", MAX_STATE_MESSAGE_BYTES),
+            )
+            server = grpc.aio.server(options=options)
+            register_a2a_gateway(server, Provider())
+            server.add_insecure_port(target)
+            await server.start()
+            try:
+                async with grpc.aio.insecure_channel(target, options=options) as channel:
+                    client = a2a_pb2_grpc.A2AServiceStub(channel)
+                    with pytest.raises(grpc.aio.AioRpcError) as caught:
+                        if streaming:
+                            async for _ in client.SubscribeToTask(
+                                pb.SubscribeToTaskRequest(id="t", tenant="a"), timeout=3
+                            ):
+                                raise AssertionError("oversized frame escaped")
+                        else:
+                            await client.GetTask(pb.GetTaskRequest(id="t", tenant="a"), timeout=3)
+                    assert caught.value.code() == grpc.StatusCode.RESOURCE_EXHAUSTED
+                    assert caught.value.details() == "a2a_response_too_large"
+            finally:
+                await server.stop(0)
+                await server.wait_for_termination()
+
+    asyncio.run(scenario())

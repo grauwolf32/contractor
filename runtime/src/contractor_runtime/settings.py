@@ -8,9 +8,9 @@ import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from contractor_runtime.contracts import WorkspaceStorage
+from contractor_runtime.contracts.base import parse_private_rpc_origin
 from contractor_runtime.contracts.placement import validate_placement_labels
 from contractor_runtime.contracts.registration import MAX_ALLOCATION_SLOTS
 from contractor_runtime.core.target_policy import IPNetwork, parse_allowed_networks
@@ -226,22 +226,10 @@ def _parse_listen(parser: argparse.ArgumentParser, raw: str) -> tuple[str, int]:
 
 
 def _private_url(parser: argparse.ArgumentParser, option: str, raw: str) -> str:
-    parsed = urlsplit(raw)
     try:
-        parsed_port = parsed.port
-    except ValueError:
-        parser.error(f"{option} has an invalid port")
-    if (
-        raw != raw.strip()
-        or parsed.scheme != "https"
-        or not parsed.hostname
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.query
-        or parsed.fragment
-        or (parsed_port is not None and not 1 <= parsed_port <= 65535)
-    ):
-        parser.error(f"{option} must be an HTTPS URL without credentials, query, or fragment")
+        parse_private_rpc_origin(option, raw)
+    except ValueError as error:
+        parser.error(str(error))
     return raw.rstrip("/")
 
 

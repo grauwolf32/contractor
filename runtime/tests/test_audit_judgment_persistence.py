@@ -4,6 +4,7 @@ import asyncio
 import json
 from dataclasses import replace
 
+import grpc
 import pytest
 from audit_fixtures import assigned
 from fakes.audit_judgments import JudgmentTransport
@@ -23,8 +24,8 @@ class FaultTransport(JudgmentTransport):
         self.lost, self.block = lost, block
         self.committed = asyncio.Event()
 
-    async def request(self, *args, **kwargs):
-        response = await super().request(*args, **kwargs)
+    async def submit_audit_judgments(self, *args, **kwargs):
+        response = await super().submit_audit_judgments(*args, **kwargs)
         self.committed.set()
         if self.block:
             await asyncio.Event().wait()
@@ -82,13 +83,7 @@ def test_unknown_commit_then_later_response_recovers_server_base_without_old_ret
         collector.begin_response()
         receipt = await collector.record(correction)
         assert receipt.revisions == ((item.item_key, 2),)
-        await transport.request(
-            "POST",
-            "/allocations/allocation-1/audit-results",
-            headers={},
-            body=original,
-            max_response_bytes=1 << 20,
-        )
+        await transport.submit_audit_judgments("allocation-1", json.loads(original))
         assert transport.items[item.item_key][0] == 2
         assert transport.items[item.item_key][1]["rationale"] == correction.rationale
         assert (await collector.snapshot()).items[0].value.rationale == correction.rationale
@@ -113,27 +108,16 @@ def test_cancel_after_commit_retains_owner_value_without_claiming_local_acceptan
 
 
 def test_definite_rejection_is_not_retried_or_locally_accepted():
-    from contractor_runtime.artifacts import ArtifactHTTPResponse
-
     async def scenario():
         collector, transport, item = setup()
 
-        async def reject(*args, **kwargs):
-            transport.requests.append(kwargs["body"])
-            return ArtifactHTTPResponse(
-                409,
-                {"content-type": "application/json"},
-                json.dumps(
-                    {
-                        "code": "audit_result_limit_exceeded",
-                        "message": "Quota exhausted",
-                        "retryable": False,
-                        "requestId": "fixture",
-                    }
-                ).encode(),
+        async def reject(allocation_id, value):
+            transport.requests.append(value)
+            raise ArtifactAPIError(
+                grpc.StatusCode.FAILED_PRECONDITION, "audit_result_limit_exceeded", False, "fixture"
             )
 
-        transport.request = reject
+        transport.submit_audit_judgments = reject
         with pytest.raises(ArtifactAPIError) as error:
             await collector.record(item)
         assert error.value.code == "audit_result_limit_exceeded"
@@ -147,19 +131,17 @@ def test_definite_rejection_is_not_retried_or_locally_accepted():
 @pytest.mark.parametrize("bad_reply", [b"{}", b"{", b'{"apiVersion":"wrong"}'])
 @pytest.mark.parametrize("persistent", [False, True])
 def test_invalid_success_receipt_reconciles_same_committed_mutation(bad_reply, persistent):
-    from contractor_runtime.artifacts import ArtifactHTTPResponse
-
     async def scenario():
         collector, transport, item = setup()
-        request = transport.request
+        request = transport.submit_audit_judgments
 
         async def malformed_once(*args, **kwargs):
             response = await request(*args, **kwargs)
             if persistent or len(transport.requests) == 1:
-                return ArtifactHTTPResponse(201, {"content-type": "application/json"}, bad_reply)
+                return {"receipt": json.loads(bad_reply)} if bad_reply != b"{" else {}
             return response
 
-        transport.request = malformed_once
+        transport.submit_audit_judgments = malformed_once
         if persistent:
             with pytest.raises(JudgmentPersistenceUnknown):
                 await collector.record(item)

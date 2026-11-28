@@ -39,7 +39,7 @@ func newPostgresSupervisor(
 			FinalizationTimeout: time.Second, AbortTimeout: time.Second,
 			LeaseScanInterval: time.Minute,
 			RuntimeTransport: RuntimeTransportSettings{
-				ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 1,
+				ArtifactAPIURL: "https://control.test", RequestTimeoutSeconds: 1,
 			},
 			Reports:  telemetry.NewRepository(pool),
 			Settings: settings, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),

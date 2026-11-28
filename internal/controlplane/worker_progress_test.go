@@ -3,7 +3,6 @@ package controlplane
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -15,7 +14,7 @@ func TestSharedWorkerProgressProjectsValidatedStateAndRechecksAuthority(t *testi
 	registry := &InMemoryRegistry{allocations: map[string]storedReservation{}}
 	calls := 0
 	loseDuringRead := false
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newRuntimeFixture(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		if !strings.HasSuffix(r.URL.Path, "/allocations/allocation-1/agent-state") {
 			t.Errorf("unexpected State path %s", r.URL.Path)
@@ -31,7 +30,7 @@ func TestSharedWorkerProgressProjectsValidatedStateAndRechecksAuthority(t *testi
 		_, _ = w.Write(fixture)
 	}))
 	defer server.Close()
-	registry.allocations["allocation-1"] = storedReservation{reservation: Reservation{ControlURL: server.URL, Grant: AllocationGrant{AllocationID: "allocation-1", RunID: "run", StageExecutionID: "stage", LogicalAgentName: "worker", RuntimeInstanceID: "instance"}}}
+	registry.allocations["allocation-1"] = storedReservation{reservation: Reservation{ControlURL: server.URL, Grant: AllocationGrant{AllocationID: "allocation-1", RunID: "run", StageExecutionID: "stage", LogicalAgentName: "worker", RuntimeInstanceID: "instance", RuntimeAgentID: fixturePrincipal(server.URL)}}}
 	client, _ := NewRuntimeControlClient(server.Client())
 	reader := NewWorkerProgressReader(registry, client)
 	for _, run := range []string{"foreign", "run"} {

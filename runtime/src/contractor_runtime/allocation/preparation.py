@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from functools import partial
 from typing import Any
 
+from contractor_runtime.a2a_server import grpc_endpoint
 from contractor_runtime.adapters import (
     AdapterHandles,
     AllocationAdapterHost,
@@ -463,7 +464,7 @@ class AllocationPreparation:
     ) -> None:
         wire = handle.model_dump(mode="json", by_alias=True)
         encoded = json.dumps(wire, ensure_ascii=False)
-        endpoint = f"{a2a_base_url.rstrip('/')}/private/v1/allocations/{spec.allocation_id}/a2a"
+        endpoint = grpc_endpoint(a2a_base_url)
         card_values, card_keys = _untrusted_agent_card_text(
             handle.agent_card,
             allocation_id=spec.allocation_id,

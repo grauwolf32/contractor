@@ -37,7 +37,7 @@ func TestPostgresPrivateFindingNULEscapeStopsBeforeIntake(t *testing.T) {
 		t.Fatalf("valid literal-text submission replay = %t, %v", found, err)
 	}
 	intake := &privateNULIntakeCounter{FindingIntake: service}
-	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
+	handler, err := newPayloadNativeRecorder(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry:  &fakeRegistry{grant: grant},
 		Artifacts: artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)), Findings: intake,
 	})
@@ -102,7 +102,7 @@ func TestPostgresPrivateArtifactBytesKeepNULAndJSONEscapes(t *testing.T) {
 	defer cancel()
 	pool := isolatedPrivateArtifactPool(t, ctx)
 	createPrivateArtifactRun(t, ctx, pool, "run-a")
-	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
+	handler, err := newPayloadNativeRecorder(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry:  &fakeRegistry{grant: testGrant("run-a")},
 		Artifacts: artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)),
 	})

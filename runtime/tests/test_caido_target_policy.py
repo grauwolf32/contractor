@@ -45,7 +45,7 @@ def _settings(*, origin: str | None = None, proxy: bool = False) -> RuntimeSetti
     values: dict[str, object] = {
         "llmGatewayUrl": "https://gateway.example/v1",
         "llmGatewayToken": "gateway-token",
-        "artifactApiUrl": "https://control.example/private/v1",
+        "artifactApiUrl": "https://control.example",
         "caido": CaidoSettings(
             adapter="caido-graphql@1",
             endpoint="https://caido.example",

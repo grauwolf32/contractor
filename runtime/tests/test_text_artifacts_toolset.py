@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+import grpc
 import pytest
 from fakes.artifact_reads import CountingPayload, count_derivations, hold_preparation
 from fakes.worker_state import WorkerState
@@ -1015,7 +1016,7 @@ def runtime_settings() -> RuntimeSettings:
     return RuntimeSettings(
         llmGatewayUrl="https://gateway.example/v1",
         llmGatewayToken=SECRET,
-        artifactApiUrl="https://control.example/private/v1",
+        artifactApiUrl="https://control.example",
         requestTimeoutSeconds=30,
     )
 
@@ -1079,7 +1080,7 @@ class MemoryArtifactClient:
             else:
                 stored = self.history[(ref.namespace, ref.name, ref.revision)]
         except KeyError:
-            raise ArtifactAPIError(404, "artifact_not_found", False) from None
+            raise ArtifactAPIError(grpc.StatusCode.NOT_FOUND, "artifact_not_found", False) from None
         if len(stored.data) > max_bytes:
             raise ArtifactResponseLimitError("response too large")
         exact = ArtifactRef(

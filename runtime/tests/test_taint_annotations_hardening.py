@@ -376,7 +376,7 @@ def runtime_settings() -> RuntimeSettings:
     return RuntimeSettings(
         llmGatewayUrl="https://llm.example/v1",
         llmGatewayToken=CREDENTIAL_CANARY,
-        artifactApiUrl="https://server.example/private/v1",
+        artifactApiUrl="https://server.example",
         requestTimeoutSeconds=30,
     )
 

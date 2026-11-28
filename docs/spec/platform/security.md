@@ -200,6 +200,21 @@ following hold:
   the prefix, for example
   `urn:contractor:control-plane:01951d4e-ec24-7df2-a9c1-18d55d123456`.
 
+For native gRPC, the Runtime preserves these checks using an in-process TLS
+adapter. It verifies the actual incoming/outgoing TLS connection before any
+application byte reaches the backend or remote peer. grpcio owns HTTP/2 and
+protobuf behind Unix sockets in a process-owned 0700 directory with 0600
+sockets; no plaintext TCP listener or caller-supplied identity header exists.
+The same OS user is inside this process trust boundary. A separate preliminary
+TLS probe is not identity verification for another connection.
+
+The adapter bounds accepted connections before handshake by LIM-CTL-24,
+handshake/close by LIM-CTL-25 and read/write buffers by LIM-CTL-26. Shutdown
+closes admission and cancels/joins all forwarding tasks before removing the
+socket directory. This choice preserves the existing single-CA PKI; reconsider
+it only if grpcio offers equivalent actual-peer verification or a separately
+approved PKI design makes its native chain verification prove the role.
+
 **SEC-R6.** The URI SAN, rather than the CN or OU, distinguishes Control Plane
 certificates from the otherwise-equivalent Runtime Agent certificates.
 

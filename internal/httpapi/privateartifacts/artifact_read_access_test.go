@@ -38,7 +38,7 @@ func TestPrivateProjectArtifactAuthorityDoesNotReadOrRequireContent(t *testing.T
 	runReads, projectReads := 0, 0
 	projectErr, runErr := error(nil), error(nil)
 	lifecycle := projectstore.LifecycleActive
-	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry: registry, Artifacts: artifacts.NewService(repository),
 		RunProjects: readRunProject(func(_ context.Context, run string) (runstore.ProjectContext, error) {
 			runReads++
@@ -54,16 +54,12 @@ func TestPrivateProjectArtifactAuthorityDoesNotReadOrRequireContent(t *testing.T
 			}
 			return projectstore.Project{Lifecycle: lifecycle}, projectErr
 		}),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	}})
 	const base = "/private/v1/allocations/allocation-1/artifacts/notes/context"
 	const query = "?scope=project&operation=review_notes"
 	request := func(path string) *httptest.ResponseRecorder {
 		t.Helper()
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, trustedRequest(http.MethodGet, path, nil))
+		response := fixture.artifactRequest(t, path)
 		return response
 	}
 	for range 2 {
@@ -83,14 +79,11 @@ func TestPrivateProjectArtifactAuthorityDoesNotReadOrRequireContent(t *testing.T
 		t.Fatal("ungranted target reached the Project resolver")
 	}
 	for _, suffix := range []string{"", "/metadata", "/access"} {
-		for _, invalid := range []string{"?scope=run&operation=review_notes", "?scope=project", "?scope=project&operation=", "?operation=review_notes", "?scope=&operation=review_notes", query + "&projectId=other", query + "&scope=project", query + "&operation=other"} {
+		for _, invalid := range []string{"?scope=run&operation=review_notes", "?scope=project", "?scope=project&operation=", "?operation=review_notes", "?scope=&operation=review_notes", "?scope=&operation=", "?operation=", query + "&projectId=other", query + "&scope=project", query + "&operation=other"} {
 			assertPrivateErrorEnvelope(t, request(base+suffix+invalid), 400, "invalid_request", false)
 		}
 	}
 	assertPrivateErrorEnvelope(t, request(base+"/access"+query+"&revision=revision-a"), 400, "invalid_request", false)
-	for _, path := range []string{"/private/v1/allocations/allocation-1/sitemap", "/private/v1/allocations/allocation-1/sitemap/access?operation=list_sitemap_entries"} {
-		assertPrivateErrorEnvelope(t, request(path), 404, "not_found", false)
-	}
 	projectErr = projectstore.ErrNotFound
 	assertPrivateErrorEnvelope(t, request(base+"/access"+query), 403, "artifact_access_denied", false)
 	projectErr, runErr = nil, runstore.ErrNotFound
@@ -108,6 +101,7 @@ func TestPrivateProjectArtifactAuthorityDoesNotReadOrRequireContent(t *testing.T
 
 func TestPrivateProjectReadSelectorsCannotListOrWrite(t *testing.T) {
 	repository := newMemoryRepository()
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository)}})
 	server := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository)
 	for _, test := range []struct{ method, path string }{
 		{http.MethodGet, "/artifacts?limit=1&scope=project&operation=read"},
@@ -115,6 +109,10 @@ func TestPrivateProjectReadSelectorsCannotListOrWrite(t *testing.T) {
 		{http.MethodPut, "/artifacts/notes/context?scope=project&operation=read"},
 		{http.MethodPut, "/artifacts/notes/context?operation=read"},
 	} {
+		if test.method == http.MethodGet {
+			assertPrivateErrorEnvelope(t, fixture.artifactRequest(t, test.path), 400, "invalid_request", false)
+			continue
+		}
 		request := trustedRequest(test.method, "/private/v1/allocations/allocation-1"+test.path, strings.NewReader("changed"))
 		request.Header.Set("Content-Type", "text/plain")
 		request.Header.Set("If-None-Match", "*")
@@ -142,23 +140,19 @@ func TestSharedArtifactReadTargets(t *testing.T) {
 		for _, value := range group.values {
 			registry := &fakeRegistry{grant: testGrant("run-a")}
 			registry.grant.ProjectArtifactReads = []controlplane.ProjectArtifactReadTarget{{Namespace: "notes", Name: "context", Operations: []string{value["operation"]}}}
-			server, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: registry, Artifacts: artifacts.NewService(newMemoryRepository()),
+			fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: registry, Artifacts: artifacts.NewService(newMemoryRepository()),
 				RunProjects: readRunProject(func(context.Context, string) (runstore.ProjectContext, error) {
 					return runstore.ProjectContext{OwnerID: "owner", ProjectID: "project"}, nil
 				}),
 				Projects: readProject(func(context.Context, string, string) (projectstore.Project, error) {
 					return projectstore.Project{Lifecycle: projectstore.LifecycleActive}, nil
 				}),
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
+			}})
 			query := url.Values{}
 			for key, item := range value {
 				query.Set(key, item)
 			}
-			response := httptest.NewRecorder()
-			server.ServeHTTP(response, trustedRequest(http.MethodGet, "/private/v1/allocations/allocation-1/artifacts/notes/context/access?"+query.Encode(), nil))
+			response := fixture.artifactRequest(t, "/artifacts/notes/context/access?"+query.Encode())
 			if group.valid {
 				if response.Code != 204 {
 					t.Fatalf("valid selector %+v: %d %s", value, response.Code, response.Body.String())

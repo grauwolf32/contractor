@@ -1,0 +1,66 @@
+schema_version: '1.0'
+id: V490-008
+title: Pin offline compaction scoring to the current Go dependency closure
+milestone: server-runtime-grpc-2026-11
+epic: evals
+kind: chore
+introduced_by: V489-001
+priority: P1
+status: completed
+depends_on:
+- V490-005
+languages:
+- json
+- markdown
+goal: The offline compaction fixture gate accepts its exact current scorer and validator dependency closure while still rejecting drift.
+context:
+  authority: >-
+    Agent-discovered deterministic release prerequisite, 2026-11-28, within the
+    user's Server/Runtime gRPC implementation request. This updates repository
+    test fixtures only and does not authorize live Eval work, registration,
+    publication, deployment or changes to the paused V417 experiment.
+  finding: >-
+    tests/eval/context_compaction/variants.json:47 retains scorerSha256 from
+    before c9a6950a0f11b194283dd37be2583adc08be04d3. The preceding commit's
+    scorer_digest matches that pin, while this V489-001 commit changes go.mod
+    and go.sum and no longer matches. Baseline main 9fd3ac96 also fails; the
+    gRPC dependency closure changes it again. make release-verify stops in
+    test-context-compaction-eval-fixtures with scorer drift.
+  siblings: >-
+    harness.scorer_digest intentionally hashes harness.py, the Go OpenAPI
+    validator, go.mod and go.sum. README requires new pins for dependency
+    changes. Existing tests deliberately alter each validator/dependency input
+    and require a different digest. Authored catalog, truth, cases, models,
+    thresholds and recorded answers are independent pins and remain unchanged.
+  design: tests/eval/context_compaction/README.md
+scope:
+  in:
+  - Replace the offline fixture's scorerSha256 with the exact current four-file digest.
+  - Run the real offline Python/Go validator gate, including existing deliberate-corruption and dependency-drift regressions.
+  out:
+  - No scorer algorithm, hash scope, case/truth/catalog/model or recorded-result changes.
+  - No existing Eval pin/registration rewrite, live model call or dispatch.
+acceptance_criteria:
+- id: A1
+  text: make test-context-compaction-eval-fixtures passes through the actual local OpenAPI validator with network access forbidden by the fixture gate.
+- id: A2
+  text: Existing regressions still reject altered validator/dependency closure, stale manifests and invalid documents.
+- id: A3
+  text: The patch changes only scorerSha256 among fixture fields, and neither algorithm nor any existing model/experiment identity is rewritten.
+tests:
+- command: make test-context-compaction-eval-fixtures
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+
+implementation_commit: fb7e10af95dfe67b7ce98f0935fac1a176a878ef
+verification:
+  status: passed
+  observed: >-
+    make test-context-compaction-eval-fixtures passed all 43 offline Python
+    tests and the Go catalog/validator suite. The existing dependency-drift,
+    invalid-document, stale-manifest and private-data regressions remain active.
+    make lint passed. Only scorerSha256 changes in variants.json; the four-file
+    hash definition, algorithms, catalog/truth/case hashes, model selections,
+    recorded answers and existing experiment registrations remain unchanged.
+    No live Eval or deployment occurred.

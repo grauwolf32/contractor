@@ -1094,7 +1094,7 @@ model {
   server.runtimeOperations.controlPlane -> runtimeAgent.agentControl.controlEndpoint 'mTLS contractor/v1alpha1: pinned AllocationSpec / live state / finalize / abort / release'
   server.orchestration.workerInvokerTools -> runtimeAgent.workerExecution.a2aServer 'Control Plane mTLS + URI SAN: A2A to active in-process Worker'
   runtimeAgent.allocationCapabilities.artifactClient -> server.artifactPlane.artifactService 'Agent mTLS + allocation ID: RunScope operations; no owner/Project/database/blob-backend authority'
-  runtimeAgent.allocationCapabilities.securityFindingsTools -> server.auditCoordination.findingIntake 'mTLS POST /private/v1/allocations/{allocation_id}/finding-proposals with trusted invocation/submission IDs'
+  runtimeAgent.allocationCapabilities.securityFindingsTools -> server.auditCoordination.findingIntake 'mTLS gRPC Artifact.SubmitFinding; bounded named documents and existing invocation/submission receipt'
 
   server.workspaceLifecycle.projectStore -> artifactDatabase.projectState 'Persist Project metadata, targets, lifecycle and deletion claims'
   server.workspaceLifecycle.ownerQueueGate -> artifactDatabase.runState 'Persist owner pause state at the Stage-admission serialization boundary'
@@ -3291,7 +3291,7 @@ views {
 
     exclude * -> *
     include browser -> server.runtimeOperations.operationsApi with {
-      title 'GET / PUT with ETag / If-Match'
+      title 'Artifact.Read / Write streams; typed CAS'
     }
     include server.runtimeOperations.operationsApi -> server.runtimeOperations.schedulerSettingsService with {
       title 'Operations capability / CSRF / CAS'

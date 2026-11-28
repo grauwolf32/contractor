@@ -4,10 +4,11 @@ from functools import partial
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from contractor_runtime.artifacts import ArtifactClient, ArtifactHTTPResponse
+from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.sitemap import SitemapClient
 from contractor_runtime.sitemap_collection import SitemapCollector
 from contractor_runtime.toolsets.common.report_observations import REPORT_FORMATS, prepare_report
+from fakes.artifact_responses import ArtifactHTTPResponse
 from fakes.sitemap import SitemapTransport
 
 

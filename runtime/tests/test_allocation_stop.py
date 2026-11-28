@@ -8,13 +8,14 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import httpx
+import grpc
 import pytest
 from fakes.allocation import allocation_context, allocation_owner, allocation_snapshot
 from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.engagement import preflight_spec
 from fakes.model import scripted_model
 from fakes.spec import allocation_spec
+from fakes.state_rpc import state_client
 from test_adk_runtime import FakeArtifactClient
 
 from contractor_runtime.adapters.http_transport import HTTPTransportFactory
@@ -22,15 +23,12 @@ from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import API_VERSION, ReleaseAllocationRequest
 from contractor_runtime.factories import FactoryRegistry
-from contractor_runtime.server import create_app
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.worker import state as state_module
 from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
 from contractor_runtime.worker.runtime import AdkWorkerRuntime
 from contractor_runtime.workspace import LocalWorkdirFactory
-
-STATE_PATH = "/private/v1/allocations/allocation-1/agent-state"
 
 
 async def make_adk_service(root: Path, *, controlled_http: bool = False, target=None):
@@ -98,11 +96,8 @@ def test_queued_real_adk_state_read_cannot_hold_up_lease_stop(tmp_path):
 
         blocker = asyncio.create_task(asyncio.to_thread(occupy_executor))
         await started.wait()
-        app = create_app(state, allocation_service=service, require_verified_peer=False)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
-        ) as client:
-            reader = asyncio.create_task(client.get(STATE_PATH))
+        async with state_client(service._state, service) as client:
+            reader = asyncio.create_task(client.read())
             await asyncio.sleep(0)
             try:
                 # A guard against a broken test, not a wall-clock performance assertion.
@@ -114,8 +109,8 @@ def test_queued_real_adk_state_read_cannot_hold_up_lease_stop(tmp_path):
                 unblock.set()
                 await blocker
                 response = await reader
-            assert response.status_code == 409
-            assert response.json()["code"] == "agent_state_unavailable"
+            assert response.status == grpc.StatusCode.FAILED_PRECONDITION
+            assert response.error.code == "agent_state_unavailable"
         await release(service)
 
     asyncio.run(scenario())
@@ -271,11 +266,8 @@ def test_release_joins_admitted_http_state_reads_and_erases_the_real_state(
         monkeypatch.setattr(state_module, "_agent_state_snapshot", gated)
         monkeypatch.setattr(allocation_owner(service)._cleanup, "release", observed_release)
         monkeypatch.setattr(allocation_context(service).sandbox, "cleanup", observed_cleanup)
-        app = create_app(state, allocation_service=service, require_verified_peer=False)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
-        ) as client:
-            reader = asyncio.create_task(client.get(STATE_PATH))
+        async with state_client(service._state, service) as client:
+            reader = asyncio.create_task(client.read())
             await started.wait()
             if cancel_reader:
                 reader.cancel()
@@ -307,7 +299,7 @@ def test_release_joins_admitted_http_state_reads_and_erases_the_real_state(
                         await reader
                 else:
                     response = await reader
-                    assert response.status_code == 409
+                    assert response.status == grpc.StatusCode.FAILED_PRECONDITION
             if expire_release:
                 await release(service)
             else:
@@ -357,11 +349,8 @@ def test_release_queued_before_the_final_state_check_cannot_deadlock_or_retain_s
         monkeypatch.setattr(state_module, "_agent_state_snapshot", gated)
         io_task = asyncio.create_task(http_in_flight())
         await http_started.wait()
-        app = create_app(service._state, allocation_service=service, require_verified_peer=False)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
-        ) as client:
-            reader = asyncio.create_task(client.get(STATE_PATH))
+        async with state_client(service._state, service) as client:
+            reader = asyncio.create_task(client.read())
             await parse_started.wait()
             stopping = asyncio.create_task(service.expire_control_lease(10))
             releasing = None
@@ -378,7 +367,10 @@ def test_release_queued_before_the_final_state_check_cannot_deadlock_or_retain_s
                 await asyncio.wait_for(stopping, timeout=2)
                 await asyncio.wait_for(releasing, timeout=2)
                 response = await reader
-                assert response.status_code in {404, 409}
+                assert response.status in {
+                    grpc.StatusCode.NOT_FOUND,
+                    grpc.StatusCode.FAILED_PRECONDITION,
+                }
                 gc.collect()
                 assert retained() is None
                 assert exits == []

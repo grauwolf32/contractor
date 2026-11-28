@@ -1055,7 +1055,7 @@ keeps interpretation, actual tested conditions and uncertainty separate from
 its retained source descriptors. The Server acknowledgment begins the durability
 guarantee; local captures, source reads and private version selections do not.
 
-The private allocation-bound `POST .../audit-evidence` accepts a strict versioned
+The allocation-bound `Allocation.SubmitAuditEvidence` RPC accepts a strict versioned
 normalized submission: invocationId, submissionId, itemKey, exact sources,
 interpretation, testedConditions and limitations. It returns an exact Audit
 annotation material, retained Audit sources, frozen ordinary Run input aliases
@@ -1068,8 +1068,8 @@ new journal, universal handle registry or target replay is added.
 The natural receipt identity includes allocation, invocation and tool call.
 Identical retries replay before source reads, including under an authenticated
 read grant after write fencing. A changed request under that identity rejects
-with private `409 audit_evidence_conflict` (not retryable). New writes after a
-terminal Run/Audit fence reject (`409 audit_evidence_closed` where applicable);
+with private `FailedPrecondition audit_evidence_conflict` (not retryable). New writes after a
+terminal Run/Audit fence reject (`FailedPrecondition audit_evidence_closed` where applicable);
 unknown transport/receipt outcomes remain persistence unknown after two
 byte-identical attempts. Invalid input is a permanent rejection; storage
 transaction conflict retains the ordinary retryable 503 contract.
@@ -1084,11 +1084,11 @@ Audit maxEvidenceBytes; corrections consume the same bounded history. System
 stop metadata remains available on Task/attempt rows even when that quota is
 exhausted. Existing Audit maxEvidenceBytes accounting also
 applies, charging exact retained material once under the existing owner.
-Exhaustion rejects atomically with private `409 audit_evidence_limit_exceeded`
+Exhaustion rejects atomically with private `FailedPrecondition audit_evidence_limit_exceeded`
 (not retryable). Unacknowledged or unselected volatile tails may be unavailable.
 Permitted producer Run deletion does not delete the Audit-owned exact bytes.
 
-**AWC-R134.** Allocation-bound `POST .../audit-results` accepts normalized
+**AWC-R134.** Allocation-bound `Allocation.SubmitAuditJudgments` RPC accepts normalized
 Runtime judgments. Runtime supplies `apiVersion`, its invocation/mutation identity,
 `mode` (`single` or `batch`), and items containing private `baseGeneration` and
 an assembled conclusion. The model-facing tools remain AWC-R32/R39. Server
@@ -1108,10 +1108,10 @@ reads exact payloads only for the submitted members and evidence associated
 with those members; terminal collection validates the complete retained history.
 Receipt ranges and their indexes use bytewise ordering independently of the database locale. An old receipt replay after a
 newer correction returns its original receipt and never rolls the current result
-back. Private `409 audit_result_stale` reports authoritative generations; Runtime may apply
+back. The typed `stale` result of `Allocation.SubmitAuditJudgments` reports authoritative generations; Runtime may apply
 those only to a later model response, with obsolete local readiness cleared.
 Identity changes, closed intake and quota exhaustion return nonretryable private
-`409 audit_result_conflict`, `audit_result_closed` and
+`FailedPrecondition audit_result_conflict`, `audit_result_closed` and
 `audit_result_limit_exceeded`. Malformed input is `400 invalid_request`;
 storage conflicts use existing `503 storage_transaction_conflict`.
 

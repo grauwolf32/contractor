@@ -22,13 +22,22 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/mtlstest"
+	"github.com/grauwolf32/contractor/internal/runtimewire"
 	"github.com/grauwolf32/contractor/internal/telemetry"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	grpccredentials "google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
+	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
-	"github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -505,24 +514,38 @@ func assertDuplicatePrincipalRegistrationRejected(
 	if err := registration.Validate(); err != nil {
 		t.Fatalf("duplicate registration fixture: %v", err)
 	}
-	body, err := json.Marshal(registration)
+	request := &pb.AgentRegistration{}
+	if err := runtimewire.Encode(registration, request); err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := url.Parse(controlPlaneURL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	request, err := http.NewRequest(
-		http.MethodPost, controlPlaneURL+"/private/v1/agents/register", bytes.NewReader(body),
-	)
+	config, err := mtlstest.AgentClientConfig(mtlstest.Files{Certificate: identity.Certificate, PrivateKey: identity.PrivateKey, CA: caFile}, parsed.Hostname())
 	if err != nil {
 		t.Fatal(err)
 	}
-	request.Header.Set("Content-Type", "application/json")
-	response := do(t, newMTLSClient(t, caFile, identity), request, http.StatusConflict)
-	defer response.Body.Close()
-	responseBody, err := io.ReadAll(io.LimitReader(response.Body, 64<<10))
+	authority, err := mtls.GRPCAuthority(controlPlaneURL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	operations.evidence = append(operations.evidence, responseBody)
+	channel, err := grpc.NewClient(authority, grpc.WithTransportCredentials(grpccredentials.NewTLS(config)), grpc.WithDisableRetry())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer channel.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	_, err = pb.NewControlPlaneClient(channel).Register(ctx, request)
+	if grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("duplicate registration: %v", err)
+	}
+	evidence, err := json.Marshal(grpcstatus.Convert(err).Proto())
+	if err != nil {
+		t.Fatal(err)
+	}
+	operations.evidence = append(operations.evidence, evidence)
 }
 
 func assertForeignAgentCannotBorrowAllocation(
@@ -534,21 +557,17 @@ func assertForeignAgentCannotBorrowAllocation(
 	allocation runstore.StageAllocation,
 ) {
 	t.Helper()
-	// A valid list query (ART-R47), so the allocation identity check decides.
-	target := privateBaseURL + "/private/v1/allocations/" +
-		url.PathEscape(allocation.AllocationID) + "/artifacts?limit=1"
-	request, err := http.NewRequest(http.MethodGet, target, nil)
-	if err != nil {
-		t.Fatal(err)
+	channel, ctx := privateRuntimeChannel(t, caFile, foreignIdentity, privateBaseURL, allocation)
+	_, err := pb.NewAllocationClient(channel).ListArtifacts(ctx, &pb.ArtifactListRequest{Limit: proto.Int64(1)})
+	if grpcstatus.Code(err) != codes.NotFound {
+		t.Fatalf("foreign principal borrowed allocation: %v", err)
 	}
-	request.Header.Set(privateartifacts.RuntimeInstanceHeader, allocation.RuntimeAgentInstanceID)
-	response := do(t, newMTLSClient(t, caFile, foreignIdentity), request, http.StatusNotFound)
-	defer response.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(response.Body, 64<<10))
+	body, err := json.Marshal(grpcstatus.Convert(err).Proto())
 	if err != nil {
 		t.Fatal(err)
 	}
 	operations.evidence = append(operations.evidence, body)
+
 }
 
 func (o *runtimeOperations) request(
@@ -1205,4 +1224,25 @@ func assertRuntimeLabelSecretsAbsent(
 			t.Fatal("retained database exposed Runtime credential canary")
 		}
 	}
+}
+
+func privateRuntimeChannel(t *testing.T, caFile string, identity localpki.Paths, origin string, allocation runstore.StageAllocation) (*grpc.ClientConn, context.Context) {
+	t.Helper()
+	config, err := mtls.ControlPlaneEndpointClientConfig(mtls.Files{Certificate: identity.Certificate, PrivateKey: identity.PrivateKey, CA: caFile})
+	if err != nil {
+		t.Fatal(err)
+	}
+	authority, err := mtls.GRPCAuthority(origin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	channel, err := grpc.NewClient(authority, grpc.WithTransportCredentials(grpccredentials.NewTLS(config)), grpc.WithDisableRetry())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = channel.Close() })
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	t.Cleanup(cancel)
+	ctx = metadata.AppendToOutgoingContext(ctx, "x-contractor-runtime-instance-id", allocation.RuntimeAgentInstanceID, "x-contractor-allocation-id", allocation.AllocationID)
+	return channel, ctx
 }

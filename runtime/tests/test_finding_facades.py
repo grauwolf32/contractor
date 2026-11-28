@@ -901,7 +901,7 @@ def test_http_evidence_never_retains_the_runtime_target_credential(tmp_path):
         factory = HTTPToolsetFactory(direct)
         settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
-            artifactApiUrl="https://control.example/private/v1",
+            artifactApiUrl="https://control.example",
             httpOriginTarget=HTTPOriginTargetSettings(
                 url="https://target.example/", bearerToken=target_secret
             ),

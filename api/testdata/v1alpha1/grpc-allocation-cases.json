@@ -1,0 +1,521 @@
+{
+  "valid": [
+    {
+      "type": "PlannerOperationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "sequence": 1,
+        "name": "before_model",
+        "arguments": {}
+      }
+    },
+    {
+      "type": "PlannerOperationResponse",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "result": {},
+        "stop": false,
+        "escalate": false
+      }
+    },
+    {
+      "type": "GatewayRecoveryRequest",
+      "value": {
+        "model": "worker",
+        "requestId": "request-1",
+        "action": "acquire",
+        "retryAfterSeconds": 0
+      }
+    },
+    {
+      "type": "GatewayRecoveryResponse",
+      "value": {
+        "allowed": false,
+        "code": "model_unavailable",
+        "retryAfterSeconds": 0,
+        "requiresRetry": true
+      }
+    },
+    {
+      "type": "AuditEvidenceRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "invocationId": "invocation",
+        "submissionId": "call",
+        "itemKey": "item-00",
+        "sources": [
+          {
+            "namespace": "inputs",
+            "name": "source",
+            "revision": "exact"
+          }
+        ],
+        "interpretation": "Scoped observation",
+        "testedConditions": [],
+        "limitations": []
+      }
+    },
+    {
+      "type": "AuditJudgmentsRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "invocationId": "invocation",
+        "submissionId": "call",
+        "mode": "single",
+        "items": [
+          {
+            "baseGeneration": 0,
+            "conclusion": {
+              "item_key": "item-00",
+              "rationale": "Scoped conclusion",
+              "tested_conditions": [],
+              "limitations": [],
+              "evidence": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "AuditJudgmentsResponse",
+      "value": {
+        "stale": {
+          "apiVersion": "contractor/v1alpha1",
+          "currentGenerations": [
+            {
+              "itemKey": "item-00",
+              "generation": 0,
+              "taskId": "task-1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "FindingListResponse",
+      "value": {
+        "items": [],
+        "projectRevision": 1,
+        "nextCursor": null
+      }
+    },
+    {
+      "type": "ProjectFindingSummary",
+      "value": {
+        "findingId": "finding-1",
+        "projectId": "project-1",
+        "title": "Check",
+        "titleTruncated": false,
+        "subjectKind": "source",
+        "subjectKey": "file.py",
+        "subjectTruncated": false,
+        "severitySuggestion": "medium",
+        "state": null,
+        "analystVerdict": null,
+        "analystSeverity": "medium",
+        "duplicateTargetId": null,
+        "revision": 1,
+        "createdAt": "2026-11-27T00:00:00Z",
+        "updatedAt": "2026-11-27T00:00:00Z"
+      }
+    },
+    {
+      "type": "FindingSelectionRequest",
+      "value": {
+        "clientKey": "chosen",
+        "findings": [
+          {
+            "findingId": "finding-1",
+            "revision": 1
+          }
+        ],
+        "receiptIds": []
+      }
+    },
+    {
+      "type": "ArtifactListRequest",
+      "value": {
+        "limit": 1,
+        "namespace": "builder",
+        "namePrefix": "report"
+      }
+    },
+    {
+      "type": "ArtifactListResponse",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "artifacts": []
+      }
+    },
+    {
+      "type": "ArtifactReadTarget",
+      "value": {
+        "artifact": {
+          "namespace": "notes",
+          "name": "context"
+        },
+        "scope": "project",
+        "operation": "review_notes"
+      }
+    },
+    {
+      "type": "ArtifactMetadataResponse",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "artifact": {
+          "namespace": "notes",
+          "name": "context",
+          "revision": "exact"
+        },
+        "mediaType": "text/plain",
+        "size": 0,
+        "contentCacheKey": "cache-1"
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "mutation": {
+          "operation": "declare",
+          "expectedRevision": "absent",
+          "url": "https://example.test/route",
+          "method": "GET"
+        }
+      }
+    },
+    {
+      "type": "SitemapSnapshotRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "selection": {
+          "revision": "rev-map",
+          "groups": [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        }
+      }
+    },
+    {
+      "type": "SitemapMutationResponse",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "result": {
+          "artifact": {
+            "namespace": "sitemap",
+            "name": "map",
+            "revision": "rev-map"
+          },
+          "replayed": false,
+          "changed": true
+        }
+      }
+    },
+    {
+      "type": "SitemapSnapshotResponse",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "result": {
+          "artifact": {
+            "ref": {
+              "namespace": "research",
+              "name": "snapshot",
+              "revision": "rev-snapshot"
+            },
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.contractor.project-sitemap-context+json",
+            "sizeBytes": 100
+          },
+          "replayed": false
+        }
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "http"
+        },
+        "automatic": true
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "mutation": {
+          "operation": "replace-source",
+          "expectedRevision": "absent",
+          "source": {
+            "rules": [
+              {
+                "origin": "https://example.com",
+                "method": "GET",
+                "path": "/items/{id}",
+                "pointer": "/fixture",
+                "parameters": [],
+                "structural": []
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "caido"
+        },
+        "automatic": true
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "http-proxy"
+        },
+        "automatic": true
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "ArtifactWriteHeader",
+      "value": {
+        "artifact": {
+          "namespace": "analysis",
+          "name": "report"
+        },
+        "mediaType": "text/plain",
+        "size": 0,
+        "createOnly": true
+      }
+    },
+    {
+      "type": "ArtifactWriteHeader",
+      "value": {
+        "artifact": {
+          "namespace": "analysis",
+          "name": "report"
+        },
+        "mediaType": "text/plain",
+        "size": 1,
+        "expectedRevision": "revision,with opaque punctuation"
+      }
+    },
+    {
+      "type": "ArtifactWriteHeader",
+      "value": {
+        "createOnly": false
+      }
+    },
+    {
+      "type": "ArtifactPayloadMetadata",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "artifact": {
+          "namespace": "analysis",
+          "name": "report",
+          "revision": "exact"
+        },
+        "mediaType": "text/plain",
+        "size": 0,
+        "bindingCreatedAt": "2026-11-28T00:00:00Z",
+        "revisionCreatedAt": "2026-11-28T00:00:00.123456789Z"
+      }
+    },
+    {
+      "type": "FindingSubmissionHeader",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "invocationId": "invocation-1",
+        "submissionId": "submission-1",
+        "evidenceRefs": [],
+        "incidental": false,
+        "proposalSize": 67108864,
+        "derivedAnchorsSize": 0
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "type": "PlannerOperationRequest",
+      "value": {
+        "sequence": true
+      }
+    },
+    {
+      "type": "ArtifactListRequest",
+      "value": {
+        "limit": "1"
+      }
+    },
+    {
+      "type": "FindingReadRequest",
+      "value": {
+        "revision": -1
+      }
+    },
+    {
+      "type": "FindingReadRequest",
+      "value": {
+        "revision": 18446744073709551616
+      }
+    },
+    {
+      "type": "ArtifactReadTarget",
+      "value": {
+        "projectId": "foreign"
+      }
+    },
+    {
+      "type": "ArtifactReadTarget",
+      "value": {
+        "artifact": {
+          "namespace": "notes",
+          "name": "context",
+          "runId": "foreign"
+        }
+      }
+    },
+    {
+      "type": "GatewayRecoveryRequest",
+      "value": {
+        "retryAfterSeconds": true
+      }
+    },
+    {
+      "type": "GatewayRecoveryResponse",
+      "value": {
+        "allowed": 1
+      }
+    },
+    {
+      "type": "AuditEvidenceRequest",
+      "value": {
+        "testedConditions": [
+          1
+        ]
+      }
+    },
+    {
+      "type": "ArtifactWriteHeader",
+      "value": {
+        "size": true
+      }
+    },
+    {
+      "type": "ArtifactWriteHeader",
+      "value": {
+        "size": "1"
+      }
+    },
+    {
+      "type": "ArtifactWriteHeader",
+      "value": {
+        "createOnly": true,
+        "expectedRevision": "revision-1"
+      }
+    },
+    {
+      "type": "ArtifactWriteHeader",
+      "value": {
+        "expectedRevision": null
+      }
+    },
+    {
+      "type": "FindingSubmissionHeader",
+      "value": {
+        "proposalSize": -1
+      }
+    },
+    {
+      "type": "FindingSubmissionHeader",
+      "value": {
+        "httpEvidenceSize": null
+      }
+    }
+  ]
+}

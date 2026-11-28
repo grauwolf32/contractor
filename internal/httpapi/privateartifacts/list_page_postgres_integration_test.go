@@ -5,8 +5,12 @@ package privateartifacts
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
+	"google.golang.org/protobuf/proto"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,7 +23,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -48,19 +51,29 @@ type listRecorder struct {
 
 func (r *listRecorder) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodGet || !strings.HasSuffix(request.URL.Path, "/artifacts") {
+		if request.URL.Path != pb.Allocation_ListArtifacts_FullMethodName {
 			next.ServeHTTP(w, request)
 			return
 		}
+		data, _ := io.ReadAll(io.LimitReader(request.Body, (1<<20)+rpcEnvelopeBytes+6))
+		request.Body = io.NopCloser(bytes.NewReader(data))
+		var input pb.ArtifactListRequest
+		if len(data) >= 5 {
+			_ = proto.Unmarshal(data[5:], &input)
+		}
 		capture := &capturingWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(capture, request)
-		limit, _ := strconv.Atoi(request.URL.Query().Get("limit"))
-		var page contracts.ArtifactListResult
-		_ = json.Unmarshal(capture.body.Bytes(), &page)
+		limit := int(input.GetLimit())
+		var page pb.ArtifactListResponse
+		frame := capture.body.Bytes()
+		if len(frame) >= 5 && int(binary.BigEndian.Uint32(frame[1:5])) == len(frame)-5 {
+			_ = proto.Unmarshal(frame[5:], &page)
+		}
+
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		r.responses = append(r.responses, listResponse{
-			status: capture.status, limit: limit, bytes: capture.body.Len(), refs: len(page.Artifacts),
+			status: capture.status, limit: limit, bytes: capture.body.Len(), refs: len(page.GetArtifacts().GetValues()),
 		})
 	})
 }
@@ -240,3 +253,6 @@ func isolatedPrivateArtifactPool(t *testing.T, ctx context.Context) *pgxpool.Poo
 	}
 	return pool
 }
+
+func (w *capturingWriter) Flush()                      { w.ResponseWriter.(http.Flusher).Flush() }
+func (w *capturingWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }

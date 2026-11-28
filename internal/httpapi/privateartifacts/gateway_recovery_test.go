@@ -1,125 +1,40 @@
 package privateartifacts
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"strconv"
-	"testing"
-
-	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
-
-	"github.com/grauwolf32/contractor/internal/artifacts"
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"testing"
 )
 
 type recordingRecovery struct{ requests []gatewayrecovery.Request }
 
-func (r *recordingRecovery) Update(
-	_ context.Context, _ string, request gatewayrecovery.Request,
-) (gatewayrecovery.Decision, error) {
-	r.requests = append(r.requests, request)
+func (r *recordingRecovery) Update(_ context.Context, _ string, input gatewayrecovery.Request) (gatewayrecovery.Decision, error) {
+	r.requests = append(r.requests, input)
 	return gatewayrecovery.Decision{Allowed: true}, nil
 }
 
-func newRecoveryTestHandler(recovery gatewayRecoveryUpdater) http.Handler {
-	current := &handler{
-		dependencies: Dependencies{Transfers: artifactpgtest.NewStorage(),
-			Registry:  &fakeRegistry{grant: testGrant("run-a")},
-			Artifacts: artifacts.NewService(newMemoryRepository()),
-		},
-		recovery: recovery,
-	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /private/v1/allocations/{allocationID}/gateway-recovery", current.gatewayRecovery)
-	return current.requireMTLS(mux)
-}
-
-func TestGatewayRecoveryUsesPackageJSONContract(t *testing.T) {
-	const body = `{"model":"model","requestId":"request-1","action":"acquire"}`
-	for _, test := range []struct {
-		name        string
-		contentType string
-		status      int
-	}{
-		{"json", "application/json", http.StatusOK},
-		{"json with parameters", "application/json; charset=utf-8", http.StatusBadRequest},
-		{"text", "text/plain", http.StatusBadRequest},
-		{"missing", "", http.StatusBadRequest},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			recovery := &recordingRecovery{}
-			request := trustedRequest(
-				http.MethodPost, "/private/v1/allocations/allocation-1/gateway-recovery", bytes.NewReader([]byte(body)),
-			)
-			if test.contentType != "" {
-				request.Header.Set("Content-Type", test.contentType)
-			}
-			response := httptest.NewRecorder()
-			newRecoveryTestHandler(recovery).ServeHTTP(response, request)
-			if response.Code != test.status || response.Header().Get("Content-Type") != "application/json" ||
-				response.Header().Get("Cache-Control") != "no-store" ||
-				response.Header().Get("Content-Length") != strconv.Itoa(response.Body.Len()) {
-				t.Fatalf("recovery = %d headers=%v body=%s", response.Code, response.Header(), response.Body.String())
-			}
-			if test.status != http.StatusOK {
-				if len(recovery.requests) != 0 {
-					t.Fatalf("rejected request reached recovery: %+v", recovery.requests)
-				}
-				return
-			}
-			var decision gatewayrecovery.Decision
-			if err := json.Unmarshal(response.Body.Bytes(), &decision); err != nil || !decision.Allowed ||
-				len(recovery.requests) != 1 || recovery.requests[0].RequestID != "request-1" {
-				t.Fatalf("decision = %+v (%v), requests %+v", decision, err, recovery.requests)
-			}
-		})
-	}
-}
-
-// A write-fenced allocation belongs to an ending Stage. It may still deliver
-// the terminal update that relinquishes its probe, but it can neither start a
-// model call nor report a failure that would make its Run wait.
 func TestGatewayRecoveryFencedAllocationDeliversOnlyTerminalUpdates(t *testing.T) {
-	for _, test := range []struct {
-		action string
-		status int
-	}{
-		{"succeeded", http.StatusOK},
-		{"finished", http.StatusOK},
-		{"released", http.StatusOK},
-		{"acquire", http.StatusConflict},
-		{"failed", http.StatusConflict},
-	} {
-		t.Run(test.action, func(t *testing.T) {
+	for _, action := range []string{"succeeded", "finished", "released", "acquire", "failed"} {
+		t.Run(action, func(t *testing.T) {
 			grant := testGrant("run-a")
 			grant.WriteFenced = true
 			recovery := &recordingRecovery{}
-			current := &handler{
-				dependencies: Dependencies{Transfers: artifactpgtest.NewStorage(),
-					Registry:  &fakeRegistry{grant: grant},
-					Artifacts: artifacts.NewService(newMemoryRepository()),
-				},
-				recovery: recovery,
+			client, ctx := allocationRPCFixture(t, &handler{dependencies: Dependencies{Registry: &fakeRegistry{grant: grant}}, recovery: recovery})
+			request := &pb.GatewayRecoveryRequest{Model: proto.String("model"), RequestId: proto.String("request-1"), Action: proto.String(action), RetryAfterSeconds: proto.Float64(0)}
+			if action == "failed" {
+				request.Code = proto.String("model_unavailable")
 			}
-			mux := http.NewServeMux()
-			mux.HandleFunc("POST /private/v1/allocations/{allocationID}/gateway-recovery", current.gatewayRecovery)
-			body := `{"model":"model","requestId":"request-1","action":"` + test.action + `"`
-			if test.action == "failed" {
-				body += `,"code":"model_unavailable"`
+			response, err := client.GatewayRecovery(ctx, request)
+			want := codes.OK
+			if action == "acquire" || action == "failed" {
+				want = codes.FailedPrecondition
 			}
-			request := trustedRequest(
-				http.MethodPost, "/private/v1/allocations/allocation-1/gateway-recovery",
-				bytes.NewReader([]byte(body+`}`)),
-			)
-			request.Header.Set("Content-Type", "application/json")
-			response := httptest.NewRecorder()
-			current.requireMTLS(mux).ServeHTTP(response, request)
-			delivered := len(recovery.requests)
-			if response.Code != test.status || (test.status == http.StatusOK) != (delivered == 1) {
-				t.Fatalf("fenced %s = %d body=%s, delivered %d", test.action, response.Code, response.Body.String(), delivered)
+			if status.Code(err) != want || (len(recovery.requests) == 1) != (want == codes.OK) {
+				t.Fatalf("response=%v error=%v calls=%d", response, err, len(recovery.requests))
 			}
 		})
 	}

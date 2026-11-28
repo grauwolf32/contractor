@@ -122,7 +122,7 @@ def allocation_spec(
         runtimeSettings=RuntimeSettings(
             llmGatewayUrl="https://llm.example/v1",
             llmGatewayToken=secret,
-            artifactApiUrl="https://control.example/private/v1",
+            artifactApiUrl="https://control.example",
             requestTimeoutSeconds=30,
         ),
         resolvedRuntimeConfigProvenance=runtime_provenance(),

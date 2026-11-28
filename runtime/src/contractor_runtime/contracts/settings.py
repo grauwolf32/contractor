@@ -40,7 +40,7 @@ from contractor_runtime.contracts.base import (
     _require_selector,
     _require_sorted_unique,
     _require_text,
-    _require_url,
+    parse_private_rpc_origin,
     trim_whitespace,
 )
 from contractor_runtime.contracts.fields import (
@@ -746,7 +746,7 @@ class RuntimeSettings(WireModel):
             raise ValueError("llmGatewayToken is not an HTTP field value")
         if len(self.artifact_api_url.encode("utf-8")) > 2048:
             raise ValueError("runtimeSettings.artifactApiUrl exceeds 2048 bytes")
-        _require_url("runtimeSettings.artifactApiUrl", self.artifact_api_url)
+        parse_private_rpc_origin("runtimeSettings.artifactApiUrl", self.artifact_api_url)
         return self
 
     @field_serializer("llm_gateway_token", when_used="json")

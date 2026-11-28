@@ -10,7 +10,8 @@ import signal
 import time
 from collections.abc import Callable, Sequence
 
-from contractor_runtime._https import PrivateConnections
+from contractor_runtime._grpc_client import ControlRPC
+from contractor_runtime._rpc_connections import RPCConnections
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.archive_cache import (
     ImmutableArchiveCache,
@@ -22,7 +23,6 @@ from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.control_client import (
     ControlClient,
     ControlTransport,
-    MTLSJSONTransport,
     RegistrationRejectedError,
     SharedConfigError,
 )
@@ -35,7 +35,6 @@ from contractor_runtime.mtls import (
     log_runtime_certificate_expiry,
     runtime_agent_client_context,
     runtime_agent_server_context,
-    verify_control_plane_peer,
 )
 from contractor_runtime.sandbox.podman.lifecycle import PodmanLifecycle
 from contractor_runtime.sandbox.podman.workroots import check_root_policy
@@ -152,7 +151,7 @@ async def _bootstrap(
 ) -> None:
     stop = stop_requested or asyncio.Event()
     runtime_state = state or RuntimeState(allocation_slots=settings.allocation_slots)
-    connections = None
+    control_rpc = None
     loop = asyncio.get_running_loop()
     handled_signals = (signal.SIGINT, signal.SIGTERM)
     if install_signal_handlers:
@@ -160,15 +159,16 @@ async def _bootstrap(
             loop.add_signal_handler(handled_signal, stop.set)
     try:
         if transport is None:
-            outgoing_tls = runtime_agent_client_context(
-                ca_file=settings.ca_file,
-                certificate_file=settings.certificate_file,
-                private_key_file=settings.private_key_file,
+            control_rpc = ControlRPC(
+                settings.control_plane_url,
+                runtime_agent_client_context(
+                    ca_file=settings.ca_file,
+                    certificate_file=settings.certificate_file,
+                    private_key_file=settings.private_key_file,
+                ),
+                settings.request_timeout_seconds,
             )
-            connections = PrivateConnections(outgoing_tls, verify_control_plane_peer)
-            transport = MTLSJSONTransport(
-                settings.control_plane_url, connections, settings.request_timeout_seconds
-            )
+            transport = control_rpc
         control = ControlClient(settings, runtime_state, transport)
         if not await control.configure_until_stopped(stop) or stop.is_set():
             return
@@ -185,8 +185,8 @@ async def _bootstrap(
         if install_signal_handlers:
             for handled_signal in handled_signals:
                 loop.remove_signal_handler(handled_signal)
-        if connections is not None:
-            await connections.aclose()
+        if control_rpc is not None:
+            await control_rpc.aclose()
 
 
 async def _serve_configured(
@@ -271,7 +271,14 @@ async def _serve(
     )
     # The process owns its private connections and closes them last (CTL-R164):
     # registration and heartbeats never wait behind Artifact transfers.
-    artifact_connections = PrivateConnections(outgoing_tls, verify_control_plane_peer)
+    bulk_connections = RPCConnections(outgoing_tls, bulk=True)
+    allocation_connections = RPCConnections(
+        runtime_agent_client_context(
+            ca_file=settings.ca_file,
+            certificate_file=settings.certificate_file,
+            private_key_file=settings.private_key_file,
+        )
+    )
     factories = None
     try:
         trust_fingerprint = await to_thread_until_done(
@@ -283,7 +290,8 @@ async def _serve(
                 allocation_id,
                 MTLSArtifactTransport(
                     runtime_settings.artifact_api_url,
-                    artifact_connections,
+                    allocation_connections,
+                    bulk_connections,
                     runtime_settings.request_timeout_seconds,
                     runtime_state.instance_id,
                 ),
@@ -321,7 +329,15 @@ async def _serve(
             reconciliation=allocation_service,
         )
         application = create_app(runtime_state, allocation_service=allocation_service)
-        server = server_factory(create_server_config(settings, application, incoming_tls))
+        server = server_factory(
+            create_server_config(
+                settings,
+                application,
+                incoming_tls,
+                state=runtime_state,
+                allocation_service=allocation_service,
+            )
+        )
 
         server_task = asyncio.create_task(server.serve(), name="runtime-private-server")
         registration_task: asyncio.Task[bool] | None = None
@@ -395,7 +411,10 @@ async def _serve(
             if factories is not None and factories.http_transport_factory is not None:
                 await factories.http_transport_factory.close()
         finally:
-            await artifact_connections.aclose()
+            try:
+                await allocation_connections.aclose()
+            finally:
+                await bulk_connections.aclose()
 
 
 def _target_policy(settings: Settings) -> TargetPolicyConfig:

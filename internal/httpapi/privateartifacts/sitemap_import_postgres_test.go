@@ -3,7 +3,6 @@
 package privateartifacts
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -43,23 +42,11 @@ func TestPostgresPrivateSitemapImportAuthorityAndExactSources(t *testing.T) {
 	foreign := create("run-foreign", "builder")
 	registry := &fakeRegistry{grant: testGrant("run-import")}
 	registry.grant.SitemapPolicy = &contracts.ProjectSitemapPolicy{Version: contracts.SitemapAccessVersion}
-	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: registry, Artifacts: artifactService, Sitemap: projectsitemap.NewService(pool, artifactpgtest.NewStorage()), RunProjects: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Projects: projectstore.NewPostgresStore(pool)})
-	if err != nil {
-		t.Fatal(err)
-	}
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: registry, Artifacts: artifactService, Sitemap: projectsitemap.NewService(pool, artifactpgtest.NewStorage()), RunProjects: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Projects: projectstore.NewPostgresStore(pool)}})
 	request := func(key string, body any) *httptest.ResponseRecorder {
-		t.Helper()
-		data, err := json.Marshal(body)
-		if err != nil {
-			t.Fatal(err)
-		}
-		r := trustedRequest(http.MethodPost, "/private/v1/allocations/allocation-1/sitemap/observations", bytes.NewReader(data))
-		r.Header.Set("Content-Type", "application/json")
-		r.Header.Set("Idempotency-Key", key)
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, r)
-		return response
+		return fixture.sitemapCommand(t, "observations", key, body)
 	}
+
 	input := sitemapCollectionRequest{APIVersion: contracts.APIVersion, Input: projectsitemap.CollectionIngress{Kind: "custom-scanner.v2", Artifact: &own, Observations: []projectsitemap.Observation{{URL: "https://example.test/selected", Method: "GET", Outcome: "response", Status: 200, At: "2026-10-29T00:00:00Z"}}}}
 	assertPrivateErrorEnvelope(t, request("denied", input), 403, "sitemap_access_denied", false)
 	registry.grant.SitemapTools = []string{contracts.SitemapImportTool}

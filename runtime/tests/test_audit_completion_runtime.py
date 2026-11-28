@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
+import grpc
 import pytest
 from audit_fixtures import arguments
 from fakes.allocation import allocation_context
@@ -447,7 +448,9 @@ def test_publication_failure_is_not_misclassified_as_model_failure(tmp_path):
         runtime, _, client, state, _ = await runtime_for(
             tmp_path, [submit(expected.items[0].value), text_result("Done")]
         )
-        client.write_error = ArtifactAPIError(403, "allocation_fenced", False)
+        client.write_error = ArtifactAPIError(
+            grpc.StatusCode.PERMISSION_DENIED, "allocation_fenced", False
+        )
         result = await runtime.invoke(stage_request())
         assert result.failure.code == "audit_result_publication_failed"
         assert not result.failure.retryable and result.result is None
@@ -787,13 +790,13 @@ def test_unknown_correction_cannot_publish_old_result_through_runner(tmp_path):
             ],
             batch=True,
         )
-        request = client.transport.request
+        request = client.transport.submit_audit_judgments
         lost = 0
 
         async def lose_correction_response(*args, **kwargs):
             nonlocal lost
             response = await request(*args, **kwargs)
-            body = json.loads(kwargs["body"])
+            body = args[1]
             if lost < 2 and any(
                 item["conclusion"]["rationale"] == correction.rationale for item in body["items"]
             ):
@@ -801,7 +804,7 @@ def test_unknown_correction_cannot_publish_old_result_through_runner(tmp_path):
                 raise ArtifactTransportError("response lost after commit")
             return response
 
-        client.transport.request = lose_correction_response
+        client.transport.submit_audit_judgments = lose_correction_response
         try:
             completion = await runtime.invoke(stage_request())
             assert completion.failure is None

@@ -16,7 +16,10 @@ type operationStep struct {
 	name string
 	args map[string]any
 }
-type operationScript struct{ steps []operationStep }
+type operationScript struct {
+	steps   []operationStep
+	content string
+}
 
 func functionStep(name string, args map[string]any) operationStep { return operationStep{name, args} }
 func addSubtaskStep(objective, instructions string) operationStep {
@@ -45,7 +48,7 @@ func runtimeScriptFactory(profile plannerProfile, sessions planner.PlanSessionSe
 			if _, err := operation("before_model", map[string]any{"retainedBytes": 0}); err != nil {
 				return contracts.WorkerCompletion{}, err
 			}
-			if _, err := operation("after_model", map[string]any{"inputTokens": 7, "outputTokens": 3, "cachedTokens": 0, "calls": []string{step.name}}); err != nil {
+			if _, err := operation("after_model", map[string]any{"inputTokens": 7, "outputTokens": 3, "cachedTokens": 0, "calls": []string{step.name}, "content": script.content}); err != nil {
 				return contracts.WorkerCompletion{}, err
 			}
 			reply, err := operation(step.name, step.args)

@@ -408,7 +408,7 @@ def caido_credential_settings(target_token: str) -> RuntimeSettings:
     return RuntimeSettings(
         llmGatewayUrl="https://gateway.example/v1",
         llmGatewayToken=GATEWAY_TOKEN,
-        artifactApiUrl="https://control.example/private/v1",
+        artifactApiUrl="https://control.example",
         httpProxy=HTTPProxySettings(
             adapter="http-proxy@1",
             proxyUrl="http://caido-proxy.example:8080",

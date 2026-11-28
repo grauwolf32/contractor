@@ -554,3 +554,16 @@ class TerminationError(WireModel):
 
 
 RuntimeAdapterRef = Annotated[str, AfterValidator(_require_runtime_adapter_ref)]
+
+
+def parse_private_rpc_origin(field: str, value: str):
+    """Apply the private gRPC origin restriction to the common endpoint grammar."""
+    # urlsplit silently removes embedded CR/LF/TAB; never connect to a
+    # normalized identity that the registration contract did not contain.
+    if any(ord(char) < 32 or ord(char) == 127 for char in value):
+        raise ValueError(f"{field} must be an HTTPS origin")
+    _require_runtime_endpoint(field, value)
+    parsed = urlsplit(value)
+    if parsed.scheme != "https" or parsed.path not in {"", "/"}:
+        raise ValueError(f"{field} must be an HTTPS origin")
+    return parsed

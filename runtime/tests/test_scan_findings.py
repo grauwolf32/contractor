@@ -317,7 +317,7 @@ def test_shared_tool_worker_retains_compact_normalized_reports_and_exact_replay(
             if outcome == "publication_failed" and method == "PUT" and path.endswith("/candidates"):
                 return self.response(403, {"code": "write_forbidden", "retryable": False})
             if outcome == "unavailable_output" and method == "GET" and "/evidence" in path:
-                return self.response(404, {"code": "not_found", "retryable": False})
+                return self.response(404, {"code": "artifact_not_found", "retryable": False})
             response = await super().request(method, path, **kwargs)
             if (
                 outcome == "publication_ambiguous"

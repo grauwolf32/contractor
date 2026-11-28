@@ -6,6 +6,7 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
+import grpc
 import httpx
 from fakes.worker_state import WorkerState
 
@@ -125,7 +126,9 @@ async def cookie_faults(client: ArtifactClient) -> dict[str, Any]:
 
         async def write_artifact(self, *args: Any, **kwargs: Any) -> Any:
             if self.down:
-                raise ArtifactAPIError(503, "storage_transaction_conflict", True)
+                raise ArtifactAPIError(
+                    grpc.StatusCode.UNAVAILABLE, "storage_transaction_conflict", True
+                )
             if hasattr(self, "entered"):
                 self.entered.set()
                 await self.release.wait()

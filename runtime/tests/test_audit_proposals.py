@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+import grpc
 import pytest
 from jsonschema.exceptions import ValidationError
 
@@ -84,7 +85,7 @@ def test_shared_tool_resolves_configured_roles_cas_and_cumulative_selections():
                 data = self.data
                 ref = ref.model_copy(update={"revision": self.revision})
             else:
-                raise ArtifactAPIError(404, "artifact_not_found", False)
+                raise ArtifactAPIError(grpc.StatusCode.NOT_FOUND, "artifact_not_found", False)
             assert len(data) <= max_bytes
             return ArtifactValue(
                 ref, "application/json", data, datetime.now(UTC), datetime.now(UTC)
@@ -102,7 +103,9 @@ def test_shared_tool_resolves_configured_roles_cas_and_cumulative_selections():
         async def write_artifact(self, ref, *, data, media_type, expected_revision):
             assert ref == target
             if expected_revision != self.revision:
-                raise ArtifactAPIError(409, "artifact_revision_conflict", False)
+                raise ArtifactAPIError(
+                    grpc.StatusCode.FAILED_PRECONDITION, "artifact_conflict", False
+                )
             self.writes += 1
             self.revision = f"r{self.writes}"
             self.data = data
@@ -156,7 +159,7 @@ def test_shared_tool_resolves_configured_roles_cas_and_cumulative_selections():
             }
         }
         client.revision = "external-r3"
-        with pytest.raises(ArtifactAPIError, match="409"):
+        with pytest.raises(ArtifactAPIError, match="artifact_conflict"):
             await tool(json.dumps(seed), "[]")
         client.revision = "r2"
         await tool(json.dumps(seed), "[]")

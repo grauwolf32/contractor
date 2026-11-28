@@ -1,7 +1,7 @@
 {
-  "a2aUrl": "https://127.0.0.1:9443/a2a",
+  "a2aUrl": "https://127.0.0.1:9443",
   "apiVersion": "contractor/v1alpha1",
-  "controlUrl": "https://127.0.0.1:9443/private/v1",
+  "controlUrl": "https://127.0.0.1:9443",
   "instanceId": "019c-runtime-1",
   "observedState": "idle",
   "softwareVersion": "0.1.0",

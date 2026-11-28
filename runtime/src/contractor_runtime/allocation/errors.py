@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 
 class AllocationError(Exception):
     """Stable private-API error which never includes allocation secrets."""
@@ -14,9 +12,6 @@ class AllocationError(Exception):
         self.message = message
         self.retryable = retryable
         self.status_code = status_code
-
-    def payload(self) -> dict[str, Any]:
-        return {"code": self.code, "message": self.message, "retryable": self.retryable}
 
 
 def _conflict(message: str) -> AllocationError:

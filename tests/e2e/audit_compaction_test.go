@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,14 +37,18 @@ func TestAuditCompactionPreservesTrustedCompletionAcrossProcesses(t *testing.T) 
 		installCompactAuditProcessFixture(t, root, gateway.server.URL+"/v1")
 	}, func(h *findingsHarness) {
 		h.runtimeControlPlaneURL = h.proxyPrivateAPI(func(response *http.Response) error {
-			if !strings.HasSuffix(response.Request.URL.Path, "/artifacts/checker/result") || response.StatusCode >= 300 {
+			metadata, err := privateArtifactRPCMetadata(response)
+			if err != nil {
+				return err
+			}
+			if metadata == nil || metadata.GetArtifact().GetNamespace() != "checker" || metadata.GetArtifact().GetName() != "result" {
 				return nil
 			}
-			if response.Request.Method == http.MethodPut && lost.CompareAndSwap(0, 1) {
+			if response.Request.URL.Path == runtimepb.Artifact_Write_FullMethodName && lost.CompareAndSwap(0, 1) {
 				_ = response.Body.Close()
 				return errors.New("controlled committed Audit result acknowledgement loss")
 			}
-			if response.Request.Method == http.MethodGet {
+			if response.Request.URL.Path == runtimepb.Artifact_Read_FullMethodName {
 				reconciled.Add(1)
 			}
 			return nil
@@ -134,8 +139,8 @@ func TestAuditCompactionLeaseLossAcrossProcesses(t *testing.T) {
 	}, func(h *findingsHarness) {
 		h.runtimeControlPlaneURL = h.proxyPrivateAPI(func(response *http.Response) error {
 			path := response.Request.URL.Path
-			registration := strings.HasSuffix(path, "/register")
-			if denyControl.Load() && (registration || strings.Contains(path, "heartbeat")) {
+			registration := path == runtimepb.ControlPlane_Register_FullMethodName
+			if denyControl.Load() && (registration || path == runtimepb.ControlPlane_Heartbeat_FullMethodName) {
 				_ = response.Body.Close()
 				return errors.New("controlled control-lease reply loss")
 			}
@@ -230,6 +235,7 @@ func startPrivateAPIResponseProxy(t *testing.T, upstream string, ca, server, age
 		t.Fatal(err)
 	}
 	client := newMTLSClient(t, ca.Certificate, agent)
+	client.Transport.(*http.Transport).ForceAttemptHTTP2 = true
 	t.Cleanup(client.CloseIdleConnections)
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.Transport = client.Transport
@@ -248,6 +254,7 @@ func startPrivateAPIResponseProxy(t *testing.T, upstream string, ca, server, age
 		t.Fatal("invalid test CA")
 	}
 	listener := httptest.NewUnstartedServer(proxy)
+	listener.EnableHTTP2 = true
 	listener.TLS = &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{leaf}, ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: roots}
 	listener.StartTLS()
 	t.Cleanup(listener.Close)

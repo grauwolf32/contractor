@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
+from a2a.server.request_handlers.grpc_handler import GrpcHandler
 from google.adk.agents import LlmAgent
 from google.adk.apps import App
 from google.adk.events import Event, EventActions
@@ -18,12 +19,12 @@ from google.adk.models.base_llm import BaseLlm
 from google.adk.runners import Runner
 from google.adk.sessions import BaseSessionService
 from google.adk.sessions.base_session_service import GetSessionConfig
-from starlette.types import ASGIApp
 
 from contractor_runtime.a2a_server import (
     agent_card_dict,
     build_agent_card,
     build_worker_a2a_application,
+    grpc_endpoint,
 )
 from contractor_runtime.adapters import RuntimeInstrumentation
 from contractor_runtime.adapters.instrumentation import end_isolated_span, start_isolated_span
@@ -274,9 +275,7 @@ class AdkWorkerRuntime:
             observe_cancellation=self._raise_observed_tool_cancellation,
             fence=self._fence_compacted_session,
         )
-        endpoint = (
-            f"{context.a2a_base_url.rstrip('/')}/private/v1/allocations/{context.allocation_id}/a2a"
-        )
+        endpoint = grpc_endpoint(context.a2a_base_url)
         self._card = build_agent_card(
             allocation_id=context.allocation_id,
             endpoint=endpoint,
@@ -297,7 +296,7 @@ class AdkWorkerRuntime:
         return dict(self._agent_card)
 
     @property
-    def a2a_application(self) -> ASGIApp:
+    def a2a_application(self) -> GrpcHandler:
         return self._a2a_application
 
     async def agent_state_snapshot(self) -> AgentStateSnapshot:

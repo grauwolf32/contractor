@@ -69,10 +69,10 @@ class ShutdownRuntime:
             lambda grace: deadline(grace, monotonic=self.clock, force_exit=force_exit),
         )
 
-        class Connections(runtime_cli.PrivateConnections):
-            def __init__(self, *args):
-                super().__init__(*args)
-                self.phase = "control-connections" if not owner.connections else "artifacts"
+        class RPCConnections(runtime_cli.RPCConnections):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.phase = "bulk-rpc" if self._bulk else "allocation-rpc"
                 owner.connections.append(self)
 
             async def aclose(self):
@@ -80,9 +80,12 @@ class ShutdownRuntime:
                 await super().aclose()
 
         class Transport(InflightTransport):
-            async def post_json(self, *args):
+            async def aclose(self):
+                await owner.step("control-connections")
+
+            async def exchange(self, *args):
                 try:
-                    return await super().post_json(*args)
+                    return await super().exchange(*args)
                 except asyncio.CancelledError:
                     await owner.step("control-loop")
                     raise
@@ -132,8 +135,8 @@ class ShutdownRuntime:
 
         self.transport = Transport()
         self.server = Server()
-        monkeypatch.setattr(runtime_cli, "PrivateConnections", Connections)
-        monkeypatch.setattr(runtime_cli, "MTLSJSONTransport", lambda *args: self.transport)
+        monkeypatch.setattr(runtime_cli, "RPCConnections", RPCConnections)
+        monkeypatch.setattr(runtime_cli, "ControlRPC", lambda *args: self.transport)
         monkeypatch.setattr(runtime_cli, "AllocationService", Allocation)
         monkeypatch.setattr(runtime_cli, "LeaseWatchdog", Watchdog)
         monkeypatch.setattr(runtime_cli, "PodmanLifecycle", Lifecycle)
@@ -194,7 +197,8 @@ def test_shutdown_shares_budget_with_outer_resource_owners(
             "control-loop": 2,
             "allocation": 2,
             "listener": 2,
-            "artifacts": 1,
+            "allocation-rpc": 1,
+            "bulk-rpc": 1,
             "cache": 1,
         }
         serving = runtime.start()
@@ -209,7 +213,8 @@ def test_shutdown_shares_budget_with_outer_resource_owners(
         assert runtime.steps[2:] == [
             "allocation",
             "listener",
-            "artifacts",
+            "allocation-rpc",
+            "bulk-rpc",
             "cache",
             *(["podman-owner"] if podman else []),
             "control-connections",
@@ -231,7 +236,8 @@ def test_shutdown_shares_budget_with_outer_resource_owners(
         "watchdog",
         "allocation",
         "listener",
-        "artifacts",
+        "allocation-rpc",
+        "bulk-rpc",
         "cache",
         "podman-owner",
         "control-connections",
@@ -322,7 +328,13 @@ def test_listener_construction_failure_closes_connections_and_outer_resources(
 
         with pytest.raises(ValueError, match="listener construction failed"):
             await runtime.start(server_factory=failed)
-        assert runtime.steps == ["artifacts", "cache", "podman-owner", "control-connections"]
+        assert runtime.steps == [
+            "allocation-rpc",
+            "bulk-rpc",
+            "cache",
+            "podman-owner",
+            "control-connections",
+        ]
         assert not runtime.exits
 
     asyncio.run(scenario())

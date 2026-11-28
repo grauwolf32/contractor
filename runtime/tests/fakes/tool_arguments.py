@@ -76,7 +76,7 @@ async def http_receiver(tmp_path, route, *, status=200, limits=None):
         settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
             llmGatewayToken="test-token",
-            artifactApiUrl="https://control.example/private/v1",
+            artifactApiUrl="https://control.example",
             requestTimeoutSeconds=10,
             httpOriginTarget={"url": receiver.url},
         )

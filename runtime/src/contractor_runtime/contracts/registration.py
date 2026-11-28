@@ -24,7 +24,7 @@ from contractor_runtime.contracts.base import (
     _require_capability_ref,
     _require_resource_id,
     _require_sorted_unique,
-    _require_url,
+    parse_private_rpc_origin,
 )
 from contractor_runtime.contracts.placement import validate_placement_labels
 from contractor_runtime.contracts.workspace import WorkspaceCapabilities
@@ -174,8 +174,8 @@ class AgentRegistration(VersionedWireModel):
     def validate_registration(self) -> Self:
         _require_resource_id("instanceId", self.instance_id)
         _require_aware_datetime("startedAt", self.started_at)
-        _require_url("controlUrl", self.control_url)
-        _require_url("a2aUrl", self.a2a_url)
+        parse_private_rpc_origin("controlUrl", self.control_url)
+        parse_private_rpc_origin("a2aUrl", self.a2a_url)
         _validate_capability_refs(
             self.supported_runtimes,
             self.supported_toolsets,

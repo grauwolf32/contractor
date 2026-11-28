@@ -17,7 +17,7 @@ import (
 // This exercises the real handler's HTTP mapping, rather than disconnecting HTTP.
 func TestPrivateArtifactCommittedWriteCanReturnHTTP500(t *testing.T) {
 	repository := &acknowledgementFailureRepository{memoryRepository: newMemoryRepository()}
-	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
+	handler, err := newPayloadNativeRecorder(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry:     &fakeRegistry{grant: testGrant("run-a")},
 		Artifacts:    artifacts.NewService(repository),
 		NewRequestID: func() (string, error) { return "artifact-ack-failure", nil },

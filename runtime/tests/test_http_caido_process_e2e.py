@@ -222,7 +222,7 @@ def http_caido_spec() -> Any:
     spec.runtime_settings = RuntimeSettings(
         llmGatewayUrl="https://gateway.example/v1",
         llmGatewayToken="gateway-token",
-        artifactApiUrl="https://control.example/private/v1",
+        artifactApiUrl="https://control.example",
         httpProxy=HTTPProxySettings(
             adapter="http-proxy@1",
             proxyUrl="https://proxy.example",

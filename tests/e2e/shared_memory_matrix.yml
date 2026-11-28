@@ -22,12 +22,12 @@ cases:
     category: isolation
     invariants: [I02]
     expected: A Planner and its logical Worker resolve the same Run and Agent Namespace view.
-    test: {source: internal/planner/streamline/memory_tools_test.go, symbol: TestPlannerAndWorkerShareOneLogicalMemoryNamespace}
+    test: {source: internal/planner/streamline/runtime_matrix_owners_test.go, symbol: TestRuntimePlannerAndWorkerShareLogicalMemoryNamespace}
   - id: router_exact_mirroring
     category: selection
     invariants: [I03]
     expected: Router schemas expose only selected operations and exact eligible logical worker names.
-    test: {source: internal/planner/streamline/memory_tools_test.go, symbol: TestPlannerMemorySchemasMirrorExactSelections}
+    test: {source: internal/planner/streamline/tools_schema_test.go, symbol: TestRuntimeToolDeclarationsKeepExactWorkerScopes}
   - id: worker_explicit_selection
     category: selection
     invariants: [I04]

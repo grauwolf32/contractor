@@ -3,7 +3,6 @@ package privateartifacts
 import (
 	"context"
 	"errors"
-	"net/http"
 	"slices"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -18,55 +17,37 @@ import (
 // withReadTarget keeps Project read authority stable through the entire read,
 // using the same gate as allocation fence/release. Ordinary Run reads preserve
 // their existing grant and namespace policy.
-func (h *handler) withReadTarget(r *http.Request, accessOnly bool, read func(context.Context, artifacts.ScopedStore, contracts.ArtifactRef) error) error {
-	allowed := []string{"scope", "operation"}
-	if !accessOnly {
-		allowed = append(allowed, "revision")
-	}
-	query, err := exactQuery(r.URL.RawQuery, allowed...)
-	if err != nil {
-		return err
-	}
-	ref := contracts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")}
-	if contracts.ValidateArtifactName(ref.Namespace) != nil || contracts.ValidateArtifactName(ref.Name) != nil {
+func (h *handler) withArtifactTarget(ctx context.Context, allocationID string, identity authenticatedRuntime, ref contracts.ArtifactRef, scope, operation *string, accessOnly bool, read func(context.Context, artifacts.ScopedStore, contracts.ArtifactRef) error) error {
+	if ref.Validate() != nil {
 		return errInvalidRequest
 	}
-	if values, present := query["revision"]; present {
-		if !contracts.ValidResourceID(values[0]) {
+	if scope == nil {
+		if operation != nil || accessOnly {
 			return errInvalidRequest
 		}
-		ref.Revision = &values[0]
-	}
-	_, scoped := query["scope"]
-	_, operated := query["operation"]
-	if !scoped {
-		if operated || accessOnly {
-			return errInvalidRequest
-		}
-		store, err := h.runStore(r, false)
+		grant, err := h.dependencies.Registry.GetGrant(allocationID)
 		if err != nil {
 			return err
 		}
-		return read(r.Context(), store, ref)
+		store, err := h.runStoreForGrant(allocationID, grant, identity, false)
+		if err != nil {
+			return err
+		}
+		return read(ctx, store, ref)
 	}
-	operation := query.Get("operation")
-	if query.Get("scope") != "project" || !operated || !contracts.ValidName(operation) {
+	if *scope != "project" || operation == nil || !contracts.ValidName(*operation) || accessOnly && ref.Revision != nil {
 		return errInvalidRequest
 	}
-	_, identity, err := h.allocationGrant(r)
-	if err != nil {
-		return err
-	}
-	ctx, cancel := artifacttransfer.StorageContext(r.Context())
+	ctx, cancel := artifacttransfer.StorageContext(ctx)
 	defer cancel()
-	return h.dependencies.Registry.WithWriteGrant(r.PathValue("allocationID"), func(grant controlplane.AllocationGrant) error {
-		if grant.AllocationID != r.PathValue("allocationID") || grant.RuntimeAgentID != identity.principalID || grant.RuntimeInstanceID != identity.instanceID {
+	return h.dependencies.Registry.WithWriteGrant(allocationID, func(grant controlplane.AllocationGrant) error {
+		if grant.AllocationID != allocationID || grant.RuntimeAgentID != identity.principalID || grant.RuntimeInstanceID != identity.instanceID {
 			return controlplane.ErrAllocationNotFound
 		}
 		if grant.WriteFenced || grant.Lost {
 			return errAllocationWriteFenced
 		}
-		if grant.ReadPolicy != controlplane.ReadCurrentRun || !permitsProjectRead(grant.ProjectArtifactReads, ref, operation) || h.dependencies.RunProjects == nil || h.dependencies.Projects == nil {
+		if grant.ReadPolicy != controlplane.ReadCurrentRun || !permitsProjectRead(grant.ProjectArtifactReads, ref, *operation) || h.dependencies.RunProjects == nil || h.dependencies.Projects == nil {
 			return errArtifactAccessDenied
 		}
 		owning, err := h.dependencies.RunProjects.ProjectContext(ctx, grant.RunID)
@@ -109,18 +90,4 @@ func permitsProjectRead(targets []controlplane.ProjectArtifactReadTarget, ref co
 		}
 	}
 	return false
-}
-
-// getArtifactAccess verifies only current authority. A previously downloaded
-// immutable view remains usable after the source binding/revision is evicted;
-// this check must not read Artifact metadata, bytes or lineage, or acquire a hold.
-func (h *handler) getArtifactAccess(w http.ResponseWriter, r *http.Request) {
-	err := h.withReadTarget(r, true, func(context.Context, artifacts.ScopedStore, contracts.ArtifactRef) error {
-		w.Header().Set("Cache-Control", "no-store")
-		w.WriteHeader(http.StatusNoContent)
-		return nil
-	})
-	if err != nil {
-		h.handleError(w, err)
-	}
 }

@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -89,16 +88,13 @@ func TestPostgresPrivateProjectArtifactReadsUseConcreteTargetAndNoCacheHolds(t *
 	}
 	registry := &fakeRegistry{grant: testGrant("run-a")}
 	registry.grant.ProjectArtifactReads = []controlplane.ProjectArtifactReadTarget{{Namespace: "notes", Name: "context", Operations: []string{"review_notes"}}}
-	server, err := NewHandler(Dependencies{Transfers: artifactStorage, Registry: registry, Artifacts: service, RunProjects: runstore.NewPostgresStore(pool, artifactStorage), Projects: projectstore.NewPostgresStore(pool)})
-	if err != nil {
-		t.Fatal(err)
-	}
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Transfers: artifactStorage, Registry: registry, Artifacts: service, RunProjects: runstore.NewPostgresStore(pool, artifactStorage), Projects: projectstore.NewPostgresStore(pool)}})
+
 	const basePath = "/private/v1/allocations/allocation-1/artifacts/notes/context"
 	const query = "?scope=project&operation=review_notes"
 	request := func(suffix string) *httptest.ResponseRecorder {
 		t.Helper()
-		response := httptest.NewRecorder()
-		server.ServeHTTP(response, trustedRequest(http.MethodGet, basePath+suffix, nil))
+		response := fixture.artifactRequest(t, basePath+suffix)
 		return response
 	}
 	if response := request(""); response.Code != 200 || response.Body.String() != "ordinary Run" {

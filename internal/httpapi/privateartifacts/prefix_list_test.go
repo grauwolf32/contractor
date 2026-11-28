@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"sort"
 	"strings"
 	"testing"
@@ -24,13 +22,10 @@ func TestPrivateArtifactPrefixListIsBoundedAndValidated(t *testing.T) {
 	repository.seed("run-a", "builder", "memory.one", "r", []byte("note"))
 	repository.seed("run-a", "foreign", "memory.foreign", "r", []byte("foreign"))
 	repository.seed("run-b", "builder", "memory.foreign", "r", []byte("foreign"))
-	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository)})
-	if err != nil {
-		t.Fatal(err)
-	}
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository)}})
+
 	target := "/private/v1/allocations/allocation-1/artifacts"
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, trustedRequest(http.MethodGet, target+"?namespace=builder&namePrefix=memory.&limit=129", nil))
+	response := fixture.artifactRequest(t, target+"?namespace=builder&namePrefix=memory.&limit=129")
 	var result contracts.ArtifactListResult
 	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil || response.Code != 200 || len(result.Artifacts) != 1 || result.Artifacts[0].Name != "memory.one" || repository.prefixCalls != 1 {
 		t.Fatalf("filtered response: %d %s; %v", response.Code, response.Body.String(), err)
@@ -47,8 +42,7 @@ func TestPrivateArtifactPrefixListIsBoundedAndValidated(t *testing.T) {
 		"namespace=builder&namePrefix=memory.&limit=129&runId=run-b",
 	} {
 		t.Run(query, func(t *testing.T) {
-			rejected := httptest.NewRecorder()
-			handler.ServeHTTP(rejected, trustedRequest(http.MethodGet, target+"?"+query, nil))
+			rejected := fixture.artifactRequest(t, target+"?"+query)
 			if rejected.Code != 400 {
 				t.Fatalf("invalid query response: %d %s", rejected.Code, rejected.Body.String())
 			}
@@ -59,13 +53,11 @@ func TestPrivateArtifactPrefixListIsBoundedAndValidated(t *testing.T) {
 	}
 	// The unbounded listing is gone: a listing without limit is rejected and
 	// the paged form stays bounded by its limit.
-	unbounded := httptest.NewRecorder()
-	handler.ServeHTTP(unbounded, trustedRequest(http.MethodGet, target+"?namespace=builder", nil))
+	unbounded := fixture.artifactRequest(t, target+"?namespace=builder")
 	if unbounded.Code != 400 || repository.listCalls != 0 {
 		t.Fatalf("unbounded list = %d %s", unbounded.Code, unbounded.Body.String())
 	}
-	paged := httptest.NewRecorder()
-	handler.ServeHTTP(paged, trustedRequest(http.MethodGet, target+"?namespace=builder&limit=256", nil))
+	paged := fixture.artifactRequest(t, target+"?namespace=builder&limit=256")
 	var page contracts.ArtifactListResult
 	if err := json.Unmarshal(paged.Body.Bytes(), &page); err != nil || paged.Code != 200 ||
 		len(page.Artifacts) != 256 || page.NextCursor == nil || len(paged.Body.Bytes()) >= 1<<20 {

@@ -3,12 +3,25 @@
 The Runtime Agent is the Python execution process for Contractor
 v2. It registers a fresh process identity with the Go Control Plane, maintains
 confirmed sequenced heartbeats, and exposes one private mTLS listener. Worker,
-Google ADK, A2A 1.0 JSON-RPC, and artifact tools run together in that process;
+Google ADK, the official A2A 1.0 gRPC binding, and artifact tools run together in that process;
 each Runtime Agent declares 1..4 allocation slots with `--allocation-slots`
 (default 4). Capacity is immutable until restart; different processes may use
 different values. HTTP and Podman owners and the immutable archive cache are
 shared, while sessions, containers, credentials and mutable workspaces remain
 allocation-local.
+
+Server/Runtime commands and data use named native gRPC methods. Control,
+allocation callbacks and bulk Artifact traffic have independent connection
+owners; Artifact reads/writes and finding evidence use bounded chunk streams
+with the existing CAS and receipt owners. Private endpoint settings are HTTPS
+origins without paths, credentials, queries or fragments. No HTTP or JSON-RPC
+fallback remains for these operations.
+
+The existing mTLS PKI is retained. A bounded in-process TLS adapter checks the
+actual peer's required URI SAN before forwarding to grpcio over private Unix
+sockets. `/healthz` and `/readyz` retain their operational HTTPS interface on a
+separate local backend; it has no command or Artifact routes. Worker proxies
+and allocation CA settings never apply to this private traffic.
 
 `streamline@1` runs its model loop and optional compactor in a separate
 `planner@1` allocation. A Streamline Stage therefore needs two slots across the

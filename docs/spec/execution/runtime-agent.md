@@ -268,17 +268,17 @@ registration bounds of [CTL-R148](control-plane.md) fails startup readiness
 with a safe discovery error, because Control Plane would reject every
 registration of it (FAIL-CTL-1).
 
-**RTA-R113.** Startup registration retries, with the bounded control backoff,
-only a failure that may clear: a connection error, a timeout, an invalid
-response, or a rejection whose private error envelope says `retryable: true`
-([CTL-R151](control-plane.md)); without that envelope, HTTP 408, 409, 425, 429
-and every 5xx. Any other rejection is permanent: the Runtime Agent ends startup
-with a safe error that names only the HTTP status, the Server's error code and
-its request ID, stops its listener and exits non-zero instead of repeating a
-registration that cannot succeed (FAIL-CTL-1). A running agent's
-re-registration, requested by a heartbeat or after a release, keeps retrying
-(RTA-R28), because the agent may still have to confirm the release of a
-fenced allocation.
+**RTA-R113.** Startup registration uses native gRPC. It retries with bounded
+control backoff only connection failure, timeout, or a
+rejection whose validated typed details say `retryable: true` (CTL-R151).
+Without details, `Unavailable`, `DeadlineExceeded` and `Aborted` are retryable.
+Malformed or oversized control responses and a failed Control Plane
+certificate/role check are permanent. Admission exhaustion is retryable only
+with valid typed details. Other rejections end startup with a safe status, domain code and
+request ID, stop the listener and exit non-zero (FAIL-CTL-1); remote exception
+text is never logged. Running re-registration retains bounded backoff for retryable failures
+(RTA-R28). A permanent control rejection exits through the process shutdown
+owner, which fences and joins allocations before closing connections.
 
 **RTA-R7.** The Runtime enables every installed built-in adapter by
 default. An immutable startup allowlist may narrow that installed surface with
@@ -592,8 +592,8 @@ changing `local-workdir@1` semantics.
 telemetry settings only through allocation-owned adapter objects. It does not
 mutate process-global proxy environment or trust stores.
 
-**RTA-R57.** Registration, heartbeat, control, A2A and Artifact API
-traffic always bypasses the Worker proxy. MemoryTools uses that same Artifact
+**RTA-R57.** Registration, heartbeat, control, official A2A gRPC and
+Artifact gRPC traffic always bypasses the Worker proxy. MemoryTools uses that same Artifact
 client and adds no proxied endpoint.
 
 **RTA-R58.** Finalization and abort close adapters after a bounded
@@ -706,7 +706,10 @@ Control Plane certificate; the advertised `tenant` remains only the opaque
 route selector and is never treated as a credential.
 
 **RTA-R75.** The A2A endpoint authenticates the Server as a Control Plane
-peer through mTLS.
+peer through mTLS on the actual connection, using the process-private TLS
+adapter defined by SEC-R5. It delegates official A2A gRPC messages to the SDK
+handler; the Agent Card advertises only `GRPC`, protocol version `1.0`, and
+an authority with an allocation tenant. No JSON-RPC fallback is advertised.
 
 **RTA-R76.** The A2A endpoint validates that `tenant` matches the active
 allocation and lease.
@@ -919,7 +922,7 @@ report in `fenced` state (LIFE-RTA-5).
 cleanup only after removing the `local-workdir@1` allocation directory, while
 continuing to report the old allocation identity as `fenced`. A cleanup
 failure keeps the slot unavailable, and an idempotent release retry repeats
-cleanup. A lost HTTP response is therefore safe: neither side can infer an
+cleanup. A lost RPC response is therefore safe: neither side can infer an
 idle slot (FAIL-RTA-5).
 
 **RTA-R92.** After Control Plane has removed its authority, a
@@ -935,11 +938,11 @@ release is [CTL-R124 to CTL-R126](control-plane.md).
 
 ### Live Worker State handler
 
-**RTA-R93.** The thin ASGI handler of the private agent-state
-route lives beside the allocation lifecycle routes and delegates to
+**RTA-R93.** The thin gRPC `RuntimeLifecycle.ReadState` handler
+lives beside the allocation lifecycle RPCs and delegates to
 `AllocationService`, which verifies that the exact allocation owns the live
 Worker. The Worker implementation returns a framework-neutral
-`AgentStateSnapshot`; the HTTP layer never reaches directly into the ADK
+`AgentStateSnapshot`; the RPC layer never reaches directly into the ADK
 Session. Snapshot construction and validation run outside the allocation
 lifecycle lock. Before returning a snapshot, the service rechecks the exact
 allocation context, Worker identity and active state; a read that races stop,
@@ -954,8 +957,9 @@ run first without retaining Worker State. Reader admission
 uses one counter and one completion event per allocation, without a task or
 payload registry.
 
-The route `GET /private/v1/allocations/{allocation_id}/agent-state`, its
-accepted peer, caching, 4 MiB body bound (LIM-WRK-17) and errors
+The RPC `RuntimeLifecycle.ReadState`, its
+accepted peer, conditional revision, 4 MiB document bound (LIM-WRK-17),
+protobuf envelope bound (LIM-CTL-27) and errors
 (`allocation_not_found`, `agent_state_unavailable`) are
 [WRK-R112 to WRK-R122](worker.md).
 
@@ -1027,7 +1031,7 @@ and the terminal response
 Private Runtime routes, reached only by Control Plane: the private control
 endpoint that receives prepare, finalize, abort and release
 ([Control Plane](control-plane.md)), and
-`GET /private/v1/allocations/{allocation_id}/agent-state`
+`RuntimeLifecycle.ReadState`
 ([Worker](worker.md)). The private surface is the one strict
 `contractor/v1alpha1` contract with one schema and fixture catalog under
 [`api/v1alpha1`](../../../api/v1alpha1/) ([CTL-R6 and CTL-R8](control-plane.md)).
@@ -1208,8 +1212,8 @@ listed in [Control Plane](control-plane.md#invariants); those on the
 ```text
 external Agent Card
   skills = [contractor_stage_content]
-  supportedInterfaces[0].url = https://runtime-agent-7.internal/private/v1/allocations/allocation-123/a2a
-  supportedInterfaces[0].protocolBinding = JSONRPC
+  supportedInterfaces[0].url = runtime-agent-7.internal:443
+  supportedInterfaces[0].protocolBinding = GRPC
   supportedInterfaces[0].protocolVersion = 1.0
   supportedInterfaces[0].tenant = allocation-123
 
@@ -1327,8 +1331,8 @@ Run metadata label validation and telemetry use the received count and key/value
 byte bounds; Runtime placement labels remain separate.
 A different snapshot requires process restart.
 Malformed/oversized configuration documents, unsupported versions, digest mismatch and
-permanent HTTP rejection stop startup without registration. Network failures,
-per-request timeout and retryable HTTP responses repeat using the existing
+permanent gRPC rejection stop startup without registration. Network failures,
+per-request timeout and retryable gRPC responses repeat using the existing
 Control Plane backoff (ceiling five seconds), until success or shutdown.
 Each attempt uses the private request timeout and response byte budget.
 Shutdown cancels and joins the fetch before closing its connection; no

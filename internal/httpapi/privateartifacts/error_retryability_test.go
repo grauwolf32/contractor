@@ -44,7 +44,7 @@ func TestPrivateArtifactWriteErrorsReportRetryability(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			repository := &rejectingWriteRepository{memoryRepository: newMemoryRepository(), err: test.err}
-			handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
+			handler, err := newPayloadNativeRecorder(Dependencies{Transfers: artifactpgtest.NewStorage(),
 				Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository),
 				NewRequestID: func() (string, error) { return "artifact-retryability", nil },
 			})

@@ -1,0 +1,177 @@
+schema_version: '1.0'
+id: V490-004
+title: Move allocation domain services to typed gRPC
+milestone: server-runtime-grpc-2026-11
+epic: api-contracts
+kind: feature
+priority: P1
+status: completed
+depends_on:
+- V490-003
+languages:
+- go
+- python
+- protobuf
+- markdown
+goal: Runtime tools and Planner callbacks reach the existing Server domain owners through gRPC with unchanged
+  allocation authority and receipts.
+demonstration: Real Router/Streamline Planner callbacks dispatch a Worker and commit plan facts once under
+  a lost reply; finding selections, Audit and sitemap submissions return their existing durable receipts.
+context:
+  authority: 'User decision 2026-11-27: plan and implement gRPC for Server/Runtime, preserve A2A. Direct connectivity
+    through the existing overlay is an architectural fact, not new scope. NAT, reverse tunnels and removal
+    of A2A were explicitly rejected. Implementation does not authorize deployment or merging main. The task
+    decomposition and typed protobuf design are agent proposals. Subsequent user decision 2026-11-27:
+    preserve the current PKI and use a bounded in-process Runtime TLS adapter with actual-connection
+    Control Plane URI SAN verification and private Unix sockets for native grpcio.'
+  proposal: docs/proposals/0038-server-runtime-transport.md
+  specification:
+  - docs/spec/execution/control-plane.md#CTL-R163
+  - docs/spec/execution/runtime-agent.md#RTA-R75
+  - docs/spec/platform/security.md#SEC-R5
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/persistence.md#PER-R24
+  baseline: main 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b
+  boundary_decision: >-
+    Agent decomposition correction 2026-11-27: findingintake.MaxRequestBytes is
+    64 MiB because a proposal may include selected captured HTTP evidence.
+    Its existing handler already uses Artifact transfer admission. Move only
+    finding proposal submission to V490-005 with the bounded bulk transport;
+    finding reads and selections remain here. Preserve Audit document limits
+    of 8 MiB and Planner operation limits of 4 MiB with separately bounded
+    service messages and existing domain validation. Do not enlarge the
+    process control channel or silently shrink any domain limit. Reopen this
+    split only if the actual domain payload ownership changes. The implementation
+    uses allocation/instance metadata for authority before protobuf decode and
+    one process admission bound across control/domain RPCs. Runtime domain calls
+    lease four exclusive channels, admitting at most 32 calls including waiters;
+    control and bulk owners remain separate. This is an agent implementation
+    choice preserving existing deadlines and sibling allocation isolation, not a
+    new user requirement. Reopen it only if measured concurrency needs exceed
+    the existing four-slot process shape. Agent implementation decision 2026-11-28:
+    reserve four of the shared 32 Server positions for ControlPlane RPCs, so
+    long domain callbacks cannot exhaust control admission. Malformed mutation
+    receipts retain the original frozen identity for the existing bounded
+    domain reconciliation, without transport replay or repeated target work.
+    Audit judgment conflicts use a typed stale-result alternative carrying the
+    existing generations. The simpler status-details-only alternative would
+    mix the domain generation payload into the bounded error metadata/parser.
+    Runtime still raises its existing audit_result_stale outcome; no implicit
+    content retry or ownership change is introduced. Reopen the binding only
+    if a concrete caller requires another native conflict representation.
+    The grpcio 1.85.4 channel-argument contract identifies max_metadata_size
+    as a probabilistic soft threshold; all Python native endpoints also set
+    absolute_max_metadata_size to the existing 16 KiB ceiling. This enforces
+    LIM-CTL-22 rather than widening its accepted range. Source:
+    https://github.com/grpc/grpc/blob/v1.85.4/include/grpc/impl/channel_arg_names.h
+    Full-process regression correction 2026-11-28: metadata consumers recognize
+    artifact_not_found rather than an HTTP status; native fixture errors expose
+    grpc.StatusCode and complete safe error details. The sitemap fault proxy
+    decodes named protobuf messages and resets the committed HTTP/2 reply.
+    Untyped Internal/Unknown/DataLoss/remote-Cancelled stream loss remains
+    ambiguous for the existing bounded receipt/sequence owner, while typed
+    rejections keep their explicit class. No transport replay is added.
+scope:
+  in:
+  - Migrate Planner operations, gateway recovery, Audit evidence/judgments, finding reads/selections,
+    sitemap mutations/snapshots/observations, Artifact list/metadata/access.
+  - Keep provider parsing in Runtime adapters and domain rules in existing Server owners; replace HTTP adaptation
+    without feature-specific stores.
+  - Use typed request shapes and explicit pagination/preconditions; preserve raw JSON only where it is the
+    domain document itself or the official A2A DataPart contract.
+  - Maintain Project read grants, current/exact ArtifactRefs, contentCacheKey, fencing and existing sequence/idempotency
+    semantics.
+  out:
+  - Artifact payload streaming and finding proposal submission with captured evidence are V490-005;
+    public HTTP/WebSocket and model/Gateway traffic do not change.
+requirements:
+- id: R1
+  text: Preserve existing component/domain ownership, mTLS role and principal checks, allocation fencing, receipts,
+    canonical JSON digests and effective deadlines. Update each changed owning spec and cross-language fixture
+    in the same implementation.
+- id: R2
+  text: Use standard A2A gRPC, direct overlay connectivity and no legacy fallback. No generic HTTP-over-gRPC
+    tunnel or second workflow execution engine.
+failure_outcomes:
+- operation: Each migrated RPC and stream
+  permanent: Invalid request/identity/permission and deterministic store rejection retain a stable domain code
+    in gRPC details and are never retried. The V490-001 contract defines the status mapping.
+  retryable: Use existing caller attempt/backoff bounds and effective deadline; no blanket automatic replay/hedging.
+    Transport reconnect is not mutation retry.
+  ambiguous: Reuse existing operation-specific receipts, sequence, lifecycle ID or Artifact expected revision.
+    A lost reply is not proof of non-commit; do not resubmit with a new identity.
+  cancelled: The existing operation owner fences, cancels and joins tasks before releasing allocation or transfer
+    resources. RPC cancellation alone is not proof of Worker termination.
+  timeout: Keep request, invocation/Stage, heartbeat lease and finalization/abort budgets separate; a channel
+    reconnect never extends them.
+cardinality:
+- collection: Runtime allocations and in-flight operations
+  expected: 1-4 slots per process; one active A2A Task per Worker
+  maximum: Existing domain bounds in docs/spec/platform/limits.md; process capacity 4, heartbeat reconciliation
+    actions 8, Artifact payload 64 MiB, Server payload transfers 4.
+  bound: Bound pending RPC admission, messages, aggregate bytes and per-stream buffers explicitly in V490-001/owning
+    spec before production implementation. Existing domain limits are not replaced with gRPC defaults.
+lifecycle:
+- entity: gRPC channels and request/stream owners
+  delete: Process shutdown closes owned channels after the Scheduler/Workers stop; releasing one allocation
+    must not kill sibling slots.
+  cascade: Cancel/join active work and release transfer permits through the existing owners.
+  retention: No new durable entity, receipt or queue. Existing report and Artifact retention stays with its
+    domain.
+acceptance_criteria:
+- id: A1
+  text: Shared Go/Python fixtures reject missing required values, unknown enums/fields, invalid identities,
+    bounds and foreign allocation authority.
+- id: A2
+  text: Real PostgreSQL tests prove lost-reply receipt replay, stale revisions, cancellation and domain-specific
+    transaction conflicts without duplicate side effects.
+- id: A3
+  text: Full Planner, finding read/selection, Audit, sitemap and Artifact metadata suites pass through
+    the new adapters; tool and headless boundaries remain transport-independent. Finding proposal
+    submission retains its sole existing transport until V490-005.
+tests:
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-go
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: 18ec6215dc1d5ff7bcf8b6048a1dcc01d4d5095b
+verification:
+  status: passed
+  observed: >-
+    make lint, make test-go with disposable PostgreSQL, and
+    make test-wire-cross-language passed. The wire gate covered 451 Python
+    contract cases and 1685 shared Python cases, with 438 fixtures through
+    472 Go and 308 Python readers; one optional disk-heavy skip is not coverage.
+    The final make test-runtime passed 6853 cases with 136 declared skips and
+    both report verifiers, including 611 compaction cases. Native TLS suites
+    prove the hard metadata ceiling and bounded recovery of an untyped stream
+    loss using the original Planner sequence. Full private allocation, app,
+    API error and runtimewire race suites, including real PostgreSQL, passed.
+    The final make test-e2e passed all 71 process roots in 4204.463 seconds
+    and all six report verifiers. It includes real sitemap lost-acknowledgement
+    receipt replay, Nuclei output admission, Planner/Audit/finding paths,
+    capacity four, fencing, cancellation and process restart. Earlier failing
+    process and fixture runs were corrected and superseded by these full gates.
+    Heavy-I/O stayed disabled. No live model call, deployment or main merge
+    occurred; payload streams and finding submission remain V490-005.

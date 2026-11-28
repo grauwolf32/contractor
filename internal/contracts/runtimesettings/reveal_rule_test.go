@@ -19,7 +19,7 @@ import (
 // redacts SecretString.
 var revealJSONCallers = []string{
 	"internal/contracts/control/allocation_reveal.go",
-	"internal/controlplane/runtime_request.go",
+	"internal/runtimewire/lifecycle.go",
 }
 
 func TestRevealJSONIsCalledOnlyOnTheAllocationWire(t *testing.T) {

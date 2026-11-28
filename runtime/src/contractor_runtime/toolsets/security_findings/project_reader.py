@@ -3,21 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-from functools import partial
 from typing import Any, TypedDict
-from urllib.parse import urlencode
 
 from contractor_runtime.artifacts import (
     ArtifactClient,
     ArtifactResponseLimitError,
     ArtifactTransportError,
-    allocation_path,
-    raise_for_status,
-    require_json,
 )
 from contractor_runtime.contracts import DIGEST_PATTERN, MEDIA_TYPE_PATTERN, ArtifactRef
 from contractor_runtime.contracts.base import MAX_EXACT_INTEGER, RESOURCE_ID_PATTERN
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
+from contractor_runtime.strict_json import strict_json_loads
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.artifact_visibility import ArtifactObservingTool
 from contractor_runtime.toolsets.common.versions import MaterialSelector, SelectedVersions
@@ -28,7 +24,6 @@ from contractor_runtime.toolsets.security_findings.collection import (
     canonical,
     object_fields,
     require,
-    strict_json,
 )
 from contractor_runtime.toolsets.security_findings.reader import ListFindingsTool, prepare_reader
 
@@ -158,44 +153,30 @@ class ProjectFindingTools:
         self.closed = True
         self.secrets = ()
 
-    async def request(self, method: str, suffix: str, data: dict | None = None) -> dict:
-        body = (
-            b""
-            if data is None
-            else await to_thread_until_done(canonical, data, name="finding-selection-encode")
-        )
+    async def request(self, rpc, data: dict) -> dict:
+        def freeze():
+            return strict_json_loads(canonical(data))
+
+        data = await to_thread_until_done(freeze, name="finding-selection-encode")
         for attempt in range(2):
             try:
-                response = await self.client.transport.request(
-                    method,
-                    allocation_path(self.client.allocation_id, suffix),
-                    headers={"Accept": "application/json", "Content-Type": "application/json"},
-                    body=body,
-                    max_response_bytes=256 * 1024,
-                )
+                value = await rpc(self.client.allocation_id, data)
                 break
             except ArtifactResponseLimitError:
                 raise
             except ArtifactTransportError:
                 if attempt:
                     raise
-        require(len(response.body) <= 256 * 1024, "findings_limit_exceeded")
-        raise_for_status(response)
-        require(response.status_code == 200, "findings_reader_unavailable")
-        require_json(response.headers)
-        value = await to_thread_until_done(
-            partial(strict_json, canonical_required=False),
-            response.body,
-            name="project-findings-response",
-        )
+        raw = await to_thread_until_done(canonical, value, name="project-findings-response")
+        require(len(raw) <= 256 * 1024, "findings_limit_exceeded")
         require(isinstance(value, dict), "findings_reader_unavailable")
         return value
 
-    async def invoke(self, tool: str, method: str, suffix: str, data: dict | None = None) -> dict:
+    async def invoke(self, tool: str, rpc, data: dict) -> dict:
         require(not self.closed, "findings_reader_unavailable")
         with RecordedToolCall(self.metrics, tool, {}, secrets=self.secrets) as call:
             try:
-                result = await self.request(method, suffix, data)
+                result = await self.request(rpc, data)
             except ArtifactResponseLimitError as error:
                 raise FindingsError("findings_limit_exceeded") from error
             except ArtifactTransportError as error:
@@ -225,7 +206,9 @@ class ProjectFindingTools:
                 isinstance(cursor, str) and 0 < len(cursor) <= 1366, "findings_arguments_invalid"
             )
             query["cursor"] = cursor
-        value = await self.invoke("list_project_findings", "GET", "findings?" + urlencode(query))
+        value = await self.invoke(
+            "list_project_findings", self.client.transport.list_findings, query
+        )
         object_fields(value, "items projectRevision nextCursor")
         require(isinstance(value["items"], list) and len(value["items"]) <= limit)
         require(_revision(value["projectRevision"]))
@@ -255,7 +238,9 @@ class ProjectFindingTools:
         )
         revision = self.versions.finding_revision(finding_id)
         value = await self.invoke(
-            "read_project_finding", "GET", f"findings/{finding_id}?revision={revision}"
+            "read_project_finding",
+            self.client.transport.read_finding,
+            {"findingId": finding_id, "revision": revision},
         )
         _current(value, detail=True)
         require(value["findingId"] == finding_id and value["revision"] == revision)
@@ -305,8 +290,7 @@ class ProjectFindingTools:
         )
         value = await self.invoke(
             "select_project_findings",
-            "POST",
-            "finding-selections",
+            self.client.transport.select_findings,
             request,
         )
         object_fields(value, "artifact snapshotAt entryCount replayed")

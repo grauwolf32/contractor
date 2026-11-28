@@ -14,6 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import grpc
 import h11
 import httpcore
 import httpx
@@ -283,7 +284,7 @@ def test_http_body_read_skips_content_above_cache_bound(
     "error",
     [
         ArtifactTransportError("temporary transport failure"),
-        ArtifactAPIError(503, "unavailable", True),
+        ArtifactAPIError(grpc.StatusCode.UNAVAILABLE, "unavailable", True),
     ],
 )
 def test_http_body_read_uses_buffer_during_artifact_failures(
@@ -776,7 +777,7 @@ def test_project_target_token_is_sent_unchanged_over_real_tls(
         state = WorkerState()
         settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
-            artifactApiUrl="https://control.example/private/v1",
+            artifactApiUrl="https://control.example",
             httpOriginTarget=HTTPOriginTargetSettings(
                 url="https://target.example", bearerToken=token
             ),
@@ -1117,7 +1118,7 @@ def test_project_authorization_is_exact_origin_hidden_and_erased(tmp_path: Path)
         factory = HTTPToolsetFactory(direct)
         settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
-            artifactApiUrl="https://control.example/private/v1",
+            artifactApiUrl="https://control.example",
             httpOriginTarget=HTTPOriginTargetSettings(
                 url="https://target.example/application",
                 bearerToken=TARGET_SECRET,
@@ -1257,7 +1258,7 @@ async def make_tools(
     settings = settings or RuntimeSettings(
         llmGatewayUrl="https://gateway.example/v1",
         llmGatewayToken="gateway-token",
-        artifactApiUrl="https://control.example/private/v1",
+        artifactApiUrl="https://control.example",
         requestTimeoutSeconds=30,
     )
     workspace_path = tmp_path / "allocation"
@@ -1332,7 +1333,7 @@ def proxy_runtime_settings() -> RuntimeSettings:
     return RuntimeSettings(
         llmGatewayUrl="https://gateway.example/v1",
         llmGatewayToken="gateway-token",
-        artifactApiUrl="https://control.example/private/v1",
+        artifactApiUrl="https://control.example",
         httpProxy=HTTPProxySettings(
             adapter="http-proxy@1",
             proxyUrl="https://proxy.example",

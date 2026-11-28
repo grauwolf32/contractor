@@ -3,9 +3,10 @@
 package e2e
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,11 +14,14 @@ import (
 	"net/url"
 	"os"
 	"sort"
-	"strings"
 	"sync"
 	"testing"
 
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/runtimewire"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
 )
 
 // This fault boundary forwards real publication to the real Server/PG before
@@ -48,7 +52,9 @@ func newSitemapPublicationProxy(t *testing.T, target, caFile string, runtimeIden
 		if err != nil {
 			t.Fatal(err)
 		}
-		proxy.clients[string(pair.Certificate[0])] = newMTLSClient(t, caFile, identity)
+		client := newMTLSClient(t, caFile, identity)
+		client.Transport.(*http.Transport).ForceAttemptHTTP2 = true
+		proxy.clients[string(pair.Certificate[0])] = client
 		if proxy.faultIdentity == "" {
 			proxy.faultIdentity = string(pair.Certificate[0])
 		}
@@ -66,6 +72,7 @@ func newSitemapPublicationProxy(t *testing.T, target, caFile string, runtimeIden
 		t.Fatal("invalid private proxy CA")
 	}
 	proxy.server = httptest.NewUnstartedServer(http.HandlerFunc(proxy.serveHTTP))
+	proxy.server.EnableHTTP2 = true
 	proxy.server.TLS = &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{certificate}, ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: roots}
 	proxy.server.StartTLS()
 	t.Cleanup(func() {
@@ -86,21 +93,35 @@ func (p *sitemapPublicationProxy) rejectPublications() {
 func (p *sitemapPublicationProxy) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	// Only the first Runtime's publication is faulted. Other Runtime slots
 	// share this advertised Artifact API and must retain independent collection.
-	publication := r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/sitemap/observations") &&
+	publication := r.Method == http.MethodPost && r.URL.Path == pb.Allocation_CollectSitemap_FullMethodName &&
 		r.TLS != nil && len(r.TLS.PeerCertificates) > 0 && string(r.TLS.PeerCertificates[0].Raw) == p.faultIdentity
+	var publicationKey string
+	if publication {
+		body, err := io.ReadAll(io.LimitReader(r.Body, (256<<10)+1024+6))
+		if err != nil || len(body) < 5 || body[0] != 0 || int(binary.BigEndian.Uint32(body[1:5])) != len(body)-5 {
+			http.Error(w, "invalid publication frame", 400)
+			return
+		}
+		var input pb.SitemapCollectionRequest
+		if proto.Unmarshal(body[5:], &input) != nil {
+			http.Error(w, "invalid publication request", 400)
+			return
+		}
+		publicationKey = input.GetIdempotencyKey()
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		r.ContentLength = int64(len(body))
+	}
 	p.mu.Lock()
 	reject := publication && p.reject
 	if publication {
-		p.publicationKeys = append(p.publicationKeys, r.Header.Get("Idempotency-Key"))
+		p.publicationKeys = append(p.publicationKeys, publicationKey)
 	}
 	if reject {
 		p.rejected++
 	}
 	p.mu.Unlock()
 	if reject {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-		_ = json.NewEncoder(w).Encode(map[string]any{"code": "artifact_history_protected", "message": "publication refused", "retryable": false, "requestId": "sitemap-fault"})
+		runtimewire.WriteError(w, runtimewire.Error(r.Context(), codes.FailedPrecondition, "artifact_history_protected", false))
 		return
 	}
 	forwarded := r.Clone(r.Context())
@@ -128,33 +149,27 @@ func (p *sitemapPublicationProxy) serveHTTP(w http.ResponseWriter, r *http.Reque
 			http.Error(w, "private reply unavailable", 502)
 			return
 		}
-		p.mu.Lock()
-		drop := !p.dropped
-		p.dropped = true
-		var result struct {
-			Result struct {
-				Replayed bool `json:"replayed"`
-			} `json:"result"`
+		grpcStatus := response.Trailer.Get("Grpc-Status")
+		if grpcStatus == "" {
+			grpcStatus = response.Header.Get("Grpc-Status")
 		}
-		if json.Unmarshal(body, &result) == nil && result.Result.Replayed {
-			p.replayed = true
-		}
-		p.mu.Unlock()
-		if drop {
-			connection, _, err := w.(http.Hijacker).Hijack()
-			if err == nil {
-				_ = connection.Close()
+		if grpcStatus == "0" {
+			var result pb.SitemapMutationResponse
+			if len(body) < 5 || body[0] != 0 || int(binary.BigEndian.Uint32(body[1:5])) != len(body)-5 || proto.Unmarshal(body[5:], &result) != nil || result.GetResult() == nil {
+				http.Error(w, "invalid publication receipt", 502)
+				return
 			}
-			return
-		}
-		for name, values := range response.Header {
-			for _, value := range values {
-				w.Header().Add(name, value)
+			p.mu.Lock()
+			drop := !p.dropped
+			p.dropped = true
+			p.replayed = p.replayed || result.GetResult().GetReplayed()
+			p.mu.Unlock()
+			if drop {
+				// HTTP/2 has no Hijacker. Abort this stream after the real commit.
+				panic(http.ErrAbortHandler)
 			}
 		}
-		w.WriteHeader(response.StatusCode)
-		_, _ = w.Write(body)
-		return
+		response.Body = io.NopCloser(bytes.NewReader(body))
 	}
 	for name, values := range response.Header {
 		for _, value := range values {
@@ -163,6 +178,12 @@ func (p *sitemapPublicationProxy) serveHTTP(w http.ResponseWriter, r *http.Reque
 	}
 	w.WriteHeader(response.StatusCode)
 	_, _ = io.Copy(w, response.Body)
+	if len(response.Trailer) > 0 {
+		_ = http.NewResponseController(w).Flush()
+	}
+	for name, values := range response.Trailer {
+		w.Header()[http.TrailerPrefix+name] = values
+	}
 }
 
 func (p *sitemapPublicationProxy) verify(t *testing.T) {

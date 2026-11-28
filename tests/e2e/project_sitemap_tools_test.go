@@ -12,7 +12,11 @@ import (
 	"strings"
 	"testing"
 
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 // Only the inputs are scripted: the Server, model-free Runtime, mTLS, catalog,
@@ -112,13 +116,15 @@ func TestProjectSitemapToolsAcrossProductionProcesses(t *testing.T) {
 	// Finalization removes private authority. A fresh direct private request by
 	// that Runtime certificate cannot use a settled allocation to read a map.
 	allocation := onlyRunAllocation(t, h.ctx, h.store, listed)
-	runtimeClient := newMTLSClient(t, h.caFile, h.identities["sitemap-runtime"])
-	request, err := http.NewRequest(http.MethodGet, h.privateURL+"/private/v1/allocations/"+allocation.AllocationID+"/artifacts/sitemap/map?scope=project&operation=list_sitemap_entries", nil)
-	if err != nil {
-		t.Fatal(err)
+	channel, ctx := privateRuntimeChannel(t, h.caFile, h.identities["sitemap-runtime"], h.privateURL, allocation)
+	stream, err := pb.NewArtifactClient(channel).Read(ctx, &pb.ArtifactReadTarget{Artifact: &pb.ArtifactRef{Namespace: proto.String("sitemap"), Name: proto.String("map")}, Scope: proto.String("project"), Operation: proto.String("list_sitemap_entries")})
+	if err == nil {
+		_, err = stream.Recv()
 	}
-	request.Header.Set("X-Contractor-Runtime-Instance-ID", allocation.RuntimeAgentInstanceID)
-	do(t, runtimeClient, request, http.StatusNotFound).Body.Close()
+	if grpcstatus.Code(err) != codes.NotFound {
+		t.Fatalf("settled allocation retained Artifact authority: %v", err)
+	}
+
 	if exited, err := runtime.exited(); exited {
 		t.Fatalf("Runtime exited: %v", err)
 	}

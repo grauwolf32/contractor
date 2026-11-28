@@ -343,13 +343,19 @@ field. Missing required current fields, including required arrays, and unknown
 fields fail strict validation rather than selecting another protocol; there is
 no legacy registration fallback.
 
-**CTL-R8.** Canonical JSON schemas live in
+**CTL-R8.** Native control and lifecycle RPC shapes are generated from
+[`runtime.proto`](../../../api/v1alpha1/runtime.proto). Domain JSON schemas live in
 [`api/v1alpha1`](../../../api/v1alpha1/) and shared valid/invalid fixtures in
 [`api/testdata/v1alpha1`](../../../api/testdata/v1alpha1/). Go/Python wire
-parity checks use this single catalog, and strict Go/Python DTOs, JSON schemas
-and fixtures must change together.
+parity checks use this single catalog, and generated stubs, strict Go/Python
+domain DTOs, JSON schemas and fixtures must change together. Generation uses
+pinned tools and is checked for drift.
 
-**CTL-R149.** The Server decodes every private message it receives
+**CTL-R149.** Protobuf messages reject unknown fields recursively and project
+explicit presence into the domain decoder; required values cannot disappear
+into protobuf defaults. Standard protobuf singular-field/merge semantics apply,
+without an additional binary parser. JSON document and A2A DataPart consumers
+retain the strict JSON rules below. The Server decodes every private message it receives
 (registration, heartbeat, lifecycle responses, Worker State and the
 `WorkerCompletion` a Worker returns over A2A) with one strict decoder. Besides
 duplicate keys, case aliases, unknown members and trailing data, it rejects a
@@ -409,7 +415,7 @@ Server/Runtime builds rather than a silent downgrade to an older shape.
 
 ### Private connection reuse
 
-**CTL-R163.** The Server and the Runtime Agent reuse verified private HTTPS
+**CTL-R163.** The Server and the Runtime Agent reuse verified private TLS
 connections instead of opening one per request. Every new connection
 completes TLS 1.3 with full certificate verification, without session
 resumption, and passes the caller's peer check before its first request byte:
@@ -425,13 +431,13 @@ request names (CTL-R17, CTL-R18).
 
 **CTL-R164.** Each set of reusable connections has one owner, which closes it,
 and no connection outlives its owner. The Server's Runtime control client is
-owned by the Server process: releasing an allocation closes the connections
-of its Runtime principal (CTL-R124), and Server shutdown closes the rest after
+owned by the Server process: releasing an allocation retires the channels
+of its Runtime principal (CTL-R124), closing them after active sibling calls finish, and Server shutdown closes the rest after
 the Scheduler has stopped. An A2A invocation owns the connections of its
 `SendMessage`, its polls and its best-effort `CancelTask` and closes them
-before it returns. The Runtime process owns one set for registration and
-heartbeats and another for Artifact API traffic, so a heartbeat never waits
-behind an Artifact transfer, and closes both at shutdown after its private
+before it returns. The Runtime process owns one gRPC channel for bootstrap, registration and
+heartbeats, an allocation-domain channel owner and a separate connection set for Artifact payload traffic, so a heartbeat never waits
+behind an Artifact transfer, and closes them at shutdown after its private
 listener has stopped. Closing ends idle connections at once and a connection
 in use when its exchange ends; an exchange started after its owner closed
 fails without opening a connection. Invalidation follows from the keys: a
@@ -441,57 +447,46 @@ registered again close at release or after the idle bound. A process
 loads its own certificate, key and trusted CA at startup, so a change to them
 takes effect at restart, which closes every set.
 
-**CTL-R165.** Reuse is bounded on both sides. A private listener closes a
-keep-alive connection that stays idle for LIM-CTL-13; a client keeps an idle
-connection for reuse for at most LIM-CTL-14, which is shorter, so a client
-normally never writes to a connection the listener already closed. No request
-starts on a connection as old as LIM-CTL-15, so a renewed or replaced peer
-certificate is verified within that time even while requests keep a
-connection busy. The Server's transport closes an idle connection when the
-idle bound ends; the Runtime stops reusing it then and closes it at its next
-exchange to that origin, at shutdown or when the listener closes it after
-LIM-CTL-13. One owner keeps at most LIM-CTL-16 connections per peer endpoint;
-a request beyond that waits for a connection within its own deadline. The
-Server's Runtime control client keeps connections for at most LIM-CTL-17
-Runtime principals and the Runtime for at most LIM-CTL-18 Control Plane
-origins, evicting the least recently used; an exchange already waiting on an
-evicted origin still runs, on a connection of its own that is not kept. While
-the requests of a retired Server transport (after the lifetime or an
-eviction) or of an evicted Runtime origin finish, their connections add to
-those of the replacement, so one endpoint can briefly carry up to twice
-LIM-CTL-16; none of them takes a new request. The Server
-(`internal/mtls`) and the Runtime (`contractor_runtime._https`) hold the
-shared values, which
-[`private-connection-reuse.json`](../../../api/testdata/v1alpha1/private-connection-reuse.json)
-pins.
+**CTL-R165.** Reuse is bounded on both sides. The Go Server's native channel
+owner admits at most LIM-CTL-16 active calls per principal and endpoint,
+using one current HTTP/2 channel. Exhaustion returns `ResourceExhausted` within
+the caller's deadline. Retired channels finish only existing calls and remain
+inside the same call bound. At LIM-CTL-17 it evicts the least recently used
+idle endpoint; if all endpoints are borrowed it rejects admission.
+
+The Server closes idle channels at LIM-CTL-14 and replaces aged channels before
+another call at LIM-CTL-15. Runtime control serializes calls within their
+original deadlines. Independent allocation-domain and bulk owners each lease
+at most four exclusive channels and admit at most 32 calls including waiters
+(LIM-CTL-28/31). They retire idle/aged channels before borrowing them. Closing
+or cancelling a call cannot terminate a sibling allocation's leased channel.
+No request starts on an aged channel, so later calls verify a renewed or
+replaced peer certificate. Reuse never extends a call deadline.
+
+The HTTP private Server listener and Runtime operational probe listener close
+idle keep-alive connections under LIM-CTL-13; private clients retire their idle
+channels earlier. There is no private HTTP origin pool or HTTP response parser.
+The Go owner (`internal/mtls`) and Runtime native wire limits pin their shared
+lifetime policy through
+[`private-connection-reuse.json`](../../../api/testdata/v1alpha1/private-connection-reuse.json).
+Its Server call ceiling is separate from the Runtime's channel admission.
 
 **CTL-R166.** Reuse changes neither request deadlines, error classification
-nor retry semantics (FAIL-CTL-11). A request's deadline covers waiting for a
-connection, connecting, peer verification and the response, and a peer that
-fails verification fails the request before any request byte with the error
-it caused before reuse. A connection is closed instead of reused after a
-timeout, cancellation, transport or parse error, a response without length
-framing, an HTTP/1.0 or `Connection: close` response, or bytes beyond the
-response. The Runtime, whose HTTP/1.1 client is its own, also closes a
-connection after an interim (1xx) response: an interim response carries no
-content and is skipped, at most five per exchange, and a protocol switch
-(101), more interim responses, and a 204 or 304 response that declares
-content (`Transfer-Encoding` or a non-zero `Content-Length`) fail the
-exchange as malformed responses. The Server's transports follow Go
-`net/http` for these responses: it skips interim responses within its
-response-header byte bound and may reuse the connection afterwards, treats
-101 as a final response and ignores declared content on 204 and 304. The connection layer repeats a request only when none of its bytes
-were written, or when it is a read (`GET`) that received no response byte on
-a reused connection, and then on another connection; the Runtime repeats such
-a read once, on a new verified connection. A write whose
-response was lost is never repeated by the connection layer; its caller
-reconciles it as before (heartbeat sequence, finalization and abort
-identities, Artifact expected revisions). A caller's private request carries
-no `Connection` header, and a Server request no `Idempotency-Key` or
-`X-Idempotency-Key` header, which would let net/http repeat a write; the
-connection layer refuses such a request before sending it.
+nor retry semantics (FAIL-CTL-11). Native retries and hedging are disabled;
+reconnection does not authorize a new semantic mutation. Cancellation and
+transport/protocol failure retire the affected generation without interrupting
+borrowed sibling calls. A2A cancellation uses its invocation-owned channel
+before that owner closes. The original call deadline covers admission,
+connection establishment, actual-peer verification, encoding and response
+validation. A failed peer check sends no application bytes to that peer.
 
-### Registration and process identity
+A lost response is reconciled only by the existing owner: heartbeat sequence,
+finalization/abort identity, Artifact expected revision or the operation's
+existing receipt. The connection owner never creates a new identity or silently
+replays an append. Native error details have exactly bounded `code`, explicit
+`retryable` and `request_id`; status code, unknown fields, correlation grammar
+and optional bounded `RetryInfo` are validated before their values reach a
+caller. Remote status text never becomes a domain diagnostic.
 
 **CTL-R11.** On process start a Runtime Agent generates a fresh random
 `instance_id`. It retains that value in memory across registration retries and
@@ -502,12 +497,14 @@ Control Plane reconnects, but does not reuse it after its own restart.
 authentication credential; mTLS authenticates the agent and derives its stable
 principal.
 
-**CTL-R151.** Control Plane answers a rejected private request with the JSON
-envelope `code`, `message`, `retryable` and `requestId`. `retryable` is its
+**CTL-R151.** Control Plane answers a rejected gRPC request with a status and
+one typed `ErrorDetail` containing `code`, `retryable` and `requestId`.
+Remaining HTTP families use the JSON envelope `code`, `message`, `retryable`
+and `requestId`. `retryable` is its
 verdict on whether the same request can succeed later: a registration that
 fails strict validation (`invalid_request`) is not retryable; a conflict with the
 current Runtime Agent state and an internal failure are. The Runtime Agent
-follows the flag ahead of the HTTP status and never logs `message`
+follows the flag ahead of the transport status and never logs remote error text
 ([RTA-R113](runtime-agent.md)).
 
 **CTL-R13.** For the live instance, Control Plane records the last
@@ -1390,7 +1387,7 @@ transport, release and cleanup.
 
 **CTL-R128.** While a Worker is live, the private control protocol
 also owns the read-only allocation-correlated
-`GET /private/v1/allocations/{allocation_id}/agent-state` transport. That route
+`RuntimeLifecycle.ReadState` RPC. That operation
 returns only bounded Contractor-owned State to Control Plane; it is neither an
 A2A operation nor a public or generic state API. Its schema and lifecycle are
 specified in [worker](worker.md).
@@ -1542,7 +1539,7 @@ fixtures live under
 [`api/testdata/v1alpha1`](../../../api/testdata/v1alpha1/) (CTL-R8).
 
 The private live-state route is
-`GET /private/v1/allocations/{allocation_id}/agent-state` (CTL-R128).
+`RuntimeLifecycle.ReadState` (CTL-R128).
 
 ## Limits, failures and errors
 
@@ -1568,7 +1565,7 @@ The private live-state route is
 - [LIM-CTL-10](../platform/limits.md): a hold window of five Scheduler poll
   intervals, 5 seconds by default (CTL-R155).
 - [LIM-CTL-13](../platform/limits.md) to
-  [LIM-CTL-18](../platform/limits.md): idle, lifetime and count bounds of
+  [LIM-CTL-17](../platform/limits.md): idle, lifetime and count bounds of
   reusable private connections (CTL-R165).
 - [FAIL-CTL-1](../platform/failure-model.md): Runtime Agent registration and
   re-registration (CTL-R12, CTL-R34,
@@ -1800,10 +1797,10 @@ snapshot creation independently retain their write authority checks.
 
 
 **CTL-R171.** Before preparation or registration, Runtime fetches
-`GET /private/v1/config` through the ordinary private mTLS connection with
+`ControlPlane.Bootstrap` through the private gRPC channel with
 Control Plane role verification. A verified Runtime certificate may read it
 without registering a principal; the endpoint has no database side effects.
-It accepts no query or body and returns a non-cacheable, secret-free
+It accepts an empty typed request and returns a secret-free
 `SharedConfig` (`apiVersion`, `version`, `limits`, `digest`). Version 1 carries
 `limits.artifactPayloadMaxBytes` from `contracts.MaxArtifactPayloadBytes`,
 `limits.publicPageMaxItems` from `pagelimit.MaxRows`, and
@@ -1878,3 +1875,181 @@ projection, not a statement that every slot has that state. Principal
 availability is `available` while compatible free slots remain even if other
 allocations run. Runtime process metrics keep their `runtime_process` scope;
 overlapping allocation intervals cannot be summed as independent process use.
+
+
+### Native control and lifecycle binding
+
+**CTL-R175.** Bootstrap, Registration, Heartbeat and allocation Prepare,
+Finalize, Abort, Release and ReadState
+use named unary protobuf RPCs; A2A uses its official gRPC service. Their former
+HTTP/JSON-RPC routes are absent and are not transport fallbacks. Registered
+control/A2A addresses remain HTTPS origins; the A2A Agent Card advertises a
+`host:port` gRPC authority and allocation `tenant`. Origins use the bounded
+Runtime endpoint grammar, require HTTPS and have no path except an optional
+root slash; queries, fragments and user information are rejected before
+registration or connection. Allocation domain services use CTL-R176; Artifact payload and finding proposal submission use CTL-R177. Public HTTP, Gateway and target HTTP are not
+part of this private transport boundary.
+
+Protobuf envelopes carry typed identity, authority, lifecycle and presence.
+AgentTemplate, ModelPolicy, RuntimeSettings, config provenance, Agent Card and
+Worker/Runtime report and AgentStateSnapshot subdocuments retain their named JSON document types and
+existing validators. This preserves canonical config digests, exact numeric
+report content and isolated telemetry salvage (CTL-R136, OBS-R36); it does not
+permit an arbitrary method/path/JSON envelope. Secret Prepare bytes are cleared
+after the call; their diagnostic representation remains redacted.
+
+A control/lifecycle message and its domain projection are bounded by
+LIM-CTL-20 (except the State response envelope, LIM-CTL-27), A2A envelopes
+by LIM-CTL-21, metadata by LIM-CTL-22. Python grpcio sets both its soft
+metadata threshold and absolute hard limit to that ceiling; probabilistic
+soft rejection alone does not enforce it. Both receivers
+bound aggregate admission with LIM-CTL-23 before application decoding. Caller
+deadlines include admission, connection, TLS and response; domain finalization,
+lease and Stage deadlines remain separate. Invalid input is `InvalidArgument`,
+missing TLS identity `Unauthenticated`, state conflicts `FailedPrecondition`,
+retryable storage transaction conflicts `Aborted`, exhausted admission
+`ResourceExhausted`, unavailable infrastructure `Unavailable`, cancellation
+`Cancelled` and timeout `DeadlineExceeded`. Existing error codes and explicit
+retryability are carried in details; malformed details fail closed. No error
+status proves that a mutation did not commit: existing lifecycle identities
+and receipts remain authoritative.
+
+ReadState carries a required allocation ID and optional positive `uint64`
+`ifRevision`; its result carries a required positive revision and exactly one
+snapshot or not-modified marker. The revision must equal the snapshot's
+validated State revision; not-modified must equal the requested revision.
+The existing Planner cache derives its ETag locally from that revision. The
+State document keeps LIM-WRK-17 independently of the protobuf envelope.
+Heartbeat sequences, acknowledgements and echoed acknowledgements remain exact
+`uint64` values; channel connectivity and HTTP/2 PING never renew their lease.
+Malformed control replies (including oversized untyped receive failures) are
+permanent. Server admission exhaustion carries typed `control_rpc_capacity`
+with `retryable=true`; existing caller backoff and deadline bounds apply.
+
+
+**CTL-R176.** Runtime allocation-domain calls use the named `Allocation`
+protobuf service: PlannerOperation, GatewayRecovery, SubmitAuditEvidence,
+SubmitAuditJudgments, MutateSitemap, SnapshotSitemap, CollectSitemap,
+ListFindings, ReadFinding, SelectFindings, ListArtifacts,
+ReadArtifactMetadata and CheckArtifactAccess. Their former HTTP routes are
+absent. The actual verified TLS Runtime principal, exactly one bounded Runtime
+instance metadata value and one allocation metadata value are checked before
+protobuf decoding; every operation then rechecks its existing grant/fence at
+its domain authority boundary. A request cannot choose a Run or Project ID.
+Missing and foreign grants share `allocation_not_found` / `NotFound`; Planner
+and recovery preserve their existing `allocation_unavailable` /
+`FailedPrecondition` classification. Neither distinguishes another process's
+grant from a nonexistent one. Denied rights within an owned grant retain
+`PermissionDenied` and the owning domain code.
+
+Planner arguments/results and stored finding claim documents retain their named
+JSON document types and existing validators. Lists, identities, pagination,
+preconditions, Audit materials and generation values are typed protobuf fields.
+Nullable finding assessment fields distinguish explicit null from omission.
+Judgment response alternatives are an accepted receipt or typed current
+generations after a stale base; the latter never authorizes an implicit retry.
+
+The existing Planner sequence, Audit submission identities, sitemap mutation
+keys, finding selection key and Artifact revision preconditions remain the
+only reconciliation mechanisms. The binding adds no receipt or execution
+engine. Native retries/hedging are disabled. Process control has its own
+channel and four reserved positions within the shared 32-call Server admission.
+Long domain operations cannot consume those positions. Allocation-domain admission, TLS establishment,
+encoding, request and response all consume the caller's original deadline.
+Closing the owner cancels and joins calls, retires channels and joins TLS
+forwarders before deleting their private socket directories.
+
+LIM-CTL-28/29 bound the allocation channel owner and message envelopes.
+Audit submission still acquires one of the four Artifact transfer permits
+before decoding its up-to-8-MiB document, and releases it before sending the
+small receipt. Socket read/write and storage budgets remain separate. Typed
+ErrorDetail retains stable code, explicit retryability and request ID.
+`storage_transaction_conflict` is retryable `Aborted`; transfer capacity is
+retryable `ResourceExhausted`. Domain validation formerly represented by HTTP
+422 remains permanent `InvalidArgument`, retaining its domain code. Wrapped
+cancellation and deadline causes retain `Cancelled` / `cancelled` and
+`DeadlineExceeded` / `deadline_exceeded` respectively; no raw cause is sent. An existing Artifact
+history retry delay is carried in standard RetryInfo, bounded to 300 seconds
+by the receiver. Malformed status details are permanent protocol failures. For an unconfirmed
+mutation receipt, the existing domain owner may still reconcile the same
+frozen mutation identity within its original attempt/deadline bound; it never
+issues a new semantic mutation or repeats target traffic to repair a receipt.
+An untyped stream-loss status (`Internal`, `Unknown`, `DataLoss` or remote
+`Cancelled`) proves no domain rejection or non-commit. The allocation transport
+reports that ambiguity to the existing receipt/sequence owner. Valid typed
+errors preserve their explicit retryability; the transport never replays a call.
+
+Boundary decision (2026-11-27): preserve domain ownership and receipts while
+replacing adaptation only. A generic HTTP-over-gRPC tunnel and internal A2A
+removal were rejected. Reopen the named document choices only when their domain
+schemas cease to be dynamic; changing transport alone is insufficient reason.
+
+
+**CTL-R177.** Allocation bulk traffic uses the named `Artifact.Read`,
+`Artifact.Write` and `Artifact.SubmitFinding` gRPC methods. All three use the
+same actual TLS principal, process and allocation metadata checks as CTL-R176,
+before protobuf decoding. They share the existing four Artifact transfer
+permits, acquired before buffering a request or reading a stored payload, and
+the Server non-control admission bound. The private payload HTTP routes are
+absent. Public Artifact HTTP and operational health probes retain their own
+bindings.
+
+LIM-CTL-30 bounds chunks, headers and frames. A read sends exactly one typed
+metadata header, then chunks containing exactly `min(256 KiB, remaining)`
+bytes, and ends at its declared size. A write starts with exactly one typed
+header, then the same chunk sequence, and must reach clean EOF before payload
+preparation or publication. A zero-byte payload has one header and no chunks.
+Missing/repeated headers, unknown fields, empty/short/extra chunks, invalid
+ordering and premature clean EOF are permanent `InvalidArgument` /
+`invalid_request`; interruption or cancellation never exposes a partial revision.
+The write header has a versionless ArtifactRef, media type, declared size and
+exactly one precondition: `create_only=true` or a nonblank expected revision.
+The response carries the exact committed ref, media type, size and canonical
+UTC binding/revision timestamps. Public entity-tag syntax is not used here.
+
+Finding submission has a typed header with invocation/submission identity,
+optional item/incidental selection, exact evidence refs and declared lengths
+of its named JSON proposal, optional derived anchors and optional captured HTTP
+exchange. Chunks identify their document and arrive in that order; a document
+is present exactly when its declared length is present. Capture invocation
+identity is present exactly with its capture. The complete logical JSON
+submission (compact typed header projection plus document bytes and member
+separators) remains at most 64 MiB, and the proposal remains at most 8 MiB.
+The decoder rejects JSON duplicate/unknown members and NUL escapes through the
+existing domain decoders. One aggregate buffer owns document slices; no list
+of protobuf frames or second complete transport copy is retained. Existing
+finding receipt lookup precedes the new-write fence and optional source reads;
+only the existing intake owner publishes findings/evidence.
+
+Runtime bulk calls use a separate process-owned four-channel owner with at
+most 32 calls including waiters (LIM-CTL-31). No bulk call queues on a control
+or allocation-domain channel. Admission, encoding, TLS, all chunks and final
+receipt consume one original caller deadline; no per-chunk renewal or automatic
+transport replay exists. Writes use awaited SDK writes and reads consume one
+frame at a time, applying backpressure. Cancellation cancels and joins the RPC
+before releasing its leased channel or deleting its TLS socket directory.
+
+The Server initially bounds header socket I/O, then starts one whole-stream
+socket budget from the declared total size (the existing minimum-throughput
+formula), not one budget per chunk. Once incoming EOF is confirmed, socket
+deadlines are cleared before the separate storage budget begins. A download
+gets one response socket budget after storage returns. Upload/finding permits
+are released before writing their small final receipt; downloads retain their
+permit until their payload send joins. Domain/storage code continues to accept
+one bounded payload buffer of at most 64 MiB under these permits. A lost final
+reply reconciles the original CAS or finding identity, never an append or a
+new semantic submission. No upload session, durable queue or new receipt store
+is introduced.
+
+Boundary decision (2026-11-28): replace framing while preserving the existing
+storage, validation, publication and retention owners. Constant-memory storage
+is a separate outcome requiring a separately requested storage design. Reopen
+this boundary only for that outcome or measured limits of the four-slot shape.
+
+The Go HTTP/2 adapter additionally gates request-body reads by application
+`RecvMsg` completion: grpc-go's eager HTTP request reader may retain at most
+one bounded message plus a five-byte header beyond application receive.
+Non-client-streaming RPCs permit the second bounded message needed for the SDK
+cardinality check. HTTP/2 windows alone do not bound that eager queue. Cancellation closes receive credit and joins admitted unary
+or streaming application handlers before the listener releases admission or
+its HTTP/2 writer. This also applies to Control Plane unary RPCs.

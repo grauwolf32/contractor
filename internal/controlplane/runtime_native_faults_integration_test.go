@@ -29,6 +29,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannera2a "github.com/grauwolf32/contractor/internal/planner/a2a"
+	"google.golang.org/grpc/codes"
 )
 
 // These are component cross-process tests: real ADK/Gateway HTTP/mTLS/A2A,
@@ -263,7 +264,18 @@ func startNativeHarness(t *testing.T, mode string, configure ...func(*nativeHarn
 	if mode == "native_failed_prepare_rollback" {
 		// Observe listener readiness without consuming the one failing Prepare.
 		for {
-			response, readyErr := client.doRequest(ctx, http.MethodGet, endpoint+"/healthz", nil, principal, nil)
+			request, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"/healthz", nil)
+			readyTLS, tlsErr := mtls.ControlPlaneEndpointClientConfig(files)
+			if tlsErr != nil {
+				t.Fatal(tlsErr)
+			}
+			readyTLS, tlsErr = mtls.BindRuntimeAgentPrincipal(readyTLS, principal)
+			if tlsErr != nil {
+				t.Fatal(tlsErr)
+			}
+			transport := &http.Transport{TLSClientConfig: readyTLS, DisableKeepAlives: true}
+			response, readyErr := (&http.Client{Transport: transport}).Do(request)
+			transport.CloseIdleConnections()
 			if readyErr == nil {
 				_ = response.Body.Close()
 				if response.StatusCode == http.StatusOK {
@@ -278,7 +290,7 @@ func startNativeHarness(t *testing.T, mode string, configure ...func(*nativeHarn
 		}
 		_, err := client.Prepare(ctx, reservation, settings)
 		var api *RuntimeAPIError
-		if !errors.As(err, &api) || api.StatusCode != http.StatusServiceUnavailable || api.Code != "allocation_preparation_failed" || !api.Retryable {
+		if !errors.As(err, &api) || api.RPCStatus != codes.Unavailable || api.Code != "allocation_preparation_failed" || !api.Retryable {
 			t.Fatalf("injected partial prepare = %v", err)
 		}
 		value := h.wait("prepare_failure_injected")
@@ -295,13 +307,11 @@ func startNativeHarness(t *testing.T, mode string, configure ...func(*nativeHarn
 		}
 		failedHandle := contracts.WorkerHandle{
 			AllocationID: reservation.Grant.AllocationID, RuntimeAgentID: principal,
-			AgentCard: map[string]any{"supportedInterfaces": []any{map[string]any{
-				"url": endpoint + "/private/v1/allocations/" + reservation.Grant.AllocationID + "/a2a",
-			}}},
+			AgentCard: testAgentCard("builder", reservation.Grant.AllocationID, endpoint),
 		}
 		_, stateErr := client.ReadWorkerState(ctx, failedHandle, "")
 		var stateFailure *reporting.WorkerStateReadError
-		if !errors.As(stateErr, &stateFailure) || stateFailure.StatusCode != http.StatusNotFound || stateFailure.Code != "allocation_not_found" || stateFailure.Retryable {
+		if !errors.As(stateErr, &stateFailure) || stateFailure.Code != "allocation_not_found" || stateFailure.Retryable {
 			t.Fatalf("failed prepare Worker State read = %v", stateErr)
 		}
 		reservation.Grant.AllocationID = "allocation_after_failed_prepare"
@@ -650,7 +660,7 @@ func testNativeADKProcessFault(t *testing.T, mode string) {
 		_, err = h.client.Prepare(h.ctx, other, h.settings)
 		h.client.grantReader = &projectionGrantReader{grant: h.reservation.Grant}
 		api = nil
-		if !errors.As(err, &api) || api.StatusCode != http.StatusConflict || api.Code != "allocation_conflict" || api.Retryable {
+		if !errors.As(err, &api) || api.RPCStatus != codes.FailedPrecondition || api.Code != "allocation_conflict" || api.Retryable {
 			t.Fatalf("failed cleanup did not reject another allocation deterministically: %v", err)
 		}
 		if _, err := h.client.ReadWorkerState(h.ctx, h.handle, ""); err == nil {

@@ -2,28 +2,24 @@ from __future__ import annotations
 
 import asyncio
 import json
-import socket
-import ssl
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock
 
 import pytest
+from fakes.allocation_rpc import AllocationRPCFixture
+from fakes.artifact_responses import ArtifactHTTPResponse
 from pydantic import ValidationError
 from shared_config_defaults import MAX_ARTIFACT_BYTES
 
-from contractor_runtime import _https, artifacts
-from contractor_runtime._https import ConnectionReader, PrivateConnections
+from contractor_runtime import artifacts
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactClient,
-    ArtifactHTTPResponse,
     ArtifactReadTarget,
     ArtifactResponseLimitError,
     ArtifactTransportError,
-    MTLSArtifactTransport,
 )
 from contractor_runtime.contracts import (
     ARTIFACT_LIST_CURSOR_PATTERN,
@@ -31,7 +27,6 @@ from contractor_runtime.contracts import (
     ArtifactListResult,
     ArtifactRef,
 )
-from contractor_runtime.mtls import verify_control_plane_peer
 from contractor_runtime.toolsets.common.versions import ModelArtifacts, SelectedVersions
 
 SHARED_LIST_CASES = (
@@ -476,7 +471,7 @@ def test_exact_read_rejects_a_response_for_a_different_revision() -> None:
                 ]
             ),
         )
-        with pytest.raises(ArtifactTransportError, match="requested revision"):
+        with pytest.raises(ArtifactTransportError, match="does not match the request"):
             await client.read_artifact(
                 ArtifactRef(
                     namespace="analysis",
@@ -601,12 +596,12 @@ def test_client_rejects_versioned_write_and_mismatched_or_oversized_responses() 
                 media_type="text/plain",
                 expected_revision=None,
             )
-        with pytest.raises(ValueError, match="strong ETag"):
+        with pytest.raises(ValueError, match="expected revision"):
             await client.write_artifact(
                 ArtifactRef(namespace="analysis", name="report"),
                 data=b"x",
                 media_type="text/plain",
-                expected_revision="revision-1,revision-2",
+                expected_revision=" ",
             )
 
         mismatch = ArtifactClient(
@@ -664,7 +659,7 @@ def test_artifact_timestamp_headers_are_strict_utc_rfc3339(value: str, valid: bo
             "allocation-1", FakeTransport([ArtifactHTTPResponse(200, headers, b"x")])
         )
         if not valid:
-            with pytest.raises(ArtifactTransportError, match="timestamp metadata"):
+            with pytest.raises(ArtifactTransportError, match="metadata"):
                 await client.read_artifact(ArtifactRef(namespace="inputs", name="source"))
             return
         result = await client.read_artifact(ArtifactRef(namespace="inputs", name="source"))
@@ -685,117 +680,7 @@ class RecordedRequest:
     maximum: int
 
 
-def refused_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-        listener.bind(("127.0.0.1", 0))
-        return listener.getsockname()[1]
-
-
-def test_mtls_transport_maps_connection_setup_failure_to_transport_error() -> None:
-    transport = MTLSArtifactTransport(
-        f"https://127.0.0.1:{refused_port()}/private/v1",
-        PrivateConnections(ssl.create_default_context(), verify_control_plane_peer),
-        timeout_seconds=3,
-        runtime_instance_id="runtime-1",
-    )
-
-    async def scenario() -> None:
-        with pytest.raises(ArtifactTransportError, match="ConnectionRefusedError"):
-            await transport.request("GET", "/x", headers={}, body=b"", max_response_bytes=0)
-
-    asyncio.run(scenario())
-
-
-def fake_connection(monkeypatch: pytest.MonkeyPatch, response: bytes) -> Mock:
-    context = ssl.create_default_context()
-    ssl_object = context.wrap_bio(ssl.MemoryBIO(), ssl.MemoryBIO(), server_hostname="localhost")
-    reader = ConnectionReader()
-    reader.feed_data(response)
-    reader.feed_eof()
-    writer = Mock(spec=asyncio.StreamWriter)
-    writer.get_extra_info.return_value = ssl_object
-    writer.is_closing.return_value = False
-    writer.transport = Mock()
-    writer.drain = AsyncMock()
-    writer.wait_closed = AsyncMock()
-    monkeypatch.setattr(_https, "_open_connection", AsyncMock(return_value=(reader, writer)))
-    return writer
-
-
-def mtls_transport(connections: PrivateConnections | None = None) -> MTLSArtifactTransport:
-    return MTLSArtifactTransport(
-        "https://localhost:8443/private/v1",
-        connections or PrivateConnections(ssl.create_default_context(), Mock()),
-        timeout_seconds=1,
-        runtime_instance_id="runtime-1",
-    )
-
-
-def test_mtls_transport_sends_identity_headers_and_returns_response(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def scenario() -> None:
-        writer = fake_connection(
-            monkeypatch,
-            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\n{}\r\n0\r\n\r\n",
-        )
-        connections = PrivateConnections(ssl.create_default_context(), Mock())
-        response = await mtls_transport(connections).request(
-            "GET", "/x?y=1", headers={"Accept": "*/*"}, body=b"", max_response_bytes=2
-        )
-        assert (response.status_code, response.body) == (200, b"{}")
-        request = writer.write.call_args.args[0]
-        assert request.startswith(b"GET /private/v1/x?y=1 HTTP/1.1\r\nHost: localhost:8443\r\n")
-        assert b"\r\nX-Request-ID: request_" in request
-        assert b"\r\nX-Contractor-Runtime-Instance-ID: runtime-1\r\n" in request
-        assert b"\r\nConnection:" not in request
-        # The complete response leaves the connection with its owner.
-        writer.close.assert_not_called()
-        await connections.aclose()
-        writer.close.assert_called_once()
-
-    asyncio.run(scenario())
-
-
-@pytest.mark.parametrize(
-    ("response", "error"),
-    [
-        (b"HTTP/1.1 200 OK\r\nContent-Length: +1\r\n\r\n{", ArtifactTransportError),
-        (
-            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n-0\r\n\r\n",
-            ArtifactTransportError,
-        ),
-        (b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n{}", ArtifactTransportError),
-        (b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n{}x", ArtifactResponseLimitError),
-    ],
-)
-def test_mtls_transport_maps_malformed_responses_to_transport_errors(
-    monkeypatch: pytest.MonkeyPatch, response: bytes, error: type[Exception]
-) -> None:
-    async def scenario() -> None:
-        fake_connection(monkeypatch, response)
-        with pytest.raises(error):
-            await mtls_transport().request("GET", "/x", headers={}, body=b"", max_response_bytes=2)
-
-    asyncio.run(scenario())
-
-
-def test_mtls_transport_maps_peer_rejection_to_transport_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def scenario() -> None:
-        rejected = Mock(side_effect=ssl.SSLCertVerificationError("wrong role"))
-        writer = fake_connection(monkeypatch, b"")
-        transport = mtls_transport(PrivateConnections(ssl.create_default_context(), rejected))
-        with pytest.raises(ArtifactTransportError, match="SSLCertVerificationError"):
-            await transport.request("GET", "/x", headers={}, body=b"", max_response_bytes=0)
-        writer.write.assert_not_called()
-        writer.close.assert_called_once()
-
-    asyncio.run(scenario())
-
-
-class FakeTransport:
+class FakeTransport(AllocationRPCFixture):
     def __init__(self, responses: list[ArtifactHTTPResponse]) -> None:
         self.responses = responses
         self.requests: list[RecordedRequest] = []
@@ -825,82 +710,3 @@ def json_response(
     if etag is not None:
         headers["etag"] = etag
     return ArtifactHTTPResponse(status, headers, body)
-
-
-@pytest.mark.parametrize("damage", ["duplicate", "nested-duplicate", "snake", "unknown", "missing"])
-def test_private_metadata_http_reader_is_strict_and_does_not_reflect_identity(damage):
-    import traceback
-
-    async def scenario():
-        token = "PRIVATE_CACHE_IDENTITY_CANARY"
-        document = {
-            "apiVersion": "contractor/v1alpha1",
-            "artifact": {"namespace": "inputs", "name": "source", "revision": "exact"},
-            "mediaType": "application/zip",
-            "size": 10,
-            "contentCacheKey": token,
-        }
-        if damage == "snake":
-            document["content_cache_key"] = document.pop("contentCacheKey")
-        if damage == "unknown":
-            document["unknown"] = token
-        if damage == "missing":
-            del document["contentCacheKey"]
-        raw = json.dumps(document).encode()
-        if damage == "duplicate":
-            raw = raw.replace(
-                b'"contentCacheKey":', b'"contentCacheKey":"other", "contentCacheKey":'
-            )
-        if damage == "nested-duplicate":
-            raw = raw.replace(b'"name":', b'"name":"other", "name":')
-        transport = FakeTransport(
-            [ArtifactHTTPResponse(200, {"content-type": "application/json"}, raw)]
-        )
-        client = ArtifactClient("allocation-1", transport)
-        with pytest.raises(ArtifactTransportError) as caught:
-            await client.read_artifact_metadata(ArtifactRef(namespace="inputs", name="source"))
-        rendered = "".join(traceback.format_exception(caught.value))
-        assert token not in rendered
-        assert len(transport.requests) == 1 and client.observation_cursor == 0
-
-    asyncio.run(scenario())
-
-
-@pytest.mark.parametrize("operation", ["list", "write"])
-@pytest.mark.parametrize("damage", ["snake", "duplicate", "nested-duplicate"])
-def test_private_list_and_write_readers_use_the_strict_codec(operation, damage):
-    async def scenario():
-        ref = {"namespace": "analysis", "name": "report"}
-        document = {"apiVersion": "contractor/v1alpha1"}
-        if operation == "list":
-            document.update(artifacts=[ref], nextCursor="c1")
-            field, alias = "nextCursor", "next_cursor"
-        else:
-            document.update(
-                artifact={**ref, "revision": "revision-1"}, mediaType="text/plain", size=1
-            )
-            field, alias = "mediaType", "media_type"
-        if damage == "snake":
-            document[alias] = document.pop(field)
-        raw = json.dumps(document).encode()
-        if damage == "duplicate":
-            raw = raw.replace(b'"apiVersion":', b'"apiVersion":"contractor/v1alpha1","apiVersion":')
-        if damage == "nested-duplicate":
-            raw = raw.replace(b'"name":', b'"name":"other","name":')
-        headers = {"content-type": "application/json", "etag": '"revision-1"', **TIMESTAMP_HEADERS}
-        client = ArtifactClient(
-            "allocation-1",
-            FakeTransport(
-                [ArtifactHTTPResponse(200 if operation == "list" else 201, headers, raw)]
-            ),
-        )
-        with pytest.raises(ArtifactTransportError):
-            if operation == "list":
-                await client.list_artifact_page("analysis", limit=1)
-            else:
-                await client.write_artifact(
-                    ArtifactRef(**ref), data=b"x", media_type="text/plain", expected_revision=None
-                )
-        assert client.known_exact_refs == ()
-
-    asyncio.run(scenario())

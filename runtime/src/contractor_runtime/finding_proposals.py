@@ -2,27 +2,28 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping
 
 from pydantic import ValidationError
 
-from contractor_runtime import _https, threads
+from contractor_runtime import threads
+from contractor_runtime._bulk_rpc import prepare_finding_submission
+from contractor_runtime._grpc_metadata import REQUEST_ID_PATTERN
 from contractor_runtime.artifacts import (
-    MAX_ARTIFACT_JSON_BYTES,
-    ArtifactHTTPResponse,
     ArtifactTransport,
     ArtifactTransportError,
-    allocation_path,
-    raise_for_status,
-    require_json,
 )
-from contractor_runtime.contracts import DIGEST_PATTERN, ArtifactRef, validate_media_type
+from contractor_runtime.contracts import (
+    DIGEST_PATTERN,
+    ArtifactRef,
+    validate_media_type,
+)
 from contractor_runtime.contracts.artifacts import (
     FINDING_PROPOSAL_NAMESPACE,
     HTTP_EXCHANGE_NAMESPACE,
     http_exchange_artifact_name,
 )
+from contractor_runtime.contracts.base import RESOURCE_ID_PATTERN
 from contractor_runtime.shared_config import artifact_payload_max_bytes
 
 # findingintake.MaxRequestBytes / auditdomain.MaximumDocumentBytes.
@@ -33,7 +34,12 @@ class FindingProposalClient:
     """Submits the finding proposals of one active allocation."""
 
     def __init__(self, allocation_id: str, transport: ArtifactTransport) -> None:
-        self._path = allocation_path(allocation_id, "finding-proposals")
+        if (
+            not isinstance(allocation_id, str)
+            or RESOURCE_ID_PATTERN.fullmatch(allocation_id) is None
+        ):
+            raise ValueError("invalid allocation identity")
+        self._allocation_id = allocation_id
         self._transport = transport
 
     async def submit(self, request: Mapping[str, object]) -> dict[str, object]:
@@ -44,38 +50,34 @@ class FindingProposalClient:
         a second submission identity after an ambiguous commit.
         """
 
-        body = await threads.to_thread_until_done(
-            lambda: json.dumps(
-                request, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-            ).encode("utf-8"),
+        capture = request.get("httpEvidence")
+        capture_identity = (
+            {key: capture.get(key) for key in ("source", "request_id")}
+            if isinstance(capture, Mapping)
+            else None
+        )
+        submission = await threads.to_thread_until_done(
+            prepare_finding_submission,
+            request,
+            artifact_payload_max_bytes(),
+            MAX_FINDING_PROPOSAL_BYTES,
             name="finding-submission-encode",
         )
-        if len(body) > artifact_payload_max_bytes():
-            raise ValueError("finding proposal request exceeds its size limit")
-        response: ArtifactHTTPResponse | None = None
+        request = {
+            key: item
+            for key, item in submission.header.items()
+            if key not in {"proposalSize", "derivedAnchorsSize", "httpEvidenceSize"}
+        }
+        if capture_identity is not None:
+            request["httpEvidence"] = capture_identity
+        value = None
         for attempt in range(2):
             try:
-                response = await self._transport.request(
-                    "POST",
-                    self._path,
-                    headers={"Accept": "application/json", "Content-Type": "application/json"},
-                    body=body,
-                    max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
-                )
+                value = await self._transport.submit_finding(self._allocation_id, submission)
                 break
             except ArtifactTransportError:
                 if attempt != 0:
                     raise
-        if not (response is not None):
-            raise RuntimeError("Expected response is not None")
-        raise_for_status(response)
-        if response.status_code not in {200, 201}:
-            raise ArtifactTransportError("finding proposal API returned an invalid status")
-        require_json(response.headers)
-        try:
-            value = json.loads(response.body)
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise ArtifactTransportError("finding proposal API returned invalid JSON") from error
         expected = {
             "apiVersion",
             "proposalId",
@@ -88,16 +90,13 @@ class FindingProposalClient:
         if not isinstance(value, dict) or set(value) != expected:
             raise ArtifactTransportError("finding proposal API returned an invalid receipt")
         published = value["findingId"]
-        if not isinstance(published, str) or _https.REQUEST_ID_PATTERN.fullmatch(published) is None:
+        if not isinstance(published, str) or REQUEST_ID_PATTERN.fullmatch(published) is None:
             raise ArtifactTransportError("finding proposal API returned an invalid Finding ID")
         if value.get("apiVersion") != "contractor/v1alpha1":
             raise ArtifactTransportError("finding proposal API returned an invalid version")
         for field_name in ("proposalId", "receiptId"):
             candidate = value.get(field_name)
-            if (
-                not isinstance(candidate, str)
-                or _https.REQUEST_ID_PATTERN.fullmatch(candidate) is None
-            ):
+            if not isinstance(candidate, str) or REQUEST_ID_PATTERN.fullmatch(candidate) is None:
                 raise ArtifactTransportError("finding proposal API returned an invalid identity")
         if not isinstance(value.get("replayed"), bool):
             raise ArtifactTransportError("finding proposal API returned an invalid replay marker")

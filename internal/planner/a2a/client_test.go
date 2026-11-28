@@ -6,8 +6,6 @@ import (
 	"errors"
 	"io"
 	"iter"
-	"net/http"
-	"net/http/httptest"
 	"reflect"
 	"syscall"
 	"testing"
@@ -41,7 +39,7 @@ func TestInvokerHandlesImmediateMessageAndTerminalTaskEqually(t *testing.T) {
 			invoker := fakeInvoker(client)
 
 			got, err := invoker.Invoke(
-				context.Background(), "builder", workerHandle("https://runtime.example/a2a"),
+				context.Background(), "builder", workerHandle("runtime.example:443"),
 				stageRequest(),
 			)
 			if err != nil || !reflect.DeepEqual(got, want) {
@@ -78,7 +76,7 @@ func TestInvokerMapsInteractionStatesAndDeadlineToTypedFailures(t *testing.T) {
 				ID: "task-1", ContextID: "context-1", Status: sdk.TaskStatus{State: test.state},
 			}}
 			_, err := fakeInvoker(client).Invoke(
-				context.Background(), "builder", workerHandle("https://runtime.example/a2a"),
+				context.Background(), "builder", workerHandle("runtime.example:443"),
 				stageRequest(),
 			)
 			assertPlannerCode(t, err, test.code)
@@ -96,7 +94,7 @@ func TestInvokerMapsInteractionStatesAndDeadlineToTypedFailures(t *testing.T) {
 	defer cancel()
 	started := time.Now()
 	_, err := fakeInvoker(client).Invoke(
-		ctx, "builder", workerHandle("https://runtime.example/a2a"), stageRequest(),
+		ctx, "builder", workerHandle("runtime.example:443"), stageRequest(),
 	)
 	assertPlannerCode(t, err, "worker_deadline_exceeded")
 	if time.Since(started) > time.Second || client.getCalls == 0 || client.cancelCalls != 1 ||
@@ -120,7 +118,7 @@ func TestInvokerRetriesTransientGetTaskWithoutRepeatingSend(t *testing.T) {
 		getErrors: map[int]error{1: syscall.ECONNRESET, 2: io.EOF},
 	}
 	got, err := fakeInvoker(client).Invoke(
-		t.Context(), "builder", workerHandle("https://runtime.example/a2a"), stageRequest(),
+		t.Context(), "builder", workerHandle("runtime.example:443"), stageRequest(),
 	)
 	if err != nil || !reflect.DeepEqual(got, want) || client.sendCalls != 1 || client.getCalls != 3 ||
 		client.cancelCalls != 0 {
@@ -141,7 +139,7 @@ func TestInvokerCancelsTaskAfterPersistentPollFailure(t *testing.T) {
 		},
 	}
 	_, err := fakeInvoker(client).Invoke(
-		t.Context(), "builder", workerHandle("https://runtime.example/a2a"), stageRequest(),
+		t.Context(), "builder", workerHandle("runtime.example:443"), stageRequest(),
 	)
 	assertPlannerCode(t, err, "worker_unavailable")
 	if client.sendCalls != 1 || client.getCalls != maxGetTaskFailures || client.cancelCalls != 1 ||
@@ -164,7 +162,7 @@ func TestInvokerMapsRepeatedRequestTimeoutToUnavailable(t *testing.T) {
 		},
 	}
 	_, err := fakeInvoker(client).Invoke(
-		t.Context(), "builder", workerHandle("https://runtime.example/a2a"), stageRequest(),
+		t.Context(), "builder", workerHandle("runtime.example:443"), stageRequest(),
 	)
 	assertPlannerCode(t, err, "worker_unavailable")
 	if client.getCalls != maxGetTaskFailures || client.cancelCalls != 1 {
@@ -186,7 +184,7 @@ func TestInvokerDoesNotRetryProtocolGetTaskError(t *testing.T) {
 			}
 			client := &fakeClient{response: working, getErrors: map[int]error{1: test.cause}}
 			_, err := fakeInvoker(client).Invoke(
-				t.Context(), "builder", workerHandle("https://runtime.example/a2a"), stageRequest(),
+				t.Context(), "builder", workerHandle("runtime.example:443"), stageRequest(),
 			)
 			assertPlannerCode(t, err, "worker_unavailable")
 			if !errors.Is(err, test.cause) || client.sendCalls != 1 || client.getCalls != 1 ||
@@ -201,7 +199,7 @@ func TestInvokerDoesNotRetryProtocolGetTaskError(t *testing.T) {
 func TestInvokerRejectsInvalidEnvelopeAndFailedTaskSuccessMismatch(t *testing.T) {
 	invalid := sdk.NewMessage(sdk.MessageRoleAgent, sdk.NewTextPart("not data"))
 	_, err := fakeInvoker(&fakeClient{response: invalid}).Invoke(
-		context.Background(), "builder", workerHandle("https://runtime.example/a2a"),
+		context.Background(), "builder", workerHandle("runtime.example:443"),
 		stageRequest(),
 	)
 	assertPlannerCode(t, err, "invalid_a2a_response")
@@ -211,7 +209,7 @@ func TestInvokerRejectsInvalidEnvelopeAndFailedTaskSuccessMismatch(t *testing.T)
 		Status: sdk.TaskStatus{State: sdk.TaskStateFailed, Message: resultMessage(successResult())},
 	}
 	_, err = fakeInvoker(&fakeClient{response: mismatched}).Invoke(
-		context.Background(), "builder", workerHandle("https://runtime.example/a2a"),
+		context.Background(), "builder", workerHandle("runtime.example:443"),
 		stageRequest(),
 	)
 	assertPlannerCode(t, err, "invalid_a2a_response")
@@ -229,7 +227,7 @@ func TestInvokerRejectsInvalidEnvelopeAndFailedTaskSuccessMismatch(t *testing.T)
 	unknown.Parts[0].MediaType = workerCompletionMediaType
 	unknown.TaskID, unknown.ContextID = "task-1", "context-1"
 	_, err = fakeInvoker(&fakeClient{response: unknown}).Invoke(
-		context.Background(), "builder", workerHandle("https://runtime.example/a2a"),
+		context.Background(), "builder", workerHandle("runtime.example:443"),
 		stageRequest(),
 	)
 	assertPlannerCode(t, err, "invalid_worker_result")
@@ -239,7 +237,7 @@ func TestInvokerRejectsWorkerResultForAnotherSubtask(t *testing.T) {
 	completion := successResult()
 	completion.Result.SubtaskID = "1"
 	_, err := fakeInvoker(&fakeClient{response: resultMessage(completion)}).Invoke(
-		context.Background(), "builder", workerHandle("https://runtime.example/a2a"),
+		context.Background(), "builder", workerHandle("runtime.example:443"),
 		stageRequest(),
 	)
 	assertPlannerCode(t, err, "worker_result_subtask_mismatch")
@@ -271,7 +269,7 @@ func TestInvokerRejectsTaskCorrelationChangesWhilePolling(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			client := &fakeClient{response: initial, tasks: []*sdk.Task{test.next}}
 			_, err := fakeInvoker(client).Invoke(
-				context.Background(), "builder", workerHandle("https://runtime.example/a2a"),
+				context.Background(), "builder", workerHandle("runtime.example:443"),
 				stageRequest(),
 			)
 			assertPlannerCode(t, err, "invalid_a2a_response")
@@ -313,7 +311,7 @@ func TestInvokerRejectsResultMessageCorrelationMismatch(t *testing.T) {
 				}
 			}
 			_, err := fakeInvoker(&fakeClient{response: response}).Invoke(
-				context.Background(), "builder", workerHandle("https://runtime.example/a2a"),
+				context.Background(), "builder", workerHandle("runtime.example:443"),
 				stageRequest(),
 			)
 			assertPlannerCode(t, err, "invalid_a2a_response")
@@ -334,7 +332,7 @@ func TestInvokerReturnsValidatedWorkerFailureFromFailedTask(t *testing.T) {
 		Status: sdk.TaskStatus{State: sdk.TaskStateFailed, Message: resultMessage(want)},
 	}
 	got, err := fakeInvoker(&fakeClient{response: response}).Invoke(
-		context.Background(), "builder", workerHandle("https://runtime.example/a2a"),
+		context.Background(), "builder", workerHandle("runtime.example:443"),
 		stageRequest(),
 	)
 	if err != nil || !reflect.DeepEqual(got, want) {
@@ -342,7 +340,7 @@ func TestInvokerReturnsValidatedWorkerFailureFromFailedTask(t *testing.T) {
 	}
 }
 
-func TestOfficialGoSDKJSONRPCRoundTrip(t *testing.T) {
+func TestOfficialGoSDKGRPCRoundTrip(t *testing.T) {
 	executor := a2asrv.AgentExecutorFunc(func(
 		_ context.Context, execution *a2asrv.ExecutorContext,
 	) iter.Seq2[sdk.Event, error] {
@@ -365,26 +363,16 @@ func TestOfficialGoSDKJSONRPCRoundTrip(t *testing.T) {
 			yield(resultMessage(successResult()), nil)
 		}
 	})
-	a2aHandler := a2asrv.NewJSONRPCHandler(a2asrv.NewHandler(executor))
-	receivedRequestID := ""
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedRequestID = r.Header.Get(requestid.Header)
-		a2aHandler.ServeHTTP(w, r)
-	}))
-	defer server.Close()
-	invoker, err := New(server.Client(), Options{PollInterval: time.Millisecond})
-	if err != nil {
-		t.Fatal(err)
-	}
+	invoker, handle, receivedRequestIDs := nativeSDK(t, executor)
 
 	result, err := invoker.Invoke(
 		requestid.With(context.Background(), "planner-request-1"),
-		"builder", workerHandle(server.URL), stageRequest(),
+		"builder", handle, stageRequest(),
 	)
 	if err != nil || !reflect.DeepEqual(result, successResult()) {
 		t.Fatalf("official SDK round trip = (%+v, %v)", result, err)
 	}
-	if receivedRequestID != "planner-request-1" {
+	if receivedRequestID := <-receivedRequestIDs; receivedRequestID != "planner-request-1" {
 		t.Fatalf("A2A request ID = %q", receivedRequestID)
 	}
 }
@@ -414,9 +402,6 @@ func (c *fakeClient) SendMessage(
 ) (sdk.SendMessageResult, error) {
 	c.sendCalls++
 	c.request = request
-	if event, ok := c.response.(sdk.Event); ok {
-		recordFakeResponse(ctx, sdk.StreamResponse{Event: event})
-	}
 	return c.response, nil
 }
 
@@ -434,24 +419,7 @@ func (c *fakeClient) GetTask(
 	if len(c.tasks) > 1 {
 		c.tasks = c.tasks[1:]
 	}
-	recordFakeResponse(ctx, result)
 	return result, nil
-}
-
-// recordFakeResponse stores the JSON-RPC body the bounded transport would
-// have recorded for a scripted SDK result.
-func recordFakeResponse(ctx context.Context, result any) {
-	capture := responseCaptureFrom(ctx)
-	if capture == nil {
-		return
-	}
-	body, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": "1", "result": result})
-	if err != nil {
-		panic(err)
-	}
-	capture.mu.Lock()
-	capture.body = body
-	capture.mu.Unlock()
 }
 
 func (c *fakeClient) CancelTask(ctx context.Context, request *sdk.CancelTaskRequest) (*sdk.Task, error) {
@@ -467,7 +435,7 @@ func workerHandle(endpoint string) contracts.WorkerHandle {
 	card := sdk.AgentCard{
 		Name: "Contractor Worker builder",
 		SupportedInterfaces: []*sdk.AgentInterface{{
-			URL: endpoint, ProtocolBinding: sdk.TransportProtocolJSONRPC,
+			URL: endpoint, ProtocolBinding: sdk.TransportProtocolGRPC,
 			ProtocolVersion: sdk.Version, Tenant: "allocation-1",
 		}},
 	}
@@ -478,7 +446,7 @@ func workerHandle(endpoint string) contracts.WorkerHandle {
 }
 
 func TestDecodeCardAcceptsPythonProtoJSONEmptySecurityScopes(t *testing.T) {
-	handle := workerHandle("https://runtime.test/private/v1/allocations/allocation-1/a2a")
+	handle := workerHandle("runtime.test:443")
 	handle.AgentCard["securitySchemes"] = map[string]any{
 		"mutualTLS": map[string]any{
 			"mtlsSecurityScheme": map[string]any{"description": "deployment mTLS"},
@@ -525,7 +493,10 @@ func successResult() contracts.WorkerCompletion {
 }
 
 func resultMessage(result contracts.WorkerCompletion) *sdk.Message {
-	part := sdk.NewDataPart(result)
+	encoded, _ := json.Marshal(result)
+	var value map[string]any
+	_ = json.Unmarshal(encoded, &value)
+	part := sdk.NewDataPart(value)
 	part.MediaType = workerCompletionMediaType
 	message := sdk.NewMessage(sdk.MessageRoleAgent, part)
 	message.TaskID = "task-1"
@@ -538,5 +509,14 @@ func assertPlannerCode(t *testing.T, err error, code string) {
 	var plannerError *planner.Error
 	if !errors.As(err, &plannerError) || plannerError.Code != code {
 		t.Fatalf("error = %v, want Planner code %q", err, code)
+	}
+}
+
+func TestRejectedA2APeerIsPermanent(t *testing.T) {
+	for _, cause := range []error{sdk.ErrUnauthenticated, sdk.ErrUnauthorized} {
+		failure := planner.FailureFrom(transportError(context.Background(), cause))
+		if failure.Retryable || failure.Code != "invalid_worker_handle" {
+			t.Fatalf("peer rejection became retryable: %+v", failure)
+		}
 	}
 }

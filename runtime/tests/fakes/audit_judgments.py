@@ -2,7 +2,7 @@
 
 import json
 
-from contractor_runtime.artifacts import ArtifactClient, ArtifactHTTPResponse
+from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.audit_judgments import AuditJudgmentClient
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.toolsets.audit_results.encoding import CanonicalAuditResultEncoder
@@ -15,16 +15,20 @@ class JudgmentTransport:
         self.receipts = {}
         self.requests = []
 
-    async def request(self, method, path, *, headers, body, max_response_bytes):
-        assert method == "POST" and path.endswith("/audit-results")
+    async def submit_audit_judgments(self, allocation_id, value):
+        body = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
         self.requests.append(body)
-        value = json.loads(body)
         identity = value["submissionId"]
 
         def response(status, payload):
-            return ArtifactHTTPResponse(
-                status, {"content-type": "application/json"}, json.dumps(payload).encode()
-            )
+            if status == 409:
+                return {
+                    "stale": {
+                        "apiVersion": payload["apiVersion"],
+                        "currentGenerations": payload["currentGenerations"],
+                    }
+                }
+            return {"receipt": payload}
 
         if identity in self.receipts:
             original, receipt = self.receipts[identity]

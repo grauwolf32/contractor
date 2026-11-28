@@ -211,7 +211,7 @@ func configureWorkflows(
 	sourceLimits := cfg.GitImport.EffectiveLimits().Source
 	runtimeTransport := scheduler.RuntimeTransportSettings{
 		SourceArchiveLimits:   &sourceLimits,
-		ArtifactAPIURL:        strings.TrimRight(cfg.PrivateURL, "/") + "/private/v1",
+		ArtifactAPIURL:        strings.TrimRight(cfg.PrivateURL, "/"),
 		RequestTimeoutSeconds: int(cfg.WorkerRequestTimeout / time.Second),
 	}
 	schedulerSettings := settingsstore.NewPostgresStore(pool)

@@ -56,31 +56,14 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 		}
 	}
 	setTools(contracts.SitemapListTool)
-	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: registry, Artifacts: artifactService, Sitemap: service, RunProjects: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Projects: projectstore.NewPostgresStore(pool)})
-	if err != nil {
-		t.Fatal(err)
-	}
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: registry, Artifacts: artifactService, Sitemap: service, RunProjects: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Projects: projectstore.NewPostgresStore(pool)}})
 	request := func(method, path, key string, body any) *httptest.ResponseRecorder {
-		t.Helper()
-		var encoded []byte
-		if body != nil {
-			var err error
-			encoded, err = json.Marshal(body)
-			if err != nil {
-				t.Fatal(err)
-			}
+		if method == http.MethodGet {
+			return fixture.payloadRequest(t, method, path)
 		}
-		r := trustedRequest(method, "/private/v1/allocations/allocation-1"+path, bytes.NewReader(encoded))
-		if body != nil {
-			r.Header.Set("Content-Type", "application/json")
-		}
-		if key != "" {
-			r.Header.Set("Idempotency-Key", key)
-		}
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, r)
-		return response
+		return fixture.sitemapCommand(t, strings.TrimPrefix(path, "/sitemap/"), key, body)
 	}
+
 	const readPath = "/artifacts/sitemap/map?scope=project&operation=list_sitemap_entries"
 	const accessPath = "/artifacts/sitemap/map/access?scope=project&operation=list_sitemap_entries"
 	if response := request(http.MethodGet, accessPath, "", nil); response.Code != 204 || response.Body.Len() != 0 {

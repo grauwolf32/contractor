@@ -124,12 +124,13 @@ func newCrossLanguageHarness(
 	grant := testGrant("run-a")
 	grant.RuntimeAgentID = principalID
 	registry := &fakeRegistry{grant: grant}
-	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
-		Registry: registry, Artifacts: artifacts.NewService(repository),
-	})
+	dependencies := Dependencies{Transfers: artifactpgtest.NewStorage(), Registry: registry, Artifacts: artifacts.NewService(repository)}
+	var handler http.Handler
+	handler, err = NewGRPCHandler(dependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if wrap != nil {
 		handler = wrap(handler)
 	}
@@ -140,6 +141,7 @@ func newCrossLanguageHarness(
 		t.Fatal(err)
 	}
 	server := httptest.NewUnstartedServer(handler)
+	server.EnableHTTP2 = true
 	server.TLS = tlsConfig
 	server.StartTLS()
 	t.Cleanup(server.Close)
@@ -150,7 +152,7 @@ func newCrossLanguageHarness(
 		defer cancel()
 		baseArguments := []string{
 			"tests/artifact_client_probe.py",
-			"--api-url", server.URL + "/private/v1",
+			"--api-url", server.URL,
 			"--allocation-id", "allocation-1",
 			"--instance-id", "runtime-1",
 			"--ca", ca.Certificate,

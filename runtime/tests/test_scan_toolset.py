@@ -455,7 +455,7 @@ async def make_policy_tools(tmp_path, *, networks=(), http_proxy=None):
         namespace="scanner",
         runtime_settings=RuntimeSettings(
             llmGatewayUrl="https://gateway.internal",
-            artifactApiUrl="https://artifacts.internal:8443/private",
+            artifactApiUrl="https://artifacts.internal:8443",
             httpProxy=http_proxy,
             requestTimeoutSeconds=60,
         ),

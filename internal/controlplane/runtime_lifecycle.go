@@ -2,18 +2,14 @@ package controlplane
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 func (c *RuntimeControlClient) Finalize(
@@ -30,7 +26,7 @@ func (c *RuntimeControlClient) Finalize(
 		return reporting.AllocationFinalReport{}, fmt.Errorf("build finalize request: %w", err)
 	}
 	var response reporting.AllocationFinalResponse
-	if err := c.postJSON(
+	if err := c.callLifecycle(
 		ctx, reservation.ControlURL, reservation.Grant.AllocationID,
 		reservation.Grant.RuntimeAgentID, "finalize", request, &response, false,
 	); err != nil {
@@ -62,7 +58,7 @@ func (c *RuntimeControlClient) Abort(
 		return reporting.AllocationFinalReport{}, fmt.Errorf("build abort request: %w", err)
 	}
 	var response reporting.AllocationFinalResponse
-	if err := c.postJSON(
+	if err := c.callLifecycle(
 		ctx, reservation.ControlURL, reservation.Grant.AllocationID,
 		reservation.Grant.RuntimeAgentID, "abort", request, &response, false,
 	); err != nil {
@@ -80,42 +76,17 @@ func (c *RuntimeControlClient) Abort(
 }
 
 func (c *RuntimeControlClient) Release(ctx context.Context, reservation Reservation) error {
-	if c.transports != nil {
-		// Retire this principal's cached connections at release (CTL-R164).
-		// Other slots' exchanges finish; later calls verify a new connection.
-		defer c.transports.Evict(reservation.Grant.RuntimeAgentID)
-	}
 	request := control.ReleaseAllocationRequest{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 	}
 	if err := request.Validate(); err != nil {
 		return fmt.Errorf("build release request: %w", err)
 	}
-	target, err := c.endpoint(reservation.ControlURL, reservation.Grant.AllocationID, "release")
-	if err != nil {
-		return err
+	if c.channels != nil {
+		defer c.channels.Evict(reservation.Grant.RuntimeAgentID)
 	}
-	body, err := json.Marshal(request)
-	if err != nil {
-		return fmt.Errorf("encode release request: %w", err)
-	}
-	response, err := c.do(ctx, target, body, reservation.Grant.RuntimeAgentID)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusNoContent {
-		return decodeRuntimeError(response)
-	}
-	limited := io.LimitReader(response.Body, 1)
-	data, err := io.ReadAll(limited)
-	if err != nil {
-		return persistencepostgres.WrapError("read Runtime Agent release response", err)
-	}
-	if len(data) != 0 {
-		return errors.New("Runtime Agent release response must be empty")
-	}
-	return nil
+	return c.callLifecycle(ctx, reservation.ControlURL, reservation.Grant.AllocationID,
+		reservation.Grant.RuntimeAgentID, "release", request, nil, false)
 }
 
 func sanitizeRuntimeAdapterMetrics(report *reporting.RuntimeReport, reservation Reservation) {

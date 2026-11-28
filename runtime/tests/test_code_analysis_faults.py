@@ -283,7 +283,7 @@ def test_unexpected_parser_path_failure_is_a_tool_error_not_parse_error_coverage
             runtime_settings=RuntimeSettings(
                 llm_gateway_url="https://llm.example/v1",
                 llm_gateway_token="temporary-token",
-                artifact_api_url="https://server.example/private/v1/artifacts",
+                artifact_api_url="https://server.example",
                 request_timeout_seconds=10,
             ),
             workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),

@@ -30,15 +30,11 @@ func (r *WorkerProgressReader) ReadWorkerProgress(ctx context.Context, run, stag
 	if grant.RunID != run || grant.StageExecutionID != stage || grant.LogicalAgentName != name || grant.Lost || grant.WriteFenced {
 		return nil, nil, nil
 	}
-	target, err := r.client.endpoint(reservation.ControlURL, allocation, "agent-state")
-	if err != nil {
-		return nil, nil, err
-	}
-	state, err := r.client.readWorkerState(ctx, target, grant.RuntimeAgentID, "")
+	state, err := r.client.readWorkerState(ctx, reservation.ControlURL, allocation, grant.RuntimeAgentID, "")
 	if err != nil {
 		var readError *reporting.WorkerStateReadError
 		// A not-yet-prepared or already-released allocation has no observation.
-		if errors.As(err, &readError) && readError.StatusCode == 404 {
+		if errors.As(err, &readError) && readError.Code == "allocation_not_found" {
 			return nil, nil, nil
 		}
 		return nil, nil, err

@@ -54,27 +54,33 @@ def evidence_receipt():
     return source, receipt
 
 
-def test_evidence_lost_ack_reconciles_identical_bytes_without_traffic():
+@pytest.mark.parametrize("failure", ["transport", "invalid_response"])
+def test_evidence_lost_ack_reconciles_identical_bytes_without_traffic(failure):
     import asyncio
     from types import SimpleNamespace
 
-    from contractor_runtime.artifacts import ArtifactHTTPResponse, ArtifactTransportError
+    from contractor_runtime.artifacts import ArtifactTransportError
     from contractor_runtime.audit_evidence import AuditEvidenceClient
 
     source, receipt = evidence_receipt()
+    original = {"itemKey": "item-00", "sources": [source.model_dump()]}
 
     class Transport:
         def __init__(self):
             self.bodies = []
 
-        async def request(self, method, path, *, headers, body, max_response_bytes):
-            assert method == "POST" and path.endswith("/audit-evidence")
-            self.bodies.append(body)
+        async def submit_audit_evidence(self, allocation_id, value):
+            self.bodies.append(value)
             if len(self.bodies) == 1:
+                original["sources"][0]["revision"] = "caller-changed"
+                if failure == "invalid_response":
+                    import grpc
+
+                    from contractor_runtime.artifacts import ArtifactAPIError
+
+                    raise ArtifactAPIError(grpc.StatusCode.INTERNAL, "invalid_response", False)
                 raise ArtifactTransportError("lost acknowledgement")
-            return ArtifactHTTPResponse(
-                200, {"content-type": "application/json"}, json.dumps(receipt).encode()
-            )
+            return receipt
 
     transport = Transport()
     client = AuditEvidenceClient(
@@ -82,8 +88,9 @@ def test_evidence_lost_ack_reconciles_identical_bytes_without_traffic():
         run_id="run-1",
         audit_id="audit-1",
     )
-    result = asyncio.run(client.submit({"itemKey": "item-00", "sources": [source.model_dump()]}))
+    result = asyncio.run(client.submit(original))
     assert result["replayed"] is True
+    assert transport.bodies[0]["sources"][0]["revision"] == source.revision
     assert len(transport.bodies) == 2 and transport.bodies[0] == transport.bodies[1]
 
 
@@ -100,7 +107,7 @@ def test_evidence_unconfirmed_tail_is_safe_unknown_persistence():
     class Transport:
         calls = 0
 
-        async def request(self, *args, **kwargs):
+        async def submit_audit_evidence(self, *args, **kwargs):
             self.calls += 1
             raise ArtifactTransportError("provider-secret-canary")
 
@@ -146,7 +153,6 @@ def test_invalid_evidence_receipt_reconciles_identical_bytes(persistent):
     import asyncio
     from types import SimpleNamespace
 
-    from contractor_runtime.artifacts import ArtifactHTTPResponse
     from contractor_runtime.audit_evidence import AuditEvidenceClient, EvidencePersistenceUnknown
 
     source, receipt = evidence_receipt()
@@ -155,13 +161,9 @@ def test_invalid_evidence_receipt_reconciles_identical_bytes(persistent):
         def __init__(self):
             self.bodies = []
 
-        async def request(self, method, path, *, headers, body, max_response_bytes):
-            self.bodies.append(body)
-            return ArtifactHTTPResponse(
-                201,
-                {"content-type": "application/json"},
-                b"{}" if persistent or len(self.bodies) == 1 else json.dumps(receipt).encode(),
-            )
+        async def submit_audit_evidence(self, allocation_id, value):
+            self.bodies.append(value)
+            return {} if persistent or len(self.bodies) == 1 else receipt
 
     transport = Transport()
     client = AuditEvidenceClient(

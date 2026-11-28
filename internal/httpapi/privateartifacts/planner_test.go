@@ -3,14 +3,13 @@ package privateartifacts
 import (
 	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 type plannerOperationsFunc func(context.Context, string, string, contracts.PlannerOperation) (contracts.PlannerOperationResult, error)
@@ -20,63 +19,47 @@ func (f plannerOperationsFunc) ExecuteOperation(ctx context.Context, stage, allo
 }
 
 func TestPrivatePlannerOperationsUseAllocationAuthorityAndRejectMalformedRequests(t *testing.T) {
-	const body = `{"apiVersion":"contractor/v1alpha1","sequence":1,"name":"before_model","arguments":{}}`
-	for _, test := range []struct {
-		name, instance, query, body string
-		lost, fenced, trusted       bool
-		want                        int
-	}{
-		{name: "admitted", trusted: true, want: 200},
-		{name: "missing-mtls", want: 401},
-		{name: "old-instance", instance: "runtime-old", trusted: true, want: 409},
-		{name: "lost", lost: true, trusted: true, want: 409},
-		{name: "ending", fenced: true, trusted: true, want: 409},
-		{name: "scope-query", query: "?stageExecutionId=other-stage", trusted: true, want: 400},
-		{name: "duplicate", body: strings.Replace(body, `"sequence":1`, `"sequence":1,"sequence":1`, 1), trusted: true, want: 400},
-		{name: "unknown", body: strings.Replace(body, `"sequence":1`, `"Sequence":1`, 1), trusted: true, want: 400},
-		{name: "null", body: strings.Replace(body, `"arguments":{}`, `"arguments":null`, 1), trusted: true, want: 400},
-	} {
-		t.Run(test.name, func(t *testing.T) {
+	for _, name := range []string{"admitted", "missing-sequence", "unknown-field", "unknown-nested", "nul-argument", "missing-arguments", "ending", "lost"} {
+		t.Run(name, func(t *testing.T) {
 			grant := testGrant("run-a")
-			grant.Lost, grant.WriteFenced = test.lost, test.fenced
+			grant.WriteFenced = name == "ending"
+			grant.Lost = name == "lost"
 			registry := &fakeRegistry{grant: grant}
 			calls := 0
-			operations := plannerOperationsFunc(func(ctx context.Context, stage, allocation string, request contracts.PlannerOperation) (contracts.PlannerOperationResult, error) {
+			operations := plannerOperationsFunc(func(ctx context.Context, stage, allocation string, input contracts.PlannerOperation) (contracts.PlannerOperationResult, error) {
 				calls++
-				if stage != grant.StageExecutionID || allocation != grant.AllocationID || request.Sequence != 1 {
-					t.Fatal("Planner operation trusted request-selected authority")
+				if stage != grant.StageExecutionID || allocation != grant.AllocationID || input.Sequence != 1 {
+					t.Fatal("request changed authority")
 				}
-				// A Registry read here also proves that the callback executes
-				// outside WithWriteGrant's mutex, as long dispatches must.
 				if _, err := registry.GetGrant(allocation); err != nil {
 					t.Fatal(err)
 				}
 				return contracts.PlannerOperationResult{APIVersion: contracts.APIVersion, Result: json.RawMessage(`{}`)}, nil
 			})
-			handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewRuntime(), Registry: registry, Artifacts: artifacts.NewService(newMemoryRepository()), PlannerOperations: operations})
-			if err != nil {
-				t.Fatal(err)
+			client, ctx := allocationRPCFixture(t, &handler{dependencies: Dependencies{Registry: registry, PlannerOperations: operations}})
+			request := &pb.PlannerOperationRequest{ApiVersion: proto.String(contracts.APIVersion), Sequence: proto.Int64(1), Name: proto.String("before_model"), Arguments: &pb.PlannerArgumentsDocument{Json: []byte(`{}`)}}
+			switch name {
+			case "missing-sequence":
+				request.Sequence = nil
+			case "unknown-field":
+				request.ProtoReflect().SetUnknown([]byte{0xf8, 0x07, 0x01})
+			case "unknown-nested":
+				request.Arguments.ProtoReflect().SetUnknown([]byte{0xf8, 0x07, 0x01})
+			case "nul-argument":
+				request.Arguments.Json = []byte(`{"value":"\u0000"}`)
+			case "missing-arguments":
+				request.Arguments = nil
 			}
-			data := body
-			if test.body != "" {
-				data = test.body
+			response, err := client.PlannerOperation(ctx, request)
+			want := codes.InvalidArgument
+			if name == "ending" || name == "lost" {
+				want = codes.FailedPrecondition
 			}
-			request := trustedRequest(http.MethodPost, "/private/v1/allocations/allocation-1/planner-operations"+test.query, strings.NewReader(data))
-			request.Header.Set("Content-Type", "application/json")
-			if !test.trusted {
-				request.TLS = nil
+			if name == "admitted" {
+				want = codes.OK
 			}
-			if test.instance != "" {
-				request.Header.Set(RuntimeInstanceHeader, test.instance)
-			}
-			response := httptest.NewRecorder()
-			handler.ServeHTTP(response, request)
-			wantCalls := 0
-			if test.want == 200 {
-				wantCalls = 1
-			}
-			if response.Code != test.want || calls != wantCalls {
-				t.Fatalf("status=%d calls=%d body=%s, want %d/%d", response.Code, calls, response.Body.String(), test.want, wantCalls)
+			if status.Code(err) != want || (calls == 1) != (want == codes.OK) {
+				t.Fatalf("response=%v error=%v calls=%d want=%v", response, err, calls, want)
 			}
 		})
 	}

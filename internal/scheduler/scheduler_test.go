@@ -454,7 +454,7 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 	if worker.ModelPolicy.Ref != workerPolicy.Ref ||
 		worker.RuntimeSettings.LLMGatewayURL != workerGateway.URL ||
 		worker.RuntimeSettings.LLMGatewayToken.Reveal() != "worker-secret" ||
-		worker.RuntimeSettings.ArtifactAPIURL != "https://control.test/private/v1" {
+		worker.RuntimeSettings.ArtifactAPIURL != "https://control.test" {
 		t.Fatalf("Worker execution settings = %+v", worker)
 	}
 	for name, settings := range workerSettings {
@@ -880,7 +880,7 @@ func TestSchedulerQueueResidenceDoesNotConsumeExecutionDeadline(t *testing.T) {
 func TestSchedulerPreparationFailureInterruptsWithoutPlanner(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	harness.workers.prepareError = &controlplane.RuntimeAPIError{
-		StatusCode: 503, Code: "worker_prepare_failed", Retryable: true,
+		Code: "worker_prepare_failed", Retryable: true,
 	}
 
 	worked, err := harness.scheduler.RunOnce(context.Background())
@@ -2071,7 +2071,7 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 		PollInterval:    time.Second, LeaseScanInterval: time.Second, ClaimDuration: time.Hour, OperationTimeout: time.Second,
 		PlannerTimeout: 30 * time.Second, FinalizationTimeout: 10 * time.Second, AbortTimeout: 10 * time.Second,
 		RuntimeTransport: RuntimeTransportSettings{
-			ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 5,
+			ArtifactAPIURL: "https://control.test", RequestTimeoutSeconds: 5,
 		},
 		Credentials: credentialResolverFunc(func(
 			_ context.Context,

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"net/http"
 	"slices"
 	"sync"
 	"testing"
@@ -236,7 +235,7 @@ func (r pacedRuntime) Release(ctx context.Context, reservation controlplane.Rese
 	case pacedConflict:
 		// A Runtime conflict answers at once; it says nothing about the
 		// network and costs no cleanup deadline.
-		return &controlplane.RuntimeAPIError{StatusCode: http.StatusConflict, Code: "allocation_state_conflict"}
+		return &controlplane.RuntimeAPIError{Code: "allocation_state_conflict"}
 	case pacedLost:
 		return errors.New("Runtime Agent is unreachable")
 	}

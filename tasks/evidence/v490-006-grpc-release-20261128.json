@@ -1,0 +1,225 @@
+{
+  "schema_version": "1.0",
+  "task": "V490-006",
+  "date": "2026-11-28",
+  "status": "passed",
+  "baseline": "9fd3ac96d32c696fa39988df85e32f6bb6d1d83b",
+  "implementation_commit": "43f9c9b22e2f831dce8ca1e6234ed6e764248875",
+  "branch": "codex/server-runtime-grpc-plan",
+  "working_tree_at_release_start": "clean",
+  "outcome": [
+    "All Server/Runtime command and data families use named native gRPC methods; A2A retains its official gRPC SDK binding.",
+    "Actual-connection mTLS role/principal verification, allocation authority, deadlines, receipts and canonical JSON digests are preserved.",
+    "Artifact/finding streams retain bounded frames, transfer admission, CAS, exact receipts and joined cancellation.",
+    "Replaced private HTTP client/parser/pool and JSON-RPC handlers are removed; operational health/readiness HTTPS probes retain their callers."
+  ],
+  "environment": {
+    "platform": "darwin-arm64",
+    "database": "dedicated PostgreSQL 17 cluster; configured real test database",
+    "heavy_io": "disabled; no implicit opt-in",
+    "live_model_experiments": "not run"
+  },
+  "commands": [
+    {
+      "command": "caffeinate -is make -k release-verify",
+      "exit_code": 0,
+      "log": "/tmp/contractor-v490-006-release-awake.log",
+      "log_sha256": "e5247561f3c5a4e86ff9ca5199676a7dd1b9ce66396368cf982af69d43c9eb53"
+    },
+    {
+      "command": "make verify-public-api-postgres",
+      "exit_code": 0,
+      "log": "/tmp/contractor-v490-006-public-api-postgres.log",
+      "log_sha256": "faa01830d9c42572a053508f9f51b266105fd3286a7264b9a7d6d0c626d9fd1f"
+    },
+    {
+      "command": "make verify-architecture",
+      "exit_code": 0,
+      "log": "/tmp/contractor-v490-006-architecture.log",
+      "log_sha256": "d93a298967393b2e12e727c766f997ebc7216f1fd4548763567228cbc54ee2ce"
+    },
+    {
+      "command": "go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestArtifactImagesAcrossProcesses|TestAuditCompactionPreservesTrustedCompletionAcrossProcesses|TestAuditCompactionLeaseLossAcrossProcesses)$'",
+      "exit_code": 0,
+      "log": "/tmp/contractor-v490-006-native-proxy.log",
+      "log_sha256": "107d4a3f5df1fd6869de5f9629020a828b4e2302f6e1ed4212967e466948c27e"
+    },
+    {
+      "command": "caffeinate -i go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^TestRuntimeGuidanceAcrossProductionProcesses$'",
+      "exit_code": 0,
+      "log": "/tmp/contractor-v490-006-guidance-recheck.log",
+      "log_sha256": "4e482d50d463fe85d20f683d949228998df6401746423aae98b68c09655c826f"
+    }
+  ],
+  "reports": {
+    "go_reports": {
+      "go-integration.jsonl": {
+        "root_counts": {
+          "skip": 4,
+          "pass": 163
+        },
+        "skipped_cases": [
+          "TestPostgresRunRevisionLimitAndBoundedPurge",
+          "TestPostgresRunRevisionLimitIsNotRefundedByHistoryRetention",
+          "TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling",
+          "TestPostgresHydratesNineMaximumSizeProposalsAcrossBatches"
+        ],
+        "sha256": "83b4e23024e65673402f7ae854c29ca352f79da626df16493d65b0ba558df2e7"
+      },
+      "go-process-a.jsonl": {
+        "root_counts": {
+          "pass": 26
+        },
+        "skipped_cases": [],
+        "sha256": "d58cb7a79c12a47e5b65650cdb34bb6a0a7f75e523881eff3874f9e34595ea57",
+        "root_names": [
+          "TestArtifactHistoryAcrossProductionProcesses",
+          "TestArtifactImagesAcrossProcesses",
+          "TestAuditBasicExactHandoffAcrossProductionProcesses",
+          "TestAuditCommonObservationProfilesAcrossProductionProcesses",
+          "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+          "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses",
+          "TestAuditCompactionLeaseLossAcrossProcesses",
+          "TestAuditHypothesisContinuationAcrossProductionProcesses",
+          "TestAuditFixedHypothesesAcrossProductionProcesses",
+          "TestAuditIncrementalEvidenceAcrossProcesses",
+          "TestAuditPartialJudgmentsAcrossProcesses",
+          "TestAuditWorkspaceAcrossProductionProcesses",
+          "TestLocalGoToPythonArtifactCopy",
+          "TestArtifactFilePublicationAcrossProcesses",
+          "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses",
+          "TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses",
+          "TestProjectSitemapHTTPCollectionAcrossProductionProcesses",
+          "TestWorkflowMaterialSetsAcrossProductionProcesses",
+          "TestOpenAPIPreparedWorkServerOperation",
+          "TestProjectSitemapReportImportsAcrossProductionProcesses",
+          "TestProjectSitemapServerOperationsAcrossProductionProcesses",
+          "TestProjectSitemapToolsAcrossProductionProcesses",
+          "TestRuntimeManagedArtifactWritesAcrossProcesses",
+          "TestRuntimeManagedSitemapEditsAcrossProcesses",
+          "TestRuntimeManagedMaterialVersionsAcrossProcesses",
+          "TestMemoryMVPProcesses"
+        ]
+      },
+      "go-process-b.jsonl": {
+        "root_counts": {
+          "pass": 16
+        },
+        "skipped_cases": [],
+        "sha256": "b4d4d6870795c66c1a8ac288ff96985d48c968bfd78989e934e1d39e3d5e17a0",
+        "root_names": [
+          "TestAuditProgramCatalogReplacementRestartsServer",
+          "TestEngagementHTTPBoundsAcrossProcesses",
+          "TestEngagementHTTPSelectedEvidenceAcrossProcesses",
+          "TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses",
+          "TestEngagementHTTPLifecycleAcrossProcesses",
+          "TestEngagementHTTPRouteMatrixAcrossProcesses",
+          "TestEngagementIdentityLifecycleAcrossProcesses",
+          "TestEngagementIdentitySessionsAcrossProcesses",
+          "TestEngagementOrdinaryRunAcrossProcesses",
+          "TestRoutingAndEscalationProductionBoundaries",
+          "TestRunMetadataLabelsAcrossProcesses",
+          "TestRuntimeAdapterSelectionAllowsAdditionalCapabilities",
+          "TestLabelDrivenRuntimeConfigurationAcrossProcesses",
+          "TestSchedulerConcurrencyAcrossProductionProcesses",
+          "TestTaintAnnotationsAcrossRealRuntimeProcess",
+          "TestWorkerSummarizerProductionBoundaries"
+        ]
+      },
+      "go-process-c.jsonl": {
+        "root_counts": {
+          "pass": 29
+        },
+        "skipped_cases": [],
+        "sha256": "800b0d99d3354ddafc105c608f4dedf517f2d4d5eb178c8a4a68cec0d83acf33",
+        "root_names": [
+          "TestAgentSkillsMVPProcesses",
+          "TestHeterogeneousRuntimeCapabilityPlacement",
+          "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",
+          "TestDiscoveryFactsAcrossProcesses",
+          "TestEvalFindingProjectNavigationAcrossProcesses",
+          "TestFactExtractionAuditEvalAcrossProcesses",
+          "TestFactExtractionAcrossProcesses",
+          "TestFindingsReaderBoundariesAcrossProcesses",
+          "TestFindingLocationsAcrossProcesses",
+          "TestFindingsProducerAndReaderAcrossProcesses",
+          "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts",
+          "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses",
+          "TestMemorySnapshotAcrossProcesses",
+          "TestNucleiWebWithDeterministicScannerAcrossProcesses",
+          "TestProcessDatabaseIsolation",
+          "TestIndependentFindingsServersAcrossProcesses",
+          "TestProductionMemoryTemplatesAcrossProcesses",
+          "TestProjectFactsAcrossProcesses",
+          "TestProjectFindingsReaderAcrossProcesses",
+          "TestProjectDocumentResponseRecoveryAcrossProcesses",
+          "TestProjectDocumentOutputLimitRecoveryAcrossProcesses",
+          "TestProjectWorkspaceLifecycleAcrossProductionProcesses",
+          "TestRuntimeGuidanceAcrossProductionProcesses",
+          "TestRuntimePlacementScannerFixture",
+          "TestRuntimePlacementAcrossProductionProcesses",
+          "TestRuntimeAllocationSlotsAcrossProductionProcesses",
+          "TestTraceFindingCoordinatesAcrossProcesses",
+          "TestWorkerCompactionContinuesIsolatedWorker",
+          "TestWorkerSessionModesAcrossProductionProcesses"
+        ]
+      }
+    },
+    "runtime_reports": {
+      "runtime.xml": {
+        "tests": 6862,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 136,
+        "sha256": "b641a7be95f9deea08324f969b7f3877a29687b2d213aa45d93a6fb4b73b3d26",
+        "passed": 6726
+      }
+    }
+  },
+  "process_total": 71,
+  "compaction_verifiers": {
+    "python_selected_passed": 611,
+    "go_selected_passed": 60,
+    "process_selected_passed": 7
+  },
+  "browser_execution_summaries": [
+    "stack_test.go:369: Playwright execution verified: 117 passed, 0 skipped/unexpected/flaky; required files=[e2e/stack.spec.ts e2e/audits.spec.ts e2e/lifecycle-controls.spec.ts e2e/project-workspace.spec.ts e2e/run-repeat.spec.ts e2e/performance.spec.ts e2e/studio-catalog.spec.ts]; report SHA-256=4ff2792998a776e09a2a7f1b2cc2d17606fa165121be653c2b59bca05d50cdf2",
+    "stack_test.go:369: Playwright execution verified: 1 passed, 0 skipped/unexpected/flaky; required files=[e2e/stack.spec.ts]; report SHA-256=e216b179c1f9278fc0a69201c0d153e0f8d3fccbc24212ae5def571312034c1e",
+    "evals_stack_test.go:57: Playwright execution verified: 1 passed, 0 skipped/unexpected/flaky; required files=[e2e/evals-stack.spec.ts]; report SHA-256=4e1d2c28cd703ecce1b54d71f5b13f32d7132cf9aedd44fe30cbd4cab558599c",
+    "evals_stack_test.go:57: Playwright execution verified: 1 passed, 0 skipped/unexpected/flaky; required files=[e2e/evals-stack.spec.ts]; report SHA-256=e1131108416f10fc32380ccb439b7092b4320ec16b60056879bf7da115b6c67a"
+  ],
+  "cross_language": "The complete release shared fixture gate verified declared Go/Python readers from the full Go and Runtime reports; no selected PostgreSQL reader skip was accepted.",
+  "skips": "136 declared Runtime platform/live/optional skips and the four named integration heavy-I/O roots are not passing coverage; optional heavy cases also remain disabled elsewhere in the full gate.",
+  "release_prerequisites": {
+    "V490-008": "Offline scorer dependency closure pin updated without algorithm/truth/model/experiment changes.",
+    "V490-009": "Real browser fixture now verifies both pre-existing Planner/Worker allocations and their exact retained IDs."
+  },
+  "resolved_verification_findings": [
+    "Strict ETag grammar restored in the test-only scripted recorder after malformed surrogate receipt regression failed.",
+    "Image read observations and committed Audit reply loss now inspect actual bounded gRPC metadata instead of obsolete HTTP paths; original real-store/result assertions remain.",
+    "An earlier guidance timeout overlapped confirmed Clamshell Sleep at 08:26:27 +0300. Its full root rerun and this complete release passed without source/model/deadline changes. Command-scoped caffeinate was used for the final full run."
+  ],
+  "cleanup": {
+    "active_lane_processes_after_release": 0,
+    "active_test_database_connections_before_drop": 0,
+    "dropped_databases": [
+      "contractor_v490_test",
+      "contractor_process_822caa6b19e103bf",
+      "contractor_process_cb3338b8924d91aa"
+    ],
+    "remaining_non_template_databases": [
+      "postgres"
+    ],
+    "owned_cluster_port": 55490,
+    "owned_cluster_stopped": true,
+    "caffeinate": "ended with command",
+    "demo_and_unrelated_processes": "untouched"
+  },
+  "delivery": {
+    "merged_into_main": false,
+    "pushed": false,
+    "deployed": false,
+    "ready_for_user_merge": true
+  },
+  "limits": "No measured Run speedup is claimed; named heavy/platform/live exclusions remain unproven on this host."
+}

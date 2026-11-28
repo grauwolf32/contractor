@@ -74,7 +74,7 @@ async def prepare_reader(
                 except ArtifactResponseLimitError:
                     raise
                 except ArtifactAPIError as error:
-                    if error.status_code not in {409, 412}:
+                    if not error.precondition_conflict:
                         raise
                 except ArtifactTransportError:
                     # A write may have committed before its response was lost.
@@ -90,12 +90,7 @@ async def prepare_reader(
                 try:
                     retained = await client.read_artifact(target, max_bytes=MAX_ARCHIVE_BYTES)
                 except ArtifactAPIError as error:
-                    if (
-                        ambiguous_write
-                        and attempt == 0
-                        and error.status_code == 404
-                        and error.code == "artifact_not_found"
-                    ):
+                    if ambiguous_write and attempt == 0 and error.code == "artifact_not_found":
                         # The first write did not commit; one create retry is safe.
                         continue
                     raise

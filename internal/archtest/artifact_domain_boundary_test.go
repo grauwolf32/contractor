@@ -22,7 +22,8 @@ func TestSitemapUsesSharedArtifactMechanisms(t *testing.T) {
 	files := 0
 	for _, directory := range []string{
 		"internal/artifacts", "internal/persistence/postgres", "internal/projectlifecycle",
-		"internal/httpapi/privateartifacts/artifact_handlers.go",
+		"internal/httpapi/privateartifacts/grpc_payload.go",
+		"internal/httpapi/privateartifacts/payload_write.go",
 		"internal/httpapi/privateartifacts/artifact_read_access.go",
 	} {
 		err := filepath.WalkDir(filepath.Join("..", "..", directory), func(path string, entry fs.DirEntry, err error) error {

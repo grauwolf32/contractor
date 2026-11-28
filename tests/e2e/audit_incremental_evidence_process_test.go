@@ -5,8 +5,12 @@ package e2e
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
+	"github.com/grauwolf32/contractor/internal/runtimewire"
+	"google.golang.org/protobuf/proto"
 	"io"
 	"net/http"
 	"net/url"
@@ -130,9 +134,9 @@ func testAuditInterruptedRetention(t *testing.T, withJudgment, browser bool) {
 	}, func(h *findingsHarness) {
 		h.runtimeExtraArguments = []string{"--allowed-target-network", "127.0.0.0/8"}
 		h.proxyPrivateAPI(func(response *http.Response) error {
-			evidence := strings.HasSuffix(response.Request.URL.Path, "/audit-evidence")
-			judgment := withJudgment && strings.HasSuffix(response.Request.URL.Path, "/audit-results")
-			if (!evidence && !judgment) || response.StatusCode != http.StatusCreated {
+			evidence := response.Request.URL.Path == pb.Allocation_SubmitAuditEvidence_FullMethodName
+			judgment := withJudgment && response.Request.URL.Path == pb.Allocation_SubmitAuditJudgments_FullMethodName
+			if (!evidence && !judgment) || response.StatusCode != http.StatusOK {
 				return nil
 			}
 			raw, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
@@ -141,9 +145,17 @@ func testAuditInterruptedRetention(t *testing.T, withJudgment, browser bool) {
 			}
 			response.Body.Close()
 			response.Body = io.NopCloser(bytes.NewReader(raw))
+			if len(raw) < 5 || raw[0] != 0 || int(binary.BigEndian.Uint32(raw[1:5])) != len(raw)-5 {
+				return fmt.Errorf("invalid Audit RPC frame")
+			}
+
 			if evidence {
 				var receipt auditcontract.EvidenceReceipt
-				if err := json.Unmarshal(raw, &receipt); err != nil {
+				var message pb.AuditEvidenceReceipt
+				if err := proto.Unmarshal(raw[5:], &message); err != nil {
+					return err
+				}
+				if err := runtimewire.DecodeDomain(&message, &receipt, 1<<20, (1<<20)+1024); err != nil {
 					return err
 				}
 				savedOnce.Do(func() { accepted <- receipt })
@@ -152,7 +164,14 @@ func testAuditInterruptedRetention(t *testing.T, withJudgment, browser bool) {
 				}
 			} else {
 				var receipt auditcontract.JudgmentReceipt
-				if err := json.Unmarshal(raw, &receipt); err != nil {
+				var message pb.AuditJudgmentsResponse
+				if err := proto.Unmarshal(raw[5:], &message); err != nil {
+					return err
+				}
+				if message.GetReceipt() == nil {
+					return nil
+				}
+				if err := runtimewire.DecodeDomain(message.GetReceipt(), &receipt, 1<<20, (1<<20)+1024); err != nil {
 					return err
 				}
 				if len(receipt.Generations) != 1 || receipt.Generations[0].Generation != 2 {

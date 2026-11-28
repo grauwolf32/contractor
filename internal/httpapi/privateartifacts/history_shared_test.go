@@ -49,7 +49,7 @@ func TestSharedArtifactHistoryPrivateErrors(t *testing.T) {
 				t.Fatalf("no Server error answers %s", test.Code)
 			}
 			repository := &rejectingWriteRepository{memoryRepository: newMemoryRepository(), err: cause}
-			handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
+			handler, err := newPayloadNativeRecorder(Dependencies{Transfers: artifactpgtest.NewStorage(),
 				Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository),
 				NewRequestID: func() (string, error) { return "artifact-history", nil },
 			})

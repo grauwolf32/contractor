@@ -331,14 +331,6 @@ func newProcessHandler(readiness http.Handler, publicAPI ...http.Handler) http.H
 	return mux
 }
 
-func newPrivateHandler(controlHandler http.Handler, artifactHandler http.Handler) http.Handler {
-	mux := http.NewServeMux()
-	mux.Handle("/private/v1/config", controlHandler)
-	mux.Handle("/private/v1/agents/", controlHandler)
-	mux.Handle("/private/v1/allocations/", artifactHandler)
-	return mux
-}
-
 func writeHealthy(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -28,27 +27,27 @@ func TestPrivateArtifactPagedListHidesBindingsBeforeTheLimit(t *testing.T) {
 		repository.seed("run-a", ref.Namespace, ref.Name, "r", nil)
 	}
 	repository.seed("run-b", "builder", "foreign", "r", nil)
-	handler := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository)
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository)}})
 
 	want := map[string]bool{"inputs/memory.allowed": true, "outputs/http.body.result": true}
 	for i := 0; i < 40; i++ {
 		want[fmt.Sprintf("builder/a_%02d", i)] = true
 		want[fmt.Sprintf("builder/z_%02d", i)] = true
 	}
-	assertPagedListing(t, handler, "", 7, want)
+	assertPagedListing(t, fixture, "", 7, want)
 	builder := make(map[string]bool)
 	for key := range want {
 		if key[:len("builder/")] == "builder/" {
 			builder[key] = true
 		}
 	}
-	assertPagedListing(t, handler, "builder", 9, builder)
-	assertPagedListing(t, handler, "skills", 5, map[string]bool{})
+	assertPagedListing(t, fixture, "builder", 9, builder)
+	assertPagedListing(t, fixture, "skills", 5, map[string]bool{})
 }
 
 // assertPagedListing follows nextCursor and requires every page but the last
 // to be full and every wanted binding to appear exactly once.
-func assertPagedListing(t *testing.T, handler http.Handler, namespace string, limit int, want map[string]bool) {
+func assertPagedListing(t *testing.T, fixture allocationTestHarness, namespace string, limit int, want map[string]bool) {
 	t.Helper()
 	seen := make(map[string]bool)
 	cursor := ""
@@ -63,8 +62,7 @@ func assertPagedListing(t *testing.T, handler http.Handler, namespace string, li
 		if cursor != "" {
 			query.Set("cursor", cursor)
 		}
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, trustedRequest(http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?"+query.Encode(), nil))
+		response := fixture.artifactRequest(t, "/artifacts?"+query.Encode())
 		var page contracts.ArtifactListResult
 		if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil || response.Code != http.StatusOK || page.Validate() != nil {
 			t.Fatalf("page %d of %q = %d %s", pages, namespace, response.Code, response.Body.String())
@@ -92,7 +90,7 @@ func assertPagedListing(t *testing.T, handler http.Handler, namespace string, li
 func TestPrivateArtifactPagedListRejectsInvalidQueriesBeforeStorage(t *testing.T) {
 	repository := newMemoryRepository()
 	repository.seed("run-a", "builder", "report", "r", nil)
-	handler := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository)
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository)}})
 	encode := func(value string) string { return base64.RawURLEncoding.EncodeToString([]byte(value)) }
 	foreignNamespace := encode(`{"v":1,"namespace":"inputs","name":"source"}`)
 	for _, query := range []string{
@@ -109,8 +107,7 @@ func TestPrivateArtifactPagedListRejectsInvalidQueriesBeforeStorage(t *testing.T
 		"limit=1&runId=run-b",
 	} {
 		t.Run(query, func(t *testing.T) {
-			response := httptest.NewRecorder()
-			handler.ServeHTTP(response, trustedRequest(http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?"+query, nil))
+			response := fixture.artifactRequest(t, "/artifacts?"+query)
 			var failure errorResponse
 			if response.Code != http.StatusBadRequest || json.Unmarshal(response.Body.Bytes(), &failure) != nil ||
 				failure.Code != "invalid_request" || failure.Retryable {
@@ -122,8 +119,7 @@ func TestPrivateArtifactPagedListRejectsInvalidQueriesBeforeStorage(t *testing.T
 		t.Fatalf("invalid list queries reached storage %d times", repository.listCalls)
 	}
 	// An unfiltered cursor from another Namespace is an ordinary position.
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, trustedRequest(http.MethodGet, "/private/v1/allocations/allocation-1/artifacts?limit=1&cursor="+foreignNamespace, nil))
+	response := fixture.artifactRequest(t, "/artifacts?limit=1&cursor="+foreignNamespace)
 	if response.Code != http.StatusOK || repository.listCalls != 1 {
 		t.Fatalf("unfiltered cursor = %d %s", response.Code, response.Body.String())
 	}

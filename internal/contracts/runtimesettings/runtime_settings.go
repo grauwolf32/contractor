@@ -322,7 +322,7 @@ func (s RuntimeSettings) Validate() error {
 			return err
 		}
 	}
-	if err := contracts.ValidateURL("runtimeSettings.artifactApiUrl", s.ArtifactAPIURL); err != nil || len(s.ArtifactAPIURL) > 2048 {
+	if _, err := contracts.ParsePrivateRPCOrigin("runtimeSettings.artifactApiUrl", s.ArtifactAPIURL); err != nil || len(s.ArtifactAPIURL) > 2048 {
 		return contracts.Invalidf("runtimeSettings.artifactApiUrl is invalid")
 	}
 	if s.RequestTimeoutSeconds <= 0 {

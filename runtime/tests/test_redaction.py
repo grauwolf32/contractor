@@ -40,7 +40,7 @@ def test_runtime_secrets_hold_credentials_and_setting_values_add_endpoints() -> 
     settings = RuntimeSettings(
         llmGatewayUrl="https://gateway.example/v1",
         llmGatewayToken="gateway-token",
-        artifactApiUrl="https://control.example/private/v1",
+        artifactApiUrl="https://control.example",
         httpProxy=HTTPProxySettings(
             adapter="http-proxy@1",
             proxyUrl="https://proxy.example",
@@ -67,7 +67,7 @@ def test_runtime_secrets_hold_credentials_and_setting_values_add_endpoints() -> 
     )
     assert runtime_setting_values(settings) == (
         "https://gateway.example/v1",
-        "https://control.example/private/v1",
+        "https://control.example",
         "https://proxy.example",
         "https://caido.example",
         *runtime_secrets(settings),

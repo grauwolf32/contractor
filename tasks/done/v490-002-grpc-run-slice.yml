@@ -1,0 +1,133 @@
+schema_version: '1.0'
+id: V490-002
+title: Execute a real Run through gRPC control and A2A
+milestone: server-runtime-grpc-2026-11
+epic: execution-core
+kind: feature
+priority: P1
+status: completed
+depends_on:
+- V490-001
+languages:
+- go
+- python
+- protobuf
+- markdown
+goal: A real ordinary Run executes through gRPC registration, allocation lifecycle and the standard A2A gRPC
+  binding.
+demonstration: Real Server, disposable PostgreSQL and Python Runtime register, prepare, execute a deterministic
+  Worker through official A2A, finalize and release; a second case cancels in flight. Existing outbound Artifact
+  HTTP remains only until V490-004/005.
+context:
+  authority: 'User decision 2026-11-27: plan and implement gRPC for Server/Runtime, preserve A2A. Direct connectivity
+    through the existing overlay is an architectural fact, not new scope. NAT, reverse tunnels and removal
+    of A2A were explicitly rejected. Implementation does not authorize deployment or merging main. The task
+    decomposition and typed protobuf design are agent proposals. Subsequent user decision 2026-11-27:
+    preserve the current PKI and use a bounded in-process Runtime TLS adapter with actual-connection
+    Control Plane URI SAN verification and private Unix sockets for native grpcio.'
+  proposal: docs/proposals/0038-server-runtime-transport.md
+  specification:
+  - docs/spec/execution/control-plane.md#CTL-R163
+  - docs/spec/execution/runtime-agent.md#RTA-R75
+  - docs/spec/platform/security.md#SEC-R5
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/persistence.md#PER-R24
+  baseline: main 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b
+scope:
+  in:
+  - Generate named control/lifecycle protobuf request/response types and Go/Python stubs from one checked-in
+    source, with explicit validation adapters.
+  - Implement narrow production control/lifecycle paths and official A2A gRPC dispatch using the existing Registry,
+    AllocationService, WorkerInvoker and SDK request handler.
+  - Replace the migrated JSON-RPC invocation path, its Agent Card binding and lifecycle routes without fallback;
+    preserve separate Task/context/invocation/allocation identities.
+  - Update owning specs, shared fixtures, composition, layer classifications and all consumers of changed endpoint
+    fields atomically.
+  out:
+  - No streaming Worker State feature, NAT, new recovery system, artifact streaming or model changes.
+requirements:
+- id: R1
+  text: Preserve existing component/domain ownership, mTLS role and principal checks, allocation fencing, receipts,
+    canonical JSON digests and effective deadlines. Update each changed owning spec and cross-language fixture
+    in the same implementation.
+- id: R2
+  text: Use standard A2A gRPC, direct overlay connectivity and no legacy fallback. No generic HTTP-over-gRPC
+    tunnel or second workflow execution engine.
+failure_outcomes:
+- operation: Each migrated RPC and stream
+  permanent: Invalid request/identity/permission and deterministic store rejection retain a stable domain code
+    in gRPC details and are never retried. The V490-001 contract defines the status mapping.
+  retryable: Use existing caller attempt/backoff bounds and effective deadline; no blanket automatic replay/hedging.
+    Transport reconnect is not mutation retry.
+  ambiguous: Reuse existing operation-specific receipts, sequence, lifecycle ID or Artifact expected revision.
+    A lost reply is not proof of non-commit; do not resubmit with a new identity.
+  cancelled: The existing operation owner fences, cancels and joins tasks before releasing allocation or transfer
+    resources. RPC cancellation alone is not proof of Worker termination.
+  timeout: Keep request, invocation/Stage, heartbeat lease and finalization/abort budgets separate; a channel
+    reconnect never extends them.
+cardinality:
+- collection: Runtime allocations and in-flight operations
+  expected: 1-4 slots per process; one active A2A Task per Worker
+  maximum: Existing domain bounds in docs/spec/platform/limits.md; process capacity 4, heartbeat reconciliation
+    actions 8, Artifact payload 64 MiB, Server payload transfers 4.
+  bound: Bound pending RPC admission, messages, aggregate bytes and per-stream buffers explicitly in V490-001/owning
+    spec before production implementation. Existing domain limits are not replaced with gRPC defaults.
+lifecycle:
+- entity: gRPC channels and request/stream owners
+  delete: Process shutdown closes owned channels after the Scheduler/Workers stop; releasing one allocation
+    must not kill sibling slots.
+  cascade: Cancel/join active work and release transfer permits through the existing owners.
+  retention: No new durable entity, receipt or queue. Existing report and Artifact retention stays with its
+    domain.
+acceptance_criteria:
+- id: A1
+  text: The real-component demonstration completes and produces the same accepted WorkerCompletion and terminal
+    allocation facts.
+- id: A2
+  text: Wrong principal/tenant, expired allocation and unsupported protocol are rejected; invocation cancellation
+    does not replace authoritative abort/finalize.
+- id: A3
+  text: A2A schema remains the official protocol; DataPart numeric bounds and canonical config digests remain
+    unchanged; no JSON-RPC fallback is advertised.
+tests:
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-go
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: 403df53f68db090ca876ac4a6144e8342951256f
+verification:
+  status: passed
+  observed: >-
+    make lint, make test-wire-cross-language and make test-go passed, with
+    disposable PostgreSQL enabled for Go persistence tests. make test-runtime
+    passed: 6863 tests and 136 declared skips; both Runtime report verifiers
+    passed. make test-e2e passed all 71 process roots in 4189.232 seconds and
+    all six process report verifiers. The accepted full process run was
+    restarted after the user's temporary pause; interrupted diagnostic runs
+    are not passing coverage. Full mtls, A2A and Control Plane race suites and
+    actual native lifecycle integration tests passed. Code-analysis, HTTP/Caido
+    and taint release-loss scenarios passed through native HTTP/2 fault proxies.
+    Heavy-I/O stayed disabled; declared skips are not passing coverage. No
+    live model calls, deployment or merge into main were performed. Later
+    control, domain and Artifact binding tasks remain open.

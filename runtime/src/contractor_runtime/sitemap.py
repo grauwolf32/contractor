@@ -11,15 +11,13 @@ import asyncio
 import json
 from collections.abc import Mapping
 
+import grpc
+
 from contractor_runtime import threads
-from contractor_runtime.adapters.otlp_retry import retry_after_seconds
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactClient,
     ArtifactTransportError,
-    allocation_path,
-    raise_for_status,
-    require_json,
 )
 from contractor_runtime.contracts import decode_private
 from contractor_runtime.contracts.sitemap import (
@@ -37,7 +35,7 @@ SITEMAP_MEDIA_TYPE = "application/vnd.contractor.project-sitemap+json"
 
 class SitemapClient:
     def __init__(self, client: ArtifactClient) -> None:
-        self._root = allocation_path(client.allocation_id, "sitemap")
+        self._allocation_id = client.allocation_id
         self._transport = client.transport
 
     async def collect(
@@ -76,7 +74,7 @@ class SitemapClient:
             name="sitemap-command-encode",
         )
         if len(body) > MAX_SITEMAP_COMMAND_BYTES:
-            raise ArtifactAPIError(400, "invalid_request", False)
+            raise ArtifactAPIError(grpc.StatusCode.INVALID_ARGUMENT, "invalid_request", False)
         # Reconcile one ambiguous transport loss with the same bytes and key.
         # The Server owns storage retry budgets and definite API failures.
         async with asyncio.timeout(15):
@@ -84,16 +82,13 @@ class SitemapClient:
             collected = automatic
             for attempt in range(1 if collected else 2):
                 try:
-                    response = await self._transport.request(
-                        "POST",
-                        self._root + "/" + operation,
-                        headers={
-                            "Accept": "application/json",
-                            "Content-Type": "application/json",
-                            "Idempotency-Key": key,
-                        },
-                        body=body,
-                        max_response_bytes=MAX_SITEMAP_METADATA_BYTES,
+                    rpc = {
+                        "mutations": self._transport.mutate_sitemap,
+                        "snapshots": self._transport.snapshot_sitemap,
+                        "observations": self._transport.collect_sitemap,
+                    }[operation]
+                    response = await rpc(
+                        self._allocation_id, {**json.loads(body), "idempotencyKey": key}
                     )
                     break
                 except ArtifactTransportError:
@@ -101,12 +96,12 @@ class SitemapClient:
                         raise
             if response is None:
                 raise RuntimeError("sitemap operation did not produce a response")
-            try:
-                raise_for_status(response)
-            except ArtifactAPIError as error:
-                error.retry_after_seconds = retry_after_seconds(response.headers.get("retry-after"))
-                raise
-            require_json(response.headers)
-            if response.status_code != 200 or len(response.body) > MAX_SITEMAP_METADATA_BYTES:
+            raw = await threads.to_thread_until_done(
+                lambda: json.dumps(
+                    response, ensure_ascii=False, allow_nan=False, separators=(",", ":")
+                ).encode(),
+                name="sitemap-response-validate",
+            )
+            if len(raw) > MAX_SITEMAP_METADATA_BYTES:
                 raise ArtifactTransportError("sitemap API returned invalid mutation metadata")
-            return response.body
+            return raw

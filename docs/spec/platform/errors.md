@@ -338,7 +338,8 @@ Server's event stream sends; the code comparisons of the browser client and
 the error answers of its test doubles, each with the registry's HTTP status;
 and the private Artifact and Control Plane APIs, whose own codes stay outside
 the registry but which answer a code that is also a public code with that
-code's HTTP status and `retryable` flag.
+code's HTTP status (or its native gRPC status class under CTL-R175) and
+`retryable` flag.
 
 The `code` of a Run's `recovery` is not an error code. It names a model
 gateway failure cause from the recovery cause vocabulary that the Server and
@@ -504,11 +505,15 @@ Assembled from every document.
 | `ArtifactConflict` | — | not specified | A write's CAS precondition is stale or already consumed (create with `If-None-Match: *`/`expected_revision=None` on an existing binding, or update with an old revision). No new version is created and nothing is overwritten or merged. After a lost response, replaying the same precondition also returns it, and the caller reconciles through a current or exact read. | [ART-R59](../artifacts/artifact-store.md) |
 | `INVALID_ARGUMENTS` | — | not specified | Bounded Skill tool error: an oversize, absolute, backslash or dot-segment skill function argument; returned before native dispatch and never retained as a safe metric path | [SKL-R94](../tools/skills.md) |
 | `SKILL_DISCLOSURE_LIMIT` | — | not specified | Bounded tool error: a native Skill call would exceed the allocation disclosure budget; returned before activation or content lookup, with no partial content | [SKL-R100](../tools/skills.md) |
-| `agent_state_unavailable` | 409/503 | contextual | Closed safe agent-state endpoint error: retryable 409 for a missing, preparing or draining Worker; non-retryable 503 for an invalid or oversized snapshot; retryable 503 for temporary snapshot infrastructure failures | [WRK-R121](../execution/worker.md) |
+| `agent_state_unavailable` | gRPC FailedPrecondition/Unavailable | contextual | Closed safe ReadState error: retryable FailedPrecondition for an unavailable live Worker; non-retryable Unavailable for an invalid or oversized snapshot; retryable Unavailable for temporary snapshot infrastructure failures | [WRK-R121](../execution/worker.md) |
+| `invalid_control_plane_identity` | gRPC Unauthenticated | no | Runtime actual-peer CA, hostname or Control Plane role verification failed before request bytes. | [RTA-R113](../execution/runtime-agent.md) |
+| `invalid_error_response` | gRPC peer status | no | Typed private RPC details are malformed, ambiguous or outside the current contract. | [CTL-R175](../execution/control-plane.md) |
+| `allocation_rpc_capacity` | `ResourceExhausted` | yes | Bounded process allocation RPC admission is exhausted; no automatic mutation replay. | [CTL-R176](../execution/control-plane.md) |
+| `control_rpc_capacity` | `ResourceExhausted` | yes | Bounded private control RPC admission is exhausted. | [CTL-R175](../execution/control-plane.md) |
+| `transport_unavailable` | gRPC peer status | contextual | Safe fallback when no typed detail exists; classification follows the RPC status and binding. Untyped allocation stream loss is unconfirmed delivery for the existing receipt owner, never automatic transport replay. | [CTL-R175](../execution/control-plane.md) |
 | `allocation_cleanup_failed` | 503 | yes | Private allocation release could not confirm cleanup; the slot stays fenced and cleanup may be retried. | [RTA-R51](../execution/runtime-agent.md) |
 | `allocation_conflict` | 409 | no | Private lifecycle request conflicts with the active slot, allocation identity, specification or recorded operation. | [ERR-R24](errors.md) |
 | `allocation_fence_failed` | — | yes | The Scheduler could not write-fence the Stage's allocations before finalization; the Stage ends through bounded aborting with an interrupted StageTermination. | [SCH-R184](../execution/scheduler.md) |
-| `allocation_id_mismatch` | 409 | no | Private lifecycle URL and body identify different allocations; no lifecycle operation is dispatched. | [ERR-R24](errors.md) |
 | `allocation_lease_expired` | 409 | yes | The supplied allocation lease has already expired; preparation is refused. | [RTA-R33](../execution/runtime-agent.md) |
 | `allocation_not_found` | — | not specified | Closed safe agent-state endpoint error for a stale, preparing, draining-with-destroyed-State or released slot | [WRK-R121](../execution/worker.md) |
 | `allocation_preparation_failed` | — | not specified | Allocation preparation failed, including a confirmed local Podman engine preparation failure. Retry follows the existing preparation retry classification. | [EXE-R115](../tools/code-execution.md) |
@@ -527,7 +532,7 @@ Assembled from every document.
 | `audit_result_publication_conflict` | — | no | Different content (including changed proposal invocation identities) already exists at the Run-scoped result binding; it is never overwritten. Non-retryable for this contract. | [AWC-R91](../audits/worker-completion.md) |
 | `audit_result_publication_failed` | — | depends on cause: size and input-contract errors no; transport errors yes; authentication, authorization and write-fence rejection no (terminal for the publication) | Success of the check-results publication cannot be established within the write/read-back policy and publication cap. Retryability depends on the cause: size and input-contract errors are non-retryable, transport errors are retryable; authentication, authorization and write-fence rejection are terminal for the publication. | [AWC-R94](../audits/worker-completion.md) |
 | `audit_scan_assignment_invalid` | — | no | The manifest assignment does not match the exact task, source, settings or rulepack. | [SCN-R258](../tools/scanners.md) |
-| `audit_result_stale` | 409 | no | The private base generation changed; authoritative generations may seed only a later model response, without replaying stale content. | [AWC-R135](../audits/worker-completion.md) |
+| `audit_result_stale` | typed stale result / Runtime tool error | no | The private base generation changed; authoritative generations may seed only a later model response, without replaying stale content. | [AWC-R135](../audits/worker-completion.md) |
 | `audit_scan_input_invalid` | — | no | The Audit source or settings media type differs from the assigned contract. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_input_missing` | — | no | A required assigned Audit input is absent. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_manifest_invalid` | — | no | The execution manifest is malformed or has an invalid assignment count. | [SCN-R258](../tools/scanners.md) |

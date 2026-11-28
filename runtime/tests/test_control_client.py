@@ -1,28 +1,24 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import ssl
 import subprocess
 import traceback
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+import grpc
 import pytest
 
-from contractor_runtime._https import PrivateConnections, decode_private_error
+from contractor_runtime._grpc_client import ControlRPCError
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.control_client import (
     ControlClient,
     ControlClientError,
-    ControlHTTPError,
-    MTLSJSONTransport,
     RegistrationRejectedError,
 )
 from contractor_runtime.lease import LeaseWatchdog
-from contractor_runtime.mtls import runtime_agent_client_context, verify_control_plane_peer
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
 
@@ -46,7 +42,7 @@ def test_registration_commits_idle_and_uses_server_timing(
         assert response.heartbeat_interval_seconds == 12
         assert client.timing.heartbeat_interval_seconds == 12
         assert (await state.snapshot()).process_state is ProcessState.IDLE
-        assert transport.requests[0][0] == "/private/v1/agents/register"
+        assert transport.requests[0][0] == "register"
         assert transport.requests[0][1]["instanceId"] == "runtime-register"
         assert transport.requests[0][1]["softwareVersion"] == "0.1.0"
         assert transport.requests[0][1]["apiVersion"] == "contractor/v1alpha1"
@@ -140,12 +136,12 @@ def test_lease_deadline_starts_when_request_is_sent_not_answered(
     runtime_capabilities: CapabilitySnapshot,
 ) -> None:
     class SlowTransport(FakeTransport):
-        async def post_json(
+        async def exchange(
             self, path: str, payload: Mapping[str, Any]
         ) -> Mapping[str, Any] | bytes:
             nonlocal now
             now += 5.0
-            return await super().post_json(path, payload)
+            return await super().exchange(path, payload)
 
     now = 1000.0
 
@@ -173,7 +169,7 @@ def test_concurrent_heartbeats_are_serialized() -> None:
         requests: list[Mapping[str, Any]] = []
 
         class BlockingTransport:
-            async def post_json(self, _: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+            async def heartbeat(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
                 requests.append(payload)
                 started.set()
                 await release.wait()
@@ -249,7 +245,7 @@ def test_reregister_action_starts_a_new_confirmed_lease_generation(
         await client.register()
         await client.heartbeat_once()
 
-        assert [path for path, _ in transport.requests].count("/private/v1/agents/register") == 2
+        assert [path for path, _ in transport.requests].count("register") == 2
         assert not watchdog.expired
         assert watchdog.last_ack == 0
 
@@ -264,12 +260,16 @@ def test_failed_reregistrations_do_not_extend_the_local_lease(
         state = RuntimeState(instance_id="runtime-lost-server", capabilities=runtime_capabilities)
         watchdog = LeaseWatchdog(state.fence_control_lease, monotonic=lambda: now)
         responses: list[Mapping[str, Any] | BaseException] = [registration_response()]
-        statuses = [500, 409, 400, 500, 409, 400]
+        statuses = [
+            grpc.StatusCode.INTERNAL,
+            grpc.StatusCode.FAILED_PRECONDITION,
+            grpc.StatusCode.INVALID_ARGUMENT,
+        ] * 2
         for sequence, status in enumerate(statuses, start=1):
             responses.extend(
                 [
                     heartbeat_response(sequence, action="reregister"),
-                    ControlHTTPError(status),
+                    ControlRPCError(status, "rejected", False, "request_test"),
                 ]
             )
         transport = FakeTransport(responses)
@@ -280,7 +280,7 @@ def test_failed_reregistrations_do_not_extend_the_local_lease(
 
         for sequence, status in enumerate(statuses, start=1):
             now += 10.0
-            with pytest.raises(ControlHTTPError) as caught:
+            with pytest.raises(ControlRPCError) as caught:
                 await client.heartbeat_once()
             assert caught.value.status_code == status
             assert client.echoed_ack == sequence
@@ -344,7 +344,7 @@ def test_local_lease_loss_stays_fenced_until_release_registration_succeeds(
         await client.wait_for_reconciliation()
         assert (await state.snapshot()).process_state is ProcessState.IDLE
         assert not watchdog.expired and watchdog.confirmed_deadline == 120.0
-        assert [path for path, _ in transport.requests].count("/private/v1/agents/register") == 3
+        assert [path for path, _ in transport.requests].count("register") == 3
 
         now = 121.0
         assert await watchdog.expire_if_due()
@@ -381,44 +381,18 @@ def test_retry_logging_does_not_include_exception_message(
     assert "RuntimeError" in caplog.text
 
 
-def server_rejection(status: int, body: bytes) -> ControlHTTPError:
-    """The error MTLSJSONTransport raises for one non-2xx Server response."""
-
-    return ControlHTTPError(status, decode_private_error(body))
-
-
-def private_error(code: str, *, retryable: bool) -> bytes:
-    """The Server's private error envelope (controlplane writePrivateError)."""
-
-    return json.dumps(
-        {
-            "code": code,
-            "message": "server-message-must-not-escape",
-            "retryable": retryable,
-            "requestId": "request-1",
-        }
-    ).encode()
-
-
 @pytest.mark.parametrize(
-    ("status", "body", "reason"),
+    ("status", "code"),
     [
-        (400, private_error("invalid_request", retryable=False), "HTTP 400 invalid_request"),
-        (
-            400,
-            private_error("invalid_request", retryable=False),
-            "HTTP 400 invalid_request",
-        ),
-        # The Server's flag decides over the status class.
-        (503, private_error("internal_error", retryable=False), "HTTP 503 internal_error"),
-        (404, b"not found", "HTTP 404)"),
-        (403, b"", "HTTP 403)"),
+        (grpc.StatusCode.INVALID_ARGUMENT, "invalid_request"),
+        (grpc.StatusCode.UNAVAILABLE, "internal_error"),
+        (grpc.StatusCode.PERMISSION_DENIED, "permission_denied"),
+        (grpc.StatusCode.INTERNAL, "invalid_response"),
     ],
 )
 def test_permanent_registration_rejection_stops_without_retrying(
-    status: int,
-    body: bytes,
-    reason: str,
+    status: grpc.StatusCode,
+    code: str,
     caplog: pytest.LogCaptureFixture,
     runtime_capabilities: CapabilitySnapshot,
 ) -> None:
@@ -429,11 +403,13 @@ def test_permanent_registration_rejection_stops_without_retrying(
             delays.append(delay)
 
         state = RuntimeState(instance_id="runtime-rejected", capabilities=runtime_capabilities)
-        transport = FakeTransport([server_rejection(status, body), registration_response()])
+        transport = FakeTransport(
+            [ControlRPCError(status, code, False, "request_1"), registration_response()]
+        )
         client = ControlClient(make_settings(), state, transport, sleep=record_sleep)
         with pytest.raises(RegistrationRejectedError) as rejected:
             await client.register_until_stopped(asyncio.Event())
-        assert reason in str(rejected.value)
+        assert code in str(rejected.value)
         assert "server-message-must-not-escape" not in str(rejected.value)
         assert rejected.value.status_code == status
         assert len(transport.requests) == 1
@@ -446,21 +422,17 @@ def test_permanent_registration_rejection_stops_without_retrying(
 
 
 @pytest.mark.parametrize(
-    ("status", "body", "logged"),
+    ("status", "code"),
     [
-        (503, private_error("internal_error", retryable=True), "HTTP 503 internal_error"),
-        (409, private_error("conflict", retryable=True), "HTTP 409 conflict"),
-        # The Server's flag decides over the status class.
-        (400, private_error("invalid_request", retryable=True), "HTTP 400 invalid_request"),
-        (502, b"<html>bad gateway</html>", "HTTP 502 without an error code"),
-        (429, b"", "HTTP 429 without an error code"),
-        (408, b"", "HTTP 408 without an error code"),
+        (grpc.StatusCode.UNAVAILABLE, "internal_error"),
+        (grpc.StatusCode.FAILED_PRECONDITION, "conflict"),
+        (grpc.StatusCode.INVALID_ARGUMENT, "invalid_request"),
+        (grpc.StatusCode.RESOURCE_EXHAUSTED, "transport_unavailable"),
     ],
 )
 def test_retryable_registration_rejection_backs_off_and_registers(
-    status: int,
-    body: bytes,
-    logged: str,
+    status: grpc.StatusCode,
+    code: str,
     caplog: pytest.LogCaptureFixture,
     runtime_capabilities: CapabilitySnapshot,
 ) -> None:
@@ -471,7 +443,9 @@ def test_retryable_registration_rejection_backs_off_and_registers(
             delays.append(delay)
 
         state = RuntimeState(instance_id="runtime-retried", capabilities=runtime_capabilities)
-        transport = FakeTransport([server_rejection(status, body), registration_response()])
+        transport = FakeTransport(
+            [ControlRPCError(status, code, True, "request_1"), registration_response()]
+        )
         client = ControlClient(
             make_settings(), state, transport, sleep=record_sleep, jitter=lambda: 0.0
         )
@@ -482,7 +456,7 @@ def test_retryable_registration_rejection_backs_off_and_registers(
 
     with caplog.at_level(logging.WARNING):
         asyncio.run(scenario())
-    assert logged in caplog.text
+    assert code in caplog.text
     assert "server-message-must-not-escape" not in caplog.text
 
 
@@ -549,7 +523,13 @@ def test_control_loop_skips_backoff_when_request_sets_stop(
         delays: list[float] = []
 
         class StoppingTransport:
-            async def post_json(self, _: str, __: Mapping[str, Any]) -> bytes:
+            async def register(self, payload):
+                return await self.exchange("register", payload)
+
+            async def heartbeat(self, payload):
+                return await self.exchange("heartbeat", payload)
+
+            async def exchange(self, _: str, __: Mapping[str, Any]) -> bytes:
                 stop.set()
                 raise TimeoutError()
 
@@ -565,101 +545,18 @@ def test_control_loop_skips_backoff_when_request_sets_stop(
     asyncio.run(scenario())
 
 
-def test_real_mtls_control_transport_registers_and_heartbeats(
-    tmp_path: Path,
-    runtime_capabilities: CapabilitySnapshot,
-) -> None:
-    pki = generate_pki(tmp_path / "pki")
-
-    async def scenario() -> None:
-        received: list[dict[str, Any]] = []
-        received_request_ids: list[str] = []
-        accepted: list[int] = []
-        server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        server_context.minimum_version = ssl.TLSVersion.TLSv1_3
-        server_context.verify_mode = ssl.CERT_REQUIRED
-        server_context.load_verify_locations(cafile=pki["ca"])
-        server_context.load_cert_chain(
-            certfile=pki["control_plane_certificate"], keyfile=pki["control_plane_key"]
-        )
-
-        async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-            accepted.append(len(accepted))
-            try:
-                # Serve keep-alive requests until the client closes.
-                while request_line := await reader.readline():
-                    headers: dict[str, str] = {}
-                    while True:
-                        line = await reader.readline()
-                        if line == b"\r\n":
-                            break
-                        name, _, value = line.partition(b":")
-                        headers[name.decode().lower()] = value.decode().strip()
-                    assert "connection" not in headers
-                    payload = json.loads(await reader.readexactly(int(headers["content-length"])))
-                    received.append(payload)
-                    received_request_ids.append(headers["x-request-id"])
-                    if request_line.startswith(b"POST /private/v1/agents/register "):
-                        response = registration_response()
-                    else:
-                        response = heartbeat_response(payload["heartbeatSeq"])
-                    encoded = json.dumps(response, separators=(",", ":")).encode()
-                    writer.write(
-                        b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
-                        + str(len(encoded)).encode()
-                        + b"\r\n\r\n"
-                        + encoded
-                    )
-                    await writer.drain()
-            finally:
-                writer.close()
-                await writer.wait_closed()
-
-        server = await asyncio.start_server(handle, "127.0.0.1", 0, ssl=server_context)
-        port = server.sockets[0].getsockname()[1]
-        settings = Settings(
-            control_plane_url=f"https://localhost:{port}",
-            advertised_control_url="https://localhost:9443",
-            advertised_a2a_url="https://localhost:9444",
-            ca_file=pki["ca"],
-            certificate_file=pki["agent_certificate"],
-            private_key_file=pki["agent_key"],
-        )
-        client_context = runtime_agent_client_context(
-            ca_file=pki["ca"],
-            certificate_file=pki["agent_certificate"],
-            private_key_file=pki["agent_key"],
-        )
-        connections = PrivateConnections(client_context, verify_control_plane_peer)
-        transport = MTLSJSONTransport(settings.control_plane_url, connections, 2)
-        state = RuntimeState(instance_id="runtime-real-mtls", capabilities=runtime_capabilities)
-        client = ControlClient(settings, state, transport)
-        try:
-            await client.register()
-            for _ in range(9):
-                await client.heartbeat_once()
-        finally:
-            await connections.aclose()
-            server.close()
-            await server.wait_closed()
-        assert [item.get("heartbeatSeq") for item in received[1:]] == list(range(1, 10))
-        assert [item.get("echoedAckSeq") for item in received[1:]] == list(range(9))
-        # Registration and nine heartbeats share one verified connection
-        # (CTL-R163); the transport used to open one connection per call.
-        assert accepted == [0]
-        assert len(received_request_ids) == 10
-        assert all(value.startswith("request_") for value in received_request_ids)
-        assert len(set(received_request_ids)) == 10
-
-    asyncio.run(scenario())
-
-
 class FakeTransport:
+    async def register(self, payload):
+        return await self.exchange("register", payload)
+
+    async def heartbeat(self, payload):
+        return await self.exchange("heartbeat", payload)
+
     def __init__(self, responses: list[Mapping[str, Any] | bytes | BaseException]) -> None:
         self.responses = list(responses)
         self.requests: list[tuple[str, Mapping[str, Any]]] = []
 
-    async def post_json(self, path: str, payload: Mapping[str, Any]) -> Mapping[str, Any] | bytes:
+    async def exchange(self, path: str, payload: Mapping[str, Any]) -> Mapping[str, Any] | bytes:
         self.requests.append((path, payload))
         response = self.responses.pop(0)
         if isinstance(response, BaseException):
@@ -668,10 +565,16 @@ class FakeTransport:
 
 
 class WaitingTransport:
+    async def register(self, payload):
+        return await self.exchange("register", payload)
+
+    async def heartbeat(self, payload):
+        return await self.exchange("heartbeat", payload)
+
     def __init__(self) -> None:
         self.started = asyncio.Event()
 
-    async def post_json(self, _: str, __: Mapping[str, Any]) -> Mapping[str, Any]:
+    async def exchange(self, _: str, __: Mapping[str, Any]) -> Mapping[str, Any]:
         self.started.set()
         await asyncio.Event().wait()
         raise AssertionError("unreachable")

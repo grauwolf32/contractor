@@ -40,7 +40,7 @@ func TestPostgresPrivateWorkerAdvancesButNeverCreatesInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
+	handler, err := newPayloadNativeRecorder(Dependencies{Transfers: artifactpgtest.NewStorage(),
 		Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: service,
 		NewRequestID: func() (string, error) { return "artifact-inputs", nil },
 	})

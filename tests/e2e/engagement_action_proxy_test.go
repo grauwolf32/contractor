@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/localpki"
 )
 
@@ -30,7 +31,7 @@ func newEngagementActionProxy(t *testing.T, target, ca string, agent, control lo
 	}
 	base.server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p.faultMu.Lock()
-		blocked := p.blockHeartbeats && strings.HasSuffix(r.URL.Path, "/heartbeat")
+		blocked := p.blockHeartbeats && r.URL.Path == runtimepb.ControlPlane_Heartbeat_FullMethodName
 		obsolete := strings.HasSuffix(r.URL.Path, "/engagement-actions")
 		if obsolete {
 			p.obsoleteRequests++

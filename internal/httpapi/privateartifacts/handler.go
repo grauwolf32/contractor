@@ -4,10 +4,8 @@ package privateartifacts
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -15,10 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
-	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
-	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
-	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -79,97 +74,6 @@ type authenticatedRuntime struct {
 	instanceID  string
 }
 
-type authenticatedRuntimeContextKey struct{}
-
-func NewHandler(dependencies Dependencies) (http.Handler, error) {
-	if dependencies.Transfers == nil || dependencies.Registry == nil || dependencies.Artifacts == nil {
-		return nil, errors.New("private Artifact API dependencies are incomplete")
-	}
-	current := &handler{dependencies: dependencies}
-	if dependencies.GatewayRecovery != nil {
-		current.recovery = dependencies.GatewayRecovery
-	}
-	mux := http.NewServeMux()
-	httpx.ServeRoutes(mux, current.routes(), current.methodNotAllowed, current.notFound)
-	return requestid.Middleware(current.requireMTLS(mux), requestid.Options{
-		Generator: dependencies.NewRequestID, Logger: dependencies.Logger,
-		Boundary: "artifact-private-api", TrustIncoming: mtls.HasVerifiedRuntimeAgent,
-	}), nil
-}
-
-// routes lists every route of the private allocation API. ServeRoutes
-// answers HEAD and any other undeclared method of their paths with 405 and
-// any other path with 404 (ART-R120).
-func (h *handler) routes() []httpx.Route {
-	const allocation = "/private/v1/allocations/{allocationID}"
-	return []httpx.Route{
-		{Method: http.MethodPost, Path: allocation + "/planner-operations", Handler: h.plannerOperation},
-		{Method: http.MethodPost, Path: allocation + "/gateway-recovery", Handler: h.gatewayRecovery},
-		{Method: http.MethodGet, Path: allocation + "/artifacts", Handler: h.listArtifacts},
-		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}", Handler: h.getArtifact},
-		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}/metadata", Handler: h.getArtifactMetadata},
-		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}/access", Handler: h.getArtifactAccess},
-		{Method: http.MethodPut, Path: allocation + "/artifacts/{namespace}/{name}", Handler: h.putArtifact},
-		{Method: http.MethodPost, Path: allocation + "/audit-evidence", Handler: h.postAuditEvidence},
-		{Method: http.MethodPost, Path: allocation + "/audit-results", Handler: h.postAuditJudgments},
-		{Method: http.MethodPost, Path: allocation + "/finding-proposals", Handler: h.postFindingProposal},
-		{Method: http.MethodGet, Path: allocation + "/findings", Handler: h.listProjectFindings},
-		{Method: http.MethodGet, Path: allocation + "/findings/{findingID}", Handler: h.readProjectFinding},
-		{Method: http.MethodPost, Path: allocation + "/finding-selections", Handler: h.selectProjectFindings},
-		{Method: http.MethodPost, Path: allocation + "/sitemap/mutations", Handler: h.mutateSitemap},
-		{Method: http.MethodPost, Path: allocation + "/sitemap/snapshots", Handler: h.snapshotSitemap},
-		{Method: http.MethodPost, Path: allocation + "/sitemap/observations", Handler: h.collectSitemapObservations},
-	}
-}
-
-func (h *handler) requireMTLS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		principalID, err := mtls.RuntimeAgentIDFromConnection(r.TLS)
-		if err != nil {
-			h.writeError(w, http.StatusUnauthorized, "mtls_required", "a verified Runtime Agent certificate is required", false)
-			return
-		}
-		values := r.Header.Values(RuntimeInstanceHeader)
-		if len(values) != 1 || len(values[0]) > 256 || strings.TrimSpace(values[0]) == "" || values[0] != strings.TrimSpace(values[0]) {
-			h.writeError(w, http.StatusBadRequest, "invalid_runtime_instance", "one bounded Runtime Agent instance header is required", false)
-			return
-		}
-		identity := authenticatedRuntime{principalID: principalID, instanceID: values[0]}
-		ctx := context.WithValue(r.Context(), authenticatedRuntimeContextKey{}, identity)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-func (h *handler) runStore(r *http.Request, write bool) (artifacts.ScopedStore, error) {
-	grant, identity, err := h.allocationGrant(r)
-	if err != nil {
-		return artifacts.ScopedStore{}, err
-	}
-	return h.runStoreForGrant(r.PathValue("allocationID"), grant, identity, write)
-}
-
-func (h *handler) allocationGrant(
-	r *http.Request,
-) (controlplane.AllocationGrant, authenticatedRuntime, error) {
-	allocationID := r.PathValue("allocationID")
-	if strings.TrimSpace(allocationID) == "" {
-		return controlplane.AllocationGrant{}, authenticatedRuntime{}, errInvalidRequest
-	}
-	grant, err := h.dependencies.Registry.GetGrant(allocationID)
-	if err != nil {
-		return controlplane.AllocationGrant{}, authenticatedRuntime{}, err
-	}
-	identity, ok := r.Context().Value(authenticatedRuntimeContextKey{}).(authenticatedRuntime)
-	if !ok {
-		return controlplane.AllocationGrant{}, authenticatedRuntime{}, errArtifactAccessDenied
-	}
-	if grant.AllocationID != allocationID || grant.RuntimeAgentID != identity.principalID ||
-		grant.RuntimeInstanceID != identity.instanceID {
-		return controlplane.AllocationGrant{}, authenticatedRuntime{}, controlplane.ErrAllocationNotFound
-	}
-	return grant, identity, nil
-}
-
 func (h *handler) runStoreForGrant(
 	allocationID string,
 	grant controlplane.AllocationGrant,
@@ -196,12 +100,4 @@ func (h *handler) runStoreForGrant(
 		return artifacts.ScopedStore{}, fmt.Errorf("bind allocation RunScope: %w", err)
 	}
 	return store, nil
-}
-
-func (h *handler) methodNotAllowed(w http.ResponseWriter, _ *http.Request) {
-	h.writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method is not allowed", false)
-}
-
-func (h *handler) notFound(w http.ResponseWriter, _ *http.Request) {
-	h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
 }

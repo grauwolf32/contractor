@@ -522,17 +522,18 @@ expected source descriptors retain their identities. No command accepts a
 replacement map document.
 
 The allocation collector uses
-`POST /private/v1/allocations/{allocationId}/sitemap/observations` with
-`{apiVersion, input, automatic}` and `Idempotency-Key`. Transient input contains a
+`Allocation.CollectSitemap` with typed
+`{apiVersion, input, automatic, idempotencyKey}`. Transient input contains a
 Runtime-selected `kind`, required `observations` (zero to 100), optional `gaps`
 (at most 16 distinct reasons with positive bounded counts) and optional exact
 `artifact` evidence ref. Empty batches register the source without manufacturing
 an observation. Existing mTLS allocation fencing and the
 [private wire schema](../../../api/v1alpha1/project-sitemap.schema.json) apply.
-Explicit allocation commands retain their mutation/snapshot operations.
+Explicit allocation commands use `Allocation.MutateSitemap` and
+`Allocation.SnapshotSitemap`, retaining their mutation keys and preconditions.
 There is no separate Server report-import endpoint. The required `automatic` transport flag belongs to
-composition and is absent from model tool arguments. All store-reaching routes
-preserve retryable `503 storage_transaction_conflict`.
+composition and is absent from model tool arguments. Private store-reaching RPCs preserve retryable `Aborted
+storage_transaction_conflict`; public HTTP retains its classified HTTP status.
 The model-facing `import_sitemap_source(format, artifact_ref, idempotency_key)`
 uses ordinary scalar and Artifact argument bindings, including in `tool@1`
 Workflows; it does not require nested argument construction by the Worker.

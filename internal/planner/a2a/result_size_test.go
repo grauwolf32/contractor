@@ -3,10 +3,8 @@ package a2a
 import (
 	"context"
 	"iter"
-	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	sdk "github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
@@ -20,13 +18,8 @@ func TestOfficialSDKAcceptsCompactUTF8WorkerResult(t *testing.T) {
 	) iter.Seq2[sdk.Event, error] {
 		return func(yield func(sdk.Event, error) bool) { yield(resultMessage(want), nil) }
 	})
-	server := httptest.NewServer(a2asrv.NewJSONRPCHandler(a2asrv.NewHandler(executor)))
-	defer server.Close()
-	invoker, err := New(server.Client(), Options{PollInterval: time.Millisecond})
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := invoker.Invoke(t.Context(), "builder", workerHandle(server.URL), stageRequest())
+	invoker, handle, _ := nativeSDK(t, executor)
+	got, err := invoker.Invoke(t.Context(), "builder", handle, stageRequest())
 	if err != nil {
 		t.Fatal(err)
 	}

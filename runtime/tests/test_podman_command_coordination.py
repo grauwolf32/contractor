@@ -6,6 +6,7 @@ import os
 import time
 from datetime import UTC, datetime, timedelta
 
+import grpc
 import pytest
 from fakes.allocation import allocation_context
 from fakes.podman_lifecycle import owner
@@ -375,7 +376,9 @@ def test_selected_execution_changes_analysis_and_explicit_artifact_publication(t
                 assert written["artifact"]["revision"]
                 # The existing client, not the sandbox, owns the write fence.
                 write_artifact = context.tools["write_artifact"]
-                client.write_error = ArtifactAPIError(409, "allocation_write_fenced", False)
+                client.write_error = ArtifactAPIError(
+                    grpc.StatusCode.FAILED_PRECONDITION, "allocation_write_fenced", False
+                )
                 with pytest.raises(ArtifactAPIError, match="allocation_write_fenced"):
                     await write_artifact("builder", "report", "src/main.py", "text/plain")
             finally:

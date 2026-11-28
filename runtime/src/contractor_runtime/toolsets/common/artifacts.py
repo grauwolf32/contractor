@@ -30,5 +30,37 @@ _UNCONFIGURED_MESSAGE = "Artifact transport is not configured"
 
 
 class _UnavailableTransport:
-    async def request(self, *_: Any, **__: Any) -> Any:
+    async def _unavailable(self, *_: Any, **__: Any) -> Any:
         raise RuntimeError(_UNCONFIGURED_MESSAGE)
+
+    list_artifacts = _unavailable
+
+    read_artifact_metadata = _unavailable
+
+    check_artifact_access = _unavailable
+
+    read_artifact = _unavailable
+
+    write_artifact = _unavailable
+
+    submit_finding = _unavailable
+
+    planner_operation = _unavailable
+
+    gateway_recovery = _unavailable
+
+    submit_audit_evidence = _unavailable
+
+    submit_audit_judgments = _unavailable
+
+    mutate_sitemap = _unavailable
+
+    snapshot_sitemap = _unavailable
+
+    collect_sitemap = _unavailable
+
+    list_findings = _unavailable
+
+    read_finding = _unavailable
+
+    select_findings = _unavailable

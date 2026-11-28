@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from types import SimpleNamespace
 
+import grpc
 import pytest
 from fakes.worker_state import WorkerState
 from target_policy_fixtures import SCAN_TEST_POLICY
@@ -28,7 +29,7 @@ class CapturedArtifacts:
         self.writes = []
 
     async def read_artifact_metadata(self, ref):
-        raise ArtifactAPIError(404, "artifact_not_found", False)
+        raise ArtifactAPIError(grpc.StatusCode.NOT_FOUND, "artifact_not_found", False)
 
     async def write_artifact(self, ref, *, data, media_type, expected_revision):
         assert expected_revision is None

@@ -1,0 +1,12 @@
+{
+  "controlMessageBytes": 1048576,
+  "a2aMessageBytes": 4194304,
+  "stateMessageBytes": 4195328,
+  "metadataBytes": 16384,
+  "concurrentRPCs": 32,
+  "bulkChunkBytes": 262144,
+  "bulkHeaderBytes": 1048576,
+  "bulkFrameBytes": 1049600,
+  "bulkServerWindowBytes": 1048576,
+  "bulkClientLookaheadBytes": 65536
+}

@@ -193,7 +193,7 @@ async def create_tools(
     settings = runtime_settings or RuntimeSettings(
         llmGatewayUrl="https://gateway.example/v1",
         llmGatewayToken="gateway-token",
-        artifactApiUrl="https://control.example/private/v1",
+        artifactApiUrl="https://control.example",
         caido=CaidoSettings(
             adapter="caido-graphql@1",
             endpoint="https://caido.example",

@@ -4,20 +4,21 @@ import asyncio
 import hashlib
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
+import grpc
 import pytest
 from pydantic import ValidationError
 from test_cli import ConfigTransport, make_settings
 
-from contractor_runtime import _https, cli, shared_config
+from contractor_runtime import cli, shared_config
+from contractor_runtime._grpc_client import ControlRPCError
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, decode_private
 from contractor_runtime.contracts.shared_config import SharedConfig
 from contractor_runtime.control_client import (
     ControlClient,
     ControlClientError,
-    ControlHTTPError,
     SharedConfigError,
 )
 from contractor_runtime.state import RuntimeState
@@ -61,12 +62,13 @@ def test_snapshot_is_required_immutable_and_controls_artifact_operations(monkeyp
             )
         with pytest.raises(ValueError, match="read byte limit"):
             await client.read_artifact(ref, max_bytes=18)
-        transport.request.assert_not_called()
+        transport.read_artifact.assert_not_called()
+        transport.write_artifact.assert_not_called()
         # The default is evaluated per operation, not frozen at module import.
-        transport.request.side_effect = OSError("observed transport")
+        transport.read_artifact.side_effect = OSError("observed transport")
         with pytest.raises(OSError):
             await client.read_artifact(ref)
-        assert transport.request.call_args.kwargs["max_response_bytes"] == 17
+        assert transport.read_artifact.call_args.kwargs["max_response_bytes"] == 17
 
     asyncio.run(scenario())
 
@@ -86,7 +88,7 @@ def test_invalid_config_never_prepares_or_registers(tmp_path, monkeypatch, chang
         invalid = document()
         change(invalid)
         transport = AsyncMock()
-        transport.get_json.return_value = invalid
+        transport.bootstrap.return_value = invalid
         prepare = AsyncMock()
         monkeypatch.setattr(cli, "_serve_configured", prepare)
         monkeypatch.setattr(shared_config, "_snapshot", None)
@@ -95,7 +97,7 @@ def test_invalid_config_never_prepares_or_registers(tmp_path, monkeypatch, chang
                 make_settings(tmp_path), transport=transport, install_signal_handlers=False
             )
         prepare.assert_not_called()
-        transport.post_json.assert_not_called()
+        transport.register.assert_not_called()
         assert shared_config._snapshot is None
 
     asyncio.run(scenario())
@@ -107,7 +109,7 @@ def test_startup_fetch_precedes_preparation(tmp_path, monkeypatch):
         monkeypatch.setattr(shared_config, "_snapshot", None)
 
         class Transport(ConfigTransport):
-            async def get_json(self, path):
+            async def bootstrap(self):
                 order.append("config")
                 return document()
 
@@ -128,11 +130,11 @@ def test_retryable_fetch_uses_existing_backoff_and_permanent_rejection_stops(tmp
     async def scenario():
         monkeypatch.setattr(shared_config, "_snapshot", None)
         transport = AsyncMock()
-        transport.get_json.side_effect = [
+        transport.bootstrap.side_effect = [
             OSError(),
             TimeoutError(),
             ControlClientError("truncated response"),
-            ControlHTTPError(503),
+            ControlRPCError(grpc.StatusCode.UNAVAILABLE, "internal_error", True, "request_1"),
             document(),
         ]
         sleep = AsyncMock()
@@ -140,14 +142,16 @@ def test_retryable_fetch_uses_existing_backoff_and_permanent_rejection_stops(tmp
             make_settings(tmp_path), RuntimeState(), transport, sleep=sleep, jitter=lambda: 0
         )
         assert await client.configure_until_stopped(asyncio.Event())
-        assert transport.get_json.await_count == 5
+        assert transport.bootstrap.await_count == 5
         assert len(sleep.await_args_list) == 4
         assert all(0 < call.args[0] <= 5 for call in sleep.await_args_list)
-        transport.get_json.reset_mock(side_effect=True)
-        transport.get_json.side_effect = ControlHTTPError(403)
+        transport.bootstrap.reset_mock(side_effect=True)
+        transport.bootstrap.side_effect = ControlRPCError(
+            grpc.StatusCode.PERMISSION_DENIED, "permission_denied", False, "request_1"
+        )
         with pytest.raises(SharedConfigError):
             await client.configure_until_stopped(asyncio.Event())
-        assert transport.get_json.await_count == 1
+        assert transport.bootstrap.await_count == 1
 
     asyncio.run(scenario())
 
@@ -159,7 +163,7 @@ def test_shutdown_joins_inflight_config_before_preparation(tmp_path, monkeypatch
         joined = asyncio.Event()
         stop = asyncio.Event()
 
-        async def fetch(path):
+        async def fetch():
             started.set()
             try:
                 await asyncio.Event().wait()
@@ -167,7 +171,7 @@ def test_shutdown_joins_inflight_config_before_preparation(tmp_path, monkeypatch
                 joined.set()
 
         transport = AsyncMock()
-        transport.get_json.side_effect = fetch
+        transport.bootstrap.side_effect = fetch
         prepare = AsyncMock()
         monkeypatch.setattr(cli, "_serve_configured", prepare)
         task = asyncio.create_task(
@@ -188,70 +192,31 @@ def test_shutdown_joins_inflight_config_before_preparation(tmp_path, monkeypatch
             await task
         assert joined.is_set()
         prepare.assert_not_called()
-        transport.post_json.assert_not_called()
-
-    asyncio.run(scenario())
-
-
-@pytest.mark.parametrize("fault", [None, "oversized", "interrupted"])
-def test_get_transport_is_bounded_idempotent_and_uses_safe_headers(fault):
-    from types import SimpleNamespace
-
-    from contractor_runtime.control_client import MAX_CONTROL_RESPONSE_BYTES, MTLSJSONTransport
-
-    async def scenario():
-        connections = AsyncMock()
-        connections.exchange.return_value = SimpleNamespace(status_code=200, body=b"{}")
-        if fault == "oversized":
-            connections.exchange.side_effect = _https.HTTPResponseTooLargeError()
-        elif fault == "interrupted":
-            connections.exchange.side_effect = _https.HTTPResponseNotStartedError()
-        transport = MTLSJSONTransport("https://control.test:8443", connections, 7)
-        if fault == "oversized":
-            with pytest.raises(SharedConfigError):
-                await transport.get_json("/private/v1/config")
-        elif fault == "interrupted":
-            with pytest.raises(ControlClientError) as error:
-                await transport.get_json("/private/v1/config")
-            assert not isinstance(error.value, SharedConfigError)
-        else:
-            assert await transport.get_json("/private/v1/config") == b"{}"
-        call = connections.exchange.call_args
-        assert call.kwargs == {
-            "idempotent": True,
-            "timeout_seconds": 7,
-            "max_response_bytes": MAX_CONTROL_RESPONSE_BYTES,
-        }
-        request = call.args[2]
-        assert request.startswith(b"GET /private/v1/config HTTP/1.1\r\n")
-        assert b"Host: control.test:8443\r\n" in request
-        assert request.endswith(b"\r\n\r\n")
+        transport.register.assert_not_called()
 
     asyncio.run(scenario())
 
 
 def test_small_payload_policy_keeps_metadata_transport_budget(monkeypatch):
-    from contractor_runtime.artifacts import MAX_ARTIFACT_JSON_BYTES, MTLSArtifactTransport
+    from contractor_runtime.artifacts import MTLSArtifactTransport
+    from contractor_runtime.contracts.grpc_wire.limits import BULK_FRAME_BYTES
 
     async def scenario():
         monkeypatch.setattr(shared_config, "_snapshot", None)
         config = decode_private(SharedConfig, json.dumps(document()).encode())
         shared_config.install_shared_config(config.snapshot())
-        connections = AsyncMock()
-        connections.exchange.return_value = _https.HTTPResponse(200, {}, b"{}")
+        unary = Mock(execute=AsyncMock())
+        bulk = Mock(execute=AsyncMock())
         transport = MTLSArtifactTransport(
-            "https://control.test:8443/private/v1", connections, 7, "runtime-test"
+            "https://control.test:8443", unary, bulk, 7, "runtime-test"
         )
-        await transport.request(
-            "GET",
-            "/allocations/a/artifacts/n/name/metadata",
-            headers={},
-            body=b"",
-            max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
-        )
-        assert (
-            connections.exchange.call_args.kwargs["max_response_bytes"] == MAX_ARTIFACT_JSON_BYTES
-        )
+        await transport.read_artifact_metadata("allocation-1", {})
+        await transport.read_artifact("allocation-1", {}, max_response_bytes=17)
+        assert unary.execute.call_args.args[2] == (1 << 20) + AllocationRPC_ENVELOPE
+        assert bulk.execute.call_args.args[2] == BULK_FRAME_BYTES
+        assert shared_config.artifact_payload_max_bytes() == 17
+
+    from contractor_runtime._allocation_rpc import ENVELOPE_BYTES as AllocationRPC_ENVELOPE
 
     asyncio.run(scenario())
 
@@ -270,12 +235,14 @@ def test_fetched_artifact_list_ceiling_controls_client_before_transport(monkeypa
             await client.list_artifact_page(limit=3)
         with pytest.raises(ValueError, match="list limit"):
             await client.list_artifact_prefix("analysis", "report", limit=3)
-        transport.request.assert_not_called()
+        transport.list_artifacts.assert_not_called()
         # Boundary and continuation use the fetched limit without rewriting the cursor.
-        transport.request.side_effect = OSError("observed request")
+        transport.list_artifacts.side_effect = OSError("observed request")
         with pytest.raises(OSError):
             await client.list_artifact_page(limit=2, cursor="next")
-        assert transport.request.call_args.args[1].endswith("limit=2&cursor=next")
+        transport.list_artifacts.assert_awaited_once_with(
+            "allocation-test", {"limit": 2, "cursor": "next"}
+        )
 
     asyncio.run(scenario())
 

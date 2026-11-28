@@ -1,12 +1,12 @@
 """Server host adapter over the existing allocation-authenticated transport."""
 
 import asyncio
+import json
 from datetime import UTC, datetime
 
-from contractor_runtime.artifacts import ArtifactTransport, ArtifactTransportError, allocation_path
+from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransport, ArtifactTransportError
 from contractor_runtime.contracts import API_VERSION, PrivateProtocolDecodeError, decode_private
 from contractor_runtime.contracts.planner import (
-    MAX_PLANNER_OPERATION_BYTES,
     PlannerOperation,
     PlannerOperationResult,
 )
@@ -18,7 +18,7 @@ class ServerPlannerHost:
     def __init__(
         self, allocation_id: str, transport: ArtifactTransport, *, deadline: datetime
     ) -> None:
-        self._path = allocation_path(allocation_id, "planner-operations")
+        self._allocation_id = allocation_id
         self._transport = transport
         self._sequence = 0
         self._lock = asyncio.Lock()
@@ -29,16 +29,12 @@ class ServerPlannerHost:
             self._sequence += 1
             try:
                 body = await to_thread_until_done(
-                    lambda: (
-                        PlannerOperation(
-                            apiVersion=API_VERSION,
-                            sequence=self._sequence,
-                            name=name,
-                            arguments=arguments,
-                        )
-                        .model_dump_json(by_alias=True)
-                        .encode()
-                    ),
+                    lambda: PlannerOperation(
+                        apiVersion=API_VERSION,
+                        sequence=self._sequence,
+                        name=name,
+                        arguments=arguments,
+                    ).model_dump(mode="json", by_alias=True, exclude_none=True),
                     name="planner-operation-encoding",
                 )
             except ValueError:
@@ -54,15 +50,18 @@ class ServerPlannerHost:
                         "planner_deadline_exceeded", "Planner execution deadline expired", True
                     )
                 try:
-                    response = await self._transport.request(
-                        "POST",
-                        self._path,
-                        headers={"Content-Type": "application/json"},
-                        body=body,
-                        max_response_bytes=MAX_PLANNER_OPERATION_BYTES,
-                        timeout_seconds=remaining,
+                    response = await self._transport.planner_operation(
+                        self._allocation_id, body, timeout_seconds=remaining
                     )
                     break
+                except ArtifactAPIError as error:
+                    raise PlannerStoppedError(
+                        "planner_execution_failed"
+                        if error.retryable
+                        else "planner_operation_invalid",
+                        "Planner execution host rejected the operation",
+                        error.retryable,
+                    ) from None
                 except ArtifactTransportError:
                     if attempt == 1:
                         raise PlannerStoppedError(
@@ -70,18 +69,11 @@ class ServerPlannerHost:
                             "Planner execution host is unavailable",
                             True,
                         ) from None
-            if response.status_code != 200:
-                retryable = response.status_code >= 500
-                raise PlannerStoppedError(
-                    "planner_execution_failed" if retryable else "planner_operation_invalid",
-                    "Planner execution host is unavailable",
-                    retryable,
-                )
             try:
                 return await to_thread_until_done(
                     decode_private,
                     PlannerOperationResult,
-                    response.body,
+                    json.dumps(response, ensure_ascii=False, allow_nan=False),
                     name="planner-operation-decoding",
                 )
             except PrivateProtocolDecodeError:

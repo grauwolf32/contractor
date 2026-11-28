@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -48,19 +47,16 @@ func TestPostgresPrivateContentCacheIdentityAcrossForksAndPurge(t *testing.T) {
 	}
 	read := func(runID string, ref artifacts.ArtifactRef, status int) contracts.ArtifactMetadataResult {
 		t.Helper()
-		handler, err := NewHandler(Dependencies{Transfers: artifactpgtest.NewStorage(),
+		fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Transfers: artifactpgtest.NewStorage(),
 			Registry: &fakeRegistry{grant: testGrant(runID)}, Artifacts: service,
 			NewRequestID: func() (string, error) { return "cache-identity", nil },
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		}})
+
 		path := "/private/v1/allocations/allocation-1/artifacts/inputs/source/metadata"
 		if ref.Revision != nil {
 			path += "?revision=" + url.QueryEscape(*ref.Revision)
 		}
-		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, trustedRequest(http.MethodGet, path, nil))
+		response := fixture.artifactRequest(t, path)
 		if response.Code != status {
 			t.Fatalf("metadata status=%d body=%s", response.Code, response.Body.String())
 		}

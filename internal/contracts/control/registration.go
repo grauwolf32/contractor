@@ -59,10 +59,10 @@ func (r AgentRegistration) Validate() error {
 	if r.StartedAt.IsZero() {
 		return contracts.Invalidf("startedAt must not be zero")
 	}
-	if err := contracts.ValidateURL("controlUrl", r.ControlURL); err != nil {
+	if _, err := contracts.ParsePrivateRPCOrigin("controlUrl", r.ControlURL); err != nil {
 		return err
 	}
-	if err := contracts.ValidateURL("a2aUrl", r.A2AURL); err != nil {
+	if _, err := contracts.ParsePrivateRPCOrigin("a2aUrl", r.A2AURL); err != nil {
 		return err
 	}
 	if err := validateCapabilities(r.SupportedRuntimes, r.SupportedToolsets, r.SupportedSandboxProfiles); err != nil {

@@ -122,6 +122,7 @@ async def _probe(raw: bytes) -> list[dict[str, object]]:
                 model_policy=case.policy,
                 state=SimpleNamespace(metrics=MetricsState()),
                 gateway_recovery=None,
+                cost_observer=None,
                 runtime_settings=settings,
                 adapter_handles=SimpleNamespace(model_http=proxy),
             )

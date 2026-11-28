@@ -6,8 +6,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from contractor_runtime import _https
-from contractor_runtime.artifacts import ArtifactHTTPResponse, ArtifactTransportError
+from contractor_runtime.artifacts import ArtifactTransportError
 from contractor_runtime.contracts import API_VERSION
 from contractor_runtime.contracts.planner import MAX_PLANNER_OPERATION_BYTES, PlannerOperationResult
 from contractor_runtime.planner import server_host
@@ -27,14 +26,14 @@ def test_planner_operation_uses_stage_deadline_and_replays_identical_request(
         reply = PlannerOperationResult(
             apiVersion=API_VERSION, result={"accepted": True}, stop=True, escalate=True
         )
-        response = ArtifactHTTPResponse(200, {}, reply.model_dump_json(by_alias=True).encode())
+        response = reply.model_dump(mode="json", by_alias=True, exclude_none=True)
         responses = (
             [ArtifactTransportError("response lost"), response] if disconnect else [response]
         )
-        transport = Mock(request=AsyncMock(side_effect=responses))
+        transport = Mock(planner_operation=AsyncMock(side_effect=responses))
         host = ServerPlannerHost("allocation-1", transport, deadline=now + timedelta(hours=1))
         assert await host.execute("execute_current_subtask", {"subtask_id": "0"}) == reply
-        attempts = transport.request.call_args_list
+        attempts = transport.planner_operation.call_args_list
         assert len(attempts) == (2 if disconnect else 1)
         assert all(call.kwargs["timeout_seconds"] == 3600 for call in attempts)
         if disconnect:
@@ -49,42 +48,32 @@ def test_planner_host_expires_before_sending_an_operation(monkeypatch):
         clock = Mock(wraps=datetime)
         clock.now.return_value = now
         monkeypatch.setattr(server_host, "datetime", clock)
-        transport = Mock(request=AsyncMock())
+        transport = Mock(planner_operation=AsyncMock())
         host = ServerPlannerHost("allocation-1", transport, deadline=now)
         with pytest.raises(PlannerStoppedError) as error:
             await host.execute("before_model", {})
         assert error.value.code == "planner_deadline_exceeded"
-        transport.request.assert_not_called()
+        transport.planner_operation.assert_not_called()
 
     asyncio.run(scenario())
 
 
 def test_private_transport_operation_deadline_does_not_change_other_requests():
-    from test_artifacts import mtls_transport
+    from contractor_runtime._allocation_rpc import AllocationRPC
 
     async def scenario():
-        connections = Mock(exchange=AsyncMock(return_value=_https.HTTPResponse(200, {}, b"{}")))
-        transport = mtls_transport(connections)
-        await transport.request(
-            "POST",
-            "/planner-operations",
-            headers={},
-            body=b"{}",
-            max_response_bytes=2,
-            timeout_seconds=3600,
-        )
-        await transport.request("GET", "/artifacts", headers={}, body=b"", max_response_bytes=2)
-        assert [call.kwargs["timeout_seconds"] for call in connections.exchange.call_args_list] == [
-            3600,
-            1,
-        ]
+        owner = Mock(execute=AsyncMock())
+        client = AllocationRPC(owner, "https://control.test", "runtime-1", 1)
+        await client.planner_operation("allocation-1", {}, timeout_seconds=3600)
+        await client.list_artifacts("allocation-1", {})
+        assert [call.args[3] for call in owner.execute.call_args_list] == [3600, 1]
 
     asyncio.run(scenario())
 
 
 def test_planner_host_rejects_oversized_operation_without_transport_or_retry():
     async def scenario():
-        transport = Mock(request=AsyncMock())
+        transport = Mock(planner_operation=AsyncMock())
         host = ServerPlannerHost(
             "allocation-1", transport, deadline=datetime.now(UTC) + timedelta(minutes=1)
         )
@@ -92,6 +81,36 @@ def test_planner_host_rejects_oversized_operation_without_transport_or_retry():
             await host.execute("add_subtask", {"instructions": "x" * MAX_PLANNER_OPERATION_BYTES})
         assert error.value.code == "planner_operation_invalid"
         assert not error.value.retryable
-        transport.request.assert_not_called()
+        transport.planner_operation.assert_not_called()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("retryable", [False, True])
+def test_typed_host_rejection_preserves_planner_failure_contract(retryable):
+    import grpc
+
+    from contractor_runtime.artifacts import ArtifactAPIError
+
+    async def scenario():
+        transport = Mock(
+            planner_operation=AsyncMock(
+                side_effect=ArtifactAPIError(
+                    grpc.StatusCode.UNAVAILABLE if retryable else grpc.StatusCode.INVALID_ARGUMENT,
+                    "internal_error" if retryable else "invalid_request",
+                    retryable,
+                )
+            )
+        )
+        host = ServerPlannerHost(
+            "allocation-1", transport, deadline=datetime.now(UTC) + timedelta(minutes=1)
+        )
+        with pytest.raises(PlannerStoppedError) as failure:
+            await host.execute("before_model", {})
+        assert failure.value.code == (
+            "planner_execution_failed" if retryable else "planner_operation_invalid"
+        )
+        assert failure.value.retryable is retryable
+        assert transport.planner_operation.call_count == 1
 
     asyncio.run(scenario())

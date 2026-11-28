@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/url"
 	"regexp"
 	"strings"
 
@@ -206,18 +205,6 @@ func ValidateSelector(field, value string) error {
 func ValidateDigest(field, value string) error {
 	if !contentdigest.Valid(value) {
 		return Invalidf("%s must be sha256 followed by 64 lowercase hex characters", field)
-	}
-	return nil
-}
-
-// ValidateURL requires an absolute HTTP(S) URL without user information.
-func ValidateURL(field, value string) error {
-	parsed, err := url.Parse(value)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return Invalidf("%s must be an absolute HTTP(S) URL", field)
-	}
-	if parsed.User != nil {
-		return Invalidf("%s must not contain URL user information", field)
 	}
 	return nil
 }

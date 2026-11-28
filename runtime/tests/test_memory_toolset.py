@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlsplit
 
+import grpc
 import pytest
+from fakes.allocation_rpc import AllocationRPCFixture
+from fakes.artifact_responses import HTTP_TO_RPC, ArtifactHTTPResponse, recorded_status
 from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from shared_config_defaults import MAX_ARTIFACT_BYTES
@@ -18,7 +21,6 @@ from shared_config_defaults import MAX_ARTIFACT_BYTES
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactClient,
-    ArtifactHTTPResponse,
     ArtifactResponseLimitError,
     ArtifactTransportError,
     ArtifactValue,
@@ -388,7 +390,10 @@ def test_production_artifact_client_changed_binding_is_never_overwritten(
 @pytest.mark.parametrize(
     ("read_error", "expected_code"),
     [
-        (ArtifactAPIError(403, "artifact_access_denied", False), "memory_forbidden"),
+        (
+            ArtifactAPIError(grpc.StatusCode.PERMISSION_DENIED, "artifact_access_denied", False),
+            "memory_forbidden",
+        ),
         (ArtifactTransportError("unavailable"), "memory_unavailable"),
         (asyncio.CancelledError(), None),
     ],
@@ -450,7 +455,7 @@ def test_http_rejections_do_not_replay(status: int, code: str, expected: str) ->
                     self.put_attempts.append(
                         ArtifactRequestAttempt(path, dict(kwargs["headers"]), kwargs["body"])
                     )
-                    return self._error_response(ArtifactAPIError(status, code, True))
+                    return self._error_response(ArtifactAPIError(HTTP_TO_RPC[status], code, True))
                 return await super().request(method, path, **kwargs)
 
         transport = RejectedTransport(backend)
@@ -706,7 +711,9 @@ def test_artifact_failures_map_to_the_closed_memory_error_contract() -> None:
         assert "private endpoint details" not in str(unavailable.value)
 
         read_failure = FakeArtifactClient(
-            read_error=ArtifactAPIError(403, "artifact_access_denied", False)
+            read_error=ArtifactAPIError(
+                grpc.StatusCode.PERMISSION_DENIED, "artifact_access_denied", False
+            )
         )
         read_tools = await create_tools(
             MemoryToolsetFactory(lambda _allocation, _settings: read_failure),
@@ -774,7 +781,9 @@ def test_reconciliation_uses_current_read_authority_error() -> None:
         ) -> ArtifactValue:
             self.reads += 1
             if self.reads == 2:
-                raise ArtifactAPIError(409, "allocation_write_fenced", False)
+                raise ArtifactAPIError(
+                    grpc.StatusCode.FAILED_PRECONDITION, "allocation_write_fenced", False
+                )
             return await super().read_artifact(ref, max_bytes=max_bytes)
 
     async def scenario() -> None:
@@ -799,7 +808,7 @@ def test_factory_rejects_purpose_reserved_memory_namespace(namespace: str) -> No
         settings = RuntimeSettings(
             llmGatewayUrl="https://llm.example/v1",
             llmGatewayToken="unused",
-            artifactApiUrl="https://control.example/private/v1",
+            artifactApiUrl="https://control.example",
             requestTimeoutSeconds=30,
         )
         workspace_path = Path("/tmp/contractor-memory-tool-test/reserved")
@@ -873,7 +882,7 @@ async def create_tools(
     settings = RuntimeSettings(
         llmGatewayUrl="https://llm.example/v1",
         llmGatewayToken="secret-not-needed-by-memory",
-        artifactApiUrl="https://control.example/private/v1",
+        artifactApiUrl="https://control.example",
         requestTimeoutSeconds=30,
     )
     workspace_path = Path("/tmp/contractor-memory-tool-test/allocation-test")
@@ -915,7 +924,7 @@ class ArtifactRequestAttempt:
     body: bytes
 
 
-class FaultingArtifactTransport:
+class FaultingArtifactTransport(AllocationRPCFixture):
     """HTTP-shaped fault boundary in front of the production ArtifactClient."""
 
     def __init__(self, backend: FakeArtifactClient) -> None:
@@ -993,7 +1002,9 @@ class FaultingArtifactTransport:
             http_status = int(status)
         if fault == "before":
             if http_status:
-                return self._error_response(ArtifactAPIError(http_status, "internal_error", True))
+                return self._error_response(
+                    ArtifactAPIError(HTTP_TO_RPC[http_status], "internal_error", True)
+                )
             raise ArtifactTransportError("synthetic PUT response loss before commit")
         if fault == "advance_before":
             self.backend._advance(target.namespace, target.name)
@@ -1012,7 +1023,9 @@ class FaultingArtifactTransport:
         if fault == "after_advance":
             self.backend._advance(target.namespace, target.name)
         if http_status and fault in {"after", "after_advance"}:
-            return self._error_response(ArtifactAPIError(http_status, "internal_error", True))
+            return self._error_response(
+                ArtifactAPIError(HTTP_TO_RPC[http_status], "internal_error", True)
+            )
         if fault == "after":
             raise ArtifactTransportError("synthetic PUT response loss after commit")
         if fault == "after_advance":
@@ -1048,7 +1061,7 @@ class FaultingArtifactTransport:
 
     def _error_response(self, error: ArtifactAPIError) -> ArtifactHTTPResponse:
         return self._json_response(
-            error.status_code,
+            recorded_status(error.status_code),
             {
                 "code": error.code,
                 "message": "bounded synthetic Artifact failure",
@@ -1118,7 +1131,7 @@ class FakeArtifactClient:
                 raise self.read_error
             stored = self._bindings.get((ref.namespace, ref.name))
             if stored is None or (ref.revision is not None and ref.revision != stored.revision):
-                raise ArtifactAPIError(404, "artifact_not_found", False)
+                raise ArtifactAPIError(grpc.StatusCode.NOT_FOUND, "artifact_not_found", False)
             self.read_limits.add(max_bytes)
             if len(stored.payload) > max_bytes:
                 raise ArtifactResponseLimitError(
@@ -1149,7 +1162,9 @@ class FakeArtifactClient:
             self.write_attempts.append(attempt)
             fault = self.write_faults.pop(0) if self.write_faults else ""
             if fault == "forbidden":
-                raise ArtifactAPIError(409, "allocation_write_fenced", False)
+                raise ArtifactAPIError(
+                    grpc.StatusCode.FAILED_PRECONDITION, "allocation_write_fenced", False
+                )
             if fault == "before":
                 raise ArtifactTransportError("synthetic response loss before commit")
             if fault == "advance_before":
@@ -1179,7 +1194,7 @@ class FakeArtifactClient:
             attempt.expected_revision is not None
             and (current is None or current.revision != attempt.expected_revision)
         ):
-            raise ArtifactAPIError(409, "artifact_conflict", True)
+            raise ArtifactAPIError(grpc.StatusCode.FAILED_PRECONDITION, "artifact_conflict", True)
         binding_created_at = current.binding_created_at if current is not None else self._tick()
         revision_created_at = self._tick()
         self._next_revision += 1

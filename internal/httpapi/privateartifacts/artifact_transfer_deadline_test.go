@@ -1,230 +1,181 @@
 package privateartifacts
 
 import (
-	"bufio"
 	"bytes"
-	"crypto/tls"
-	"crypto/x509"
-	"errors"
-	"fmt"
-	"io"
-	"net"
+	"context"
 	"net/http"
-	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
-	artifactpgtest "github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
-
-	"github.com/grauwolf32/contractor/internal/artifacts/blob"
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
+type observedTransferAdmission struct {
+	artifacttransfer.Admission
+	entered, released chan struct{}
+}
+
+func (a observedTransferAdmission) AcquireTransfer(ctx context.Context) (context.Context, func(), error) {
+	ctx, release, err := a.Admission.AcquireTransfer(ctx)
+	if err != nil {
+		return ctx, nil, err
+	}
+	a.entered <- struct{}{}
+	return ctx, func() { release(); a.released <- struct{}{} }, nil
+}
+func observedTransfers() observedTransferAdmission {
+	return observedTransferAdmission{artifactpgtest.NewRuntime(), make(chan struct{}, 32), make(chan struct{}, 32)}
+}
+func awaitTransferSignals(t *testing.T, ch <-chan struct{}, count int) {
+	t.Helper()
+	for range count {
+		select {
+		case <-ch:
+		case <-t.Context().Done():
+			t.Fatal(t.Context().Err())
+		case <-time.After(10 * time.Second):
+			t.Fatal("native transfer owner did not join")
+		}
+	}
+}
+func uploadHeader(size uint64) *pb.ArtifactWriteFrame {
+	return &pb.ArtifactWriteFrame{Frame: &pb.ArtifactWriteFrame_Header{Header: &pb.ArtifactWriteHeader{Artifact: &pb.ArtifactRef{Namespace: proto.String("builder"), Name: proto.String("payload")}, MediaType: proto.String("application/octet-stream"), Size: proto.Uint64(size), Precondition: &pb.ArtifactWriteHeader_CreateOnly{CreateOnly: true}}}}
+}
+func payloadReadTarget() *pb.ArtifactReadTarget {
+	return &pb.ArtifactReadTarget{Artifact: &pb.ArtifactRef{Namespace: proto.String("inputs"), Name: proto.String("large")}}
+}
+
 func TestPrivateArtifactStalledUploadsReleaseTransferSlots(t *testing.T) {
-	server, runtime := privateTransferServer(t, newMemoryRepository())
-	for index := range 4 {
-		conn, err := net.Dial("tcp", server.Listener.Addr().String())
+	admission := observedTransfers()
+	repository := newMemoryRepository()
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository), Transfers: admission}})
+	cancels := []context.CancelFunc{}
+	for range 4 {
+		ctx, cancel := context.WithCancel(fixture.Context)
+		cancels = append(cancels, cancel)
+		defer cancel()
+		stream, err := fixture.Artifact.Write(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { _ = conn.Close() })
-		_, err = fmt.Fprintf(conn, "PUT /private/v1/allocations/allocation-1/artifacts/builder/stalled_%d HTTP/1.1\r\nHost: %s\r\nContent-Type: text/plain\r\nIf-None-Match: *\r\nContent-Length: 1\r\nConnection: close\r\n\r\n", index, server.Listener.Addr())
-		if err != nil {
+		if err = stream.Send(uploadHeader(1)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	waitForPrivateTransferSaturation(t, runtime)
-	client := &http.Client{Timeout: 2 * time.Second}
-	requestStatus := func() int {
-		t.Helper()
-		request, err := http.NewRequest(http.MethodPut, server.URL+"/private/v1/allocations/allocation-1/artifacts/builder/after_timeout", bytes.NewReader([]byte("ok")))
-		if err != nil {
-			t.Fatal(err)
-		}
-		request.Header.Set("Content-Type", "text/plain")
-		request.Header.Set("If-None-Match", "*")
-		response, err := client.Do(request)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer response.Body.Close()
-		_, _ = io.Copy(io.Discard, response.Body)
-		return response.StatusCode
+	awaitTransferSignals(t, admission.entered, 4)
+	stream, err := fixture.Artifact.Write(fixture.Context)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got := requestStatus(); got != http.StatusServiceUnavailable {
-		t.Fatalf("saturated private upload = %d, want 503", got)
+	_ = stream.Send(uploadHeader(0))
+	_, err = stream.CloseAndRecv()
+	if status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("fifth native upload: %v", err)
 	}
-	waitForPrivateTransferAvailability(t, runtime, artifacttransfer.Duration(1)+3*time.Second)
-	if got := requestStatus(); got != http.StatusCreated {
-		t.Fatalf("private upload after transfer deadline = %d, want 201", got)
+	for _, cancel := range cancels {
+		cancel()
+	}
+	awaitTransferSignals(t, admission.released, 4)
+	stream, err = fixture.Artifact.Write(fixture.Context)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = stream.Send(uploadHeader(0))
+	reply, err := stream.CloseAndRecv()
+	if err != nil || reply.GetSize() != 0 {
+		t.Fatalf("upload after cancellation: %v %v", reply, err)
+	}
+	awaitTransferSignals(t, admission.released, 1)
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	if repository.writeCalls != 1 {
+		t.Fatalf("partial uploads reached storage: %d", repository.writeCalls)
 	}
 }
 
 func TestPrivateArtifactStalledDownloadsReleaseTransferSlots(t *testing.T) {
+	admission := observedTransfers()
 	repository := newMemoryRepository()
-	const payloadSize = 8 << 20
-	repository.seed("run-a", "inputs", "large", "revision-a", bytes.Repeat([]byte("x"), payloadSize))
-	server, runtime := privateTransferServer(t, repository)
+	repository.seed("run-a", "inputs", "large", "revision-a", bytes.Repeat([]byte("x"), 8<<20))
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository), Transfers: admission}})
+	cancels := []context.CancelFunc{}
 	for range 4 {
-		conn, err := net.Dial("tcp", server.Listener.Addr().String())
-		if err != nil {
+		ctx, cancel := context.WithCancel(fixture.Context)
+		cancels = append(cancels, cancel)
+		defer cancel()
+		if _, err := fixture.Artifact.Read(ctx, payloadReadTarget()); err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { _ = conn.Close() })
-		if tcp, ok := conn.(*net.TCPConn); ok {
-			_ = tcp.SetReadBuffer(1024)
-		}
-		_, err = fmt.Fprintf(conn, "GET /private/v1/allocations/allocation-1/artifacts/inputs/large HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", server.Listener.Addr())
-		if err != nil {
-			t.Fatal(err)
-		}
-		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-		response, err := http.ReadResponse(bufio.NewReader(conn), nil)
-		if err != nil || response.StatusCode != http.StatusOK {
-			t.Fatalf("stalled private download response = %+v (%v)", response, err)
-		}
-		_ = conn.SetReadDeadline(time.Time{})
 	}
-	waitForPrivateTransferSaturation(t, runtime)
-	client := &http.Client{Timeout: 3 * time.Second}
-	requestStatus := func() int {
-		t.Helper()
-		response, err := client.Get(server.URL + "/private/v1/allocations/allocation-1/artifacts/inputs/large")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer response.Body.Close()
-		if response.StatusCode == http.StatusOK {
-			if _, err := io.Copy(io.Discard, response.Body); err != nil {
-				t.Fatal(err)
-			}
-		}
-		return response.StatusCode
+	awaitTransferSignals(t, admission.entered, 4)
+	fifth, err := fixture.Artifact.Read(fixture.Context, payloadReadTarget())
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got := requestStatus(); got != http.StatusServiceUnavailable {
-		t.Fatalf("saturated private download = %d, want 503", got)
+	_, err = fifth.Recv()
+	if status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("fifth native download: %v", err)
 	}
-	waitForPrivateTransferAvailability(t, runtime, artifacttransfer.Duration(payloadSize)+3*time.Second)
-	if got := requestStatus(); got != http.StatusOK {
-		t.Fatalf("private download after transfer deadline = %d, want 200", got)
+	for _, cancel := range cancels {
+		cancel()
 	}
+	awaitTransferSignals(t, admission.released, 4)
+	stream, err := fixture.Artifact.Read(fixture.Context, payloadReadTarget())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = stream.Recv(); err != nil {
+		t.Fatalf("download after cancellation: %v", err)
+	}
+	// The fixture owns and joins the final download through its context cleanup.
 }
 
-// Once the Runtime has sent the whole body, storage work keeps its own budget:
-// a slow database within it must not fail the upload at the client deadline.
-// The body is empty, so net/http is already watching the idle connection when
-// the body deadline is armed.
+type nativeDeadlineWriter struct {
+	http.ResponseWriter
+	readArmed, writeArmed *atomic.Bool
+}
+
+func (w *nativeDeadlineWriter) Flush()                      { w.ResponseWriter.(http.Flusher).Flush() }
+func (w *nativeDeadlineWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w *nativeDeadlineWriter) SetReadDeadline(d time.Time) error {
+	w.readArmed.Store(!d.IsZero())
+	return http.NewResponseController(w.ResponseWriter).SetReadDeadline(d)
+}
+func (w *nativeDeadlineWriter) SetWriteDeadline(d time.Time) error {
+	w.writeArmed.Store(!d.IsZero())
+	return http.NewResponseController(w.ResponseWriter).SetWriteDeadline(d)
+}
+
 func TestPrivateArtifactSlowStorageOutlivesTheClientDeadline(t *testing.T) {
 	repository := newMemoryRepository()
 	repository.writeStarted = make(chan struct{})
 	repository.continueWrite = make(chan struct{})
-	server, _ := privateTransferServer(t, repository)
-	var body []byte
-	slow := artifacttransfer.Duration(0) + time.Second
-	type outcome struct {
-		status int
-		body   string
-		err    error
-	}
-	done := make(chan outcome, 1)
-	go func() {
-		request, err := http.NewRequest(http.MethodPut, server.URL+"/private/v1/allocations/allocation-1/artifacts/builder/slow_storage", bytes.NewReader(body))
-		if err != nil {
-			done <- outcome{err: err}
-			return
-		}
-		request.Header.Set("Content-Type", "text/plain")
-		request.Header.Set("If-None-Match", "*")
-		response, err := (&http.Client{Timeout: slow + 10*time.Second}).Do(request)
-		if err != nil {
-			done <- outcome{err: err}
-			return
-		}
-		defer response.Body.Close()
-		payload, _ := io.ReadAll(response.Body)
-		done <- outcome{status: response.StatusCode, body: string(payload)}
-	}()
-	waitArtifactSignal(t, repository.writeStarted, "Artifact Store write")
-	time.Sleep(slow)
-	close(repository.continueWrite)
-	select {
-	case result := <-done:
-		if result.err != nil || result.status != http.StatusCreated {
-			t.Fatalf("private upload with slow storage = %d %s (%v), want 201", result.status, result.body, result.err)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("private upload with slow storage did not answer")
-	}
-}
-
-func privateTransferServer(t *testing.T, repository *memoryRepository) (*httptest.Server, *blob.Runtime) {
-	t.Helper()
-	runtime := artifactpgtest.NewRuntime()
-	inner := newTestHandler(t, &fakeRegistry{grant: testGrant("run-a")}, repository, runtime)
-	trusted := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		certificate := &x509.Certificate{RawSubjectPublicKeyInfo: []byte("artifact-test-key")}
-		r.TLS = &tls.ConnectionState{
-			PeerCertificates: []*x509.Certificate{certificate},
-			VerifiedChains:   [][]*x509.Certificate{{certificate}},
-		}
-		r.Header.Set(RuntimeInstanceHeader, "runtime-1")
-		inner.ServeHTTP(w, r)
+	var readArmed, writeArmed atomic.Bool
+	fixture := newAllocationNativeHarness(t, &handler{dependencies: Dependencies{Registry: &fakeRegistry{grant: testGrant("run-a")}, Artifacts: artifacts.NewService(repository)}}, func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(&nativeDeadlineWriter{w, &readArmed, &writeArmed}, r)
+		})
 	})
-	server := httptest.NewUnstartedServer(trusted)
-	server.Start()
-	t.Cleanup(server.Close)
-	return server, runtime
-}
-
-func waitForPrivateTransferSaturation(t *testing.T, runtime *blob.Runtime) {
-	artifactRuntime := artifactpgtest.NewRuntime()
-	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
-	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
-
-	t.Helper()
-	ctx := t.Context()
-	artifactRuntime = runtime
-	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
-	until := time.Now().Add(2 * time.Second)
-	for {
-		_, release, err := artifactStorage.AcquireTransfer(ctx)
-		if errors.Is(err, blob.ErrTransferCapacity) {
-			return
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		release()
-		if time.Now().After(until) {
-			t.Fatal("four stalled private requests did not occupy transfer slots")
-		}
-		time.Sleep(10 * time.Millisecond)
+	stream, err := fixture.Artifact.Write(fixture.Context)
+	if err != nil {
+		t.Fatal(err)
 	}
-}
-
-func waitForPrivateTransferAvailability(t *testing.T, runtime *blob.Runtime, timeout time.Duration) {
-	artifactRuntime := artifactpgtest.NewRuntime()
-	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
-	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
-
-	t.Helper()
-	ctx := t.Context()
-	artifactRuntime = runtime
-	artifactStorage = artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)
-	until := time.Now().Add(timeout)
-	for {
-		_, release, err := artifactStorage.AcquireTransfer(ctx)
-		if err == nil {
-			release()
-			return
-		}
-		if !errors.Is(err, blob.ErrTransferCapacity) {
-			t.Fatal(err)
-		}
-		if time.Now().After(until) {
-			t.Fatal("private artifact transfer slot stayed occupied after deadline")
-		}
-		time.Sleep(20 * time.Millisecond)
+	_ = stream.Send(uploadHeader(0))
+	done := make(chan error, 1)
+	go func() { _, err := stream.CloseAndRecv(); done <- err }()
+	waitArtifactSignal(t, repository.writeStarted, "native Artifact storage")
+	if readArmed.Load() || writeArmed.Load() {
+		t.Error("payload socket deadline leaked into storage")
+	}
+	close(repository.continueWrite)
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }

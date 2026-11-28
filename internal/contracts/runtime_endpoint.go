@@ -59,3 +59,16 @@ func allDecimalDigits(value string) bool {
 	}
 	return true
 }
+
+// ParsePrivateRPCOrigin applies the private gRPC origin restriction to the
+// common endpoint grammar. Paths cannot disappear during authority derivation.
+func ParsePrivateRPCOrigin(field, value string) (*url.URL, error) {
+	parsed, err := ParseRuntimeEndpoint(field, value)
+	if err != nil {
+		return nil, err
+	}
+	if parsed.Scheme != "https" || (parsed.Path != "" && parsed.Path != "/") {
+		return nil, Invalidf("%s must be an HTTPS origin", field)
+	}
+	return parsed, nil
+}

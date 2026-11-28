@@ -32,21 +32,20 @@ The optional `StageContentRequest.planner` contains the initial input, bounded
 tool declarations and optional pinned compactor configuration; ordinary Workers
 reject it. `planner-execution.schema.json` defines ordered `PlannerOperation`
 and `PlannerOperationResult` messages for the existing mTLS allocation transport
-at `POST /private/v1/allocations/{allocationId}/planner-operations`. A live host
+at `Allocation.PlannerOperation`. A live host
 caches only its last exact request/reply, permitting one identical transport
 retry; process loss follows ordinary Stage interruption. The shared
 `planner-execution-limits.json` pins the byte, tool and sequence limits.
 
 The official A2A SDK represents DataPart numbers through protobuf Struct.
 The A2A adapter restores exact integral values before strict DTO validation;
-fractional and unsafe integral values remain invalid. Private HTTP JSON keeps
-its original strict numeric rules. Planner invocation data is bounded to
+fractional and unsafe integral values remain invalid. Named protobuf JSON documents keep
+their original strict numeric rules. Planner invocation data is bounded to
 512 KiB, Worker invocation data to 256 KiB; the A2A envelope is bounded to
 4 MiB to account for SDK framing and escaping.
 
 This is the single private contract catalog. There is no separate protocol
-number, alternate DTO family or conversion path. HTTP routes retain their
-`/private/v1` prefix. The schemas are review artifacts and wire definitions. Go and Python
+number, alternate DTO family or conversion path. Private operations use native gRPC; no `/private/v1` routes remain. The schemas are review artifacts and wire definitions. Go and Python
 DTOs are maintained explicitly and are checked against shared golden fixtures
 under `api/testdata/v1alpha1`. Its `index.json` assigns each fixture a message
 type and schema; each implementation validates the wire types it owns and
@@ -149,7 +148,7 @@ its OpenAPI material schemas; the `target-basic@1` cases are checked for
 (RCF-R114). The Runtime reads no target material yet.
 
 `gateway-recovery-participant-cases.json` holds the model recovery participant
-protocol of `POST /private/v1/allocations/{allocationID}/gateway-recovery`
+protocol of `Allocation.GatewayRecovery`
 (SCH-R168): the updates and which are terminal, the codes a `failed` update may
 carry, the update grammar, the update each attempt outcome produces and the
 update re-delivered after cancellation. The Server's `gatewayrecovery`, used by
@@ -238,7 +237,7 @@ are `api/testdata/workflow-context-management-cases.json` and the
 `AgentStateSnapshot.state.schemaVersion` is `2`: every current/completed invocation
 contains bounded invocation metrics and a closed summarizer phase/usage record.
 Prompt-token trigger tracking and workspace integrity digests stay internal to
-their Runtime owners; the State contract rejects these unused exported fields. The HTTP ETag's existing
+their Runtime owners; the State contract rejects these unused exported fields. The Server cache ETag's existing
 `contractor-agent-state-v1-*` prefix versions cache semantics independently.
 
 `llm-gateway-config-manifest.schema.json` describes the strict non-secret YAML
@@ -310,20 +309,55 @@ allocation enforces its own limits in Runtime. There is no per-request Server
 permit/journal protocol or separate target transport-stop RPC. Ordinary
 allocation cancellation/release joins target work and clears private state.
 
-`shared-config.schema.json` describes startup `GET /private/v1/config`.
+`shared-config.schema.json` describes the domain value returned by the typed
+startup `ControlPlane.Bootstrap` RPC.
 The Runtime verifies the digest of canonical `{limits,version}` and freezes
 that snapshot before preparation and registration (CTL-R171, RTA-R126).
 `make shared-config-generate` derives the golden fixture, Runtime test defaults
 and Artifact schema/SQL ceilings from the Server-owned Go definition.
 
 
-Allocation Project finding reads use the existing private Artifact transport:
-`GET /allocations/{allocationID}/findings?limit=20&cursor=...`,
-`GET /allocations/{allocationID}/findings/{findingID}?revision=N`, and
-`POST /allocations/{allocationID}/finding-selections`. Requests never select a
+Allocation Project finding reads use `Allocation.ListFindings`,
+`Allocation.ReadFinding` and `Allocation.SelectFindings`. Requests never select a
 Project ID. The selection body has `clientKey`, `findings` (explicit `findingId`
 and exact `revision`) and `receiptIds`; arrays are required, with at most 128
 selectors total. Live pages return `items`, `projectRevision`, `nextCursor`;
 selection returns the existing exact collection publication descriptor.
 FND-R224 through FND-R229 own bounds, owner/Project authority, replay and failures.
 The shared findings collection fixture pins Project source kinds in both languages.
+
+
+Native control uses `runtime.proto`: Bootstrap, Register, Heartbeat and the
+allocation lifecycle including conditional ReadState. State carries a typed
+revision and snapshot/not-modified oneof; the JSON document keeps its 4 MiB
+ceiling inside a 4 MiB + 1 KiB protobuf ceiling. The old private HTTP routes
+for these operations are removed. `grpc-limits.json`, `grpc-sequences.json`
+and `private-rpc-origin-cases.json` pin cross-language transport limits, exact
+unsigned heartbeat sequences and HTTPS origin grammar. Existing JSON report
+schemas remain the validation boundary for named protobuf documents.
+
+
+`grpc-allocation-cases.json` pins typed allocation field shapes in Go and Python,
+including false/zero presence, empty arrays, explicit nullable assessments,
+Audit material field names, sitemap commands and exact uint64 bounds. These
+projection cases complement the owning domain validation and native adapter
+failure tests; protobuf shape validity alone does not authorize an operation.
+
+
+`Artifact.Read` is a server stream with one typed metadata header followed by
+exact-size chunks of at most 256 KiB. `Artifact.Write` and
+`Artifact.SubmitFinding` are client streams with one typed header and bounded
+chunks; a clean EOF precedes every publication and the existing terminal
+receipt. Write preconditions are a create-only/opaque expected-revision oneof,
+without entity-tag quoting. The finding stream carries named proposal,
+derived-anchor and captured-HTTP documents in that order. Named JSON documents
+retain their domain codecs and canonical digest owners.
+
+`runtimeSettings.artifactApiUrl` is the private Server HTTPS origin, with no
+path, credentials, query or fragment. Bulk transport has a separate four-channel,
+32-call Runtime owner. Each message is at most 1 MiB plus 1 KiB, header and receipt
+at most 1 MiB; the aggregate Artifact/finding submission bound remains 64 MiB
+under the same four Server transfer permits. Server request-body credit limits
+grpc-go HTTP-handler read-ahead to one bounded message beyond the application,
+and joins the RPC handler before releasing its HTTP writer and admission.
+`grpc-limits.json` pins the chunk/message/window/lookahead bounds on both sides.

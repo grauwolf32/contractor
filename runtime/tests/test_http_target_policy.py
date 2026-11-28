@@ -82,7 +82,7 @@ def table_resolver(table: dict[str, tuple[str, ...]], calls: list[str] | None = 
 def direct_settings(**overrides) -> RuntimeSettings:
     values = {
         "llmGatewayUrl": "https://gateway.example/v1",
-        "artifactApiUrl": "https://control.example/private/v1",
+        "artifactApiUrl": "https://control.example",
         "requestTimeoutSeconds": 10,
     }
     values.update(overrides)
@@ -201,9 +201,7 @@ def test_operator_networks_allow_loopback_but_never_runtime_endpoints(tmp_path: 
                 ),
             )
             factory = HTTPToolsetFactory(target_policy=config)
-            settings = direct_settings(
-                artifactApiUrl=f"https://artifacts.example:{artifacts.port}/private/v1"
-            )
+            settings = direct_settings(artifactApiUrl=f"https://artifacts.example:{artifacts.port}")
             tools = await make_tools(factory, tmp_path, settings=settings)
             request = tools["http_request"]
             try:

@@ -15,6 +15,7 @@ import zipfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import grpc
 import pytest
 import yaml
 
@@ -98,7 +99,9 @@ class ArtifactPeer:
 
     async def write_artifact(self, target, *, data, media_type, expected_revision):
         if self.fenced:
-            raise ArtifactAPIError(409, "allocation_write_fenced", False)
+            raise ArtifactAPIError(
+                grpc.StatusCode.FAILED_PRECONDITION, "allocation_write_fenced", False
+            )
         assert target == ArtifactRef(namespace="builder", name="check_report")
         assert media_type == "application/json" and expected_revision is None
         # Static scripted model bytes cannot hide a failed/missing disk result.

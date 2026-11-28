@@ -1,18 +1,13 @@
 package privateartifacts
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
-	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 )
 
 func TestFindingSubmissionDecoderDistinguishesNULEscapeFromLiteralText(t *testing.T) {
@@ -29,15 +24,11 @@ func TestFindingSubmissionDecoderDistinguishesNULEscapeFromLiteralText(t *testin
 			if err != nil {
 				t.Fatal(err)
 			}
-			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-			request, transfer, err := artifacttransfer.Acquire(httptest.NewRecorder(), request, artifactpgtest.NewStorage())
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer transfer.Close()
-			decoded, err := readFindingSubmission(request, transfer)
+			var decoded findingintake.Submission
+			err = decodeRequestJSON(body, &decoded)
+
 			if test.invalid {
-				if !errors.Is(err, findingintake.ErrInvalid) {
+				if !errors.Is(err, errInvalidRequest) {
 					t.Fatalf("NUL submission decode error = %v", err)
 				}
 				return

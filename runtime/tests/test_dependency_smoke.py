@@ -51,7 +51,7 @@ def test_pinned_adk_and_a2a_dependencies_construct_used_classes() -> None:
 
     card = build_agent_card(
         allocation_id="allocation-smoke",
-        endpoint="https://runtime.example/private/v1/allocations/allocation-smoke/a2a",
+        endpoint="runtime.example:443",
         logical_agent_name="smoke",
         description="Dependency smoke Worker",
         version="1",

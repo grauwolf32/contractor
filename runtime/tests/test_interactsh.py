@@ -482,9 +482,7 @@ def test_factory_requires_private_channel_and_exposes_only_selected_tools(tmp_pa
         collector, artifacts = Collector(), Artifacts()
         handle = client(collector)
         factory = InteractshToolsetFactory(lambda *_: artifacts)
-        runtime = RuntimeSettings(
-            artifactApiUrl="https://server.example/private/v1", requestTimeoutSeconds=30
-        )
+        runtime = RuntimeSettings(artifactApiUrl="https://server.example", requestTimeoutSeconds=30)
         args = dict(
             selected=["interactsh_poll"],
             allocation_id="allocation",
@@ -545,9 +543,7 @@ def test_model_errors_are_bounded_and_retry_after_is_preserved(tmp_path):
     async def scenario():
         collector, artifacts = Collector(), Artifacts()
         handle = client(collector)
-        runtime = RuntimeSettings(
-            artifactApiUrl="https://server.example/private/v1", requestTimeoutSeconds=30
-        )
+        runtime = RuntimeSettings(artifactApiUrl="https://server.example", requestTimeoutSeconds=30)
         factory = InteractshToolsetFactory(lambda *_: artifacts)
         tools = await factory.create_selected(
             selected=["interactsh_register", "interactsh_poll"],

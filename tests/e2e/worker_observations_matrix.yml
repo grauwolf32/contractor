@@ -92,19 +92,19 @@ cases:
     acceptance: [A2]
     faults: [F14]
     expected: A State read failure cannot rewrite an already completed Worker subtask or its result.
-    test: {source: internal/planner/streamline/state_tools_test.go, symbol: TestStateProjectionFailureDoesNotRewriteCompletedSubtask}
+    test: {source: internal/planner/streamline/runtime_matrix_owners_test.go, symbol: TestPostgresRuntimeAdvisoryStateFailurePreservesCompletedSubtask}
   - id: closed_projection_codes
     category: planner
     acceptance: [A2]
     faults: [F15]
     expected: Planner projections expose only the closed retryability-aware State error vocabulary.
-    test: {source: internal/planner/streamline/state_tools_test.go, symbol: TestStateProjectionFailureUsesClosedCodes}
+    test: {source: internal/planner/streamline/runtime_matrix_owners_test.go, symbol: TestRuntimeStateProjectionFailureUsesClosedCodes}
   - id: durable_planner_redaction
     category: retention
     acceptance: [A4]
     faults: [F16]
     expected: State paths cursors provider text and Memory content reduce to bounded content-free Planner event facts.
-    test: {source: internal/planner/session/service_test.go, symbol: TestADKSessionPersistsOnlyBoundedRedactedEventFacts}
+    test: {source: internal/planner/streamline/runtime_matrix_owners_test.go, symbol: TestPostgresRuntimeActivityPersistsOnlyContentFreeFacts}
   - id: matrix_self_validation
     category: validation
     acceptance: [A4]

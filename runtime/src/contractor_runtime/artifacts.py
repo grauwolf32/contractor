@@ -8,23 +8,33 @@ error model and response checks. Finding proposals
 
 from __future__ import annotations
 
-import asyncio
+import json
 import math
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING, Literal, Protocol
-from urllib.parse import quote, urlsplit
 
 from pydantic import Field, ValidationError
 
-from contractor_runtime import _https
+from contractor_runtime import threads
+from contractor_runtime._allocation_errors import (
+    ArtifactAPIError as ArtifactAPIError,
+)
+from contractor_runtime._allocation_errors import (
+    ArtifactClientError as ArtifactClientError,
+)
+from contractor_runtime._allocation_errors import (
+    ArtifactResponseLimitError as ArtifactResponseLimitError,
+)
+from contractor_runtime._allocation_errors import (
+    ArtifactTransportError as ArtifactTransportError,
+)
+from contractor_runtime._bulk_rpc import PayloadDownload
 from contractor_runtime.contracts import (
     ARTIFACT_LIST_CURSOR_PATTERN,
     ArtifactListResult,
     ArtifactMetadataResult,
-    ArtifactReadResult,
     ArtifactRef,
     ArtifactWriteResult,
     PrivateProtocolDecodeError,
@@ -32,43 +42,19 @@ from contractor_runtime.contracts import (
     validate_artifact_name,
     validate_media_type,
 )
-from contractor_runtime.contracts.base import NAME_PATTERN, is_blank, trim_whitespace
-from contractor_runtime.contracts.planner import MAX_PLANNER_OPERATION_BYTES
+from contractor_runtime.contracts.base import (
+    NAME_PATTERN,
+    RESOURCE_ID_PATTERN,
+    is_blank,
+    parse_private_rpc_origin,
+    trim_whitespace,
+)
+from contractor_runtime.contracts.grpc_wire.bulk import ArtifactPayloadMetadata
 from contractor_runtime.shared_config import artifact_list_max_items, artifact_payload_max_bytes
 
 if TYPE_CHECKING:
+    from contractor_runtime._rpc_connections import RPCConnections
     from contractor_runtime.archive_cache import ImmutableArchiveCache
-
-MAX_ARTIFACT_JSON_BYTES = 1 << 20
-# artifacts.MaxBindingListLimit (LIM-ART-3), pinned by
-# api/testdata/v1alpha1/artifact-list-cases.json.
-PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
-# The revision a strong entity tag carries verbatim between its double
-# quotes: visible ASCII other than a double quote, a backslash or a comma.
-# An entity tag has no escapes, so If-Match and ETag are never JSON-encoded;
-# the Server reads the same grammar (API-R70,
-# api/testdata/v1alpha1/strong-etag-cases.json).
-STRONG_ETAG_REVISION_PATTERN = re.compile(r"[!#-+\--\[\]-~]+")
-RUNTIME_INSTANCE_HEADER = "X-Contractor-Runtime-Instance-ID"
-BINDING_CREATED_AT_HEADER = "x-contractor-binding-created-at"
-REVISION_CREATED_AT_HEADER = "x-contractor-revision-created-at"
-RFC3339_UTC_PATTERN = re.compile(
-    r"^(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})"
-    r"(?:\.(?P<fraction>[0-9]{1,9}))?Z$"
-)
-
-
-class ArtifactClientError(Exception):
-    """Bounded error safe to record in allocation metrics."""
-
-
-class ArtifactTransportError(ArtifactClientError):
-    pass
-
-
-class ArtifactResponseLimitError(ArtifactTransportError):
-    """The response exceeded the caller's byte limit."""
-
 
 # A private Artifact API answer to a CAS write whose binding's retained
 # history needs more maintenance than one Server transaction may do. The write
@@ -77,36 +63,42 @@ class ArtifactResponseLimitError(ArtifactTransportError):
 ARTIFACT_HISTORY_MAINTENANCE_PENDING = "artifact_history_maintenance_pending"
 
 
-class ArtifactAPIError(ArtifactClientError):
-    def __init__(
-        self, status_code: int, code: str, retryable: bool, request_id: str | None = None
-    ) -> None:
-        super().__init__(f"Artifact API returned HTTP {status_code} ({code})")
-        self.status_code = status_code
-        self.code = code
-        self.retryable = retryable
-        self.request_id = request_id
-        self.retry_after_seconds: float | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ArtifactHTTPResponse:
-    status_code: int
-    headers: Mapping[str, str]
-    body: bytes = field(repr=False)
-
-
 class ArtifactTransport(Protocol):
-    async def request(
-        self,
-        method: str,
-        path: str,
-        *,
-        headers: Mapping[str, str],
-        body: bytes,
-        max_response_bytes: int,
-        timeout_seconds: float | None = None,
-    ) -> ArtifactHTTPResponse: ...
+    async def planner_operation(
+        self, allocation_id: str, value: Mapping, *, timeout_seconds: float
+    ) -> Mapping: ...
+
+    async def gateway_recovery(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def submit_audit_evidence(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def submit_audit_judgments(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def mutate_sitemap(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def snapshot_sitemap(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def collect_sitemap(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def list_artifacts(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def read_artifact_metadata(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def check_artifact_access(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def list_findings(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def read_finding(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def select_findings(self, allocation_id: str, value: Mapping) -> Mapping: ...
+
+    async def read_artifact(
+        self, allocation_id: str, value: Mapping, *, max_response_bytes: int
+    ) -> PayloadDownload: ...
+
+    async def write_artifact(self, allocation_id: str, value: Mapping, data: bytes) -> Mapping: ...
+
+    async def submit_finding(self, allocation_id: str, submission) -> Mapping: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,14 +131,6 @@ class ArtifactReadTarget:
             raise ValueError("artifact read target is invalid")
 
 
-def allocation_path(allocation_id: str, resource: str) -> str:
-    """Return the private API path of one resource of an allocation."""
-
-    if PATH_ID_PATTERN.fullmatch(allocation_id) is None:
-        raise ValueError("allocation ID is not a safe URL path segment")
-    return f"/allocations/{quote(allocation_id, safe='')}/{resource}"
-
-
 class ArtifactClient:
     """Read the allocation's Run or an explicitly granted Project binding.
 
@@ -164,7 +148,11 @@ class ArtifactClient:
     ) -> None:
         self.archive_cache = archive_cache
         self.archive_trust_domain = archive_trust_domain
-        self._root = allocation_path(allocation_id, "artifacts")
+        if (
+            not isinstance(allocation_id, str)
+            or RESOURCE_ID_PATTERN.fullmatch(allocation_id) is None
+        ):
+            raise ValueError("allocation ID is invalid")
         self._allocation_id = allocation_id
         self._transport = transport
         self._known_exact_refs: dict[tuple[str, str], ArtifactRef] = {}
@@ -264,18 +252,15 @@ class ArtifactClient:
         return result.artifacts
 
     async def _list(self, query: list[tuple[str, str]]) -> ArtifactListResult:
-        path = self._root + "?" + "&".join(f"{key}={quote(value, safe='')}" for key, value in query)
-        response = await self._transport.request(
-            "GET",
-            path,
-            headers={"Accept": "application/json"},
-            body=b"",
-            max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
-        )
-        raise_for_status(response)
-        require_json(response.headers)
+        value = {key: int(item) if key == "limit" else item for key, item in query}
+        response = await self._transport.list_artifacts(self.allocation_id, value)
         try:
-            return decode_private(ArtifactListResult, response.body)
+            return await threads.to_thread_until_done(
+                lambda: decode_private(
+                    ArtifactListResult, json.dumps(response, ensure_ascii=False, allow_nan=False)
+                ),
+                name="artifact-list-validation",
+            )
         except PrivateProtocolDecodeError:
             raise ArtifactTransportError("Artifact API returned an invalid list response") from None
 
@@ -289,18 +274,16 @@ class ArtifactClient:
         the exact revision for invocation provenance.
         """
 
-        path = self._ref_path(ref, target=target, suffix="/metadata")
-        response = await self._transport.request(
-            "GET",
-            path,
-            headers={"Accept": "application/json"},
-            body=b"",
-            max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
-        )
-        raise_for_status(response)
-        require_json(response.headers)
+        value = self._target_value(ref, target=target)
+        response = await self._transport.read_artifact_metadata(self.allocation_id, value)
         try:
-            result = decode_private(ArtifactMetadataResult, response.body)
+            result = await threads.to_thread_until_done(
+                lambda: decode_private(
+                    ArtifactMetadataResult,
+                    json.dumps(response, ensure_ascii=False, allow_nan=False),
+                ),
+                name="artifact-metadata-validation",
+            )
         except (PrivateProtocolDecodeError, RecursionError):
             raise ArtifactTransportError(
                 "Artifact API returned invalid artifact metadata"
@@ -326,45 +309,41 @@ class ArtifactClient:
             max_bytes = artifact_payload_max_bytes()
         if type(max_bytes) is not int or not 0 < max_bytes <= artifact_payload_max_bytes():
             raise ValueError("artifact read byte limit is invalid")
-        path = self._ref_path(ref, target=target)
-        response = await self._transport.request(
-            "GET",
-            path,
-            headers={"Accept": "*/*"},
-            body=b"",
-            max_response_bytes=max_bytes,
+        value = self._target_value(ref, target=target)
+        response = await self._transport.read_artifact(
+            self.allocation_id, value, max_response_bytes=max_bytes
         )
-        raise_for_status(response)
-        if len(response.body) > max_bytes:
-            raise ArtifactResponseLimitError("Artifact API response exceeds the read byte limit")
-        media_type = _response_media_type(response.headers)
-        revision = _strong_etag(response.headers)
-        if ref.revision is not None and revision != ref.revision:
-            raise ArtifactTransportError(
-                "Artifact API exact-read ETag does not match the requested revision"
-            )
-        binding_created_at, revision_created_at = _artifact_timestamps(response.headers)
-        exact = ArtifactRef(namespace=ref.namespace, name=ref.name, revision=revision)
-        try:
-            ArtifactReadResult(
-                apiVersion="contractor/v1alpha1",
-                artifact=exact,
-                mediaType=media_type,
-                size=len(response.body),
-            )
-        except ValidationError as error:
-            raise ArtifactTransportError(
-                "Artifact API returned invalid artifact metadata"
-            ) from error
+        if not isinstance(response, PayloadDownload) or not isinstance(response.data, bytes):
+            raise ArtifactTransportError("Artifact RPC returned an invalid payload result")
+        if len(response.data) > max_bytes:
+            raise ArtifactResponseLimitError("Artifact payload exceeds the read limit")
+        metadata = self._payload_metadata(response.metadata)
+        if (
+            metadata.artifact.namespace != ref.namespace
+            or metadata.artifact.name != ref.name
+            or (ref.revision is not None and metadata.artifact.revision != ref.revision)
+            or metadata.size != len(response.data)
+        ):
+            raise ArtifactTransportError("Artifact RPC payload does not match the request")
         if target is None:
-            self._remember(exact)
+            self._remember(metadata.artifact)
         return ArtifactValue(
-            artifact=exact,
-            media_type=media_type,
-            data=response.body,
-            binding_created_at=binding_created_at,
-            revision_created_at=revision_created_at,
+            artifact=metadata.artifact,
+            media_type=metadata.media_type,
+            data=response.data,
+            binding_created_at=metadata.binding_created_at,
+            revision_created_at=metadata.revision_created_at,
         )
+
+    @staticmethod
+    def _payload_metadata(value) -> ArtifactPayloadMetadata:
+        try:
+            # Wire decoding already ran off-loop in the transport. Keep this
+            # small DTO check synchronous so a received receipt remains known
+            # before the invocation owner's next cancellation boundary.
+            return ArtifactPayloadMetadata.model_validate(value)
+        except (ValidationError, ValueError, TypeError):
+            raise ArtifactTransportError("Artifact RPC returned invalid payload metadata") from None
 
     async def check_artifact_access(self, ref: ArtifactRef, *, target: ArtifactReadTarget) -> None:
         """Recheck current operation authority without resolving content/history."""
@@ -373,15 +352,16 @@ class ArtifactClient:
             raise ValueError("artifact read target is invalid")
         if ref.revision is not None:
             raise ValueError("artifact access target must be versionless")
-        response = await self._transport.request(
-            "GET",
-            self._ref_path(ref, target=target, suffix="/access"),
-            headers={"Accept": "application/json"},
-            body=b"",
-            max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
+        self._target_value(ref, target=target)
+        response = await self._transport.check_artifact_access(
+            self.allocation_id,
+            {
+                "artifact": ref.model_dump(mode="json", by_alias=True, exclude_none=True),
+                "scope": "project",
+                "operation": target.operation,
+            },
         )
-        raise_for_status(response)
-        if response.status_code != 204 or response.body:
+        if response != {}:
             raise ArtifactTransportError("Artifact API returned an invalid access response")
 
     async def write_artifact(
@@ -399,50 +379,30 @@ class ArtifactClient:
         if len(data) > artifact_payload_max_bytes():
             raise ValueError("artifact payload exceeds the configured Artifact limit")
         validate_media_type(media_type)
-        headers = {"Accept": "application/json", "Content-Type": media_type}
-        expected_status = 201
+        value = {**self._target_value(target), "mediaType": media_type, "size": len(data)}
         if expected_revision is None:
-            headers["If-None-Match"] = "*"
+            value["createOnly"] = True
         else:
-            if STRONG_ETAG_REVISION_PATTERN.fullmatch(expected_revision) is None:
-                raise ValueError("expected revision is not a valid strong ETag value")
-            headers["If-Match"] = f'"{expected_revision}"'
-            expected_status = 200
-        response = await self._transport.request(
-            "PUT",
-            self._ref_path(target),
-            headers=headers,
-            body=data,
-            max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
-        )
-        raise_for_status(response)
-        if response.status_code != expected_status:
-            raise ArtifactTransportError("Artifact API returned an invalid write status")
-        require_json(response.headers)
-        try:
-            result = decode_private(ArtifactWriteResult, response.body)
-        except PrivateProtocolDecodeError:
-            raise ArtifactTransportError(
-                "Artifact API returned an invalid write response"
-            ) from None
-        revision = _strong_etag(response.headers)
-        binding_created_at, revision_created_at = _artifact_timestamps(response.headers)
+            if not isinstance(expected_revision, str) or is_blank(expected_revision):
+                raise ValueError("expected revision is invalid")
+            value["expectedRevision"] = expected_revision
+        response = await self._transport.write_artifact(self.allocation_id, value, data)
+        metadata = self._payload_metadata(response)
         if (
-            result.artifact.namespace != target.namespace
-            or result.artifact.name != target.name
-            or result.artifact.revision != revision
-            or result.media_type != media_type
-            or result.size != len(data)
+            metadata.artifact.namespace != target.namespace
+            or metadata.artifact.name != target.name
+            or metadata.media_type != media_type
+            or metadata.size != len(data)
         ):
-            raise ArtifactTransportError("Artifact API write response does not match the request")
-        self._remember(result.artifact)
+            raise ArtifactTransportError("Artifact RPC write response does not match the request")
+        self._remember(metadata.artifact)
         return ArtifactWriteValue(
             apiVersion="contractor/v1alpha1",
-            artifact=result.artifact,
-            mediaType=result.media_type,
-            size=result.size,
-            binding_created_at=binding_created_at,
-            revision_created_at=revision_created_at,
+            artifact=metadata.artifact,
+            mediaType=metadata.media_type,
+            size=metadata.size,
+            binding_created_at=metadata.binding_created_at,
+            revision_created_at=metadata.revision_created_at,
         )
 
     def _remember(self, ref: ArtifactRef) -> None:
@@ -452,191 +412,101 @@ class ArtifactClient:
         self._known_exact_refs[(ref.namespace, ref.name)] = ref
         self._observed_exact_refs.append(ref)
 
-    def _ref_path(
-        self,
-        ref: ArtifactRef,
-        *,
-        target: ArtifactReadTarget | None = None,
-        suffix: str = "",
-    ) -> str:
-        path = f"{self._root}/{quote(ref.namespace, safe='')}/{quote(ref.name, safe='')}{suffix}"
-        query = []
+    @staticmethod
+    def _target_value(ref: ArtifactRef, *, target: ArtifactReadTarget | None = None) -> dict:
+        if not isinstance(ref, ArtifactRef):
+            raise ValueError("artifact ref is invalid")
+        ref = ArtifactRef.model_validate(
+            ref.model_dump(mode="json", by_alias=True, exclude_none=True)
+        )
+        value = {"artifact": ref.model_dump(mode="json", by_alias=True, exclude_none=True)}
         if target is not None:
             if not isinstance(target, ArtifactReadTarget):
                 raise ValueError("artifact read target is invalid")
-            query.extend((("scope", target.scope), ("operation", target.operation)))
-        if ref.revision is not None:
-            query.append(("revision", ref.revision))
-        if query:
-            path += "?" + "&".join(f"{key}={quote(value, safe='')}" for key, value in query)
-        return path
-
-
-def raise_for_status(response: ArtifactHTTPResponse) -> None:
-    """Raise the private API error a non-2xx response carries."""
-
-    if 200 <= response.status_code < 300:
-        return
-    error = _https.decode_private_error(response.body)
-    if error is None:
-        raise ArtifactAPIError(response.status_code, "invalid_error_response", False)
-    raise ArtifactAPIError(response.status_code, error.code, error.retryable, error.request_id)
+            value.update(scope=target.scope, operation=target.operation)
+        return value
 
 
 class MTLSArtifactTransport:
-    """Minimal HTTPS/1.1 transport with pre-request Control Plane role check.
-
-    Requests reuse the process-owned private connections, which verify the
-    Control Plane role on every new connection before its first request byte
-    (CTL-R163). Only a GET is ever sent again, and only when a reused
-    connection returned no response byte; a write is never repeated.
-    """
+    """Named private RPCs over independently owned verified domain/bulk channels."""
 
     def __init__(
         self,
         base_url: str,
-        connections: _https.PrivateConnections,
+        rpc_connections: RPCConnections,
+        bulk_connections: RPCConnections,
         timeout_seconds: float,
         runtime_instance_id: str,
     ) -> None:
-        parsed = urlsplit(base_url)
-        base_path = parsed.path.rstrip("/")
-        if (
-            parsed.scheme != "https"
-            or not parsed.hostname
-            or parsed.username is not None
-            or parsed.password is not None
-            or parsed.query
-            or parsed.fragment
-            or not base_path.endswith("/private/v1")
-        ):
-            raise ValueError(
-                "Artifact API URL must be an HTTPS private/v1 root without credentials"
-            )
-        if timeout_seconds <= 0:
-            raise ValueError("Artifact API timeout must be positive")
+        parse_private_rpc_origin("Artifact RPC URL", base_url)
+        if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+            raise ValueError("Artifact RPC timeout must be finite and positive")
         if (
             is_blank(runtime_instance_id)
             or runtime_instance_id != trim_whitespace(runtime_instance_id)
             or len(runtime_instance_id) > 256
         ):
             raise ValueError("Runtime Agent instance ID is invalid")
-        self._host = parsed.hostname
-        self._port = parsed.port or 443
-        self._base_path = base_path
-        self._connections = connections
-        self._timeout = timeout_seconds
-        self._runtime_instance_id = runtime_instance_id
+        from contractor_runtime._allocation_rpc import AllocationRPC
+        from contractor_runtime._bulk_rpc import BulkRPC
 
-    async def request(
-        self,
-        method: str,
-        path: str,
-        *,
-        headers: Mapping[str, str],
-        body: bytes,
-        max_response_bytes: int,
-        timeout_seconds: float | None = None,
-    ) -> ArtifactHTTPResponse:
-        if method not in {"GET", "PUT", "POST"} or not path.startswith("/") or "#" in path:
-            raise ValueError("invalid private Artifact API request target")
-        # Metadata/list/write replies have their own JSON budget. A smaller
-        # payload policy must not make those protocol responses impossible.
-        response_ceiling = max(
-            artifact_payload_max_bytes(), MAX_ARTIFACT_JSON_BYTES, MAX_PLANNER_OPERATION_BYTES
+        origin = base_url.rstrip("/")
+        self._rpc = AllocationRPC(rpc_connections, origin, runtime_instance_id, timeout_seconds)
+        self._bulk = BulkRPC(bulk_connections, origin, runtime_instance_id, timeout_seconds)
+
+    async def planner_operation(self, allocation_id, value, *, timeout_seconds):
+        return await self._rpc.planner_operation(
+            allocation_id, value, timeout_seconds=timeout_seconds
         )
-        if type(max_response_bytes) is not int or not 0 <= max_response_bytes <= response_ceiling:
-            raise ValueError("invalid Artifact API response limit")
-        timeout = self._timeout if timeout_seconds is None else timeout_seconds
-        if not math.isfinite(timeout) or timeout <= 0:
-            raise ValueError("private API request timeout must be positive and finite")
-        try:
-            request_headers = {
-                "Host": _https.host_header(self._host, self._port),
-                "Content-Length": str(len(body)),
-                **headers,
-                "X-Request-ID": _https.new_request_id(),
-                RUNTIME_INSTANCE_HEADER: self._runtime_instance_id,
-            }
-            request = _https.encode_request(method, self._base_path + path, request_headers, body)
-            response = await self._connections.exchange(
-                self._host,
-                self._port,
-                request,
-                idempotent=method == "GET",
-                timeout_seconds=timeout,
-                max_response_bytes=max_response_bytes,
-            )
-        except _https.HTTPResponseTooLargeError:
-            raise ArtifactResponseLimitError(
-                "Artifact API response exceeds its size limit"
-            ) from None
-        except _https.HTTPResponseError as error:
-            raise ArtifactTransportError(f"invalid Artifact API response ({error})") from None
-        except asyncio.CancelledError:
-            raise
-        except Exception as error:
-            raise ArtifactTransportError(
-                f"Artifact API transport failed ({type(error).__name__})"
-            ) from None
-        return ArtifactHTTPResponse(response.status_code, response.headers, response.body)
+
+    async def gateway_recovery(self, allocation_id, value):
+        return await self._rpc.gateway_recovery(allocation_id, value)
+
+    async def submit_audit_evidence(self, allocation_id, value):
+        return await self._rpc.submit_audit_evidence(allocation_id, value)
+
+    async def submit_audit_judgments(self, allocation_id, value):
+        return await self._rpc.submit_audit_judgments(allocation_id, value)
+
+    async def mutate_sitemap(self, allocation_id, value):
+        return await self._rpc.mutate_sitemap(allocation_id, value)
+
+    async def snapshot_sitemap(self, allocation_id, value):
+        return await self._rpc.snapshot_sitemap(allocation_id, value)
+
+    async def collect_sitemap(self, allocation_id, value):
+        return await self._rpc.collect_sitemap(allocation_id, value)
+
+    async def list_artifacts(self, allocation_id, value):
+        return await self._rpc.list_artifacts(allocation_id, value)
+
+    async def read_artifact_metadata(self, allocation_id, value):
+        return await self._rpc.read_artifact_metadata(allocation_id, value)
+
+    async def check_artifact_access(self, allocation_id, value):
+        return await self._rpc.check_artifact_access(allocation_id, value)
+
+    async def list_findings(self, allocation_id, value):
+        return await self._rpc.list_findings(allocation_id, value)
+
+    async def read_finding(self, allocation_id, value):
+        return await self._rpc.read_finding(allocation_id, value)
+
+    async def select_findings(self, allocation_id, value):
+        return await self._rpc.select_findings(allocation_id, value)
+
+    async def read_artifact(self, allocation_id, value, *, max_response_bytes):
+        return await self._bulk.read_artifact(
+            allocation_id, value, max_response_bytes=max_response_bytes
+        )
+
+    async def write_artifact(self, allocation_id, value, data):
+        return await self._bulk.write_artifact(allocation_id, value, data)
+
+    async def submit_finding(self, allocation_id, submission):
+        return await self._bulk.submit_finding(allocation_id, submission)
 
 
 def _validate_list_limit(limit: int) -> None:
     if type(limit) is not int or not 1 <= limit <= artifact_list_max_items():
         raise ValueError("artifact list limit is invalid")
-
-
-def _response_media_type(headers: Mapping[str, str]) -> str:
-    return validate_media_type(headers.get("content-type", ""))
-
-
-def require_json(headers: Mapping[str, str]) -> None:
-    """Refuse a private API response that is not JSON."""
-
-    if headers.get("content-type") != "application/json":
-        raise ArtifactTransportError("Artifact API response is not application/json")
-
-
-def _strong_etag(headers: Mapping[str, str]) -> str:
-    value = headers.get("etag", "")
-    if not value or value.startswith("W/") or "," in value:
-        raise ArtifactTransportError("Artifact API response has no strong revision ETag")
-    revision = value[1:-1]
-    if (
-        len(value) < 3
-        or value[0] != '"'
-        or value[-1] != '"'
-        or STRONG_ETAG_REVISION_PATTERN.fullmatch(revision) is None
-    ):
-        raise ArtifactTransportError("Artifact API response has an invalid revision ETag")
-    return revision
-
-
-def _artifact_timestamps(headers: Mapping[str, str]) -> tuple[datetime, datetime]:
-    return (
-        _artifact_timestamp(headers, BINDING_CREATED_AT_HEADER),
-        _artifact_timestamp(headers, REVISION_CREATED_AT_HEADER),
-    )
-
-
-def _artifact_timestamp(headers: Mapping[str, str], name: str) -> datetime:
-    value = headers.get(name, "")
-    match = RFC3339_UTC_PATTERN.fullmatch(value)
-    if match is None:
-        raise ArtifactTransportError("Artifact API response has invalid timestamp metadata")
-    fraction = match.group("fraction") or ""
-    # PostgreSQL stores microseconds. Accept the full RFC3339Nano syntax so a
-    # future repository may emit nine digits; datetime intentionally projects
-    # it at Python's microsecond precision.
-    normalized_fraction = (fraction + "000000")[:6]
-    suffix = f".{normalized_fraction}" if fraction else ""
-    try:
-        parsed = datetime.fromisoformat(f"{match.group('date')}{suffix}+00:00")
-    except ValueError as error:
-        raise ArtifactTransportError(
-            "Artifact API response has invalid timestamp metadata"
-        ) from error
-    if parsed.tzinfo != UTC:
-        raise ArtifactTransportError("Artifact API response has invalid timestamp metadata")
-    return parsed

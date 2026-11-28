@@ -6,15 +6,13 @@ import json
 from pathlib import Path
 
 import pytest
+from fakes.allocation_rpc import AllocationRPCFixture
+from fakes.artifact_responses import ArtifactHTTPResponse
 from fakes.source_selectors import artifact_sources
 from fakes.worker_state import WorkerState
 
 import contractor_runtime
-from contractor_runtime.artifacts import (
-    ArtifactClient,
-    ArtifactHTTPResponse,
-    ArtifactTransportError,
-)
+from contractor_runtime.artifacts import ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.contracts.artifacts import (
     AUDIT_CONTEXT_NAMESPACE,
@@ -230,7 +228,7 @@ def test_shared_finding_client_reads_independent_selected_http_receipt(capture_n
         )["cases"]
         capture = next(row["value"] for row in cases if row["name"] == capture_name)
 
-        class Transport:
+        class Transport(AllocationRPCFixture):
             async def request(self, method, path, *, headers, body, max_response_bytes):
                 response = _receipt_response(201, replayed=False, request=json.loads(body))
                 receipt = json.loads(response.body)
@@ -288,28 +286,15 @@ RESERVED_NAMESPACES = frozenset(
 
 
 def _reserved_namespace_copies(source: str) -> list[int]:
-    """Return the lines of Runtime source that spell a reserved Namespace.
-
-    The private route segment, an argument of allocation_path, names the
-    endpoint, another rule, and is not reported.
-    """
+    """Return the lines of Runtime source that spell a reserved Namespace."""
 
     tree = ast.parse(source)
-    routes = {
-        id(argument)
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "allocation_path"
-        for argument in node.args
-    }
     return sorted(
         node.lineno
         for node in ast.walk(tree)
         if isinstance(node, ast.Constant)
         and isinstance(node.value, str)
         and node.value in RESERVED_NAMESPACES
-        and id(node) not in routes
     )
 
 
@@ -329,9 +314,8 @@ def test_reserved_namespaces_are_named_only_by_contracts() -> None:
     assert copies == {}, "use the reserved Namespace constants of contracts.artifacts"
 
 
-def test_reserved_namespace_scan_reports_copies_not_routes() -> None:
+def test_reserved_namespace_scan_reports_copies() -> None:
     source = (
-        'path = allocation_path(allocation_id, "finding-proposals")\n'
         'if ref.namespace != "finding-proposals":\n'
         "    pass\n"
         'derived = "audit-finding-proposals"\n'
@@ -341,7 +325,7 @@ def test_reserved_namespace_scan_reports_copies_not_routes() -> None:
         'route = "/v1/audit-standards"\n'
         'notes = "audit-standards-notes"\n'
     )
-    assert _reserved_namespace_copies(source) == [2, 5, 6, 7]
+    assert _reserved_namespace_copies(source) == [1, 4, 5, 6]
 
 
 class FakeToolContext:
@@ -350,7 +334,7 @@ class FakeToolContext:
         self.function_call_id = "call-test"
 
 
-class FakeFindingClient:
+class FakeFindingClient(AllocationRPCFixture):
     """Fakes the finding submissions of one allocation.
 
     A test that builds a FindingPublisher uses it as the FindingProposalClient
@@ -404,7 +388,7 @@ class FakeFindingClient:
         return _receipt_response(201, replayed=False, request=self.requests[-1])
 
 
-class LossyFindingTransport:
+class LossyFindingTransport(AllocationRPCFixture):
     def __init__(self) -> None:
         self.bodies: list[bytes] = []
 
@@ -489,7 +473,7 @@ def _settings() -> RuntimeSettings:
     return RuntimeSettings(
         llmGatewayUrl="https://llm.example/v1",
         llmGatewayToken="secret",
-        artifactApiUrl="https://cp.example/private/v1",
+        artifactApiUrl="https://cp.example",
         requestTimeoutSeconds=5,
     )
 

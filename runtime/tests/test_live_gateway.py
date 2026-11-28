@@ -187,7 +187,7 @@ def test_live_worker_result_finalizer_separates_tools_and_schema(tmp_path: Path)
             runtime_settings=RuntimeSettings(
                 llmGatewayUrl=GATEWAY_URL,
                 llmGatewayToken=GATEWAY_TOKEN,
-                artifactApiUrl="https://control.invalid/private/v1",
+                artifactApiUrl="https://control.invalid",
                 requestTimeoutSeconds=180,
             ),
         )
