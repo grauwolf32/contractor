@@ -6,7 +6,7 @@ epic: ui
 kind: chore
 introduced_by: V491-001
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript, python]
 goal: Keep the shared fixture gate aligned with the shipped code evidence preview tests.
@@ -32,3 +32,4 @@ tests:
     covers: [A1, A2]
   - command: python3 scripts/shared_fixture_gate.py --sources-only
     covers: [A1, A2]
+implementation_commit: 3e91ab434d0f6cfdd10a4a0b69e19d55492f9530
