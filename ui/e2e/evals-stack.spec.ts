@@ -66,9 +66,11 @@ async function authorWorkflowCases(page: Page) {
     await editor
       .getByRole("button", { name: "Choose input", exact: true })
       .click();
-    await editor
-      .getByRole("listitem")
-      .filter({ hasText: "eval-fixtures/plain-source" })
+    const chooser = page.getByRole("dialog", { name: "Choose input · source" });
+    await chooser
+      .getByRole("button", { name: /^eval-fixtures\/plain-source@/ })
+      .click();
+    await chooser
       .getByRole("button", { name: "Use input", exact: true })
       .click();
     await editor.getByLabel("Output role", { exact: true }).fill("report");

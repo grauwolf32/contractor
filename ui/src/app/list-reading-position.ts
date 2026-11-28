@@ -19,10 +19,11 @@ function scrollOwner(region: RefObject<HTMLElement | null>) {
     : document.scrollingElement;
 }
 
-/** Restore a material list after its separate reader page has unmounted it. */
-export function useMaterialListScroll(
+/** Restore a list after its separate reader page has unmounted it. */
+export function useListReadingPosition(
   region: RefObject<HTMLElement | null>,
   ready: boolean,
+  rowSelector: string,
 ): MouseEventHandler<HTMLElement> {
   const location = useLocation();
   const key = location.pathname + location.search;
@@ -46,7 +47,7 @@ export function useMaterialListScroll(
       event.shiftKey ||
       event.altKey ||
       !(event.target instanceof Element) ||
-      event.target.closest(".materials-row-link") === null
+      event.target.closest(rowSelector) === null
     )
       return;
     positions.delete(key);

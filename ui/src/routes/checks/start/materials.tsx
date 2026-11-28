@@ -1,3 +1,4 @@
+import { materialKey } from "../../artifacts/material-library-filter";
 import { AssertionMaterialEditor } from "./assertion-material-editor";
 import { useId, useState, type ReactNode } from "react";
 import { Link } from "react-router";
@@ -8,8 +9,9 @@ import { Button, IconButton } from "../../../ui";
 import { AddMaterialSheet } from "../../artifacts/add-material";
 import { MaterialKindMark } from "../../artifacts/icons";
 import { materialKindOf } from "../../artifacts/kinds";
-import { MaterialPicker, MaterialSummary } from "./material-picker";
-import { inSentence, joinWords, materialKey } from "./check-types";
+import { MaterialSummary } from "../../artifacts/material-chooser";
+import { MaterialPicker } from "./material-picker";
+import { inSentence, joinWords } from "./check-types";
 import { projectPaths } from "./paths";
 import type { InputSlot, StartCheck } from "./use-start-check";
 

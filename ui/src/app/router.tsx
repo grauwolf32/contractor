@@ -109,10 +109,8 @@ export function applicationRoutes(): RouteObject[] {
                 {
                   path: "facts",
                   lazy: lazyElement(
-                    projectFindings,
-                    ({ ProjectFindingsRoute }) => (
-                      <ProjectFindingsRoute facts />
-                    ),
+                    () => import("../routes/projects/audits/project-facts"),
+                    ({ ProjectFactsRoute }) => <ProjectFactsRoute />,
                   ),
                 },
                 { path: "settings", lazy: projectSection("settings") },

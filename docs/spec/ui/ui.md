@@ -1903,6 +1903,12 @@ adds a reported-statement annotation without another parser or validation engine
 Preview, source errors, pinned revisions and hypothesis grounds use their existing
 owners; opening a fact creates no new source grant, hold or verification state.
 
+The Facts list shows observations, subjects when supplied and recorded dates,
+with search and a disclosure for state and decision filters. Opening a fact
+retains the Project list and its filters. The shared detail leads with the
+reported observation, original source and exact retained evidence. Analyst
+assessment is a secondary action.
+
 ### Attributed check results
 
 **UI-R246.** Existing Task/result views distinguish a saved model conclusion

@@ -1,3 +1,4 @@
+import { materialKey } from "../../artifacts/material-library-filter";
 import { isWebScanProfile } from "./web-scan-contract";
 /**
  * Check types (AuditProfiles) as the Start page shows them: families of
@@ -351,17 +352,6 @@ interface ReadinessContext {
   hasLiveTarget: boolean;
   /** The check type's workflows read a target (from its profile detail). */
   needsLiveTarget: boolean;
-}
-
-/** The key that identifies one exact material in selects and choices. */
-export function materialKey(
-  material: Pick<ArtifactMetadata, "artifact">,
-): string {
-  return JSON.stringify([
-    material.artifact.namespace,
-    material.artifact.name,
-    material.artifact.revision,
-  ]);
 }
 
 /**
