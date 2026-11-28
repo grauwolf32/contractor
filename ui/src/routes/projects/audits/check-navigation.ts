@@ -4,8 +4,8 @@ import {
   checksHref,
   parseCheckFilter,
   parseProject,
-} from "../../checks/list/filters";
-import { sectionPath, type CheckSection } from "./check-links";
+} from "../../../modules/checks/list-filter";
+import { sectionPath, type CheckSection } from "../../../modules/checks/links";
 
 /** Full Check detail has two entries, with one shared section navigation. */
 export function useCheckNavigation(audit: Audit) {

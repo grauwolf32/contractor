@@ -1,11 +1,11 @@
-import type { AuditState } from "../../../api/audits";
-import { AUDIT_ID_PATTERN } from "../../../api/audits";
-import { PROJECT_ID_PATTERN } from "../../../api/projects";
-import { CHECK_STATE_LABELS } from "../../../app/vocabulary";
+import type { AuditState } from "../../api/audits";
+import { AUDIT_ID_PATTERN } from "../../api/audits";
+import { PROJECT_ID_PATTERN } from "../../api/projects";
+import { CHECK_STATE_LABELS } from "../../app/vocabulary";
 import {
   IN_PROGRESS_AUDIT_STATES,
   STOPPED_AUDIT_STATES,
-} from "../../../api/states";
+} from "../../api/states";
 
 /**
  * The state filter of the Checks list, `?state=` in the URL. Running holds

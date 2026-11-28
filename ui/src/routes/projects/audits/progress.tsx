@@ -1,6 +1,9 @@
 import type { Audit } from "../../../api/audits";
 import { StatusGlyph } from "../../../ui";
-import { describeStopReason, stopReasonTone } from "./stop-reason";
+import {
+  describeStopReason,
+  stopReasonTone,
+} from "../../../modules/checks/stop-reason";
 
 /** The stop reason of a check as one plain sentence. */
 export function StopReasonBanner({ audit }: { audit: Audit }) {

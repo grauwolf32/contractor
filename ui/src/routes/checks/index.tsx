@@ -9,7 +9,7 @@ import {
   PaneLayout,
   useListNavigation,
 } from "../../ui";
-import { useCheckWorkspaces } from "../projects/audits/check-data";
+import { useCheckWorkspaces } from "../../modules/checks/workspace";
 import { CheckDetail } from "./list/check-detail";
 import { ChecksListPane } from "./list/checks-list";
 import {
@@ -20,7 +20,7 @@ import {
   parseCheckFilter,
   parseProject,
   type CheckFilter,
-} from "./list/filters";
+} from "../../modules/checks/list-filter";
 
 import "../projects/audits/checks.css";
 

@@ -1,3 +1,4 @@
+import { useMaterialPage } from "./research-pages";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { type Audit } from "../../../api/audits";
@@ -12,9 +13,8 @@ import { createMutationIdempotencyKey } from "../../../mutations/idempotency";
 import { Button, Field } from "../../../ui";
 import {
   type ResearchMaterial,
-  useResearchMaterials,
   useResearchProgram,
-} from "./research-data";
+} from "../../../modules/checks/research";
 import { CursorControls } from "../../../app/cursor-controls";
 
 type Request = {
@@ -32,7 +32,7 @@ function WorkDialog({ audit, onClose }: { audit: Audit; onClose: () => void }) {
   const [locked, setLocked] = useState(false);
   const pending = useRef<Request | undefined>(undefined);
   const profile = useResearchProgram(audit);
-  const materials = useResearchMaterials(audit);
+  const materials = useMaterialPage(audit);
   const program = profile.data?.program;
   const binding = program?.workflows[method];
   const slots = Object.entries(binding?.inputs ?? {}).filter(

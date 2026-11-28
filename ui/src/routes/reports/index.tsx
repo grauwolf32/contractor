@@ -3,11 +3,11 @@ import { useParams, useSearchParams } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import { useDocumentTitle } from "../../app/document-title";
 import { PaneLayout } from "../../ui";
-import { auditProfileLabel } from "../projects/audits/labels";
+import { auditProfileLabel } from "../../modules/checks/labels";
 import { NoReportSelected, ReportDetail } from "./detail";
 import { filterSearch, readFilters } from "./filters";
 import { ReportsList } from "./list";
-import { useReportCheck } from "./report-data";
+import { useReportCheck } from "../../modules/checks/reports";
 
 /**
  * /reports and /reports/:auditId: reports of every project in a list pane,

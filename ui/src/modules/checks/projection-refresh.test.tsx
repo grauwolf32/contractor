@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { Audit } from "../../../api/audits";
+import type { Audit } from "../../api/audits";
 import { useAuditProjectionRefresh } from "./projection-refresh";
 
 const audit = (revision: number, state: Audit["state"]) =>

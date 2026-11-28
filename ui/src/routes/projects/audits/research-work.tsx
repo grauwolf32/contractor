@@ -1,3 +1,4 @@
+import { useTaskPage } from "./research-pages";
 import type { components } from "../../../api/generated/public";
 import { AddResearchWork } from "./add-work";
 import { useQuery } from "@tanstack/react-query";
@@ -23,13 +24,12 @@ import {
   Kbd,
 } from "../../../ui";
 import { auditPollInterval } from "../../../api/audits";
-import { taskStatus } from "./research-data";
-import { useAuditProjectionRefresh } from "./projection-refresh";
+import { taskStatus } from "../../../modules/checks/research";
+import { useAuditProjectionRefresh } from "../../../modules/checks/projection-refresh";
 import {
   type ResearchTask,
   useResearchTask,
-  useResearchTasks,
-} from "./research-data";
+} from "../../../modules/checks/research";
 import { TaskResultView } from "./task-result-view";
 import { useLLMCost } from "../../../app/llm-cost-query";
 import { CostAmount, CostBasisLabel } from "../../../widgets/llm-cost/card";
@@ -296,7 +296,7 @@ export function ResearchTaskTimeline({
 export function ResearchWork({ audit }: { audit: Audit }) {
   const [params, setParams] = useSearchParams();
   const hypothesis = params.get("hypothesis") ?? undefined;
-  const { query, pages } = useResearchTasks(audit, hypothesis);
+  const { query, pages } = useTaskPage(audit, hypothesis);
   const selected = params.get("task");
   const filter = ["pending", "collected", "gap"].includes(
     params.get("work") ?? "",

@@ -1,16 +1,15 @@
-import type { StatusTone } from "../../../app/status-tone";
+import type { StatusTone } from "../../app/status-tone";
 import { useQuery } from "@tanstack/react-query";
 import {
   auditPollInterval,
   getAuditProfile,
   type Audit,
-} from "../../../api/audits";
-import { usePublicAPI } from "../../../api/context";
-import { invalidAPIResponse, requireData } from "../../../api/error";
-import type { components } from "../../../api/generated/public";
-import { queryKeys } from "../../../api/query-keys";
-import { useURLCursorStack } from "../../../app/pagination";
-import { pollInterval } from "../../../app/polling";
+} from "../../api/audits";
+import { usePublicAPI } from "../../api/context";
+import { invalidAPIResponse, requireData } from "../../api/error";
+import type { components } from "../../api/generated/public";
+import { queryKeys } from "../../api/query-keys";
+import { pollInterval } from "../../app/polling";
 import { useAuditProjectionRefresh } from "./projection-refresh";
 
 export type ResearchTask = components["schemas"]["AuditTask"];
@@ -42,17 +41,17 @@ export function useResearchProgram(audit: Audit) {
   });
 }
 
-export function useResearchTasks(audit: Audit, hypothesis?: string) {
+export function useResearchTasks(
+  audit: Audit,
+  cursor: string | undefined,
+  hypothesis?: string,
+) {
   const api = usePublicAPI();
-  const pages = useURLCursorStack({
-    param: hypothesis ? "historyCursor" : "tasksCursor",
-    clearOnChange: hypothesis ? ["historyTask", "task"] : ["task"],
-  });
   const queryKey = [
     ...queryKeys.audits.detail(audit.auditId),
     "tasks",
     hypothesis,
-    pages.cursor,
+    cursor,
   ];
   const query = useQuery({
     queryKey,
@@ -65,7 +64,7 @@ export function useResearchTasks(audit: Audit, hypothesis?: string) {
               path: { auditId: audit.auditId },
               query: {
                 limit: 50,
-                ...(pages.cursor ? { cursor: pages.cursor } : {}),
+                ...(cursor ? { cursor } : {}),
                 ...(hypothesis ? { hypothesis_id: hypothesis } : {}),
               },
             },
@@ -76,7 +75,7 @@ export function useResearchTasks(audit: Audit, hypothesis?: string) {
         data.page.hasMore &&
         (data.items.length === 0 ||
           !data.page.nextCursor ||
-          data.page.nextCursor === pages.cursor)
+          data.page.nextCursor === cursor)
       )
         throw invalidAPIResponse(200, "Invalid Task continuation");
       return data;
@@ -87,7 +86,7 @@ export function useResearchTasks(audit: Audit, hypothesis?: string) {
     }),
   });
   useAuditProjectionRefresh(audit, queryKey);
-  return { query, pages };
+  return query;
 }
 
 /** The URL-selected Task when its row is outside the current list page. */
@@ -120,13 +119,13 @@ export function useResearchTask(
   return query;
 }
 
-export function useResearchHypotheses(audit: Audit, enabled = true) {
+export function useResearchHypotheses(
+  audit: Audit,
+  cursor: string | undefined,
+  enabled = true,
+) {
   const api = usePublicAPI();
-  const pages = useURLCursorStack({
-    param: "hypothesesCursor",
-    clearOnChange: ["hypothesis", "historyTask", "historyCursor"],
-  });
-  const queryKey = ["audit-hypotheses", audit.auditId, pages.cursor];
+  const queryKey = ["audit-hypotheses", audit.auditId, cursor];
   const query = useQuery({
     queryKey,
     enabled,
@@ -139,7 +138,7 @@ export function useResearchHypotheses(audit: Audit, enabled = true) {
               path: { auditId: audit.auditId },
               query: {
                 limit: 50,
-                ...(pages.cursor ? { cursor: pages.cursor } : {}),
+                ...(cursor ? { cursor } : {}),
               },
             },
           }),
@@ -149,7 +148,7 @@ export function useResearchHypotheses(audit: Audit, enabled = true) {
         data.page.hasMore &&
         (data.items.length === 0 ||
           !data.page.nextCursor ||
-          data.page.nextCursor === pages.cursor)
+          data.page.nextCursor === cursor)
       )
         throw invalidAPIResponse(200, "Invalid hypothesis continuation");
       return data;
@@ -162,16 +161,19 @@ export function useResearchHypotheses(audit: Audit, enabled = true) {
     ),
   });
   useAuditProjectionRefresh(audit, queryKey, enabled);
-  return { query, pages };
+  return query;
 }
 
-export function useResearchMaterials(audit: Audit, enabled = true) {
+export function useResearchMaterials(
+  audit: Audit,
+  cursor: string | undefined,
+  enabled = true,
+) {
   const api = usePublicAPI();
-  const pages = useURLCursorStack({ param: "materialsCursor" });
   const queryKey = [
     ...queryKeys.audits.detail(audit.auditId),
     "materials",
-    pages.cursor,
+    cursor,
   ];
   const query = useQuery({
     queryKey,
@@ -185,7 +187,7 @@ export function useResearchMaterials(audit: Audit, enabled = true) {
               path: { auditId: audit.auditId },
               query: {
                 limit: 50,
-                ...(pages.cursor ? { cursor: pages.cursor } : {}),
+                ...(cursor ? { cursor } : {}),
               },
             },
           }),
@@ -195,7 +197,7 @@ export function useResearchMaterials(audit: Audit, enabled = true) {
         data.page.hasMore &&
         (data.items.length === 0 ||
           !data.page.nextCursor ||
-          data.page.nextCursor === pages.cursor)
+          data.page.nextCursor === cursor)
       )
         throw invalidAPIResponse(200, "Invalid material continuation");
       return data;
@@ -206,7 +208,7 @@ export function useResearchMaterials(audit: Audit, enabled = true) {
     }),
   });
   useAuditProjectionRefresh(audit, queryKey, enabled);
-  return { query, pages };
+  return query;
 }
 
 export function taskStatus(task: ResearchTask): {

@@ -1,4 +1,4 @@
-import type { Audit } from "../../../api/audits";
+import type { Audit } from "../../api/audits";
 
 const profileLabels: Record<string, string> = {
   "owasp-top10-2025-source-risk": "OWASP Top 10 · Source risks",

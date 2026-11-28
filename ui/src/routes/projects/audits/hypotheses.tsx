@@ -1,3 +1,4 @@
+import { useHypothesisPage, useTaskPage } from "./research-pages";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -6,11 +7,7 @@ import { usePublicAPI } from "../../../api/context";
 import { PublicAPIError, requireData } from "../../../api/error";
 import { readableValue } from "../../../app/vocabulary";
 import { useCheckNavigation } from "./check-navigation";
-import {
-  useResearchHypotheses,
-  useResearchTasks,
-  taskStatus,
-} from "./research-data";
+import { taskStatus } from "../../../modules/checks/research";
 import { ResearchTaskDetail } from "./research-work";
 import type { components } from "../../../api/generated/public";
 import { queryKeys } from "../../../api/query-keys";
@@ -65,7 +62,7 @@ export function AuditHypotheses({
   const [message, setMessage] = useState("");
   const pending = useRef<PendingWrite | undefined>(undefined);
   const editable = audit.state === "active" || audit.state === "paused";
-  const { query, pages } = useResearchHypotheses(audit, open && active);
+  const { query, pages } = useHypothesisPage(audit, open && active);
   const methods = query.data?.checking_workflows ?? [];
   const currentSource = query.data?.items.find(
     (value) => value.document.id === editing?.document.id,
@@ -632,7 +629,7 @@ function HypothesisHistory({
   audit: Audit;
   hypothesis: string;
 }) {
-  const { query, pages } = useResearchTasks(audit, hypothesis);
+  const { query, pages } = useTaskPage(audit, hypothesis);
   const [historyParams, setHistoryParams] = useSearchParams();
   const selected = historyParams.get("historyTask");
   return (

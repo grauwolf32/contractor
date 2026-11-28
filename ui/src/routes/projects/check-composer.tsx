@@ -8,7 +8,7 @@ import { Icon } from "../../app/icon";
 import { artifactAccepts } from "../../run-drafts/validation";
 import { Button, StatusGlyph } from "../../ui";
 import { useAuditPresets } from "../catalog/audit-preset-data";
-import { auditPresetLabel } from "./audits/labels";
+import { auditPresetLabel } from "../../modules/checks/labels";
 import { useUnsavedDraft } from "./project-drafts";
 import { startCheckPath } from "./project-sections";
 

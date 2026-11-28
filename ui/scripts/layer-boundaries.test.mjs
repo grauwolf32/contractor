@@ -9,7 +9,7 @@ import { productionSources } from "./css-gate.mjs";
 
 const ui = fileURLToPath(new URL("..", import.meta.url));
 
-function routeDependencies(file, text) {
+function blockedDependencies(file, text, layers, packages = []) {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   const imports = [];
   function inspect(node) {
@@ -32,7 +32,15 @@ function routeDependencies(file, text) {
         resolve(ui, "src"),
         resolve(dirname(file), specifier.text),
       );
-      if (target === "routes" || target.startsWith(`routes${sep}`))
+      if (
+        layers.some(
+          (layer) => target === layer || target.startsWith(`${layer}${sep}`),
+        ) ||
+        packages.some(
+          (name) =>
+            specifier.text === name || specifier.text.startsWith(`${name}/`),
+        )
+      )
         imports.push(specifier.text);
     }
     ts.forEachChild(node, inspect);
@@ -51,9 +59,11 @@ describe("widget route boundary", () => {
       'const view = () => import("../../routes/reports/view");',
       'new Worker(new URL("../../routes/reports/worker.ts", import.meta.url));',
     ])
-      assert.equal(routeDependencies(file, text).length, 1, text);
+      assert.equal(blockedDependencies(file, text, ["routes"]).length, 1, text);
     assert.deepEqual(
-      routeDependencies(file, 'import { Button } from "../../ui";'),
+      blockedDependencies(file, 'import { Button } from "../../ui";', [
+        "routes",
+      ]),
       [],
     );
   });
@@ -64,9 +74,54 @@ describe("widget route boundary", () => {
     );
     assert.ok(files.length > 0, "production widgets must be scanned");
     const violations = files.flatMap((file) =>
-      routeDependencies(file, readFileSync(file, "utf8")).map(
+      blockedDependencies(file, readFileSync(file, "utf8"), ["routes"]).map(
         (dependency) => `${relative(ui, file)} imports ${dependency}`,
       ),
+    );
+    assert.deepEqual(violations, []);
+  });
+});
+
+describe("shared module boundaries", () => {
+  const forbidden = ["routes", "widgets", "ui", "app/pagination"];
+  const router = ["react-router"];
+  it("rejects view and router dependencies without rejecting API and shared helpers", () => {
+    const file = resolve(ui, "src/modules/checks/example.ts");
+    for (const text of [
+      'import { View } from "../../routes/checks";',
+      'const load = () => import("../../widgets/audit-report/view");',
+      'export { Button } from "../../ui";',
+      'import { useSearchParams } from "react-router";',
+      'import { useNavigate } from "react-router/dom";',
+      'import { useURLCursorStack } from "../../app/pagination";',
+    ])
+      assert.equal(
+        blockedDependencies(file, text, forbidden, router).length,
+        1,
+        text,
+      );
+    assert.deepEqual(
+      blockedDependencies(
+        file,
+        'import { pollInterval } from "../../app/polling"; import { getAudit } from "../../api/audits";',
+        forbidden,
+        router,
+      ),
+      [],
+    );
+  });
+  it("scans every production shared module and leaves route state outside it", () => {
+    const files = productionSources(ui).filter((file) =>
+      file.startsWith(resolve(ui, "src/modules") + sep),
+    );
+    assert.ok(files.length > 0, "production modules must be scanned");
+    const violations = files.flatMap((file) =>
+      blockedDependencies(
+        file,
+        readFileSync(file, "utf8"),
+        forbidden,
+        router,
+      ).map((name) => `${relative(ui, file)} imports ${name}`),
     );
     assert.deepEqual(violations, []);
   });

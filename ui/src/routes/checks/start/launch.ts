@@ -46,7 +46,7 @@ import {
   canonicalMutationRequest,
   MutationDraftKeyring,
 } from "../../../mutations/idempotency";
-import { checkPath } from "../../projects/audits/check-links";
+import { checkPath } from "../../../modules/checks/links";
 
 type LaunchIntent = "start" | "draft";
 

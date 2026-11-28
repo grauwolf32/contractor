@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { AuditState } from "../../../api/audits";
+import type { AuditState } from "../../api/audits";
 import {
   CHECK_FILTERS,
   checksHref,
@@ -8,7 +8,7 @@ import {
   parseCheck,
   parseCheckFilter,
   parseProject,
-} from "./filters";
+} from "./list-filter";
 
 const STATES: AuditState[] = [
   "draft",

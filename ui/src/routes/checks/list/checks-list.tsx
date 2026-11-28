@@ -30,9 +30,12 @@ import {
   doneSummary,
   legendSentence,
   workCounts,
-} from "../../projects/audits/check-model";
-import { auditProfileLabel } from "../../projects/audits/labels";
-import { CHECK_FILTERS, type CheckFilter } from "./filters";
+} from "../../../modules/checks/progress";
+import { auditProfileLabel } from "../../../modules/checks/labels";
+import {
+  CHECK_FILTERS,
+  type CheckFilter,
+} from "../../../modules/checks/list-filter";
 
 /** Keys that move through the list and open a check (useListNavigation). */
 const LIST_KEYS = "J K ArrowDown ArrowUp Home End Enter";

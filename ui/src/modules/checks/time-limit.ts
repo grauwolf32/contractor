@@ -1,6 +1,6 @@
-import type { Audit } from "../../../api/audits";
-import { ENDED_AUDIT_STATES } from "../../../api/states";
-import { formatShortDateTime } from "../../../app/format";
+import type { Audit } from "../../api/audits";
+import { ENDED_AUDIT_STATES } from "../../api/states";
+import { formatShortDateTime } from "../../app/format";
 
 const TERMINAL: readonly Audit["state"][] = ENDED_AUDIT_STATES;
 

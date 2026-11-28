@@ -2,7 +2,7 @@ import { dereference, validate, type Schema } from "@cfworker/json-schema";
 import auditSchema from "../../../../../api/audit/v1/contract.schema.json";
 import materialSchema from "../../../../../api/v1alpha1/material-set.schema.json";
 import commonSchema from "../../../../../api/v1alpha1/common.schema.json";
-import type { ResearchTask } from "./research-data";
+import type { ResearchTask } from "../../../modules/checks/research";
 
 const lookup = dereference(commonSchema as Schema);
 dereference(materialSchema as Schema, lookup);

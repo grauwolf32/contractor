@@ -24,7 +24,7 @@ import {
   StatusChip,
 } from "../../ui";
 import { artifactDetailPath } from "../../app/artifact-path";
-import { auditProfileLabel } from "./audits/labels";
+import { auditProfileLabel } from "../../modules/checks/labels";
 import { RunPrimaryResult } from "./overview-runs";
 import { projectPath } from "./project-sections";
 import {
