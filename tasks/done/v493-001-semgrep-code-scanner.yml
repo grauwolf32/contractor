@@ -5,7 +5,7 @@ milestone: scan-tools-followups
 epic: scan-tools
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V493-002]
 languages: [python, go, typescript]
 goal: >-
@@ -129,3 +129,4 @@ tests:
     covers: [A3, A4]
   - command: go test ./internal/planner/scan
     covers: [A2, A3]
+implementation_commit: 7ae0fcf9b9a770838f0f7c39224c30a75854489a
