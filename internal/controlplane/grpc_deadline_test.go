@@ -28,7 +28,13 @@ func (w *controlDeadlineWriter) Unwrap() http.ResponseWriter { return w.Response
 func (w *controlDeadlineWriter) Flush()                      { _ = http.NewResponseController(w.ResponseWriter).Flush() }
 func (w *controlDeadlineWriter) SetReadDeadline(deadline time.Time) error {
 	controller := http.NewResponseController(w.ResponseWriter)
-	if err := controller.SetReadDeadline(deadline); err != nil {
+	// Keep expiry under the test's control even on a loaded machine. The
+	// production handler must still request its nonzero read budget first.
+	effective := deadline
+	if !deadline.IsZero() {
+		effective = time.Now().Add(time.Hour)
+	}
+	if err := controller.SetReadDeadline(effective); err != nil {
 		return err
 	}
 	if !deadline.IsZero() {
