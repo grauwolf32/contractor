@@ -15,11 +15,27 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTrace
 from opentelemetry.proto.trace.v1.trace_pb2 import Status
 
 from contractor_runtime.adapters.content import MAX_CONTENT_BYTES, encode_content
+from contractor_runtime.adapters.host import RuntimeAdapterMetricsState
+from contractor_runtime.adapters.otlp_http import OTLPInstrumentation
+from contractor_runtime.contracts import SharedConfig, decode_private
+from contractor_runtime.shared_config import install_shared_config
 
 
 class ObserverTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        config = decode_private(
+            SharedConfig,
+            (observer.h.REPO / "runtime/tests/testdata/shared-config.json").read_bytes(),
+        )
+        install_shared_config(config.snapshot())
+
+    def allocations(self):
+        return [{"logicalAgent": "builder", "runtimeAdapters": ["otlp-http@1"], "origins": {}}]
+
     def test_actual_isolated_consumer_entry_uses_the_pinned_sibling_client(self):
         diagnostics = {
+            "logicalAgent": "builder",
             "status": "available",
             "complete": True,
             "adapters": [
@@ -35,7 +51,13 @@ class ObserverTests(unittest.TestCase):
             "/v1/runs/run-test": {
                 "state": "succeeded",
                 "deletable": True,
-                "attempts": [{"stageExecutionId": "stage-test"}],
+                "attempts": [
+                    {
+                        "stageExecutionId": "stage-test",
+                        "executionConfig": {},
+                        "runtimeConfiguration": {"allocations": self.allocations()},
+                    }
+                ],
             },
             "/v1/runs/run-test/attempts/stage-test/runtime-diagnostics?limit=10": {
                 "items": [diagnostics],
@@ -179,6 +201,88 @@ class ObserverTests(unittest.TestCase):
                     observer.observe(folder, "run-test")["usefulAfterCheckpoint"], expected
                 )
 
+    def test_actual_otlp_encoder_keeps_compaction_operation_when_phase_is_filtered(self):
+        for failed, expected in [(False, 1), (True, 0)]:
+            with self.subTest(failed=failed), tempfile.TemporaryDirectory() as folder:
+                mono = iter([20, 30, 31, 32])
+                wall = iter([20, 31])
+                exporter = OTLPInstrumentation(
+                    RuntimeAdapterMetricsState(),
+                    {"contractor.run.id": "run-test"},
+                    secret_values=(),
+                    max_pending_spans=10,
+                    max_pending_bytes=1024 * 1024,
+                    wall_time_ns=lambda: next(wall),
+                    monotonic_ns=lambda: next(mono),
+                )
+                checkpoint = exporter.start_span(
+                    "contractor.worker.context_compaction",
+                    attributes={
+                        "operation.kind": "context_compaction",
+                        "model.phase": "compaction",
+                    },
+                )
+                checkpoint.end(outcome="succeeded")
+                tool = exporter.start_span(
+                    "contractor.worker.tool", attributes={"tool.name": "read_artifact"}
+                )
+                tool.capture_content("input", {})
+                tool.capture_content("output", {"text": '"receipt": "obs-P17"'})
+                tool.end(outcome="failed" if failed else "succeeded")
+                document = MessageToDict(
+                    ExportTraceServiceRequest.FromString(exporter.export_request())
+                )
+                path = Path(folder) / "traces/run-test/adapter.json"
+                path.parent.mkdir(parents=True)
+                path.write_text(json.dumps(document))
+                span = document["resourceSpans"][0]["scopeSpans"][0]["spans"][0]
+                self.assertEqual(span["name"], "contractor.worker.error")
+                self.assertNotIn("model.phase", observer.attributes(span["attributes"]))
+                self.assertEqual(
+                    observer.observe(folder, "run-test")["usefulAfterCheckpoint"], expected
+                )
+
+    def test_planner_export_uses_declared_allocation_contract_and_retained_stage_trace(self):
+        worker = {
+            "logicalAgent": "executor-without-reserved-name",
+            "status": "available",
+            "complete": True,
+            "adapters": [],
+        }
+        allocation = {
+            "logicalAgent": worker["logicalAgent"],
+            "runtimeAdapters": [],
+            "origins": {"plannerTelemetry": {"layer": "run_labels"}},
+        }
+        self.assertTrue(observer.verify_export([worker], [allocation], has_planner=True))
+        with self.assertRaises(ValueError):
+            observer.verify_export([worker], [allocation], has_planner=False)
+        with self.assertRaises(ValueError):
+            observer.verify_export([worker], [{**allocation, "origins": {}}], has_planner=True)
+        with tempfile.TemporaryDirectory() as folder:
+            path = self.fixture(folder)
+            with self.assertRaises(ValueError):
+                observer.observe(folder, "run-test", planner_stages={"stage-test"})
+            doc = json.loads(path.read_text())
+            resource = doc["resourceSpans"][0]
+            resource["resource"]["attributes"].append(
+                {"key": "contractor.stage_execution.id", "value": {"stringValue": "stage-test"}}
+            )
+            resource["scopeSpans"][0]["spans"].append(
+                {
+                    "traceId": "planner-trace",
+                    "spanId": "planner-span",
+                    "name": "contractor.planner.invocation",
+                    "startTimeUnixNano": "1",
+                    "endTimeUnixNano": "40",
+                    "status": {"code": "STATUS_CODE_OK"},
+                }
+            )
+            path.write_text(json.dumps(doc))
+            observer.observe(folder, "run-test", planner_stages={"stage-test"})
+            with self.assertRaises(ValueError):
+                observer.observe(folder, "run-test", planner_stages={"another-stage"})
+
     def test_explicit_other_model_phases_are_not_checkpoints_through_an_alias(self):
         for phase in ["main", "finalization"]:
             with self.subTest(phase=phase), tempfile.TemporaryDirectory() as folder:
@@ -214,6 +318,7 @@ class ObserverTests(unittest.TestCase):
 
         complete = [
             {
+                "logicalAgent": "builder",
                 "status": "available",
                 "complete": True,
                 "adapters": [
@@ -226,7 +331,7 @@ class ObserverTests(unittest.TestCase):
                 ],
             }
         ]
-        observer.verify_export(complete)
+        observer.verify_export(complete, self.allocations(), has_planner=False)
         for mutate in [
             lambda d: d[0].update(complete=False),
             lambda d: d[0]["adapters"][0].update(flushSucceeded=False),
@@ -236,9 +341,9 @@ class ObserverTests(unittest.TestCase):
             changed = copy.deepcopy(complete)
             mutate(changed)
             with self.assertRaises(ValueError):
-                observer.verify_export(changed)
+                observer.verify_export(changed, self.allocations(), has_planner=False)
         with self.assertRaises(ValueError):
-            observer.verify_export([])
+            observer.verify_export([], self.allocations(), has_planner=False)
 
     def test_missing_foreign_and_truncated_evidence_is_unavailable(self):
         with tempfile.TemporaryDirectory() as folder:

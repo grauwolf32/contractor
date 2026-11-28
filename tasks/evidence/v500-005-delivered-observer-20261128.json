@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "task": "V500-005",
+  "date": "2026-11-28",
+  "mainBaseline": "1fb495a56",
+  "realAdapterRegression": "OTLPInstrumentation exports the actual bounded protobuf; phase is filtered, operation.kind survives, and only successful later tools count",
+  "plannerCoverage": "Authoritative runtimeConfiguration allocation adapters/origins decide the owner, without logical-name inference; an empty Worker adapter set requires a retained closed Planner invocation for the exact Stage",
+  "readOnlyReplay": {
+    "runs": 63,
+    "compactionWithLaterSuccessfulTools": 21,
+    "plannerStages": 1,
+    "nativeRecordsChanged": 0
+  },
+  "limits": "Planner trace presence is observed; complete Server exporter drop/flush counters are not supplied by the executor allocation report. Historical usage remains partial.",
+  "verification": {
+    "observerCases": 11,
+    "fixtureGate": "passed; final shared lint remains before acceptance"
+  }
+}

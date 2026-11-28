@@ -5,17 +5,14 @@ externally controlled Managed Eval experiments. It does not publish configuratio
 plan members, choose models, create a charge ledger or compute comparison conclusions.
 Actual Gateway measurements belong to V417-010; its development trial and infrastructure status are recorded in `docs/research/context-compaction-evaluation.md`.
 
-The 2026-11-28 R5 study stopped after 63 of 120 members and remains incomplete.
-Real exported evidence exposed two measurement prerequisites: the current OTLP
-adapter removes `model.phase`, and the observer rejects a Planner diagnostic
-whose local adapters list is empty despite retained Planner spans. The API
-scorer also rejects valid representations not prohibited by the visible task.
-[V500-005](../../../tasks/v500-005-delivered-context-observer-evidence.yml) and
-[V500-006](../../../tasks/v500-006-context-eval-output-contract.yml) record the
-required evaluator corrections before another frozen study. Passing the offline
-fixture gate does not establish valid live continuation measurement. Preserve
-the old registrations and assessments; do not treat their generic failures as
-proof of lost context or repeat the matrix with the unchanged observer.
+The 2026-11-28 R5 study stopped after 63 of 120 members and remains retained
+with its original assessments. V501-004 corrected API scoring on refreshed main.
+The current observer reads the successful `operation.kind=context_compaction`
+boundary that the actual OTLP adapter retains, and checks each allocation's
+published adapter provenance. A Planner executor with no Worker adapter requires
+Planner telemetry provenance and a retained closed Planner invocation span for
+that exact Stage. This confirms trace presence; complete Server exporter/drop
+metrics are not exposed by that allocation's Runtime report.
 
 Run the deterministic gate from the repository root:
 
@@ -276,8 +273,10 @@ owner-only directory outside Runtime workspaces, with `traces/{runId}/*.json`
 bounded to 4096 spans and 16 MiB of trace evidence. Missing, foreign or truncated
 evidence fails collection instead of becoming zero activity. Successful tool
 spans must start after an observed checkpoint to count as useful continuation.
-Native compaction is identified by its emitted `model.phase=compaction`,
-independently of the configured alias. The terminal summarizer currently emits
+Native compaction is identified by its retained successful
+`operation.kind=context_compaction` boundary, independently of the configured
+alias and the adapter's span-name projection. A delivered `model.phase=compaction`
+also identifies the auxiliary call; the current adapter filters that attribute. The terminal summarizer currently emits
 no phase, so its separately pinned study alias identifies that checkpoint;
 an explicit main/finalization phase never becomes a checkpoint through an alias.
 Source receipt observation and native archive retrieval are separate facts; no

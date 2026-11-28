@@ -39,14 +39,14 @@ def attributes(items):
     return {item["key"]: item["value"].get("stringValue") for item in items}
 
 
-def observe(directory, run_id):
+def observe(directory, run_id, *, planner_stages=()):
     require(ID.fullmatch(run_id), "invalid Run identity")
     directory = Path(directory)
     require(not (directory / "collector-gap").exists(), "collector coverage unavailable")
     folder = directory / "traces" / run_id
     files = sorted(folder.glob("*.json"))
     require(0 < len(files) <= MAX_SPANS, "trace evidence unavailable")
-    spans, size = {}, 0
+    spans, stages, size = {}, {}, 0
     for path in files:
         size += path.stat().st_size
         require(size <= MAX_BYTES, "Run trace evidence exceeds bound")
@@ -59,18 +59,28 @@ def observe(directory, run_id):
                     identity = (span["traceId"], span["spanId"])
                     require(identity not in spans or spans[identity] == span, "conflicting span")
                     spans[identity] = span
+                    stages[identity] = labels.get("contractor.stage_execution.id")
                     require(len(spans) <= MAX_SPANS, "Run spans exceed bound")
-    tools, checkpoints, retrieved, effects = [], [], set(), []
-    for span in spans.values():
+    tools, checkpoints, retrieved, effects, planners = [], [], set(), [], set()
+    for identity, span in spans.items():
         values = attributes(span.get("attributes", []))
+        if (
+            span["name"] == "contractor.planner.invocation"
+            and int(span["endTimeUnixNano"]) > int(span["startTimeUnixNano"])
+            and span.get("status", {}).get("code") in {"STATUS_CODE_OK", "STATUS_CODE_ERROR"}
+        ):
+            planners.add(stages[identity])
         if span.get("status", {}).get("code") != "STATUS_CODE_OK":
             continue
         phase = values.get("model.phase")
-        if span["name"] == "contractor.worker.model" and (
-            phase == "compaction"
-            or (
-                phase is None
-                and str(values.get("model.alias", "")).endswith("/summarizer-model")
+        if values.get("operation.kind") == "context_compaction" or (
+            span["name"] == "contractor.worker.model"
+            and (
+                phase == "compaction"
+                or (
+                    phase is None
+                    and str(values.get("model.alias", "")).endswith("/summarizer-model")
+                )
             )
         ):
             checkpoints.append(int(span["endTimeUnixNano"]))
@@ -105,6 +115,7 @@ def observe(directory, run_id):
             # with different content is a distinct operation.
             encoded = json.dumps(argument, sort_keys=True, separators=(",", ":")).encode()
             effects.append(hashlib.sha256(encoded).hexdigest())
+    require(set(planner_stages).issubset(planners), "Planner invocation trace unavailable")
     projection = directory / "projections" / (run_id + ".jsonl")
     if projection.exists():
         require(projection.stat().st_size <= 2 * 1024 * 1024, "projection evidence exceeds bound")
@@ -127,13 +138,34 @@ def observe(directory, run_id):
     }
 
 
-def verify_export(diagnostics):
+def verify_export(diagnostics, allocations, *, has_planner):
     require(bool(diagnostics), "Runtime export evidence unavailable")
+    declared = {item["logicalAgent"]: item for item in allocations}
+    require(len(declared) == len(allocations), "duplicate allocation provenance")
+    require(
+        len(diagnostics) == len(declared)
+        and {row["logicalAgent"] for row in diagnostics} == set(declared),
+        "allocation report coverage unavailable",
+    )
+    needs_planner_trace = False
     for row in diagnostics:
         require(
             row.get("status") == "available" and row.get("complete"), "Runtime report incomplete"
         )
-        adapters = [a for a in row.get("adapters", []) if a["ref"] == "otlp-http@1"]
+        allocation = declared[row["logicalAgent"]]
+        if not allocation["runtimeAdapters"]:
+            origins = allocation["origins"]
+            require(
+                has_planner
+                and "plannerTelemetry" in origins
+                and "workerTelemetry" not in origins
+                and row["adapters"] == [],
+                "allocation has no declared trace exporter",
+            )
+            needs_planner_trace = True
+            continue
+        require("otlp-http@1" in allocation["runtimeAdapters"], "Worker OTLP not declared")
+        adapters = [a for a in row["adapters"] if a["ref"] == "otlp-http@1"]
         require(len(adapters) == 1, "Runtime OTLP exporter unavailable")
         adapter = adapters[0]
         require(
@@ -143,6 +175,7 @@ def verify_export(diagnostics):
             and all(value == "0" for value in adapter["droppedSpans"].values()),
             "Runtime OTLP export has gaps",
         )
+    return needs_planner_trace
 
 
 def main():
@@ -156,20 +189,25 @@ def main():
     require(ID.fullmatch(run_id), "invalid Run identity")
     run = client.request("GET", "/v1/runs/" + run_id)
     require(run["state"] in h.TERMINAL and run["deletable"], "Run has not released")
-    diagnostics = []
+    planner_stages = set()
     for attempt in run["attempts"]:
-        diagnostics.extend(
-            client.pages(
-                "/v1/runs/"
-                + run_id
-                + "/attempts/"
-                + attempt["stageExecutionId"]
-                + "/runtime-diagnostics",
-                limit=10,
-            )
+        diagnostics = client.pages(
+            "/v1/runs/"
+            + run_id
+            + "/attempts/"
+            + attempt["stageExecutionId"]
+            + "/runtime-diagnostics",
+            limit=10,
         )
-    verify_export(diagnostics)
-    result = observe(os.environ["CONTRACTOR_CONTEXT_EVAL_EVIDENCE"], run_id)
+        if verify_export(
+            diagnostics,
+            attempt["runtimeConfiguration"]["allocations"],
+            has_planner="planner" in attempt["executionConfig"],
+        ):
+            planner_stages.add(attempt["stageExecutionId"])
+    result = observe(
+        os.environ["CONTRACTOR_CONTEXT_EVAL_EVIDENCE"], run_id, planner_stages=planner_stages
+    )
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))
 
 
