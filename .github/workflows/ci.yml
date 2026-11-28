@@ -95,6 +95,10 @@ jobs:
       - name: Install Runtime dependencies
         run: cd runtime && uv sync --locked
 
+      - name: Install the pinned Runtime Chromium and OS dependencies
+        if: matrix.stage == 'release-verify-unit'
+        run: uv run --project runtime playwright install --with-deps chromium
+
       - uses: actions/setup-node@v4
         with:
           node-version: "24.20.x"

@@ -9,7 +9,10 @@ from typing import Any, Literal
 
 import httpx
 
-from contractor_runtime.toolsets.common.credentials import RUNTIME_TARGET_CREDENTIAL
+from contractor_runtime.toolsets.common.credentials import (
+    RUNTIME_CREDENTIAL,
+    RUNTIME_TARGET_CREDENTIAL,
+)
 
 
 def capture_headers(headers: httpx.Headers) -> list[dict[str, str]]:
@@ -126,3 +129,43 @@ class CapturedExchange:
             "attempts": attempts,
             **({"observed_at": self.attempts[0].at} if self.attempts else {}),
         }
+
+
+class TransportExchangeCapture:
+    """Receive actual transport attempts; no storage or authority of its own."""
+
+    def __init__(self, request_id, tag):
+        self.exchange = CapturedExchange(request_id, tag)
+
+    def request(self, method, url, headers, body, injected_headers):
+        safe = [
+            {
+                "name": name.decode("ascii"),
+                "value": (
+                    RUNTIME_CREDENTIAL
+                    if name.lower() in injected_headers
+                    else value.decode("latin-1")
+                ),
+            }
+            for name, value in headers
+        ]
+        self.exchange.attempts.append(CapturedAttempt(method, url, safe, body))
+        self.exchange.complete = False
+        self.exchange.response_body = b""
+        self.exchange.error = None
+
+    def finish(self, response, error):
+        attempt = self.exchange.attempts[-1]
+        if response is not None:
+            attempt.status = response.status
+            attempt.response_headers = [
+                {"name": k.decode("ascii"), "value": v.decode("latin-1")}
+                for k, v in response.headers
+            ]
+            self.exchange.response_body = response.body
+            self.exchange.complete = error is None and not response.truncated
+            if response.truncated and error is None:
+                error = "response_too_large"
+        self.exchange.error = error
+        if error is not None and response is None:
+            attempt.error = error

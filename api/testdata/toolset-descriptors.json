@@ -517,6 +517,55 @@
       "sandboxActiveCheckTools": {},
       "findingProposalTools": [],
       "requiredWorkflowInputs": {}
+    },
+    "browser-tools@1": {
+      "tools": [
+        "browser_click",
+        "browser_export_map",
+        "browser_fill",
+        "browser_navigate",
+        "browser_open",
+        "browser_requests",
+        "browser_screenshot",
+        "browser_snapshot"
+      ],
+      "infrastructureChannels": {
+        "browser_click": [
+          "runtime-http-client"
+        ],
+        "browser_export_map": [
+          "runtime-http-client"
+        ],
+        "browser_fill": [
+          "runtime-http-client"
+        ],
+        "browser_navigate": [
+          "runtime-http-client"
+        ],
+        "browser_open": [
+          "runtime-http-client"
+        ],
+        "browser_requests": [
+          "runtime-http-client"
+        ],
+        "browser_screenshot": [
+          "runtime-http-client"
+        ],
+        "browser_snapshot": [
+          "runtime-http-client"
+        ]
+      },
+      "requiresWorkspace": false,
+      "workspaceObservationTools": [],
+      "requiredSandboxProfiles": [],
+      "activeCheckTools": [
+        "browser_click",
+        "browser_fill",
+        "browser_navigate"
+      ],
+      "sandboxActiveCheckTools": {},
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
     }
   }
 }

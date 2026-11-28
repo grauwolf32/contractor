@@ -92,6 +92,7 @@ Toolsets available to Workers.
 | [Agent Skills](tools/skills.md) | `SKL` | Agent Skill packages, catalog, pinning, ADK Skill toolset |
 | [Run workspaces and filesystem tools](tools/workspace.md) | `WSP` | Run workspaces, hydration, direct and overlay modes, filesystem and edit tools |
 | [Code analysis](tools/code-analysis.md) | `CAN` | Tree-sitter and Trailmark tools, taint annotations |
+| [Browser exploration](tools/browser.md) | `BRW` | Engagement-controlled Playwright, frontend route maps and screenshot evidence |
 | [HTTP and Caido tools](tools/http-caido.md) | `HTP` | HTTP tools, forward proxy, Caido tools |
 | [Interactsh](tools/interactsh.md) | `INT` | Owned callback registrations, bounded polling and exact evidence |
 | [Scanners](tools/scanners.md) | `SCN` | Tool Workers, scanner adapters, scan request preparation and scan planning |

@@ -328,3 +328,9 @@ Owner column links each entry to its owning requirement.
 | `LIFE-ACT-2` | Ordinary prepared work-list and per-operation material | Existing Run/Project owner drain and purge | Existing execution/collection and exact-reference ownership, without a preparation entity | Only normal owner-local Artifact bindings; interrupted material stays owned and purgeable | Consumer acceptance explicitly forks each needed exact input before producer purge; a list publication/ordinary read alone creates no transitive hold | [ACT-R13](../audits/common-contract.md), [SOP-R10](../execution/server-operations.md) |
 
 | `LIFE-PLN-5` | Active Runtime Planner host and its last operation/reply | Planner.Run removes it after joining admitted operations; Runtime releases its loop/session and model handles before allocation cleanup | The invocation must settle before allocation release | Ordinary Run/Project deletion and Stage abort cancel the owner; process loss interrupts it | Invocation memory only, bounded by LIM-PLN-23; no raw conversation is persisted | [PLN-R137](../execution/planners.md) |
+
+## Browser exploration
+
+| ID | Entity | Deletion owner | Blockers | Cascade | Retention | Owner |
+| --- | --- | --- | --- | --- | --- | --- |
+| `LIFE-BRW-1` | Allocation browser process, contexts, private proxy and transient observations | Allocation cancellation, lease loss, release or failed preparation | Active calls and dependent browser cleanup must join before private HTTP credentials are erased and the slot is reused | Close all contexts, proxies, Chromium and the Playwright driver; clear in-memory maps and shared HTTP captures | Only explicitly published ordinary artifacts and selected Finding sources use existing Run/Project retention | [BRW-R5](../tools/browser.md), [BRW-R6](../tools/browser.md) |

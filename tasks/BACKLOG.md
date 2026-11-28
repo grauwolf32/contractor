@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 10 in progress, 42 pending, 13 deferred. 1748 finished: 1729 completed, 19 archived.
+65 open tasks: 11 in progress, 41 pending, 13 deferred. 1748 finished: 1729 completed, 19 archived.
 
 ## In progress
 
@@ -17,6 +17,7 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | workflows | feature | P1 | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
+| [V412-001](v412-001-managed-pentest-browser.yml) | http-tools | feature | P1 | Add allocation-owned browser investigation with explicit network authority |
 | [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
@@ -46,7 +47,6 @@ the epics are in [epics.yml](epics.yml).
 | [V410-008](v410-008-sitemap-caido-history.yml) | feature | P2 | V410-007 | Import selected Caido history incrementally with durable checkpoints |
 | [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-007, V412-001 | Collect managed Playwright network observations into the sitemap |
 | [V410-037](v410-037-allocation-openvpn-bridge-egress.yml) | feature | P2 | — | Route bridge egress through an allocation-owned OpenVPN tunnel |
-| [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
