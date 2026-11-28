@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock
 import grpc
 import jcs
 import pytest
-from google.adk.tools import FunctionTool
 from fakes.source_selectors import artifact_sources
 from fakes.worker_state import WorkerState
+from google.adk.tools import FunctionTool
 from test_finding_facades import context
 from test_security_findings_toolset import FakeFindingClient
 from test_text_artifacts_toolset import MemoryArtifactClient
@@ -40,7 +40,7 @@ def test_adk_source_free_fact_has_repair_hint_and_accepts_exact_repair(sources, 
         args = dict(
             title="Reported banner", description="Version remains unverified", sources=sources
         )
-        with pytest.raises(ToolInputError, match="memory_name.*sources"):
+        with pytest.raises(ToolInputError, match=r"memory_name.*sources"):
             await adk.run_async(args=args, tool_context=context("missing"))
         assert artifacts.write_calls == 0 and not client.requests
         if repair == "memory":
@@ -64,7 +64,7 @@ def test_source_free_repairs_still_consume_the_existing_fact_call_budget():
         )
         tool, client, _ = make_tool(artifacts, source)
         for index in range(8):
-            with pytest.raises(ToolInputError, match="memory_name.*sources"):
+            with pytest.raises(ToolInputError, match=r"memory_name.*sources"):
                 await tool(title="Claim", description="Reported", tool_context=context(str(index)))
         with pytest.raises(ToolInputError, match="eight"):
             await tool(
