@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 10 in progress, 42 pending, 13 deferred. 1748 finished: 1729 completed, 19 archived.
+68 open tasks: 13 in progress, 42 pending, 13 deferred. 1748 finished: 1729 completed, 19 archived.
 
 ## In progress
 
@@ -21,6 +21,9 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V500-001](v500-001-current-sdk-compaction-eval.yml) | evals | chore | P2 | Pin context evaluation to the current accepted Runtime SDK |
+| [V500-002](v500-002-project-facts-live-study.yml) | evals | chore | P2 | Measure Project Facts extraction on the frozen six-case corpus |
+| [V500-003](v500-003-current-artifact-reader-probes.yml) | evals | chore | P2 | Align controlled compaction probes with the common Artifact reader |
 
 ## Pending
 
@@ -167,12 +170,12 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 22 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 23 | 16 | 14 | 30 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 21 | 79 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 21 | 80 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
-| Evaluations (`evals`) | 4 | 24 | 47 | 24 | 55 |
+| Evaluations (`evals`) | 7 | 24 | 47 | 27 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
 | Web UI (`ui`) | 1 | 57 | 83 | 38 | 81 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 3 | 44 | 30 | 22 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 20 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 21 |
 | Quality, CI and process (`quality`) | 11 | 1 | 38 | 157 | 32 |
