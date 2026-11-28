@@ -1,0 +1,1104 @@
+{
+  "task": "V498-005",
+  "date": "2026-11-28",
+  "status": "verified",
+  "base_revision": "cce7c0b9f4bee6d852fb4c57da948242c2fde0bd",
+  "production_changed": false,
+  "artifacts": "/Users/ruslan/src/contractor/.lean/artifact-publication",
+  "artifact_policy": "Local ignored TLA/tools/logs; tracked task, PostgreSQL regressions and compact evidence. No CI gate.",
+  "source_sha256": {
+    "internal/artifacts/postgres/publication_pilot_postgres_test.go": "0539357d32c95854d4e74896af6b466fd4048871920043e79438fa470b361a0d",
+    "internal/artifacts/postgres/fork.go": "6962ed9964345fbbe744457aa1e6cab1b4548a834c709233301e3ef4fc95a9f3",
+    "internal/artifacts/postgres/fork_sql.go": "5f867ed0a62242f31de6cd638e31ca0a6715805e7f8928e82143d75e81d39c4b",
+    "internal/artifacts/postgres/fork_membership_sql.go": "8bccfa3b90505483b15a81ca19bf7ec2cf66e2c91a2671b6b7079b6d0d0baeef",
+    "internal/artifacts/postgres/repository.go": "e271b8e3385281770627972ebceb1516d20c4f60eb5dcc0a547892bc67f39dbd",
+    "internal/artifacts/postgres/purge.go": "dd9cd6bc16dd5cd00ff828f8717a3206504cd9841102a0436920c7a3f6396021",
+    "internal/artifacts/postgres/purge_sql.go": "bbb7711b453b56bb7266da845c3e9d604af5e39fe5ed93483bca8a4628258a29",
+    "internal/artifacts/postgres/integration_test.go": "fc1934657ac85e0798e77509236e20fbf5fb49e52b6797af930359e44941ae43",
+    "internal/artifacts/postgres/purge_concurrency_postgres_test.go": "a0ccf039db18387f287baecca7af6e4fa889ca95034cdfef0b6e3cd269d98fcb",
+    "internal/artifacts/postgres/storage_review_postgres_test.go": "3f2dab96bb75212f517e1cfe32374003b655cd8fd8cf061e28eb08e16f262a96",
+    "internal/artifacts/postgres/project_purge_batches_postgres_test.go": "2d93874065822969b55e7da7c0d07b08e027d368bbe6f702888a3cbbad80e389",
+    "internal/artifacts/postgres/replay_concurrency_postgres_test.go": "ec8cc309ff2446d70f5255d7f140deaf6b52d21a70e8e4d2070e8b5a29db4e0a",
+    "internal/rundeletion/deleter.go": "00a7d6c9976fcc6279ea6458cd109d475c547cee9b4588057b2d51645592f778",
+    "internal/rundeletion/deleter_postgres_test.go": "71071f96f96a0b53f8e211d6ada9bd7f3f841770e13a1a35a6b7b5aae0d2767f",
+    "internal/projectstore/store.go": "4751a746c447348c3efa239f1182b0a43cdedbd0fac58036dabdb082cd09d11d",
+    "internal/projectstore/store_sql.go": "09ea382524f0440f9eef54553cebc6cf922e29b808c29896c5cd4ee742c464f5",
+    "docs/spec/artifacts/artifact-store.md": "5fbfb3e4f67e65d298c01deebabb82d1c379814b394df9150b11d20ace3b0592",
+    "docs/spec/artifacts/projects.md": "5eeb9e3a9a8e8cd024c2a9f0e2de0a6560aee0945d7166694b2365311e4eca21",
+    "docs/spec/artifacts/retention-and-deletion.md": "1affb350353dd1fbb1c064b1a66f3330f2d36adb77d3882d79750d1b3821b68d",
+    "scripts/disk_heavy_policy.py": "85d75cb48aff77207e7e520c9b89b12389e5924f4a0c7ee5ee57a4143668c6a4",
+    "go.mod": "32be81f0d8250abbc61fe4662675ace2e7e42606904fc4620ddb318b485b1770",
+    "go.sum": "20c28beba85c5b8cbabb1edc6d901a91e52fa9662fb8712b19a189378e21b8d1",
+    "internal/persistence/migrations/000001_baseline.sql": "00efdcd2e53c24e56db52ee3e4c4ff2136b0e29579ae766629634f98cb4e95af"
+  },
+  "local_artifact_sha256": {
+    ".lean/artifact-publication/ArtifactPublication.tla": "4567663c6211ab168e514cb41d2572a25526613847f609c79b725b699f5f2038",
+    ".lean/artifact-publication/ArtifactGC.tla": "c1ad4eaef1c73a4ccb1b9f449b12828acd66daed4d1b6b97339a1fd65e733b3b",
+    ".lean/artifact-publication/run.py": "b348a4ba173b71f222f9d1ca204aed9d29be6dca5e7da13d5d999f8a9e821ab0",
+    ".lean/artifact-publication/checks.py": "550bf9b46c9848e5f061b5f0c0585e2e706906dbcb97eb3534abf21f22df9a2c",
+    ".lean/artifact-publication/verify_postgres.py": "b6a930b80e16b1544c87bf51dc2b148cdd9dee9f34bde095c7543939d770fd2b",
+    ".lean/artifact-publication/collect_evidence.py": "53b39c883b2907f15e2971baafb4f082cad0f065d50cc29abb9c4e8b04fd428f",
+    ".lean/artifact-publication/cleanup_database.py": "320135babcb8b367260bbeede2a16479249f65fea5de41316229c9e0ffed35b4",
+    ".lean/artifact-publication/env.sh": "8326d35dc0151266e01a192857ba6b5987626d8da4a47b40ae4749bb6f3cc121",
+    ".lean/artifact-publication/README.md": "aaf075de2141a03e08b2994472c7187bab0b4b2ba0412908bf271355707f5666",
+    ".lean/artifact-publication/results/tlc-summary.json": "ff5ed187ff7d414d11eb392c410b0ef932e23697401f3beda929221f1c78e5ac",
+    ".lean/artifact-publication/results/postgres-summary.json": "7926aab98bd193ac7351a9a31b7914eb62861b5f58fdd0c7f565829224ebc171",
+    ".lean/artifact-publication/results/go-result.json": "36cfe09dc130da6062471e2bcd3002614b0c8e20541c0b9997d3be41cbdfbe8a",
+    ".lean/artifact-publication/results/lint-result.json": "315d3939b6d401261ec32a4ae81c113e64b94b9099b210ac3cfd146007214d57",
+    ".lean/artifact-publication/results/cleanup.json": "c2776fd1046e31eb762e7bbf72067d9a8ad8725e240de9e7920f5f87821e3798",
+    ".lean/artifact-publication/results/tool-versions.txt": "1a91ba3e49a478cbe580b79d4a26d3814efa98dd9bee9fce739e4d16ca84d417"
+  },
+  "model": {
+    "model_sha256": {
+      "ArtifactPublication": "4567663c6211ab168e514cb41d2572a25526613847f609c79b725b699f5f2038",
+      "ArtifactGC": "c1ad4eaef1c73a4ccb1b9f449b12828acd66daed4d1b6b97339a1fd65e733b3b"
+    },
+    "runner_sha256": "b348a4ba173b71f222f9d1ca204aed9d29be6dca5e7da13d5d999f8a9e821ab0",
+    "tlc_sha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+    "passed": true
+  },
+  "model_cases": [
+    {
+      "name": "baseline-pub-1c-1s-1b",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 1,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "unused"
+      },
+      "expected_violation": null,
+      "observed_violation": null,
+      "exit_code": 0,
+      "passed": true,
+      "config_sha256": "8a54a270c17520634753e0fbf4993f3fc7afb5f2d2eeb6942befd20c8d969cfc",
+      "log_sha256": "7b04bbd0935b218d58e872b15829c46576da487efb8a68ac45f78c5bcf2c9717",
+      "generated": 128,
+      "distinct": 75,
+      "remaining": 0
+    },
+    {
+      "name": "baseline-pub-2c-1s-1b",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "unused"
+      },
+      "expected_violation": null,
+      "observed_violation": null,
+      "exit_code": 0,
+      "passed": true,
+      "config_sha256": "9d12ca1d4e2ef1467e2c4ff33da13c9b5d75d28dc61df707994f8a7805492545",
+      "log_sha256": "5987a019b2061690423ec3944da312f796e63f18c0487decf179b31b6dfa7d9b",
+      "generated": 685,
+      "distinct": 348,
+      "remaining": 0
+    },
+    {
+      "name": "baseline-pub-2c-2s-1b",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 2,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "unused"
+      },
+      "expected_violation": null,
+      "observed_violation": null,
+      "exit_code": 0,
+      "passed": true,
+      "config_sha256": "3f2f043dd3522893a30154b98cb0d40fc9e30e07fb2c37fd5d2e9976beb2d5d0",
+      "log_sha256": "f3acafc16923237551ccc4f62a53847eb3b1af1fe49b65242fb12b4233023152",
+      "generated": 702,
+      "distinct": 346,
+      "remaining": 0
+    },
+    {
+      "name": "baseline-pub-2c-2s-2b",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 2,
+        "BatchSize": 2,
+        "Fault": "none",
+        "Witness": "unused"
+      },
+      "expected_violation": null,
+      "observed_violation": null,
+      "exit_code": 0,
+      "passed": true,
+      "config_sha256": "cc97deac60058c055d95592ce6b0cde077047d5c7b523232e6728380aec825ea",
+      "log_sha256": "bd1bd8f66bd66fd8909fd673ab8f0a20739fe1e7d3640b7831a0d6258a3032aa",
+      "generated": 705,
+      "distinct": 347,
+      "remaining": 0
+    },
+    {
+      "name": "baseline-gc-1p-w0",
+      "model": "ArtifactGC",
+      "constants": {
+        "Count": 1,
+        "WriterEnabled": false,
+        "Fault": "none",
+        "Witness": "unused"
+      },
+      "expected_violation": null,
+      "observed_violation": null,
+      "exit_code": 0,
+      "passed": true,
+      "config_sha256": "5c294fac34ccecca06282c642f96e6f4e72afc0926f776a5292afee18c363703",
+      "log_sha256": "ea6942f7eb23179b083fc979fd63b1f9db6d5f426b62e16e46176f86ccacdc21",
+      "generated": 8,
+      "distinct": 6,
+      "remaining": 0
+    },
+    {
+      "name": "baseline-gc-1p-w1",
+      "model": "ArtifactGC",
+      "constants": {
+        "Count": 1,
+        "WriterEnabled": true,
+        "Fault": "none",
+        "Witness": "unused"
+      },
+      "expected_violation": null,
+      "observed_violation": null,
+      "exit_code": 0,
+      "passed": true,
+      "config_sha256": "29915eea135fd22c242e0cbd0c6bb30486e2ffca6113def38549f5807ccfa8eb",
+      "log_sha256": "11215471d9eb0314867b16c22cf582fdbd00f07221fa4ac8e95dfae210ad6733",
+      "generated": 42,
+      "distinct": 30,
+      "remaining": 0
+    },
+    {
+      "name": "baseline-gc-2p-w0",
+      "model": "ArtifactGC",
+      "constants": {
+        "Count": 2,
+        "WriterEnabled": false,
+        "Fault": "none",
+        "Witness": "unused"
+      },
+      "expected_violation": null,
+      "observed_violation": null,
+      "exit_code": 0,
+      "passed": true,
+      "config_sha256": "60364506381b70d3820cebc39c8e3b9e4844e7ababf550cb767450385602dd19",
+      "log_sha256": "fc1ee192515372d015839b28c96bd0df500ac1eab84919fc6b6e7bae7c7b2abd",
+      "generated": 91,
+      "distinct": 56,
+      "remaining": 0
+    },
+    {
+      "name": "baseline-gc-2p-w1",
+      "model": "ArtifactGC",
+      "constants": {
+        "Count": 2,
+        "WriterEnabled": true,
+        "Fault": "none",
+        "Witness": "unused"
+      },
+      "expected_violation": null,
+      "observed_violation": null,
+      "exit_code": 0,
+      "passed": true,
+      "config_sha256": "680a17f55049d469e430cb0c439e55f229bd8789e6964289e9a95c032077890b",
+      "log_sha256": "f5d07c57fc1bb87b424c8b2056e4052066250f28c07801c4996c753f7c6dc3fc",
+      "generated": 645,
+      "distinct": 404,
+      "remaining": 0
+    },
+    {
+      "name": "skip_fence",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "skip_fence",
+        "Witness": "unused"
+      },
+      "expected_violation": "Fenced",
+      "observed_violation": "Fenced",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "b48a9b26efbea7c99b01af716ae0b645ed123cd29bb7bdab73a40fa8b2f4c220",
+      "log_sha256": "cb0524f6f7d100e067178bf3923bada3bfa49160a939d5f750d1e1c15a99a518",
+      "generated": 57,
+      "distinct": 37,
+      "remaining": 20
+    },
+    {
+      "name": "partial_publication",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "partial_publication",
+        "Witness": "unused"
+      },
+      "expected_violation": "AtomicPublication",
+      "observed_violation": "AtomicPublication",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "2ada3765b108dc113e20f218d73352993d1a655a1177d9de09ad5e830141e0cd",
+      "log_sha256": "ce482d127d183ca11b219a0e04301c3bcac0325e91ee9c124925dbeec1302e33",
+      "generated": 22,
+      "distinct": 18,
+      "remaining": 11
+    },
+    {
+      "name": "wrong_exact",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "wrong_exact",
+        "Witness": "unused"
+      },
+      "expected_violation": "ExactPublication",
+      "observed_violation": "ExactPublication",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "e376b89b8b53c8c1340d941692ba959691ba2cf7a110a88a7ee266c86d80760d",
+      "log_sha256": "cdb850aaa2e98f805ddd1c67d479ae13ef8282833353c9938ff8b99976f48831",
+      "generated": 22,
+      "distinct": 18,
+      "remaining": 11
+    },
+    {
+      "name": "overwrite",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "overwrite",
+        "Witness": "unused"
+      },
+      "expected_violation": "CreateOnly",
+      "observed_violation": "CreateOnly",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "7f4887949856f7f1afaa9b62c1d100ac3ef995c03aab17ec748da243ba587933",
+      "log_sha256": "0dab01b5af7fd1bf54c1decfa90d4aff950ce4e59434b8087ed7eef872fb8307",
+      "generated": 260,
+      "distinct": 135,
+      "remaining": 54
+    },
+    {
+      "name": "skip_source_lock",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "skip_source_lock",
+        "Witness": "unused"
+      },
+      "expected_violation": "LockDiscipline",
+      "observed_violation": "LockDiscipline",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "0e47069523ab7f608d037dce8e3ce4472d08b088e6bf948dc3a3a243e61a200b",
+      "log_sha256": "61de9cd1e3ae03c82f8f17896d156a1ca654989515fd5da306bc84e473f678a3",
+      "generated": 29,
+      "distinct": 20,
+      "remaining": 13
+    },
+    {
+      "name": "collect_retained",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "collect_retained",
+        "Witness": "unused"
+      },
+      "expected_violation": "ReferencesSafe",
+      "observed_violation": "ReferencesSafe",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "b92a6bf377099861231b860fe7046ad20849cd6eeef8c1e0a557b94f1c44ffb1",
+      "log_sha256": "e27546412c3f490fa6a8940a9a8f4a696f3e2de9f0e7156d65f309218c4a26d9",
+      "generated": 139,
+      "distinct": 83,
+      "remaining": 40
+    },
+    {
+      "name": "erase_target",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "erase_target",
+        "Witness": "unused"
+      },
+      "expected_violation": "IndependentRetention",
+      "observed_violation": "IndependentRetention",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "1fc0f61aabceb61ed4dc281aa2860c43c17b3801fbfd676c25f71836df60254a",
+      "log_sha256": "d126f54ce32e0ce58622986a9414d6b684e2809f8bd5e6cfe24f8e8347e9609b",
+      "generated": 139,
+      "distinct": 83,
+      "remaining": 40
+    },
+    {
+      "name": "stale-snapshot-loses-writer",
+      "model": "ArtifactGC",
+      "constants": {
+        "Count": 1,
+        "WriterEnabled": true,
+        "Fault": "stale_snapshot",
+        "Witness": "unused"
+      },
+      "expected_violation": "ReferencesSafe",
+      "observed_violation": "ReferencesSafe",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "c6dda131b41cf7a7a4af92fa059e296174d626ec0b449ef8228183b74baa94c3",
+      "log_sha256": "5f4eda1962cf2456e7d2c1a591f2c9513887a907df6060192f24257072ab4f9f",
+      "generated": 37,
+      "distinct": 27,
+      "remaining": 4
+    },
+    {
+      "name": "stale-snapshot-leaves-orphan",
+      "model": "ArtifactGC",
+      "constants": {
+        "Count": 2,
+        "WriterEnabled": false,
+        "Fault": "stale_snapshot",
+        "Witness": "unused"
+      },
+      "expected_violation": "CompleteGC",
+      "observed_violation": "CompleteGC",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "82594d16979100e395149e4ce05105bc1a16b3987bf4b7ca4d403b9ed4693aaf",
+      "log_sha256": "3da86dda0d1ba8c3af5f687e4aac670feaddee6d23739413baff39db740932f5",
+      "generated": 84,
+      "distinct": 53,
+      "remaining": 6
+    },
+    {
+      "name": "reachable-pub-admit",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "admit"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "0cb78cf3ac0dffa3f5fd6ee1019f4df1c424acf5b0aceaaff55c6d3f9f6b5b20",
+      "log_sha256": "80c7b55837e280823973914a2d0dc9f526cf5dbf864e31d1f064fb78ac25dcfe",
+      "generated": 2,
+      "distinct": 2,
+      "remaining": 0
+    },
+    {
+      "name": "reachable-pub-stage",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "stage"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "0f72b7a740765cebd042bda668cfb79198241e54af0ff49151dccb6e81c11602",
+      "log_sha256": "1acb53892448673f599704e5b9a2903c3eed61ee97e7ec743ba2ac8e74ae523c",
+      "generated": 6,
+      "distinct": 6,
+      "remaining": 3
+    },
+    {
+      "name": "reachable-pub-fenced",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "fenced"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "d6ecd6d8184e6ba6aef5d5641b156ad3b7d10ad7a75e3cf739c54277e6bdc6dd",
+      "log_sha256": "308b49dfeb645c5116dc1740e3108f8ef70e9b3d91f991e68c786dbfa724f2e7",
+      "generated": 57,
+      "distinct": 37,
+      "remaining": 20
+    },
+    {
+      "name": "reachable-pub-purge_first",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "purge_first"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "137b0e11a50aae6aae23e722c2dfec7c55307fca6b7e0c32b70e5d978889cb9f",
+      "log_sha256": "c511f76503f27863f7d6edb04ba581a8dc5c25809ea66b61ee8c47017c99e5cf",
+      "generated": 89,
+      "distinct": 57,
+      "remaining": 30
+    },
+    {
+      "name": "reachable-pub-conflict",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "conflict"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "bc34799f1b475c02f8fb5e78c694fcaeb1717010af469bdd534d4e4ab3ff8c06",
+      "log_sha256": "8fc088d9cbc7afd3d5cb259a61895a814ed38316baaf1159bcac420f2eef4844",
+      "generated": 135,
+      "distinct": 80,
+      "remaining": 38
+    },
+    {
+      "name": "reachable-pub-publication_commit",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "publication_commit"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "42a23dfbef7bb75e6012571d7ae320e255cb17e2c951288ea056101a328b5955",
+      "log_sha256": "1ccdb13afbf72645f4504e91a8094fd5547bb0e4b42b993daaa6dfca41f1fda2",
+      "generated": 22,
+      "distinct": 18,
+      "remaining": 11
+    },
+    {
+      "name": "reachable-pub-publication_rollback",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "publication_rollback"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "92e3251da7731e3b1eac86fe068f5125e99ba226ee26c4f52b18049648a9beef",
+      "log_sha256": "61ec290c21ce75fd5fb8890586051f0a6ed0370821d9d19d73bbc6147f18798d",
+      "generated": 7,
+      "distinct": 7,
+      "remaining": 4
+    },
+    {
+      "name": "reachable-pub-source_purge_lock",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "source_purge_lock"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "0941b1734a792b6a297067d4c4e8245850d87b30e64e6643d9f0e0509baae8ef",
+      "log_sha256": "984904b2aa23b4da21f8b400a9845bd626224702322e76176208c62d2df57471",
+      "generated": 4,
+      "distinct": 4,
+      "remaining": 2
+    },
+    {
+      "name": "reachable-pub-publication_first_purge",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "publication_first_purge"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "bb1b04e936dfc2440c8bc7a67a8e4ecd57e021c926583d1a85e29256cfee7c48",
+      "log_sha256": "57c47c0a02b61914426720fa4262882772e6e3157ca83e76276330e96e68c3dd",
+      "generated": 139,
+      "distinct": 83,
+      "remaining": 40
+    },
+    {
+      "name": "reachable-pub-source_collected",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "source_collected"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "7392ea084f75aa256d3db2da133b5e73c5d36fa69f44cf3ad815ed91183c2331",
+      "log_sha256": "624c18b8cba99f6e1da425f62f0ecdb31b803c500a3a70fdb796063b5ba19fd1",
+      "generated": 16,
+      "distinct": 13,
+      "remaining": 8
+    },
+    {
+      "name": "reachable-pub-source_purge_rollback",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "source_purge_rollback"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "325b8ade736bebd1990e6471786f8d30e8e0fd8d9e274caebdbdea7b982343d6",
+      "log_sha256": "9eda969a038bf40718a25add6f65fa04da635f65eea87caf3bc2beaaab0e1aa0",
+      "generated": 17,
+      "distinct": 14,
+      "remaining": 9
+    },
+    {
+      "name": "reachable-pub-deletion_lock",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "deletion_lock"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "cecfaa326245b9f6e45ab388e15b245af1dffc3bb57624de8e4b5b069f9f10eb",
+      "log_sha256": "7d197f13e19b0ba030cf6804a9b76ab6bcee48dec2cc10e4318a3b460b88016d",
+      "generated": 5,
+      "distinct": 5,
+      "remaining": 3
+    },
+    {
+      "name": "reachable-pub-publication_first_deletion",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "publication_first_deletion"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "93e54f5e1a309c67716d3730dff8adb3df04d42ad26f70ad30339b90ab431154",
+      "log_sha256": "6b05aee5903ab04c098153b9e2127632f392e83148eb9827035b9533eb289bb7",
+      "generated": 143,
+      "distinct": 86,
+      "remaining": 42
+    },
+    {
+      "name": "reachable-pub-deletion_commit",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "deletion_commit"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "f1ea215b3fd7cb25c638a958eaa2807f99ca53adf352ec7f8bf8df05b43699d2",
+      "log_sha256": "f64d6a749fcf59aedbb4cfb750598e39cb88155eef2e2a910a135ee794c93197",
+      "generated": 20,
+      "distinct": 16,
+      "remaining": 10
+    },
+    {
+      "name": "reachable-pub-deletion_rollback",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "deletion_rollback"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "02954d2f3368fd89dd03784a1db03f20642094c1e5b09088b613e2952098638f",
+      "log_sha256": "6afe3166efff0e3b20e3ad0064ce004213c3d4e410eca7acc27ccdd45d9e3928",
+      "generated": 21,
+      "distinct": 17,
+      "remaining": 11
+    },
+    {
+      "name": "reachable-pub-batch_begin",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "batch_begin"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "38002b6b2a8c808b6df2632625ebda985c9ffa1112dec0a37e15984133175942",
+      "log_sha256": "8e08c6eb2e827d4474cbd6a8fdccdb8509bd879f7a8df0fc912465d5896480c3",
+      "generated": 512,
+      "distinct": 263,
+      "remaining": 58
+    },
+    {
+      "name": "reachable-pub-last_reference_collected",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "last_reference_collected"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "f3e41a3c46b5002a7baaae39e83a56b5d0684e9e0e1f1f71187a74755f7d98f9",
+      "log_sha256": "1935b3ff0bcc5962227c2f3e84ddc20c8af2e5179548b464ebce5de230ba596e",
+      "generated": 608,
+      "distinct": 308,
+      "remaining": 44
+    },
+    {
+      "name": "reachable-pub-partial_batch",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 2,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "partial_batch"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "e8bd0688a4a6f20c58a98d1be17b95aaadda1d02dad3d96262c64883ab17d0d8",
+      "log_sha256": "7c6fdd98b9119ab7f12fa938f4d3a35ad2c115e750d9bf188326692b8670bb63",
+      "generated": 688,
+      "distinct": 337,
+      "remaining": 7
+    },
+    {
+      "name": "reachable-pub-batch_rollback",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "batch_rollback"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "17eee74d9727ed9b8ff0c153c64bdc0d68dff077e8fdb93ac47f713b9d5f4d6b",
+      "log_sha256": "c8c9ec5283a7b28b7100d76d5a75405ab79bff2f4bd977536b9ac6faa53bf354",
+      "generated": 609,
+      "distinct": 309,
+      "remaining": 45
+    },
+    {
+      "name": "reachable-pub-project_gone",
+      "model": "ArtifactPublication",
+      "constants": {
+        "ClientCount": 2,
+        "SlotCount": 1,
+        "BatchSize": 1,
+        "Fault": "none",
+        "Witness": "project_gone"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "5f28e7d94df91112211b951269dd757ccb0848f5c9a94da16e4421ff808b5a4b",
+      "log_sha256": "f77d43e6ad2045e411dade2ed98ff280319f4a9bea3c80c78cacf9196a74d612",
+      "generated": 211,
+      "distinct": 122,
+      "remaining": 53
+    },
+    {
+      "name": "reachable-gc-fresh_after_wait",
+      "model": "ArtifactGC",
+      "constants": {
+        "Count": 2,
+        "WriterEnabled": true,
+        "Fault": "none",
+        "Witness": "fresh_after_wait"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "be7891cd7032fa680a0dd1b225a9232655985ba5104131897179a7a3536b1e70",
+      "log_sha256": "a9e14b9a276c2daad0f079ef5ea342b1363620b720e9b8b7751ffa2c21eb4514",
+      "generated": 121,
+      "distinct": 76,
+      "remaining": 33
+    },
+    {
+      "name": "reachable-gc-lock_after_writer",
+      "model": "ArtifactGC",
+      "constants": {
+        "Count": 2,
+        "WriterEnabled": true,
+        "Fault": "none",
+        "Witness": "lock_after_writer"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "1de0598beb218a1f0d5d691120faf4f022c8a122c0d6a7994b059d26784c9c3b",
+      "log_sha256": "9d9f23a61a0e69810293d6432ba4ae553898b7f6d2ffb9ebbf2c088c81f291c3",
+      "generated": 66,
+      "distinct": 42,
+      "remaining": 20
+    },
+    {
+      "name": "reachable-gc-collect_last",
+      "model": "ArtifactGC",
+      "constants": {
+        "Count": 2,
+        "WriterEnabled": true,
+        "Fault": "none",
+        "Witness": "collect_last"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "51bc4b9f7c1acf345ab5beacb7cd864d85fbc085c005a81bbb66665041255269",
+      "log_sha256": "eb7d822fd92716b1140269b08cf088de93cc9c1a52b67704986b326d25dadabe",
+      "generated": 365,
+      "distinct": 213,
+      "remaining": 57
+    },
+    {
+      "name": "reachable-gc-retain_shared",
+      "model": "ArtifactGC",
+      "constants": {
+        "Count": 2,
+        "WriterEnabled": true,
+        "Fault": "none",
+        "Witness": "retain_shared"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "e66fd4611821c7cefd4513a3b74ce9a4e928bece0f4c94db63b0add8fe30fa05",
+      "log_sha256": "892e99ed4841126ceabaf49a4b311a8800f106ef5069bc1bd80a8821dfc5e095",
+      "generated": 44,
+      "distinct": 29,
+      "remaining": 14
+    },
+    {
+      "name": "reachable-gc-purge_rollback",
+      "model": "ArtifactGC",
+      "constants": {
+        "Count": 2,
+        "WriterEnabled": true,
+        "Fault": "none",
+        "Witness": "purge_rollback"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "a8c48b0bb2bf6b2d743c6b0f725fa55062ac15b2dbfb1824f8626a7638345c19",
+      "log_sha256": "b29b6efbc43341400f9b963f40ba97c1295903c0792372f1b10a47e6ae71275a",
+      "generated": 6,
+      "distinct": 6,
+      "remaining": 3
+    },
+    {
+      "name": "reachable-gc-write_after_collection",
+      "model": "ArtifactGC",
+      "constants": {
+        "Count": 2,
+        "WriterEnabled": true,
+        "Fault": "none",
+        "Witness": "write_after_collection"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "aa77e31830f71f8f2adf492da6be52d033a15e54081e47b7adbb6ac6f5540373",
+      "log_sha256": "0b7f210438cc05f11bb77ebbb6c9f5ced70c00551c0c67c020b14871d0cb7b1f",
+      "generated": 560,
+      "distinct": 335,
+      "remaining": 42
+    },
+    {
+      "name": "reachable-gc-write_shared",
+      "model": "ArtifactGC",
+      "constants": {
+        "Count": 2,
+        "WriterEnabled": true,
+        "Fault": "none",
+        "Witness": "write_shared"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "b49d9ed859cb924e4f8140f2954e66b456ddb37627ecdab90f5318eedf454cfe",
+      "log_sha256": "5b08bc46b6e06a7952223f3c466990751a6598441013292c802beeb9f664d2e4",
+      "generated": 15,
+      "distinct": 12,
+      "remaining": 7
+    },
+    {
+      "name": "reachable-gc-writer_rollback",
+      "model": "ArtifactGC",
+      "constants": {
+        "Count": 2,
+        "WriterEnabled": true,
+        "Fault": "none",
+        "Witness": "writer_rollback"
+      },
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "exit_code": 12,
+      "passed": true,
+      "config_sha256": "ad508a8d9510743e4fb8478361eb471cdbce21da7e87e561cc1b34d0b5ef6c50",
+      "log_sha256": "f7fb007431021608e6ef37cd29a85bae9fb8b93d729c7dadf7b24f93052a9b30",
+      "generated": 16,
+      "distinct": 13,
+      "remaining": 8
+    }
+  ],
+  "tests": {
+    "passed": true,
+    "new_leaf_scenarios": 9,
+    "required": {
+      "artifacts/postgres": [
+        "TestPostgresPublicationPilotSourcePurge/publication/commit",
+        "TestPostgresPublicationPilotSourcePurge/publication/rollback",
+        "TestPostgresPublicationPilotSourcePurge/purge/commit",
+        "TestPostgresPublicationPilotSourcePurge/purge/rollback",
+        "TestPostgresPublicationPilotProjectFence/publication/commit",
+        "TestPostgresPublicationPilotProjectFence/publication/rollback",
+        "TestPostgresPublicationPilotProjectFence/deletion/commit",
+        "TestPostgresPublicationPilotProjectFence/deletion/rollback",
+        "TestPostgresPublicationPilotComposedDeletion",
+        "TestPostgresIntegrationPublishesExactFrozenRunOutputToOwningProject",
+        "TestPostgresConcurrentReplayFork",
+        "TestPostgresConcurrentPurgeSharedBlob/rollback=false",
+        "TestPostgresConcurrentPurgeSharedBlob/rollback=true",
+        "TestPostgresPurgeConcurrentIdenticalWrite",
+        "TestPostgresPurgeWaitsForRetainingPublication",
+        "TestPostgresPurgeRequiresFreshStatementSnapshots",
+        "TestPostgresIntegrationProjectScopePurgeCommitsBoundedBatches",
+        "TestPostgresIntegrationRunDeletionParticipatesInCallerTransaction",
+        "TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts",
+        "TestStorageReviewProjectDeletionAdmission/postgresql/publication/mutation-first",
+        "TestStorageReviewProjectDeletionAdmission/postgresql/publication/deletion-first",
+        "TestStorageReviewProjectDeletionAdmission/filesystem/publication/mutation-first",
+        "TestStorageReviewProjectDeletionAdmission/filesystem/publication/deletion-first"
+      ],
+      "rundeletion": [
+        "TestPostgresRunDeletionGatesMatchDeletion"
+      ]
+    },
+    "top_level_passes": 94,
+    "skips": [
+      {
+        "package": "github.com/grauwolf32/contractor/internal/artifacts/postgres",
+        "test": "TestPostgresIntegration64MiBPayloadBoundary"
+      },
+      {
+        "package": "github.com/grauwolf32/contractor/internal/artifacts/postgres",
+        "test": "TestPostgresArtifactSelectiveQueryPlans"
+      },
+      {
+        "package": "github.com/grauwolf32/contractor/internal/artifacts/postgres",
+        "test": "TestPostgresRunRevisionLimitAndBoundedPurge"
+      },
+      {
+        "package": "github.com/grauwolf32/contractor/internal/artifacts/postgres",
+        "test": "TestPostgresRunRevisionLimitIsNotRefundedByHistoryRetention"
+      }
+    ],
+    "input_sha256": "0084a05a04fd6c9d5158e3b10b5b07a1e774b02433ce46837e623b04313e4358",
+    "mapping": {
+      "AtomicPublication": [
+        "TestPostgresPublicationPilotSourcePurge",
+        "TestPostgresPublicationPilotProjectFence"
+      ],
+      "ExactPublication": [
+        "TestPostgresIntegrationPublishesExactFrozenRunOutputToOwningProject",
+        "TestPostgresPublicationPilotSourcePurge"
+      ],
+      "CreateOnly": [
+        "TestPostgresIntegrationPublishesExactFrozenRunOutputToOwningProject",
+        "TestPostgresConcurrentReplayFork"
+      ],
+      "Fenced": [
+        "TestPostgresPublicationPilotProjectFence",
+        "TestStorageReviewProjectDeletionAdmission"
+      ],
+      "LockDiscipline": [
+        "TestPostgresPublicationPilotSourcePurge",
+        "TestPostgresPublicationPilotProjectFence",
+        "TestPostgresPurgeWaitsForRetainingPublication"
+      ],
+      "ReferencesSafe": [
+        "TestPostgresPublicationPilotComposedDeletion",
+        "TestPostgresConcurrentPurgeSharedBlob",
+        "TestPostgresPurgeConcurrentIdenticalWrite"
+      ],
+      "IndependentRetention": [
+        "TestPostgresPublicationPilotComposedDeletion",
+        "TestPostgresPublicationPilotSourcePurge"
+      ],
+      "PurgedScopeEmpty": [
+        "TestPostgresIntegrationProjectScopePurgeCommitsBoundedBatches",
+        "TestPostgresPublicationPilotComposedDeletion"
+      ],
+      "AtomicRegistry": [
+        "TestPostgresConcurrentPurgeSharedBlob/rollback=true",
+        "TestPostgresPublicationPilotComposedDeletion"
+      ],
+      "CompleteGC": [
+        "TestPostgresConcurrentPurgeSharedBlob/rollback=false",
+        "TestPostgresIntegrationProjectScopePurgeCommitsBoundedBatches"
+      ],
+      "fresh_snapshot_requirement": [
+        "TestPostgresPurgeRequiresFreshStatementSnapshots",
+        "TestPostgresPurgeConcurrentIdenticalWrite",
+        "TestPostgresConcurrentPurgeSharedBlob"
+      ],
+      "lifecycle_preconditions_separate_from_model": [
+        "TestPostgresRunDeletionGatesMatchDeletion",
+        "TestPostgresPublicationPilotComposedDeletion"
+      ]
+    }
+  },
+  "checks": {
+    "go": {
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "-race",
+        "-tags=integration",
+        "-count=1",
+        "-timeout",
+        "20m",
+        "./internal/artifacts/postgres",
+        "./internal/rundeletion"
+      ],
+      "exit_code": 0,
+      "log_sha256": "0084a05a04fd6c9d5158e3b10b5b07a1e774b02433ce46837e623b04313e4358"
+    },
+    "lint": {
+      "command": [
+        "make",
+        "lint"
+      ],
+      "exit_code": 0,
+      "log_sha256": "721d656e56cb04f8fee63212403d0807829b9da0df9f34d26834a53f22430755"
+    }
+  },
+  "cleanup": {
+    "passed": true,
+    "database": "contractor_v498_artifact",
+    "active_client_connections_before_drop": 0,
+    "only_owned_test_database_present": true,
+    "database_absent_before_stop": true,
+    "server_stopped": true,
+    "owned_data_removed": true,
+    "owned_socket_removed": true
+  },
+  "heavy_io_opt_in": false,
+  "limits": [
+    "Finite safety only; no unbounded proof, fairness, liveness, Go/SQL refinement or theorem composing the two models.",
+    "Publication model: one frozen source, one Project, one/two clients and slots, batch size one/two; one publication attempt per client and one source-purge/deletion attempt; batch abort can retry.",
+    "GC model: one/two purgers, each with one separate version/reference; one shared blob and optional writer of a third version. Shared references to one version are covered separately by Publication.",
+    "Transaction atomicity, unique/FK arbitration and lock semantics are abstract assumptions with separate PostgreSQL tests. Mutants do not represent all remaining SQL constraints; FK guards may abort instead of allowing modeled dangling data.",
+    "Run terminal/released and Project drain authority are assumed by direct Purger schedules, checked separately through real RunDeletion and a composed drained-Project scenario; no full Project deletion controller restart/claim test.",
+    "Audit/finding publication flows, history retention, physical filesystem cleanup/read leases, prepared payload ingestion, Scheduler terminal publication receipts/recovery, HTTP authorization and network failures excluded.",
+    "Four named heavy IO fixtures skipped by explicit policy and not counted as passing coverage. Ordinary bounded Project purge uses 15 revisions and batch=4; production 50000-revision scale is unverified here.",
+    "No production defect established or production behavior/schema/API changed."
+  ],
+  "reopen_when": "ArtifactStore and lifecycle owners revisit admission, locks, exact references, transaction boundaries or purge batches.",
+  "implementation_commit": "4015bcacf5aa3888d975d21e9ae242f09f54b3fc"
+}
