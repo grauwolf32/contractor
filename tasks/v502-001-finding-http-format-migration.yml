@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V502-001
+title: Migrate stored HTTP Finding proposals and exact references in place
+milestone: findings-tools
+epic: findings
+kind: defect
+introduced_by: V496-001
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, sql]
+goal: Existing Finding links open after the HTTP evidence format change without archival copies or duplicate Artifact revisions.
+context:
+  authority: >-
+    User 2026-11-28 requests correcting the format migration and updating the
+    demo so all 25 affected Findings open. The later explicit correction removes
+    preservation of original documents as duplicates: normalize existing content
+    and references in place, retain Finding identities, and do not archive old bytes.
+  specification: docs/spec/platform/persistence.md#PER-R33
+  finding: >-
+    internal/auditdomain/finding_proposal_json.go:21 accepts http_exchanges while
+    25 retained demo proposal blobs and their report projections use http_exchange.
+    internal/findingintake/audit_receipt_batch.go:207 classifies their decode
+    failure as artifact_content_corrupt. No data migration accompanied V496-001.
+  siblings: >-
+    Original and Project-retained Artifact versions, exact receipt/hold/Finding
+    descriptors, checks/report projections, source-history artifacts and typed
+    exact descriptors embedded in persisted JSON. Unchanged HTTP evidence,
+    Finding IDs, revisions, analyst decisions, receipts, bindings and holds remain
+    the same. The ordinary strict reader remains unchanged.
+  decision: >-
+    Add one transactional SQL migration, using temporary bounded rewrite state.
+    Replace legacy proposal/report fields, recompute affected blob identities,
+    propagate exact digest/size references and counters, and delete replaced
+    unreferenced blobs. Existing version/revision IDs are not republished.
+    Temporary trigger suspension is confined to this migrator transaction and
+    original trigger modes are restored. No permanent compatibility reader,
+    migration receipt mechanism or archive is introduced.
+  bounds: >-
+    Expected demo inventory: 53 Findings, 55 receipts, 643 blobs, 25 affected
+    proposals and 26 referring source-history blobs. Bound inventory to 10000
+    JSON blobs and metadata rows per column, 64 MiB total inspected JSON bytes,
+    512 rewritten blobs, 32 MiB rewritten bytes and 16 reference propagation
+    passes. Unsupported affected filesystem payloads, referencing collection/export
+    bundles, mixed field shapes or canonical values outside the owned ASCII-key,
+    safe-integer document grammar fail and roll back before publication.
+scope:
+  in:
+    - A new immutable migration following 000002, with bounded preflight and atomic in-place normalization.
+    - Real PostgreSQL upgrade, independent current-domain decode/canonical checks, identity/count/hold/counter preservation, rollback and rerun tests.
+    - An explicit specification exception for this one-time format transition.
+    - Deploy the verified revision after a recoverable backup and verify all 25 old links and their sources through the public API.
+  out:
+    - New source archives, duplicate Artifact revisions, lenient readers, domain feature changes or model changes.
+acceptance_criteria:
+  - id: A1
+    text: The previous schema's singular HTTP proposal and report documents become valid current canonical documents with every exact digest/size reference reconciled; old Finding identities and analyst state are unchanged.
+  - id: A2
+    text: No Artifact bindings, versions or revisions are added; replaced unreferenced blobs are removed, unchanged evidence is exact, byte counters/holds and immutability enforcement remain correct.
+  - id: A3
+    text: New-format/unrelated content is unchanged; unsupported, malformed, oversized and over-bound cases roll back data, triggers and migration ledger, and rerunning the migrator changes nothing.
+  - id: A4
+    text: Real PostgreSQL migration/package tests and lint pass; demo verification records successful reads for all 25 previously failing Findings without duplicate archives.
+tests:
+  - command: CONTRACTOR_TEST_DATABASE_URL=<owned-disposable-db> go test -tags=integration -count=1 ./internal/persistence/postgres ./internal/persistence ./internal/auditdomain ./internal/findingintake ./internal/auditservice
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
