@@ -605,10 +605,20 @@ func validProposals(v, program, materials map[string]any) bool {
 func validContext(v map[string]any) bool {
 	seen := map[string]bool{}
 	tasks := map[string]bool{}
+	finding, ordinary := v["finding"].(map[string]any)
+	if ordinary && (len(v["items"].([]any)) != 1 || len(finding["assertion"].(string)) > 32768) {
+		return false
+	}
 	for _, raw := range v["items"].([]any) {
 		item := raw.(map[string]any)
 		key := item["item_key"].(string)
-		task := item["task_id"].(string)
+		if ordinary && (item["finding_id"] != finding["findingId"] || item["objective"] != finding["assertion"]) || !ordinary && item["finding_id"] != nil {
+			return false
+		}
+		task, _ := item["task_id"].(string)
+		if task == "" {
+			task, _ = item["finding_id"].(string)
+		}
 		if seen[key] || tasks[task] {
 			return false
 		}
@@ -640,6 +650,8 @@ func assemble(v, context map[string]any) bool {
 		delete(members, key)
 		hypothesis, checking := member["hypothesis"]
 		verdict, hasVerdict := item["verdict"]
+		_, findingCheck := member["finding_id"]
+		checking = checking || findingCheck
 		if checking != hasVerdict {
 			return false
 		}
@@ -662,7 +674,10 @@ func assemble(v, context map[string]any) bool {
 			}
 		}
 		origin := map[string]any{"audit_id": context["audit_id"], "run_id": context["run_id"], "task_id": member["task_id"]}
-		if checking {
+		if findingCheck {
+			origin = map[string]any{"run_id": context["run_id"], "finding": context["finding"]}
+		}
+		if hypothesis != nil {
 			snapshot := hypothesis.(map[string]any)
 			origin["hypothesis"] = map[string]any{"id": snapshot["id"], "revision": snapshot["revision"]}
 		}
@@ -679,4 +694,29 @@ func assemble(v, context map[string]any) bool {
 	}
 	v["schema"] = "contractor.audit.result.v1"
 	return len(members) == 0
+}
+
+// ValidateFindingContext verifies the full strict context and the immutable
+// ordinary Run pin together, before any Worker or target execution is admitted.
+func ValidateFindingContext(data []byte, finding contracts.FindingCheck, runID, projectID, workflowRef, workflowDigest string) error {
+	canonical, err := Decode(data, nil)
+	if err != nil {
+		return err
+	}
+	var value map[string]any
+	if strictjson.Decode(canonical, &value) != nil || value["schema"] != "contractor.audit.context.v1" || value["run_id"] != runID || value["project_id"] != projectID || value["workflow_ref"] != workflowRef || value["workflow_digest"] != workflowDigest {
+		return errInvalid
+	}
+	if value["items"].([]any)[0].(map[string]any)["item_key"] != ExecutionItemKey(0) {
+		return errInvalid
+	}
+	selected, err := strictjson.Canonical(value["finding"])
+	if err != nil {
+		return errInvalid
+	}
+	expected, err := strictjson.Canonical(finding)
+	if err != nil || string(selected) != string(expected) {
+		return errInvalid
+	}
+	return nil
 }

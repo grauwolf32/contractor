@@ -46,9 +46,11 @@ class EvidencePersistenceUnknown(ArtifactTransportError, ToolResultDiagnostic):
 
 
 class AuditEvidenceClient:
-    def __init__(self, client, *, run_id, audit_id):
+    def __init__(self, client, *, run_id, audit_id, project_id=None):
         self.client = client
         self.run_id, self.audit_id = run_id, audit_id
+        self.scope_kind = "project" if project_id is not None else "audit"
+        self.scope_id = project_id if project_id is not None else audit_id
 
     async def submit(self, value):
         try:
@@ -98,16 +100,16 @@ class AuditEvidenceClient:
             ) from None
         if (
             receipt.itemKey != value["itemKey"]
-            or receipt.material["scope_kind"] != "audit"
-            or receipt.material["scope_id"] != self.audit_id
+            or receipt.material["scope_kind"] != self.scope_kind
+            or receipt.material["scope_id"] != self.scope_id
             or len(receipt.selectedSources) != len(value["sources"])
             or len(receipt.sources) != len(value["sources"])
         ):
             raise ArtifactTransportError("Audit evidence API returned an inconsistent receipt")
         for retained, selected in zip(receipt.sources, receipt.selectedSources, strict=True):
             if (
-                retained["scope_kind"] != "audit"
-                or retained["scope_id"] != self.audit_id
+                retained["scope_kind"] != self.scope_kind
+                or retained["scope_id"] != self.scope_id
                 or any(
                     retained[field] != selected[field]
                     for field in ("digest", "media_type", "size_bytes")

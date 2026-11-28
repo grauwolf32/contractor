@@ -87,6 +87,14 @@ class InvocationAuditCollector:
         return self._encoder.trusted_inputs(self.inputs).audit_id
 
     @property
+    def scope_kind(self):
+        return self._encoder.trusted_inputs(self.inputs).scope_kind
+
+    @property
+    def scope_id(self):
+        return self._encoder.trusted_inputs(self.inputs).scope_id
+
+    @property
     def owner(self):
         return self._inputs.owner
 
@@ -231,7 +239,7 @@ class InvocationAuditCollector:
         if not isinstance(item, NormalizedAuditItem) or item.item_key not in self._tasks:
             raise AuditCollectionError("item_key", "Choose an item key from read_audit_task.")
         member = self._tasks[item.item_key]
-        if ("hypothesis" in member) != (item.verdict is not None):
+        if ("hypothesis" in member or "finding_id" in member) != (item.verdict is not None):
             raise AuditCollectionError(
                 "verdict", "Supply a verdict only for a task with an assigned hypothesis."
             )

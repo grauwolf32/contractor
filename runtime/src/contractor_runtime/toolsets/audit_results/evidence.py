@@ -103,7 +103,10 @@ class EvidenceTool(ArtifactTool):
                 for ref in refs:
                     self.resources.selected_versions.admit_write(evidence_snapshot_ref(ref))
                 return await AuditEvidenceClient(
-                    self._client, run_id=self.sources.run_id, audit_id=collector.audit_id
+                    self._client,
+                    run_id=self.sources.run_id,
+                    audit_id=collector.audit_id,
+                    project_id=collector.scope_id if collector.scope_kind == "project" else None,
                 ).submit(
                     {
                         "invocationId": tool_context.invocation_id,
@@ -123,7 +126,7 @@ class EvidenceTool(ArtifactTool):
                 tested_conditions=conditions,
                 limitations=gaps,
             )
-            if receipt["material"]["scope_id"] != collector.audit_id:
+            if receipt["material"]["scope_id"] != collector.scope_id:
                 raise RuntimeError("Evidence receipt belongs to another Audit")
             for selected in receipt["selectedSources"]:
                 self.resources.selected_versions.observe(

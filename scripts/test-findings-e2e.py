@@ -33,6 +33,7 @@ PROCESS_TESTS = (
     "TestProjectDocumentOutputLimitRecoveryAcrossProcesses",
     "TestIndependentFindingsServersAcrossProcesses",
     "TestProcessDatabaseIsolation",
+    "TestFindingCheckOwnerAcrossProcesses",
 )
 REQUIRED_TESTS = frozenset(
     (

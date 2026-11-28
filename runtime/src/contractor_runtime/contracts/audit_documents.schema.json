@@ -196,9 +196,58 @@
     },
     "context": {
       "additionalProperties": false,
+      "oneOf": [
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "finding"
+                ]
+              },
+              {
+                "required": [
+                  "project_id"
+                ]
+              }
+            ]
+          },
+          "required": [
+            "audit_id"
+          ]
+        },
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "audit_id"
+                ]
+              },
+              {
+                "required": [
+                  "task_id"
+                ]
+              },
+              {
+                "required": [
+                  "hypothesis"
+                ]
+              }
+            ]
+          },
+          "required": [
+            "finding",
+            "project_id"
+          ]
+        }
+      ],
       "properties": {
         "audit_id": {
           "$ref": "#/$defs/resource_id"
+        },
+        "finding": {
+          "$ref": "#/$defs/finding_check"
         },
         "items": {
           "items": {
@@ -207,6 +256,9 @@
           "maxItems": 64,
           "minItems": 1,
           "type": "array"
+        },
+        "project_id": {
+          "$ref": "#/$defs/resource_id"
         },
         "run_id": {
           "$ref": "#/$defs/resource_id"
@@ -224,7 +276,6 @@
       },
       "required": [
         "schema",
-        "audit_id",
         "run_id",
         "workflow_ref",
         "workflow_digest",
@@ -234,6 +285,33 @@
     },
     "digest": {
       "$ref": "#/$defs/common_digest"
+    },
+    "finding_check": {
+      "additionalProperties": false,
+      "properties": {
+        "assertion": {
+          "$ref": "#/$defs/text",
+          "maxLength": 32768
+        },
+        "findingId": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "receiptId": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "findingId",
+        "revision",
+        "receiptId",
+        "assertion"
+      ],
+      "type": "object"
     },
     "hypothesis": {
       "additionalProperties": false,
@@ -569,6 +647,37 @@
     },
     "member": {
       "additionalProperties": false,
+      "oneOf": [
+        {
+          "not": {
+            "required": [
+              "finding_id"
+            ]
+          },
+          "required": [
+            "task_id"
+          ]
+        },
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "task_id"
+                ]
+              },
+              {
+                "required": [
+                  "hypothesis"
+                ]
+              }
+            ]
+          },
+          "required": [
+            "finding_id"
+          ]
+        }
+      ],
       "properties": {
         "evidence": {
           "items": {
@@ -577,6 +686,9 @@
           "maxItems": 256,
           "type": "array",
           "uniqueItems": true
+        },
+        "finding_id": {
+          "$ref": "#/$defs/resource_id"
         },
         "finding_receipts": {
           "items": {
@@ -601,7 +713,6 @@
       },
       "required": [
         "item_key",
-        "task_id",
         "evidence",
         "objective"
       ],

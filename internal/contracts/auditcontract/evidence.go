@@ -87,16 +87,17 @@ func EvidenceSnapshotRef(source contracts.ArtifactRef) (contracts.ArtifactRef, e
 }
 
 type EvidenceOrigin struct {
-	AllocationID     string         `json:"allocation_id"`
-	StageExecutionID string         `json:"stage_execution_id"`
-	LogicalAgentName string         `json:"logical_agent_name"`
-	InvocationID     string         `json:"invocation_id"`
-	SubmissionID     string         `json:"submission_id"`
-	AuditID          string         `json:"audit_id"`
-	TaskID           string         `json:"task_id"`
-	RunID            string         `json:"run_id"`
-	ExecutionID      string         `json:"execution_id"`
-	Hypothesis       *HypothesisRef `json:"hypothesis,omitempty"`
+	Finding          *contracts.FindingCheck `json:"finding,omitempty"`
+	AllocationID     string                  `json:"allocation_id"`
+	StageExecutionID string                  `json:"stage_execution_id"`
+	LogicalAgentName string                  `json:"logical_agent_name"`
+	InvocationID     string                  `json:"invocation_id"`
+	SubmissionID     string                  `json:"submission_id"`
+	AuditID          string                  `json:"audit_id,omitempty"`
+	TaskID           string                  `json:"task_id,omitempty"`
+	RunID            string                  `json:"run_id"`
+	ExecutionID      string                  `json:"execution_id,omitempty"`
+	Hypothesis       *HypothesisRef          `json:"hypothesis,omitempty"`
 }
 type EvidenceRecord struct {
 	SelectedSources  []Material     `json:"selected_sources"`
@@ -115,7 +116,20 @@ func (v EvidenceRecord) Validate() error {
 	if len(v.Origin.InvocationID) > 128 || len(v.Origin.SubmissionID) > 128 || v.Schema != "contractor.audit.evidence.v1" || !contentdigest.Valid(v.RequestDigest) || len(v.Sources) != len(v.SelectedSources) {
 		return errInvalid
 	}
-	for _, id := range []string{v.Origin.AuditID, v.Origin.TaskID, v.Origin.RunID, v.Origin.ExecutionID, v.Origin.AllocationID, v.Origin.StageExecutionID, v.Origin.LogicalAgentName, v.Origin.InvocationID, v.Origin.SubmissionID} {
+	scopeKind, scopeID := "audit", v.Origin.AuditID
+	if v.Origin.Finding != nil {
+		if v.Origin.Finding.Validate() != nil || v.Origin.AuditID != "" || v.Origin.ExecutionID != "" || v.Origin.TaskID != "" || v.Origin.Hypothesis != nil {
+			return errInvalid
+		}
+		scopeKind = "project"
+		if len(v.Sources) == 0 {
+			return errInvalid
+		}
+		scopeID = v.Sources[0].ScopeID
+	} else if !contracts.ValidResourceID(v.Origin.AuditID) || !contracts.ValidResourceID(v.Origin.TaskID) || !contracts.ValidResourceID(v.Origin.ExecutionID) {
+		return errInvalid
+	}
+	for _, id := range []string{v.Origin.RunID, v.Origin.AllocationID, v.Origin.StageExecutionID, v.Origin.LogicalAgentName, v.Origin.InvocationID, v.Origin.SubmissionID} {
 		if !contracts.ValidResourceID(id) {
 			return errInvalid
 		}
@@ -126,7 +140,7 @@ func (v EvidenceRecord) Validate() error {
 	refs := make([]contracts.ArtifactRef, 0, len(v.Sources))
 	for index, source := range v.Sources {
 		selected := v.SelectedSources[index]
-		if source.Validate() != nil || selected.Validate() != nil || source.ScopeKind != "audit" || source.ScopeID != v.Origin.AuditID || selected.ScopeKind != "run" || selected.ScopeID != v.Origin.RunID || source.Digest != selected.Digest || source.MediaType != selected.MediaType || source.SizeBytes != selected.SizeBytes {
+		if source.Validate() != nil || selected.Validate() != nil || source.ScopeKind != scopeKind || source.ScopeID != scopeID || selected.ScopeKind != "run" || selected.ScopeID != v.Origin.RunID || source.Digest != selected.Digest || source.MediaType != selected.MediaType || source.SizeBytes != selected.SizeBytes {
 			return errInvalid
 		}
 		refs = append(refs, source.Ref)

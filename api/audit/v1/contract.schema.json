@@ -53,7 +53,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 65536,
-      "pattern": "[^\t\n\u000b\f\r                  　]",
+      "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]",
       "x-maxUtf8Bytes": 65536
     },
     "digest": {
@@ -679,15 +679,48 @@
         },
         "objective": {
           "$ref": "#/$defs/text"
+        },
+        "finding_id": {
+          "$ref": "#/$defs/resource_id"
         }
       },
       "required": [
         "item_key",
-        "task_id",
         "evidence",
         "objective"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "task_id"
+          ],
+          "not": {
+            "required": [
+              "finding_id"
+            ]
+          }
+        },
+        {
+          "required": [
+            "finding_id"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "task_id"
+                ]
+              },
+              {
+                "required": [
+                  "hypothesis"
+                ]
+              }
+            ]
+          }
+        }
+      ]
     },
     "context": {
       "type": "object",
@@ -715,17 +748,68 @@
           },
           "maxItems": 64,
           "minItems": 1
+        },
+        "finding": {
+          "$ref": "#/$defs/finding_check"
+        },
+        "project_id": {
+          "$ref": "#/$defs/resource_id"
         }
       },
       "required": [
         "schema",
-        "audit_id",
         "run_id",
         "workflow_ref",
         "workflow_digest",
         "items"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "audit_id"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "finding"
+                ]
+              },
+              {
+                "required": [
+                  "project_id"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "finding",
+            "project_id"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "audit_id"
+                ]
+              },
+              {
+                "required": [
+                  "task_id"
+                ]
+              },
+              {
+                "required": [
+                  "hypothesis"
+                ]
+              }
+            ]
+          }
+        }
+      ]
     },
     "origin": {
       "type": "object",
@@ -741,14 +825,52 @@
         },
         "hypothesis": {
           "$ref": "#/$defs/hypothesis_ref"
+        },
+        "finding": {
+          "$ref": "#/$defs/finding_check"
         }
       },
       "required": [
-        "audit_id",
-        "task_id",
         "run_id"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "audit_id",
+            "task_id"
+          ],
+          "not": {
+            "required": [
+              "finding"
+            ]
+          }
+        },
+        {
+          "required": [
+            "finding"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "audit_id"
+                ]
+              },
+              {
+                "required": [
+                  "task_id"
+                ]
+              },
+              {
+                "required": [
+                  "hypothesis"
+                ]
+              }
+            ]
+          }
+        }
+      ]
     },
     "conclusion_item": {
       "type": "object",
@@ -789,7 +911,7 @@
             "minLength": 1,
             "maxLength": 512,
             "x-maxUtf8Bytes": 512,
-            "pattern": "[^\t\n\u000b\f\r                  　]"
+            "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]"
           },
           "maxItems": 512,
           "uniqueItems": true
@@ -843,7 +965,7 @@
             "minLength": 1,
             "maxLength": 512,
             "x-maxUtf8Bytes": 512,
-            "pattern": "[^\t\n\u000b\f\r                  　]"
+            "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]"
           },
           "maxItems": 512,
           "uniqueItems": true
@@ -1647,6 +1769,33 @@
         "evidence"
       ],
       "additionalProperties": false
+    },
+    "finding_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "findingId",
+        "revision",
+        "receiptId",
+        "assertion"
+      ],
+      "properties": {
+        "findingId": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "receiptId": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "assertion": {
+          "$ref": "#/$defs/text",
+          "maxLength": 32768
+        }
+      }
     }
   },
   "x-maxEncodedBytes": 8388608
