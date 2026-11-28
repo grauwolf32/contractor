@@ -1,0 +1,117 @@
+schema_version: "1.0"
+id: V493-001
+title: Run bounded Semgrep static checks with pinned local rulepacks
+milestone: scan-tools-followups
+epic: scan-tools
+kind: feature
+priority: P1
+status: in_progress
+depends_on: []
+languages: [python, go]
+goal: >-
+  Users run static security checks over an exact source ZIP through an ordinary
+  model-free Workflow, using installed Semgrep rules or an exact custom rulepack,
+  and retain a bounded report plus unassessed Project Findings with rule, file,
+  line, selected code evidence and incomplete-scan status.
+demonstration: >-
+  The real Semgrep engine scans a vulnerable and a safe source fixture using
+  local rules through scan_semgrep; the ordinary tool Worker writes its report.
+context:
+  specification: docs/spec/tools/scanners.md
+  authority: >-
+    User request 2026-11-28: add Semgrep and its rulepack like Nuclei for static
+    code checks. Implementation choice: Runtime owns Semgrep parsing; existing
+    exact Artifact inputs, source ZIP validation, process bounds and tool Worker
+    receipts own transport and execution. Installed upstream rules are fetched
+    at provisioning time with a pinned revision and checksum, never at scan time.
+    User decision 2026-11-28 after clarification: publish scanner assertions as
+    Project Findings immediately. Preserve source tool/rule/package provenance;
+    no scanner match sets analyst verdicts. Future LLM validation should record
+    an assessment against an exact Finding revision and checker Workflow version.
+    Scope grows from reports to normal Findings publication by extending the
+    existing common candidate location to support code and HTTP, without a new
+    store, journal, parser on Server or validation subsystem.
+scope:
+  in:
+    - scan_semgrep in scan@1, independent executable capability, no target network authority.
+    - Exact source ZIP and optional YAML or ZIP custom rulepack; private immutable rule snapshot and digest.
+    - Shared source archive validation, bounded Semgrep JSON normalization and failure reporting.
+    - Shipped model-free Workflow, catalog lock, operator installation and rulepack documentation.
+    - Common code/HTTP candidate locations and ordinary publish-findings Project integration with selected code evidence.
+  out:
+    - Paid engine, cloud account, remote registry lookup, automatic remediation or live deployment.
+    - Audit planning, tool-origin query filters and LLM validation operations; current analyst needs_review remains independent of future machine assessment.
+requirements:
+  - id: R1
+    text: Scan exact source inputs without a model or source-controlled scanner configuration and record exact source/rule provenance.
+  - id: R2
+    text: Custom packs replace installed rules completely; malformed, empty, oversized or unsafe packs fail without fallback.
+  - id: R3
+    text: Findings retain rule, relative file, line range, severity and message; errors, skips and truncation cannot become a clean verdict.
+  - id: R5
+    text: Publish supported positive Semgrep assertions as unassessed Project Findings through common candidates/evidence; retain tool/rule/source/package provenance and selected code windows without treating scanner output as verified truth.
+  - id: R4
+    text: Source validation stays shared with source-analysis and all I/O and parsing run off the event loop with joined cancellation.
+failure_outcomes:
+  - operation: Read and materialize exact Artifact inputs and installed rule files
+    permanent: Invalid source/rulepack and unavailable prerequisites produce fixed failed scan codes without fallback or retries.
+    retryable: Artifact transport errors produce a failed report; ordinary Run retry remains the caller's decision.
+    ambiguous: No input mutations; ordinary tool Worker receipt owns report-write reconciliation.
+    cancelled: Allocation scan session joins process, materialization threads and private directory cleanup.
+    timeout: One invocation deadline covers input reads, preparation and scanner execution.
+  - operation: Run Semgrep
+    permanent: Nonzero engine exit or malformed JSON fails; complete positive rows survive ordinary partial engine failures.
+    retryable: No automatic scanner retry.
+    ambiguous: Static reads have no remote mutation to reconcile.
+    cancelled: Existing process-group cancellation kills and joins descendants before scratch cleanup.
+    timeout: Invocation timeout plus bounded native per-rule timeout and memory controls.
+cardinality:
+  - collection: Source archive
+    expected: One source ZIP, thousands of files.
+    maximum: Existing SourceArchiveLimits, with 512-byte relative paths.
+    bound: Existing source-analysis archive preflight and streamed extraction bounds.
+  - collection: Rulepack
+    expected: One installed package or one custom exact YAML/ZIP input.
+    maximum: 10000 files/rules, 1 MiB per YAML, 64 MiB expanded, 16 MiB custom ZIP.
+    bound: Complete validation and snapshot before engine launch; bounded manifest digest.
+  - collection: Scanner output
+    expected: Zero to hundreds of matches.
+    maximum: 1 MiB process output and 100 results within 128 KiB normalized results.
+    bound: Existing process output cap; truncation and errors explicitly mark incomplete coverage.
+lifecycle:
+  - entity: Invocation inputs and report
+    delete: Ordinary Run and Artifact lifecycle, no new durable store.
+    cascade: Private source and rule snapshots are removed after joined process and threads.
+    retention: Exact report and input provenance follow existing Run Artifact retention.
+acceptance_criteria:
+  - id: A1
+    given: Exact source ZIP and local installed or custom rules
+    when: A model-free Semgrep tool Worker executes
+    then: A report records exact inputs, package digest and bounded static matches from the real engine.
+  - id: A2
+    given: Unsafe inputs, missing engine/rules, malformed output, partial results or cancellation
+    when: The scanner is invoked
+    then: It fails or reports incomplete coverage explicitly, without fallback, leaked diagnostics or retained scratch.
+  - id: A3
+    given: The shipped catalog and deployment role
+    when: Configuration and capability validation run
+    then: Semgrep is selectable as a static scanner and installed with an immutable local rulepack.
+  - id: A4
+    given: A Project scan with evidenced Semgrep matches, including a partial scan
+    when: The ordinary publish-findings operation consumes its common outputs
+    then: File locations and selected code evidence survive receipted publication and replay with null analyst verdict; incomplete scans keep their failure.
+tests:
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+  - command: make test-runtime
+    covers: [A1, A2]
+  - command: go test ./internal/config/...
+    covers: [A3]
+  - command: go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock
+    covers: [A3]
+  - command: go test -tags=integration ./internal/findingintake
+    covers: [A4]
+  - command: make test-wire-cross-language
+    covers: [A1, A3, A4]
+  - command: make test-semgrep-e2e
+    covers: [A1, A2, A3, A4]
