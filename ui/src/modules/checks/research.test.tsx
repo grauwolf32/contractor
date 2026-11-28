@@ -3,12 +3,12 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PublicAPIProvider } from "../../../api/context";
-import type { Audit } from "../../../api/audits";
-import { researchFixture } from "../../../test/audit-research-fixtures";
-import { failure, json } from "../../../test/responses";
-import { testAPI } from "../../../test/render";
-import { useResearchTask } from "./research-data";
+import { PublicAPIProvider } from "../../api/context";
+import type { Audit } from "../../api/audits";
+import { researchFixture } from "../../test/audit-research-fixtures";
+import { failure, json } from "../../test/responses";
+import { testAPI } from "../../test/render";
+import { useResearchTask } from "./research";
 
 function fixture() {
   const research = researchFixture();

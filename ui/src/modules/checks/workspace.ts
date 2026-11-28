@@ -11,10 +11,10 @@ import {
   getAuditWorkspace,
   type Audit,
   type AuditWorkspace,
-} from "../../../api/audits";
-import { usePublicAPI } from "../../../api/context";
-import { queryKeys } from "../../../api/query-keys";
-import { pollInterval } from "../../../app/polling";
+} from "../../api/audits";
+import { usePublicAPI } from "../../api/context";
+import { queryKeys } from "../../api/query-keys";
+import { pollInterval } from "../../app/polling";
 import { useAuditProjectionRefresh } from "./projection-refresh";
 
 export const checkKeys = {

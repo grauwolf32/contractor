@@ -1517,6 +1517,14 @@ exact revisions, authorized navigation destinations and mutations. Renderer
 and Worker imports remain lazy; moving presentation does not introduce a new
 request, plugin registry or alternate lifecycle.
 
+Shared check query controllers and pure display/filter rules live in
+`ui/src/modules/checks`, independently of Project, Checks, Inbox and Reports
+routes. Modules consume the public API and existing query-key roots; they do
+not import route/view modules or router state. Routes supply cursors,
+selection and enablement and retain navigation and lifecycle confirmations.
+Extraction preserves revision caching, bounded pages, request cancellation,
+retry/backoff and the final authoritative read when polling stops.
+
 **UI-R207.** The shared User/Project/Run material Technical details disclosure
 shows every ART-R130 storage timestamp with absolute time and timezone. Labels
 identify storage scope creation, shared blob registration, storage version

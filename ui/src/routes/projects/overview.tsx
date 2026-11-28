@@ -18,7 +18,7 @@ import { RecordedTime } from "../../app/recorded-time";
 import { checkStateLabel } from "../../app/vocabulary";
 import { StatusChip, StatusGlyph } from "../../ui";
 import { artifactDetailPath } from "../../app/artifact-path";
-import { auditProfileLabel } from "./audits/labels";
+import { auditProfileLabel } from "../../modules/checks/labels";
 import { CheckComposer } from "./check-composer";
 import {
   type MaterialsSample,

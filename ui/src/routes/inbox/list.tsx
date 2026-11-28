@@ -16,7 +16,7 @@ import {
   type ListNavigationContainerProps,
   type StatusTone,
 } from "../../ui";
-import { describeStopReason } from "../projects/audits/stop-reason";
+import { describeStopReason } from "../../modules/checks/stop-reason";
 import { deriveRunTriage } from "../runs/triage";
 import type { InboxData, RunList } from "./data";
 import {

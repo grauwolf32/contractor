@@ -1,3 +1,8 @@
+import {
+  useHypothesisPage,
+  useMaterialPage,
+  useTaskPage,
+} from "./research-pages";
 import type { components } from "../../../api/generated/public";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -37,23 +42,18 @@ import {
   StatusGlyph,
   TechnicalDetails,
 } from "../../../ui";
-import { useCheckWorkspace } from "./check-data";
-import { timeLimitText } from "./check-format";
-import { checkPath, CHECK_SECTIONS } from "./check-links";
+import { useCheckWorkspace } from "../../../modules/checks/workspace";
+import { timeLimitText } from "../../../modules/checks/time-limit";
+import { checkPath, CHECK_SECTIONS } from "../../../modules/checks/links";
 import { useCheckNavigation } from "./check-navigation";
 import { AuditControls } from "./controls";
 import { AuditFindings } from "./audit-findings";
 import { AuditHypotheses } from "./hypotheses";
 import { AuditActivity } from "./activity";
-import { auditProfileLabel } from "./labels";
+import { auditProfileLabel } from "../../../modules/checks/labels";
 import { ResearchMaterialCard } from "./material-card";
 import { StopReasonBanner } from "./progress";
-import {
-  useResearchHypotheses,
-  useResearchMaterials,
-  useResearchTasks,
-  useResearchProgram,
-} from "./research-data";
+import { useResearchProgram } from "../../../modules/checks/research";
 import { ResearchTaskTimeline, ResearchWork } from "./research-work";
 import "./checks.css";
 import "./research.css";
@@ -146,7 +146,7 @@ function CheckContext({
 }
 
 function Materials({ audit }: { audit: Audit }) {
-  const { query, pages } = useResearchMaterials(audit);
+  const { query, pages } = useMaterialPage(audit);
   const [params] = useSearchParams();
   let selected: unknown;
   try {
@@ -301,8 +301,8 @@ export function ResearchAuditDetail({ audit }: { audit: Audit }) {
     queryFn: () => getProject(api, audit.projectId),
   });
   const workspace = useCheckWorkspace(audit, audit.state !== "draft");
-  const tasks = useResearchTasks(audit);
-  const hypotheses = useResearchHypotheses(
+  const tasks = useTaskPage(audit);
+  const hypotheses = useHypothesisPage(
     audit,
     section === "overview" || section === "hypotheses",
   );

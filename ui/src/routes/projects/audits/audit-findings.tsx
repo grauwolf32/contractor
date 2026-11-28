@@ -12,8 +12,8 @@ import { pollInterval } from "../../../app/polling";
 import { QueryView } from "../../../app/query-view";
 import { EmptyState, ListSection } from "../../../ui";
 import { IssueRow } from "../../issues/issue-row";
-import { auditProfileLabel } from "./labels";
-import { useAuditProjectionRefresh } from "./projection-refresh";
+import { auditProfileLabel } from "../../../modules/checks/labels";
+import { useAuditProjectionRefresh } from "../../../modules/checks/projection-refresh";
 import { FindingExportPanel } from "./finding-export";
 import { useFindingExport } from "./finding-export-state";
 

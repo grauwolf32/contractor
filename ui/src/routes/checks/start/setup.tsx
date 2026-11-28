@@ -22,7 +22,7 @@ import {
 } from "./time-limit";
 import type { StartCheck } from "./use-start-check";
 import { formatTimeLimit } from "../../../app/format";
-import { checkPath } from "../../projects/audits/check-links";
+import { checkPath } from "../../../modules/checks/links";
 
 function labelOf(model: StartCheck, checkType: string): string {
   const family = model.catalog.families.find(

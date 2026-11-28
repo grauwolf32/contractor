@@ -7,8 +7,8 @@ import { RecordedTime } from "../../app/recorded-time";
 import { verdictLabel } from "../../app/vocabulary";
 import { DetailHeader, DetailPane } from "../../ui";
 import { IssueDetail as FullIssueDetail } from "../issues/issue-detail";
-import { checkPath, sectionPath } from "../projects/audits/check-links";
-import { useAuditReport } from "../reports/report-data";
+import { checkPath, sectionPath } from "../../modules/checks/links";
+import { useAuditReport } from "../../modules/checks/reports";
 import {
   ReportContent,
   ReportStatusChip,

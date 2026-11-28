@@ -11,7 +11,7 @@ import {
 import type { PublicAPI } from "../../api/client";
 import { queryKeys } from "../../api/query-keys";
 import { pollInterval } from "../../app/polling";
-import { useAuditProjectionRefresh } from "../projects/audits/projection-refresh";
+import { useAuditProjectionRefresh } from "./projection-refresh";
 
 /** The check can no longer change on its own, so its reads stop polling. */
 function settled(audit: Audit): boolean {

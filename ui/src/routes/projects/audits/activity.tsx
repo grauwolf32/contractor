@@ -15,7 +15,7 @@ import { QueryView } from "../../../app/query-view";
 import { Button, TechnicalDetails, StatusGlyph } from "../../../ui";
 import { readableValue } from "../../../app/vocabulary";
 import { RecordedTime } from "../../../app/recorded-time";
-import { useAuditProjectionRefresh } from "./projection-refresh";
+import { useAuditProjectionRefresh } from "../../../modules/checks/projection-refresh";
 
 /** Only the user loads older pages; refreshes reread the already loaded chain. */
 export function AuditActivity({

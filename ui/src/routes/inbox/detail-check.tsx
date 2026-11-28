@@ -18,8 +18,8 @@ import {
   ProgressSegments,
   TechnicalDetails,
 } from "../../ui";
-import { checkPath } from "../projects/audits/check-links";
-import { describeStopReason } from "../projects/audits/stop-reason";
+import { checkPath } from "../../modules/checks/links";
+import { describeStopReason } from "../../modules/checks/stop-reason";
 import { newestCached, pinned } from "./data";
 import {
   Block,

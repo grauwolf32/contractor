@@ -15,15 +15,15 @@ import {
   EmptyState,
   IdChip,
 } from "../../ui";
-import { auditProfileLabel } from "../projects/audits/labels";
-import { useAuditReport } from "./report-data";
+import { auditProfileLabel } from "../../modules/checks/labels";
+import { useAuditReport } from "../../modules/checks/reports";
 import {
   ReportContent,
   ReportStatusChip,
 } from "../../widgets/audit-report/view";
 
 import "./reports.css";
-import { checkPath, sectionPath } from "../projects/audits/check-links";
+import { checkPath, sectionPath } from "../../modules/checks/links";
 
 /** The detail pane when no report is selected. */
 export function NoReportSelected() {

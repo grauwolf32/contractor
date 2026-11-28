@@ -14,8 +14,8 @@ import { ErrorNotice } from "../../../app/error-notice";
 import { Icon } from "../../../app/icon";
 import { checkStateLabel } from "../../../app/vocabulary";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
-import { checkKeys } from "./check-data";
-import { auditProfileLabel } from "./labels";
+import { checkKeys } from "../../../modules/checks/workspace";
+import { auditProfileLabel } from "../../../modules/checks/labels";
 import { AuditTimeLimitDialog } from "./time-limit-dialog";
 import { AlertDialog, Button, Facts } from "../../../ui";
 

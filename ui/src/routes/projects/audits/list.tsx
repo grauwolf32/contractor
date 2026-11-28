@@ -23,10 +23,10 @@ import {
   TechnicalDetails,
 } from "../../../ui";
 import { ProjectSectionActions } from "../navigation";
-import { checkPath } from "./check-links";
+import { checkPath } from "../../../modules/checks/links";
 import { AuditControls } from "./controls";
-import { auditProfileLabel } from "./labels";
-import { describeStopReason } from "./stop-reason";
+import { auditProfileLabel } from "../../../modules/checks/labels";
+import { describeStopReason } from "../../../modules/checks/stop-reason";
 
 import "./checks.css";
 

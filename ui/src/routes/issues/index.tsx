@@ -57,7 +57,7 @@ import {
   SEVERITY_OPTIONS,
   isFindingSeverity,
 } from "../projects/audits/finding-options";
-import { auditProfileLabel } from "../projects/audits/labels";
+import { auditProfileLabel } from "../../modules/checks/labels";
 import { useIssueList, type IssueList } from "./data";
 import { IssueDetail } from "./issue-detail";
 import { IssueRow } from "./issue-row";

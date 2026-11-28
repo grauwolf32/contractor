@@ -4,7 +4,7 @@ Widgets compose reusable presentation and local interaction. Their hosts own
 authenticated API reads, query/poll lifecycles, exact revisions, creation keys,
 navigation targets and authorized mutations. `src/ui` owns controls, focus and
 themes. Widgets never import `src/routes`, including its CSS or lazy modules;
-`scripts/widget-boundaries.test.mjs` checks this against production sources.
+`scripts/layer-boundaries.test.mjs` checks this against production sources.
 
 - `artifact-preview/view.tsx`: render already loaded bytes by media type, with
   Rendered/Source tabs, bounded source lines and safe Markdown. Parsers,

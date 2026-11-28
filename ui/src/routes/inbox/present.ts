@@ -8,7 +8,7 @@ import type { CrossProjectCheck } from "../../api/cross-project";
 import type { RunStatus, RunSummary } from "../../api/runs";
 import { formatNumber } from "../../app/format";
 import type { ProgressSegment } from "../../ui";
-import { auditPresetLabel } from "../projects/audits/labels";
+import { auditPresetLabel } from "../../modules/checks/labels";
 import type { InboxRow, InboxSectionId } from "./model";
 import {
   organizeRunOutputs,
@@ -16,7 +16,7 @@ import {
   type OutputEntry,
   type WorkflowOutputSlot,
 } from "../runs/output-model";
-import { checkPath } from "../projects/audits/check-links";
+import { checkPath } from "../../modules/checks/links";
 
 /** Section titles, asides and empty states (V3B home mockup). */
 export const SECTIONS: Readonly<

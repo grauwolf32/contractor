@@ -1,6 +1,6 @@
-import type { AuditWorkspace } from "../../../api/audits";
-import { formatNumber } from "../../../app/format";
-import type { StatusTone } from "../../../app/status-tone";
+import type { AuditWorkspace } from "../../api/audits";
+import { formatNumber } from "../../app/format";
+import type { StatusTone } from "../../app/status-tone";
 
 /** One legend entry: a status, its tone, how many items have it. */
 interface LegendEntry {

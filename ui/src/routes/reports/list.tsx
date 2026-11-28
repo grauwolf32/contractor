@@ -20,7 +20,7 @@ import {
   StatusGlyph,
   useListNavigation,
 } from "../../ui";
-import { auditProfileLabel } from "../projects/audits/labels";
+import { auditProfileLabel } from "../../modules/checks/labels";
 import {
   PROJECT_PARAM,
   PAGE_PARAM,

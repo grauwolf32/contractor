@@ -5,7 +5,7 @@ import type { AuditProfile } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import { compareVersions } from "../../app/format";
-import { auditPresetLabel } from "../projects/audits/labels";
+import { auditPresetLabel } from "../../modules/checks/labels";
 import { presentCheckType } from "../checks/start/check-types";
 
 // Check types are AuditProfiles in the API (contract §3: "Check type").

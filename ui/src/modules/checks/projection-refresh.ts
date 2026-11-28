@@ -1,7 +1,7 @@
 import { hashKey, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
-import { auditPollInterval, type Audit } from "../../../api/audits";
+import { auditPollInterval, type Audit } from "../../api/audits";
 
 export function useAuditProjectionRefresh(
   audit: Audit,

@@ -1,5 +1,5 @@
-import type { Audit } from "../../../api/audits";
-import type { StatusTone } from "../../../app/status-tone";
+import type { Audit } from "../../api/audits";
+import type { StatusTone } from "../../app/status-tone";
 
 /** Short names of the stop reasons, for technical details. */
 const STOP_REASON_LABELS: Readonly<Record<string, string>> = {

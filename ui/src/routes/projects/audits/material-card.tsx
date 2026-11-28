@@ -25,7 +25,7 @@ import {
 } from "../../../ui";
 import { LoadedArtifactPreview } from "../../../widgets/artifact-preview/view";
 import { artifactDetailPath } from "../../../app/artifact-path";
-import type { ResearchMaterial } from "./research-data";
+import type { ResearchMaterial } from "../../../modules/checks/research";
 
 function Publication({
   audit,

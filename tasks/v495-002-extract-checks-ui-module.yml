@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V495-002
+title: Extract shared check queries and presentation rules from routes
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: chore
+priority: P3
+status: in_progress
+depends_on: [V495-001]
+languages: [typescript, javascript]
+goal: Checks, Project, Inbox and Reports consume one route-independent owner of shared check queries and rules.
+context:
+  authority: User 2026-11-28 approves modules/checks as the first shared module after the routes architecture review.
+  finding: Shared workspace/report/research queries, final refresh, labels, counters, stop reasons and links live under Project or Reports routes and are imported by sibling pages.
+  boundary: API contracts remain authoritative. Modules own shared query behavior and pure UI rules; routes own selection, URL state, pagination navigation, confirmations and lifecycle commands; widgets own reusable presentation. Preserve keys, signals, retry/backoff, cached revisions and terminal refresh.
+scope:
+  in:
+    - Relocate shared workspace, report and research query owners, keeping existing implementations and direct consumers.
+    - Separate research cursor/selection URL adapters from query hooks receiving explicit cursor and filter values.
+    - Move shared check labels, progress, stop/deadline presentation and pure filter/link helpers out of route directories.
+    - Add module boundaries and focused query regressions, update documentation and direct imports without compatibility re-exports.
+  out:
+    - Findings/Run/cross-project module extraction, UI redesign, route chunk changes, Start/Stop/Delete command refactoring, API changes, deployment and main merge.
+acceptance_criteria:
+  - id: A1
+    text: Shared check queries and rules reside in modules/checks with production callers and no dependencies on routes, widgets or router state.
+  - id: A2
+    text: Existing query keys, revision caching, pagination limits, request signals, retry/backoff, disabled behavior and terminal reconciliation remain covered by regression tests.
+  - id: A3
+    text: Routes retain URL cursor/selection and lifecycle commands; current navigation, report readers and check pages pass the production browser scenarios.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make ui-gates
+    covers: [A1, A2]
+  - command: make ui-browser-mocked
+    covers: [A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A1, A2, A3]
+verification:
+  results:
+    - The module contains ten production files, roughly 800 lines, consumed directly by Checks, Project/Audit, Inbox, Reports, Issues and Catalog. Fifteen existing shared source/test files were moved without compatibility re-exports.
+    - Workspace, report and terminal-projection-refresh implementations are unchanged after normalizing import paths. API Audit readers, query-key roots, pollInterval and the route table are byte-for-byte unchanged. Lifecycle commands and idempotency behavior remain in their original controllers.
+    - All 17 focused module tests passed, including four new tests without Router for explicit cursor/hypothesis identity, malformed continuation rejection, disabled/read-abort behavior and exact workspace-revision cache reuse with prior-data placeholders.
+    - make ui-gates passed all 18 Node gate tests, CSS/breakpoint checks, the zero-baseline export gate and ESLint. The new module gate rejects route/widget/control and router/cursor-state dependencies while retaining the widget route boundary.
+    - The route-owned research-pages adapter retains the existing cursor names, selection clearing and enablement, passing explicit values to shared queries. No rendered DOM or CSS files are changed.
+    - VITEST_MAX_WORKERS=4 make ui-verify passed generation checks, lint/format, both TypeScript projects, 231 test files with 2619 passing tests and one existing expected failure, all 17 static-server tests and the production build.
+    - make ui-browser-mocked passed all 266 cases across 37 specs with no failures or skips, including query-count/selection preservation in Reports, check lifecycle flows, exact hypothesis/task context, URL pagination and mobile/light/dark/black presentation.
+    - No Server/API/schema or OpenDesign archive changes, deployment or main merge are included. UI release is 0.11.49; other domain modules and lazy Project tab entries remain separate later changes.
