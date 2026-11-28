@@ -144,6 +144,7 @@ const shapes = {
   "chevron-up": <path d="M6 14.5l6-6 6 6" />,
   "chevron-down": <path d="M6 9.5l6 6 6-6" />,
   "arrow-right": <path d="M5 12h14m-6-6 6 6-6 6" />,
+  "arrow-left": <path d="M19 12H5m6-6-6 6 6 6" />,
   "document-code": (
     <>
       <path d="M6.5 3.5h7.5l4.5 4.5v12.5h-12zM14 3.5V8h4.5" />

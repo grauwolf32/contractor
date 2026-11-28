@@ -16,6 +16,15 @@ import { MaterialIcon } from "../artifacts/icons";
 import { groupMaterialsByKind } from "../artifacts/kinds";
 import { MaterialList } from "../artifacts/material-list";
 import { MaterialRow } from "../artifacts/material-row";
+import { useListReadingPosition } from "../../app/list-reading-position";
+import {
+  matchingMaterials,
+  materialCategory,
+} from "../artifacts/material-library-filter";
+import {
+  MaterialLibraryFilters,
+  NoMatchingMaterials,
+} from "../artifacts/material-library";
 import { MaterialAddedNotice } from "../artifacts/notices";
 import { artifactDetailPath } from "../../app/artifact-path";
 import { ProjectSectionActionsContext } from "./section-actions-context";
@@ -43,6 +52,8 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
   const notice = useRef<HTMLDivElement>(null);
   const addOpen = filters.get(ADD_PARAM) === ADD_VALUE;
   const namespace = filters.get(NAMESPACE_PARAM) || undefined;
+  const category = materialCategory(filters.get("materialsKind"));
+  const search = filters.get("materialsSearch") ?? "";
   const pages = useURLCursorStack({
     param: CURSOR_PARAM,
     navigateOptions: { preventScrollReset: true, state: location.state },
@@ -66,6 +77,11 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
         ...(cursor === undefined ? {} : { cursor }),
       }),
   });
+  const rememberReadingPosition = useListReadingPosition(
+    region,
+    query.data !== undefined,
+    ".materials-row-link",
+  );
 
   // Move focus to the outcome of a write once the dialog that made it has
   // closed. The outcome (state) and the closed sheet (the URL) commit
@@ -97,6 +113,8 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
   function setNamespaceFilter(value: string | undefined): void {
     changeFilters((next) => {
       next.delete(CURSOR_PARAM);
+      next.delete("materialsKind");
+      next.delete("materialsSearch");
       if (value === undefined) next.delete(NAMESPACE_PARAM);
       else next.set(NAMESPACE_PARAM, value);
     });
@@ -132,6 +150,8 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
       next.delete(ADD_PARAM);
       next.delete(NAMESPACE_PARAM);
       next.delete(CURSOR_PARAM);
+      next.delete("materialsKind");
+      next.delete("materialsSearch");
     }, true);
   }
 
@@ -141,11 +161,15 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
       className="materials-region"
       id="project-artifacts"
       aria-label="Materials"
+      onClickCapture={rememberReadingPosition}
     >
       <div className="materials-region-head">
-        <p className="materials-region-intro">
-          Source code, API specs and supporting files for your checks.
-        </p>
+        <div className="materials-library-heading">
+          <h2>Materials</h2>
+          <p className="ui-caption">
+            Source code, API specs and supporting files for your checks.
+          </p>
+        </div>
         <div className="ui-toolbar">
           <Button
             ref={addButton}
@@ -177,13 +201,35 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
         />
       )}
 
-      <div className="materials-panel">
+      <div className="materials-panel materials-library">
         <MaterialList
           query={query}
           namespace={namespace}
           onNamespace={setNamespaceFilter}
           noun="materials"
           advancedFilter
+          controls={
+            <MaterialLibraryFilters
+              items={query.data?.items ?? []}
+              category={category}
+              search={search}
+              partial={
+                cursor !== undefined || query.data?.page.hasMore === true
+              }
+              onCategory={(value) =>
+                changeFilters((next) => {
+                  if (value === "all") next.delete("materialsKind");
+                  else next.set("materialsKind", value);
+                }, true)
+              }
+              onSearch={(value) =>
+                changeFilters((next) => {
+                  if (value === "") next.delete("materialsSearch");
+                  else next.set("materialsSearch", value);
+                }, true)
+              }
+            />
+          }
           empty={{
             title: "No materials yet",
             text: "Add source code, an API spec, an architecture model or docs so checks have something to read.",
@@ -196,15 +242,26 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
             // Groups come from one page: their counts are totals only when
             // every material fits on it.
             const onePage = cursor === undefined && !data.page.hasMore;
+            const matches = matchingMaterials(data.items, category, search);
             return (
               <>
                 {onePage ? null : (
                   <p className="ui-caption materials-page-note">
-                    Materials are ordered by kind across all pages. Group counts
-                    below are for this page.
+                    Search, categories and counts apply to this page. Use Next
+                    to browse more materials, ordered by kind.
                   </p>
                 )}
-                {groupMaterialsByKind(data.items).map((group) => (
+                {matches.length === 0 ? (
+                  <NoMatchingMaterials
+                    onClear={() =>
+                      changeFilters((next) => {
+                        next.delete("materialsKind");
+                        next.delete("materialsSearch");
+                      }, true)
+                    }
+                  />
+                ) : null}
+                {groupMaterialsByKind(matches).map((group) => (
                   <ListSection
                     key={group.kind}
                     title={group.label}
@@ -217,6 +274,7 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
                         key={`${item.artifact.namespace}/${item.artifact.name}`}
                         item={item}
                         returnLabel="Materials"
+                        previewOnOpen
                         to={artifactDetailPath(
                           { kind: "project", id: projectId },
                           {

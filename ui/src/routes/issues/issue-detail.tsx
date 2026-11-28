@@ -1,7 +1,7 @@
 import { pollInterval } from "../../app/polling";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useLayoutEffect, useRef } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import {
   getProjectFinding,
   findingSeverity,
@@ -27,6 +27,7 @@ import {
   IssueRecordedDecision,
 } from "./overview";
 import { TabPanel, Tabs } from "./tabs";
+import { FactOverview } from "./fact-overview";
 import "./issues.css";
 
 type IssueTab = "summary" | "evidence" | "history";
@@ -39,7 +40,8 @@ interface IssueDetailProps {
   listPending?: boolean | undefined;
   onPrevious?: (() => void) | undefined;
   onNext?: (() => void) | undefined;
-  onDecided: (result: ProjectFindingEditResult) => void;
+  onDecided?: ((result: ProjectFindingEditResult) => void) | undefined;
+  factsReturn?: string;
   focusRequest?: number | undefined;
 }
 export function IssueDetail({
@@ -52,6 +54,7 @@ export function IssueDetail({
   onPrevious,
   onNext,
   onDecided,
+  factsReturn,
   focusRequest,
 }: IssueDetailProps) {
   const api = usePublicAPI();
@@ -106,6 +109,11 @@ export function IssueDetail({
   const identity = shown ?? listed?.finding;
   const fact =
     identity !== undefined && findingSeverity(identity) === "informational";
+  const subject =
+    identity &&
+    ("subjectKey" in identity
+      ? identity.subjectKey
+      : identity.claim?.subject?.key);
   const kind = fact
     ? "Fact"
     : shown?.state === "confirmed"
@@ -117,7 +125,10 @@ export function IssueDetail({
         <p className="issues-detail-context">
           {known?.name ?? project.data?.name ?? projectId}
         </p>
-        <nav className="issues-detail-nav" aria-label="Issue navigation">
+        <nav
+          className="issues-detail-nav"
+          aria-label={factsReturn ? "Fact navigation" : "Issue navigation"}
+        >
           <Button
             className="issues-step"
             size="xs"
@@ -155,25 +166,35 @@ export function IssueDetail({
           >
             Next ›
           </Button>
-          <ContextLink
-            returnLabel={fact ? "Fact" : "Possible issue"}
-            className="issues-detail-check"
-            to={`/projects/${encodeURIComponent(projectId)}/${fact ? "facts" : "findings"}`}
-          >
-            View in Project
-            <Icon name="chevron-right" size={14} />
-          </ContextLink>
+          {factsReturn ? (
+            <Link className="fact-back" to={factsReturn}>
+              Back to facts
+            </Link>
+          ) : (
+            <ContextLink
+              returnLabel={fact ? "Fact" : "Possible issue"}
+              className="issues-detail-check"
+              to={`/projects/${encodeURIComponent(projectId)}/${fact ? "facts" : "findings"}`}
+            >
+              View in Project
+              <Icon name="chevron-right" size={14} />
+            </ContextLink>
+          )}
         </nav>
       </div>
       {identity === undefined ? null : (
         <>
-          <IssueIdentity finding={identity} />
           {fact ? (
-            <p className="ui-caption">
-              Informational observation. The source suggestion and any analyst
-              assessment remain separate from verification.
-            </p>
-          ) : null}
+            <>
+              <h2 className="issues-workspace-title">{identity.title}</h2>
+              <div className="fact-context">
+                <span>Informational observation</span>
+                {subject && <code>{subject}</code>}
+              </div>
+            </>
+          ) : (
+            <IssueIdentity finding={identity} />
+          )}
           <Tabs
             label="Review sections"
             items={[
@@ -199,7 +220,7 @@ export function IssueDetail({
     <DetailPane
       header={bar}
       footer={
-        shown === undefined ? undefined : (
+        shown === undefined || fact ? undefined : (
           <FindingDecision
             finding={shown}
             presentation="review"
@@ -212,16 +233,26 @@ export function IssueDetail({
         query={finding}
         loading={
           <p className="ui-caption" role="status">
-            Loading the possible issue…
+            {factsReturn ? "Loading fact…" : "Loading the possible issue…"}
           </p>
         }
-        errorContext="This possible issue could not be loaded."
+        errorContext={
+          factsReturn
+            ? "This observation could not be loaded."
+            : "This possible issue could not be loaded."
+        }
       >
         {(value) => (
           <>
-            <IssueRecordedDecision finding={value} />
+            {!fact && <IssueRecordedDecision finding={value} />}
             <TabPanel idBase={idBase} id={tab}>
-              {tab === "summary" ? (
+              {tab === "summary" && fact ? (
+                <FactOverview
+                  key={value.findingId}
+                  finding={value}
+                  onDecided={onDecided}
+                />
+              ) : tab === "summary" ? (
                 <IssueOverview
                   finding={value}
                   supporting={

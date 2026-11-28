@@ -882,7 +882,6 @@ describe("Project routes", () => {
       );
     expect(await screen.findByText("project output publish")).toBeVisible();
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Load preview" }));
     expect(await screen.findByText("Project documentation")).toBeVisible();
     await user.click(
       screen.getByText("Upload a new version", { selector: "summary" }),

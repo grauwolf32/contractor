@@ -127,7 +127,10 @@ function segmentsOf(pathname: string): string[] {
  * /projects… pages; Library on /catalog… and /artifacts…; Issues, Reports,
  * Runs, Evals and Operations on their own prefixes.
  */
-export function activeDestination(pathname: string): DestinationId | undefined {
+export function activeDestination(
+  pathname: string,
+  search = "",
+): DestinationId | undefined {
   const [first, , section, item] = segmentsOf(pathname);
   switch (first) {
     case undefined:
@@ -137,7 +140,9 @@ export function activeDestination(pathname: string): DestinationId | undefined {
     case "projects":
       return section === "audits" && item !== undefined ? "checks" : "projects";
     case "issues":
-      return "issues";
+      return section && new URLSearchParams(search).get("from") === "facts"
+        ? "projects"
+        : "issues";
     case "reports":
       return "reports";
     case "runs":

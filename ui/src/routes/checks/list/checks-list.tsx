@@ -265,6 +265,8 @@ export function ChecksListPane({
           {rows.map(({ project, audit }) => {
             const label = checkStateLabel(audit.state);
             const workspace = workspaces.get(audit.auditId);
+            const objective = audit.scope.objective?.trim();
+            const profile = auditProfileLabel(audit);
             return (
               <ListRow
                 key={audit.auditId}
@@ -276,12 +278,14 @@ export function ChecksListPane({
                 glyph={<StatusGlyph tone={label.tone} />}
                 title={
                   <>
-                    {auditProfileLabel(audit)}{" "}
-                    {/* Checks of one type are told apart by their project. */}
-                    <span className="ui-visually-hidden">· {project.name}</span>
+                    {objective || profile}{" "}
+                    <span className="ui-visually-hidden">
+                      {objective ? `· ${profile} ` : ""}· {project.name}
+                    </span>
                   </>
                 }
                 meta={[
+                  objective ? profile : null,
                   project.name,
                   <StatusChip key="state" tone={label.tone} size="sm">
                     {label.label}

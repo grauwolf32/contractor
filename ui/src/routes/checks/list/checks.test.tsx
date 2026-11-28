@@ -181,7 +181,7 @@ describe("Checks list", () => {
     );
     await user.click(
       await within(list).findByRole("link", {
-        name: "OWASP Top 10 · Source risks · Payment service",
+        name: "Find broken object authorization · OWASP Top 10 · Source risks · Payment service",
       }),
     );
     expect(router.state.location.search).toBe(
@@ -202,7 +202,7 @@ describe("Checks list", () => {
       within(list).getByRole("heading", { level: 1, name: "Checks" }),
     ).toBeVisible();
     await within(list).findByRole("link", {
-      name: "OpenAPI · Operation trace · crapi-workshop",
+      name: "Find broken object authorization · OpenAPI · Operation trace · crapi-workshop",
     });
     const rows = () =>
       within(list)
@@ -255,7 +255,7 @@ describe("Checks list", () => {
     const list = await screen.findByRole("region", { name: "Checks" });
     await user.click(
       await within(list).findByRole("link", {
-        name: "OWASP Top 10 · Source risks · Payment service",
+        name: "Find broken object authorization · OWASP Top 10 · Source risks · Payment service",
       }),
     );
     expect(router.state.location.search).toBe("?check=b_waiting");
@@ -290,7 +290,7 @@ describe("Checks list", () => {
     ).toBeVisible();
     await user.click(
       within(list).getByRole("link", {
-        name: "WSTG 4.2 · Source review · crapi-workshop",
+        name: "Find broken object authorization · WSTG 4.2 · Source review · crapi-workshop",
       }),
     );
     expect(
@@ -309,7 +309,7 @@ describe("Checks list", () => {
     const user = userEvent.setup();
     const list = await screen.findByRole("region", { name: "Checks" });
     await within(list).findByRole("link", {
-      name: "WSTG 4.2 · Source review · crapi-workshop",
+      name: "Find broken object authorization · WSTG 4.2 · Source review · crapi-workshop",
     });
     // Every row declares the keys; the footer hint is for sighted users.
     const rows = within(within(list).getByRole("list")).getAllByRole(
@@ -338,7 +338,7 @@ describe("Checks list", () => {
     );
     within(list)
       .getByRole("link", {
-        name: "OpenAPI · Operation trace · crapi-workshop",
+        name: "Find broken object authorization · OpenAPI · Operation trace · crapi-workshop",
         current: true,
       })
       .focus();
@@ -511,7 +511,7 @@ describe("Checks list", () => {
       .click(screen.getByRole("button", { name: "Try again" }));
     expect(
       await screen.findByRole("link", {
-        name: "OWASP Top 10 · Source risks · Payment service",
+        name: "Find broken object authorization · OWASP Top 10 · Source risks · Payment service",
       }),
     ).toBeVisible();
   });

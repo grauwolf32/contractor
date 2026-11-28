@@ -1,0 +1,167 @@
+[
+  {
+    "id": "source-main",
+    "kind": "source",
+    "namespace": "sources",
+    "name": "invoice-service",
+    "format": "ZIP",
+    "revision": "source-r12",
+    "size": "2.4 MiB",
+    "updated": "2 hours ago",
+    "commit": "8c41d72",
+    "description": "Backend source code",
+    "files": [
+      "src/routes/invoices.ts",
+      "src/auth/permissions.ts",
+      "src/services/exports.ts",
+      "package.json"
+    ],
+    "content": "export async function getInvoice(req, res) {\n  const invoice = await invoices.findById(req.params.id);\n  if (invoice.ownerId !== req.user.id) {\n    return res.status(403).end();\n  }\n  return res.json(invoice);\n}"
+  },
+  {
+    "id": "source-worker",
+    "kind": "source",
+    "namespace": "sources",
+    "name": "invoice-worker",
+    "format": "ZIP",
+    "revision": "worker-r3",
+    "size": "840 KiB",
+    "updated": "Yesterday",
+    "commit": "2e6a9b1",
+    "description": "Background jobs and exports",
+    "files": ["src/jobs/export.ts", "src/queue.ts", "package.json"],
+    "content": "export async function exportInvoices(job) {\n  const rows = await invoices.forAccount(job.accountId);\n  await exports.write(job.exportId, rows);\n}"
+  },
+  {
+    "id": "source-web",
+    "kind": "source",
+    "namespace": "sources",
+    "name": "invoice-web",
+    "format": "ZIP",
+    "revision": "web-r8",
+    "size": "1.8 MiB",
+    "updated": "3 days ago",
+    "description": "Web application source",
+    "files": ["src/pages/Invoices.tsx", "src/api/client.ts", "package.json"],
+    "content": "export function Invoices() {\n  const invoices = useInvoices();\n  return <InvoiceList items={invoices} />;\n}"
+  },
+  {
+    "id": "api-main",
+    "kind": "api",
+    "namespace": "openapi",
+    "name": "invoice-api.yaml",
+    "format": "OpenAPI",
+    "revision": "api-r4",
+    "size": "42 KiB",
+    "updated": "2 hours ago",
+    "description": "Invoice service HTTP API",
+    "operations": [
+      ["GET", "/invoices", "List invoices"],
+      ["GET", "/invoices/{invoiceId}", "Read an invoice"],
+      ["POST", "/invoices", "Create an invoice"],
+      ["POST", "/exports", "Export invoices"],
+      ["DELETE", "/invoices/{invoiceId}", "Delete an invoice"]
+    ],
+    "content": "openapi: 3.1.0\ninfo:\n  title: Invoice API\n  version: 2.4.0\npaths:\n  /invoices:\n    get:\n      summary: List invoices\n      responses:\n        \"200\":\n          description: Invoice list"
+  },
+  {
+    "id": "api-admin",
+    "kind": "api",
+    "namespace": "openapi",
+    "name": "admin-api.yaml",
+    "format": "OpenAPI",
+    "revision": "admin-r2",
+    "size": "18 KiB",
+    "updated": "Yesterday",
+    "description": "Administration HTTP API",
+    "operations": [
+      ["GET", "/admin/users", "List users"],
+      ["PATCH", "/admin/roles/{roleId}", "Update a role"]
+    ],
+    "content": "openapi: 3.1.0\ninfo:\n  title: Admin API\n  version: 1.2.0"
+  },
+  {
+    "id": "engagement",
+    "kind": "engagement",
+    "namespace": "engagement",
+    "name": "staging-access",
+    "format": "Engagement",
+    "revision": "engagement-r5",
+    "size": "2.1 KiB",
+    "updated": "Yesterday",
+    "description": "Staging targets and identities",
+    "content": "{\n  \"egress\": [{\"origin\":\"https://staging.invoice.example\", \"pathPrefix\":\"/api\"}],\n  \"identities\": [\"customer-a\", \"customer-b\"],\n  \"limits\": {\"requestsPerSecond\": 2}\n}"
+  },
+  {
+    "id": "architecture",
+    "kind": "architecture",
+    "namespace": "likec4",
+    "name": "invoice-system.c4",
+    "format": "LikeC4",
+    "revision": "architecture-r3",
+    "size": "6.2 KiB",
+    "updated": "4 days ago",
+    "description": "Service boundaries and dependencies",
+    "content": "model {\n  web = component \"Invoice Web\"\n  api = component \"Invoice API\"\n  worker = component \"Export Worker\"\n  web -> api \"HTTPS\"\n  api -> worker \"Export jobs\"\n}"
+  },
+  {
+    "id": "doc-access",
+    "kind": "docs",
+    "namespace": "docs",
+    "name": "access-control.md",
+    "format": "Markdown",
+    "revision": "doc-r6",
+    "size": "4.8 KiB",
+    "updated": "Yesterday",
+    "description": "Roles, ownership and authorization rules",
+    "content": "# Access control\n\nCustomers can read invoices belonging to their account.\n\n## Boundaries to review\n\n- Invoice ownership is checked on every read.\n- Exports include only the requesting account.\n- Administrative routes require the admin role."
+  },
+  {
+    "id": "doc-onboarding",
+    "kind": "docs",
+    "namespace": "docs",
+    "name": "test-accounts.md",
+    "format": "Markdown",
+    "revision": "accounts-r2",
+    "size": "1.9 KiB",
+    "updated": "3 days ago",
+    "description": "Synthetic account roles and test scenarios",
+    "content": "# Test accounts\n\nCustomer A and customer B belong to separate accounts.\n\nUse the saved identities in the Engagement material to review the account boundary."
+  },
+  {
+    "id": "diff",
+    "kind": "diffs",
+    "namespace": "diffs",
+    "name": "export-permissions.patch",
+    "format": "Diff",
+    "revision": "diff-r1",
+    "size": "3.3 KiB",
+    "updated": "2 hours ago",
+    "description": "Authorization changes for exports",
+    "content": "@@ exportInvoices(request) @@\n- const invoices = await db.allInvoices();\n+ const invoices = await db.invoicesForAccount(request.accountId);\n  return createExport(invoices);"
+  },
+  {
+    "id": "output-report",
+    "kind": "other",
+    "namespace": "outputs",
+    "name": "access-control-report.md",
+    "format": "Markdown",
+    "revision": "report-r2",
+    "size": "8.6 KiB",
+    "updated": "1 hour ago",
+    "description": "Recorded check results",
+    "content": "# Access control review\n\nThe review recorded two observations for further investigation.\n\n## Invoice ownership\nThe retained source enforces the account boundary on invoice reads.\n\n## Exports\nReview the exact evidence for export permissions."
+  },
+  {
+    "id": "output-routes",
+    "kind": "other",
+    "namespace": "outputs",
+    "name": "discovered-routes.json",
+    "format": "JSON",
+    "revision": "routes-r1",
+    "size": "12 KiB",
+    "updated": "1 hour ago",
+    "description": "Saved route discovery output",
+    "content": "{\n  \"routes\": [\n    {\"method\": \"GET\", \"path\": \"/invoices\"},\n    {\"method\": \"POST\", \"path\": \"/exports\"}\n  ]\n}"
+  }
+]

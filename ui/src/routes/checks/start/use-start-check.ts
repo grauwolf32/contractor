@@ -1,3 +1,4 @@
+import { materialKey } from "../../artifacts/material-library-filter";
 import { useSharedConfig } from "../../../config/shared-config";
 import { isWebScanProfile } from "./web-scan-contract";
 /**
@@ -23,7 +24,6 @@ import {
   formatList,
   inputLabel,
   inSentence,
-  materialKey,
   orderedInputs,
   presentCheckType,
   readinessOf,
@@ -233,11 +233,11 @@ export function useStartCheck(
   const materials = {
     ...remoteMaterials,
     items:
-      remoteMaterials.items === undefined
+      remoteMaterials.items === undefined && authoredItems.length === 0
         ? undefined
         : [
             ...authoredItems,
-            ...remoteMaterials.items.filter(
+            ...(remoteMaterials.items ?? []).filter(
               (item) =>
                 !authoredItems.some(
                   (known) => materialKey(known) === materialKey(item),

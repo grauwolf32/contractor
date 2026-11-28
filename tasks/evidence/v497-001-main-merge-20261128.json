@@ -1,0 +1,140 @@
+{
+  "date": "2026-11-28",
+  "status": "merged_and_verified",
+  "merge_commit": "1fb495a56294629cec791541967605662b5340a1",
+  "parents": [
+    "438e1ed9e4094a9fb26ca2dbeb38d8c71ed68568",
+    "3ee9af3801a90bdb82d80191e5f9d97a6f13e824"
+  ],
+  "source_branch": "codex/v497-validation",
+  "task": "V497-001",
+  "task_status": "completed",
+  "implementation_commit": "8306e94fcb5000d5aac626b7d3fec84473b73df4",
+  "source_verification": "tasks/evidence/v497-001-target-validation.json",
+  "merge_resolution": [
+    "No production source conflict",
+    "Rebuild catalog lock preserving immutable Facts v2 and Finding validation identities",
+    "Regenerate Audit dependency graph and backlog"
+  ],
+  "preservation": {
+    "files": [
+      {
+        "path": "docs/plans/2026-10-31-audit-redesign.md",
+        "preserved": true
+      },
+      {
+        "path": "scripts/check_tasks.py",
+        "preserved": true
+      },
+      {
+        "path": "scripts/test_check_tasks.py",
+        "preserved": true
+      },
+      {
+        "path": "tasks/evidence/v497-001-boundary-investigation.json",
+        "preserved": true
+      },
+      {
+        "path": "tasks/index.yml",
+        "preserved": true
+      },
+      {
+        "path": "tasks/v411-013-pentest-sandbox-integration.yml",
+        "preserved": true
+      },
+      {
+        "path": "tasks/v411-014-pentest-discovery-surface.yml",
+        "preserved": true
+      },
+      {
+        "path": "tasks/v411-015-http-pentest-workflow-presets.yml",
+        "preserved": true
+      },
+      {
+        "path": "tasks/v411-016-pentest-proof-report.yml",
+        "preserved": true
+      },
+      {
+        "path": "tasks/v411-017-pentest-api-cli.yml",
+        "preserved": true
+      },
+      {
+        "path": "tasks/v411-018-pentest-ui-journey.yml",
+        "preserved": true
+      },
+      {
+        "path": "tasks/v412-004-trusted-pentest-callback-proof.yml",
+        "preserved": true
+      },
+      {
+        "path": "tasks/v486-001-portable-linux-kit.yml",
+        "preserved": true
+      },
+      {
+        "path": "tasks/v64-011-audit-priority-release.yml",
+        "preserved": true
+      }
+    ],
+    "index_preserved": true,
+    "merge_commit": "1fb495a56294629cec791541967605662b5340a1",
+    "user_file_count": 14,
+    "all_preserved": true
+  },
+  "verification": {
+    "go_packages": 37,
+    "go_passed": 5936,
+    "go_optional_heavy_io_skips": 9,
+    "process_passed": 28,
+    "process_skips": 0,
+    "selected_runtime_passed": 269,
+    "selected_runtime_skips": 0,
+    "lint": "passed",
+    "wire": {
+      "fixtures": 442,
+      "go_shared_tests": 476,
+      "python_shared_tests": 309,
+      "optional_heavy_io_skips": 1
+    },
+    "public_api": "make verify-public-api verify-public-api-postgres passed",
+    "shipped_configuration": "make test-config passed",
+    "commands": [
+      "go test -json -tags=integration -count=1 ./internal/contracts/... ./internal/findingintake/... ./internal/auditstore/... ./internal/auditservice/... ./internal/runservice/... ./internal/runstore/... ./internal/scheduler/... ./internal/controlplane/... ./internal/httpapi/... ./internal/artifacts/... ./internal/config/... ./internal/rundeletion/... ./internal/app/...",
+      "make lint test-wire-cross-language verify-public-api verify-public-api-postgres test-config",
+      "go test -json -tags=e2e -count=1 ./tests/e2e -run '^TestFinding(TargetValidation|ValidationUncertainAndCancelled)AcrossProcesses$'",
+      "uv run pytest -q tests/test_audit_common_contract.py tests/test_audit_result_collector.py tests/test_audit_results_toolset.py tests/test_audit_result_publication.py tests/test_audit_evidence.py tests/test_audit_judgment_persistence.py tests/test_thin_audit_judgment.py tests/test_artifact_cursors.py tests/test_memory_fact_sources.py tests/test_finding_facades.py tests/test_shared_finding_facades.py",
+      "make tasks-backlog / scripts/check_tasks.py --write-backlog",
+      "git diff --check"
+    ]
+  },
+  "logs": {
+    "go.jsonl": {
+      "path": "/tmp/contractor-v497-001-merge-20261128/go.jsonl",
+      "sha256": "f63a2aa85e859b8106976efbae3ec405648f9736d8ee151e07ac890942ed98a9"
+    },
+    "process.jsonl": {
+      "path": "/tmp/contractor-v497-001-merge-20261128/process.jsonl",
+      "sha256": "f47248260fd585f7777b93d42053a175ac44a2cf489e78b6a6dd95b682a54149"
+    },
+    "runtime.log": {
+      "path": "/tmp/contractor-v497-001-merge-20261128/runtime.log",
+      "sha256": "637f3c6c9e21926578558bcc6a87cca6b7b9a65d39f6f2139fd80cd8dd64dba6"
+    },
+    "runtime.xml": {
+      "path": "/tmp/contractor-v497-001-merge-20261128/runtime.xml",
+      "sha256": "f9ddf662662af0d904e7ea7c888eebee643d8550e0b0f9b816cdd7e0681b9b86"
+    },
+    "gates.log": {
+      "path": "/tmp/contractor-v497-001-merge-20261128/gates.log",
+      "sha256": "ba98c0b1b8ebaf4c5a963aa262c589c00748f48cc0f91019915db76b4a14b833"
+    }
+  },
+  "resources": {
+    "database_dropped": "contractor_v497",
+    "owned_postgresql_stopped": true,
+    "port": 55497,
+    "heavy_io_enabled": false,
+    "live_model_calls": false,
+    "demo_changes": false
+  },
+  "verification_scope": "Integration checks run on immutable merge 1fb495a56. Later independent UI main merge is outside this report; source-branch full Runtime and process gates remain recorded in the linked V497-001 task evidence."
+}

@@ -1,3 +1,4 @@
+import { materialKey } from "../../artifacts/material-library-filter";
 import { isWebScanProfile } from "./web-scan-contract";
 /**
  * Check types (AuditProfiles) as the Start page shows them: families of
@@ -274,7 +275,7 @@ export function inputLabel(name: string): string {
 }
 
 /** A media type in words: "ZIP", "JSON", or the media type itself. */
-export function formatName(mediaType: string): string {
+function formatName(mediaType: string): string {
   return Object.hasOwn(FORMAT_NAMES, mediaType)
     ? FORMAT_NAMES[mediaType]!
     : mediaType;
@@ -351,17 +352,6 @@ interface ReadinessContext {
   hasLiveTarget: boolean;
   /** The check type's workflows read a target (from its profile detail). */
   needsLiveTarget: boolean;
-}
-
-/** The key that identifies one exact material in selects and choices. */
-export function materialKey(
-  material: Pick<ArtifactMetadata, "artifact">,
-): string {
-  return JSON.stringify([
-    material.artifact.namespace,
-    material.artifact.name,
-    material.artifact.revision,
-  ]);
 }
 
 /**

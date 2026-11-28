@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 10 in progress, 46 pending, 13 deferred. 1771 finished: 1752 completed, 19 archived.
+70 open tasks: 11 in progress, 46 pending, 13 deferred. 1772 finished: 1753 completed, 19 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V500-007](v500-007-zero-model-token-report.yml) | operations | defect | P1 | Report explicit zero tokens when Runtime observed no direct model calls |
+| [V502-001](v502-001-finding-http-format-migration.yml) | findings | defect | P1 | Migrate stored HTTP Finding proposals and exact references in place |
 
 ## Pending
 
@@ -174,7 +175,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 4 | 27 | 38 | 18 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 22 | 15 | 13 | 32 |
-| Findings tools and collections (`findings`) | 3 | 27 | 17 | 15 | 30 |
+| Findings tools and collections (`findings`) | 4 | 27 | 18 | 15 | 31 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 30 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 23 | 80 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
@@ -183,5 +184,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 2 | 58 | 83 | 38 | 81 |
 | Operations, authentication, CLI and deployment (`operations`) | 2 | 23 | 56 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 3 | 44 | 30 | 22 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 29 | 53 | 22 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 29 | 54 | 22 |
 | Quality, CI and process (`quality`) | 11 | 1 | 38 | 157 | 32 |

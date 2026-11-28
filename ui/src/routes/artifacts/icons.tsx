@@ -1,5 +1,6 @@
 import { Icon } from "../../app/icon";
 import type { MaterialKind } from "./kinds";
+import "./material-library.css";
 
 export type MaterialIconName =
   | MaterialKind
@@ -28,7 +29,7 @@ export function MaterialIcon({
 }
 
 /** The icon of a material kind, as on the project's material chips. */
-export function MaterialKindIcon({
+function MaterialKindIcon({
   kind,
   size,
 }: {
@@ -36,4 +37,13 @@ export function MaterialKindIcon({
   size?: number;
 }) {
   return <MaterialIcon name={kind} size={size ?? 16} />;
+}
+
+/** Shared coloured identity in Materials and the New check chooser. */
+export function MaterialKindMark({ kind }: { kind: MaterialKind }) {
+  return (
+    <span className="materials-kind-mark" data-kind={kind}>
+      <MaterialKindIcon kind={kind} size={18} />
+    </span>
+  );
 }

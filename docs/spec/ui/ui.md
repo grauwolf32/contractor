@@ -1736,16 +1736,22 @@ one content-first composition: a compact exact identity and selected revision,
 authoritative current/historical and locked chips, icon-only copy/download with
 accessible labels, and Versions/Refresh above the main reader. Facts, Git source,
 eligible new-version upload, storage details and paged history/lineage form a
-quiet supporting column; on phones they follow the content in ordinary flow.
+quiet supporting column; Project and Eval material pages give the reader the
+full content width and place this supporting context below it. On phones context
+follows the content in ordinary flow.
 Copy/download retain the exact selected identity/bytes, return state survives
 version selection, and existing upload eligibility/conflict owners remain.
-Preview/archive reads stay explicit and retain their scope and size policies.
+Opening a Project or Eval material page automatically loads the selected exact
+revision's bounded preview or archive index. Other file contexts retain explicit
+preview/archive loading. Scope and size policies remain the same, including
+on-request rendering of large OpenAPI documents.
 The existing Markdown, diff, HTTP, Scalar OpenAPI and LikeC4 engines remain the
 rendering owners, styled with the shared font/theme tokens. Source wrapping is
-a local control; line-number DOM expansion is bounded by UI-R225. After explicit archive Browse,
+a local control; line-number DOM expansion is bounded by UI-R225. After the archive index loads,
 a readable SKILL.md is selected first, otherwise a readable root README.md;
-other archives ask for a selection. The archive tree can collapse on phones and
-selecting a file returns the reading space to its content. No file is executed,
+automatically opened material previews fall back to the first readable file,
+while other archives ask for a selection. The archive tree can collapse on phones
+and selecting a file returns the reading space to its content. No file is executed,
 no API request is sent by a renderer and no synthetic preview data ships in UI.
 
 **UI-R225.** Material source previews number up to 4,000 lines (LIM-UI-18),
@@ -1896,6 +1902,12 @@ Original memories remain ordinary source text: a declared memory-snapshot schema
 adds a reported-statement annotation without another parser or validation engine.
 Preview, source errors, pinned revisions and hypothesis grounds use their existing
 owners; opening a fact creates no new source grant, hold or verification state.
+
+The Facts list shows observations, subjects when supplied and recorded dates,
+with search and a disclosure for state and decision filters. Opening a fact
+retains the Project list and its filters. The shared detail leads with the
+reported observation, original source and exact retained evidence. Analyst
+assessment is a secondary action.
 
 ### Attributed check results
 

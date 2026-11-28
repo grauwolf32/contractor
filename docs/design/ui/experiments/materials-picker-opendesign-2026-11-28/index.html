@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Materials · OpenDesign review</title>
+    <link rel="stylesheet" href="review-host.css" />
+  </head>
+  <body>
+    <header class="review-toolbar">
+      <span class="review-title">Materials · OpenDesign</span
+      ><label
+        >Screen<select id="screen">
+          <option value="materials">Project materials</option>
+          <option value="material">Material preview</option>
+          <option value="check">New check</option>
+        </select></label
+      ><label
+        >Theme<select id="theme">
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+          <option value="black">Black</option>
+        </select></label
+      ><label
+        >Width<select id="width">
+          <option value="1440">1440 px</option>
+          <option value="1024">1024 px</option>
+          <option value="390">390 px</option>
+        </select></label
+      ><label
+        >State<select id="state">
+          <option value="normal">Normal</option>
+          <option value="empty">Empty</option>
+          <option value="loading">Loading</option>
+          <option value="error">Error</option>
+        </select></label
+      ><a id="direct" target="_blank" rel="noopener">Open full page ↗</a
+      ><span class="review-note">Interactive prototype · synthetic data</span>
+    </header>
+    <main class="review-stage">
+      <iframe
+        id="preview"
+        title="Contractor design preview"
+        allow="clipboard-write"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
+      ></iframe>
+    </main>
+    <script src="review-host.js"></script>
+  </body>
+</html>

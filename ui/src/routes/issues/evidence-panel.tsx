@@ -34,7 +34,13 @@ export function EvidencePanel({ finding }: { finding: ProjectFinding }) {
     </QueryView>
   );
 }
-export function SourceEvidence({ source }: { source: FindingProposalReceipt }) {
+export function SourceEvidence({
+  source,
+  showEmptyHttp = true,
+}: {
+  source: FindingProposalReceipt;
+  showEmptyHttp?: boolean;
+}) {
   const id = useId();
   const document = source.document;
   const locations = document.locations ?? [];
@@ -107,7 +113,8 @@ export function SourceEvidence({ source }: { source: FindingProposalReceipt }) {
           ))}
         </section>
       )}
-      {exchanges.length === 0 &&
+      {showEmptyHttp &&
+      exchanges.length === 0 &&
       !files.some((file) => file.mediaType === HTTP_EXCHANGE_MEDIA_TYPE) ? (
         <p className="issues-no-http">
           <Icon name="question-circle" size={14} />

@@ -202,6 +202,8 @@ function CaseEditor({
       {pick ? (
         <div id={picker}>
           <EvalArtifactPicker
+            role={inputRole.trim()}
+            onClose={() => setPick(false)}
             projectId={projectId}
             onSelect={(ref) => {
               onChange({

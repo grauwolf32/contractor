@@ -1,3 +1,5 @@
+import { artifactMetadata } from "../src/test/builders";
+import { fulfillJSON, fulfillContent } from "./support/mock-api";
 import { expect, test } from "@playwright/test";
 import { installEvalFixture } from "./support/evals";
 
@@ -157,3 +159,66 @@ test("dataset authoring keeps private review material separate from visible case
     "PRIVATE_BROWSER_SENTINEL",
   );
 });
+
+for (const width of [1440, 390]) {
+  test(`Eval inputs can be inspected, cancelled and pinned at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await installEvalFixture(page);
+    const text = "Retained case input";
+    const item = artifactMetadata("fixtures", "orders.txt", {
+      mediaType: "text/plain",
+      size: text.length,
+    });
+    await page.route("**/v1/projects/evaluation-1/artifacts*", (r) =>
+      fulfillJSON(r, { items: [item], page: { hasMore: false } }),
+    );
+    await page.route("**/v1/artifacts?*", (r) =>
+      fulfillJSON(r, { items: [item], page: { hasMore: false } }),
+    );
+    await page.route("**/artifacts/fixtures/orders.txt?*", (r) =>
+      fulfillContent(r, text, "text/plain"),
+    );
+    await page.goto("/evals/datasets?project=evaluation-1");
+    await page
+      .getByRole("button", { name: "Create or import dataset" })
+      .click();
+    const role = page.getByLabel("Input role", { exact: true });
+    await role.fill("source");
+    const choose = page.getByRole("button", {
+      name: "Choose input",
+      exact: true,
+    });
+    await choose.click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("searchbox").fill("nothing here");
+    await expect(dialog.getByText("No matching materials")).toBeVisible();
+    await dialog.getByRole("searchbox").fill("orders");
+    const row = dialog.getByRole("button", { name: "fixtures/orders.txt@r1" });
+    await row.click();
+    await expect(dialog.getByText(text, { exact: true })).toBeVisible();
+    await expect(
+      dialog.getByRole("link", { name: "Open full page" }),
+    ).toHaveAttribute(
+      "href",
+      "/evals/workspaces/evaluation-1/artifacts/fixtures/orders.txt?revision=r1",
+    );
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(role).toHaveValue("source");
+    await expect(page.getByText("No input files yet.")).toBeVisible();
+    await choose.click();
+    await dialog.getByLabel("Input source").selectOption("user");
+    await row.click();
+    await expect(
+      dialog.getByRole("link", { name: "Open full page" }),
+    ).toHaveAttribute("href", "/artifacts/fixtures/orders.txt?revision=r1");
+    await dialog
+      .getByRole("button", { name: "Use input", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Remove input source" }),
+    ).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+  });
+}

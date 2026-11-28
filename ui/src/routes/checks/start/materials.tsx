@@ -1,14 +1,17 @@
-import { materialDisplayRef } from "../../artifacts/display-name";
+import { materialKey } from "../../artifacts/material-library-filter";
 import { AssertionMaterialEditor } from "./assertion-material-editor";
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
-import type { ArtifactMetadata } from "../../../api/artifacts";
 import { ErrorNotice } from "../../../app/error-notice";
-import { formatBytes } from "../../../app/format";
 import { Icon } from "../../../app/icon";
-import { Button } from "../../../ui";
-import { formatName, inSentence, joinWords, materialKey } from "./check-types";
+import { Button, IconButton } from "../../../ui";
+import { AddMaterialSheet } from "../../artifacts/add-material";
+import { MaterialKindMark } from "../../artifacts/icons";
+import { materialKindOf } from "../../artifacts/kinds";
+import { MaterialSummary } from "../../artifacts/material-chooser";
+import { MaterialPicker } from "./material-picker";
+import { inSentence, joinWords } from "./check-types";
 import { projectPaths } from "./paths";
 import type { InputSlot, StartCheck } from "./use-start-check";
 
@@ -23,111 +26,85 @@ function sharedMaterials(slots: readonly InputSlot[]): string[][] {
   return [...byMaterial.values()].filter((labels) => labels.length > 1);
 }
 
-function exactName(material: ArtifactMetadata): string {
-  const { namespace, name, revision } = material.artifact;
-  return `${namespace}/${name}@${revision}`;
-}
-
-/** The exact material: namespace/name@revision, its format and size. */
-function MaterialRef({ material }: { material: ArtifactMetadata }) {
-  return (
-    <span className="start-material-ref">
-      <code title={exactName(material)} aria-label={exactName(material)}>
-        {materialDisplayRef(material.artifact)}
-      </code>
-      <span>
-        {formatName(material.mediaType)}, {formatBytes(material.size)}
-      </span>
-    </span>
-  );
-}
-
 function MaterialSlot({
   slot,
   complete,
-  addHref,
   onChoose,
+  onPreview,
+  onClear,
   children,
 }: {
   slot: InputSlot;
   complete: boolean;
-  addHref: string;
-  onChoose: (input: string, value: string) => void;
+  onChoose: () => void;
+  onPreview: () => void;
+  onClear: () => void;
   children?: ReactNode;
 }) {
-  const { candidates, selected, input } = slot;
-  // A single format match shows as attached; anything else is a choice.
-  const choosing =
-    candidates.length > 1 ||
-    (candidates.length === 1 && selected === undefined);
+  const { selected, input } = slot;
   return (
     <li
-      className="start-material"
+      className="start-material check-material-slot"
       data-state={selected === undefined ? "open" : "attached"}
     >
-      <span className="start-material-mark" aria-hidden="true">
-        {selected === undefined ? null : (
-          <Icon name="check" size={14} strokeWidth={2.2} />
-        )}
-      </span>
-      <div className="start-material-main">
-        <div className="start-material-head">
-          <span className="start-material-label">{slot.label}</span>
-          <span className="ui-caption">
-            {slot.formats}
-            {input.required ? "" : ", optional"}
-          </span>
-        </div>
-        {selected !== undefined && !choosing ? (
-          <MaterialRef material={selected} />
-        ) : null}
-        {choosing ? (
-          <select
-            className="ui-control start-material-select"
-            aria-label={`Material for ${slot.label}`}
-            value={slot.selection}
-            onChange={(event) => onChoose(slot.name, event.target.value)}
-          >
-            <option value="">
-              {input.required ? "Choose a material" : "Not used"}
-            </option>
-            {candidates.map((candidate) => (
-              <option
-                key={materialKey(candidate)}
-                value={materialKey(candidate)}
-              >
-                {materialDisplayRef(candidate.artifact)} · {candidate.mediaType}
-              </option>
-            ))}
-          </select>
-        ) : null}
-        {candidates.length === 0 && complete ? (
-          <p className="ui-caption">
-            {input.required
-              ? "No material in this format yet. "
-              : "Not used: no material in this format. "}
-            {input.required ? <Link to={addHref}>Add one</Link> : null}
-          </p>
-        ) : null}
-        {selected === undefined ? null : (
-          <p className="ui-caption">
-            {slot.automatic
-              ? "Attached: the only material in a matching format."
-              : "Format matches."}
-          </p>
-        )}
-        {children}
+      <div className="start-material-head">
+        <span className="start-material-label">{slot.label}</span>
+        <span className="ui-caption">
+          {input.required ? "Required" : "Optional"}
+        </span>
       </div>
-      {!input.required && selected !== undefined && !choosing ? (
-        <Button
-          variant="ghost"
-          size="xs"
-          aria-label={`Don't use ${slot.label}`}
-          onClick={() => onChoose(slot.name, "")}
-        >
-          Don&apos;t use
-        </Button>
-      ) : null}
+      <div className="check-material-attachment">
+        {selected === undefined ? (
+          <span className="ui-caption">
+            {complete && slot.candidates.length === 0
+              ? "No material in this format yet."
+              : "Choose a material"}
+          </span>
+        ) : (
+          <>
+            <MaterialKindMark kind={materialKindOf(selected)} />
+            <MaterialSummary material={selected} />
+          </>
+        )}
+        <div className="ui-toolbar check-material-actions">
+          {selected === undefined ? null : (
+            <IconButton
+              size="sm"
+              variant="ghost"
+              label={`Preview ${inSentence(slot.label)}`}
+              icon={<Icon name="docs" />}
+              onClick={onPreview}
+            />
+          )}
+          <Button
+            size="sm"
+            variant={selected === undefined ? "secondary" : "ghost"}
+            aria-label={`${selected === undefined ? "Choose" : "Change"} ${inSentence(slot.label)} material`}
+            onClick={onChoose}
+          >
+            {selected === undefined ? "Choose" : "Change"}
+          </Button>
+          {!input.required && selected !== undefined ? (
+            <IconButton
+              size="xs"
+              variant="ghost"
+              label={`Don't use ${slot.label}`}
+              icon={<Icon name="close" size={14} />}
+              onClick={onClear}
+            />
+          ) : null}
+        </div>
+      </div>
+      {selected === undefined ? (
+        <p className="ui-caption">Accepted formats: {slot.formats}.</p>
+      ) : (
+        <p className="ui-visually-hidden">
+          {slot.automatic
+            ? "Attached: the only material in a matching format."
+            : "Format matches."}
+        </p>
+      )}
+      {children}
     </li>
   );
 }
@@ -173,15 +150,36 @@ function LiveTargetMaterial({
 /** Inputs attached from the project's current materials. */
 export function MaterialsCard({ model }: { model: StartCheck }) {
   const headingId = useId();
+  const [picker, setPicker] = useState<{
+    input: string;
+    preview: boolean;
+    context: string;
+  }>();
+  const [adding, setAdding] = useState(false);
+  const context = `${model.projectId}:${model.selection?.profile.ref.digest ?? ""}`;
+  const activeSlot =
+    picker?.context === context
+      ? model.slots.find((slot) => slot.name === picker.input)
+      : undefined;
   const { materials, slots } = model;
   const paths = projectPaths(model.projectId);
   const usesTarget = model.scopeFields.has("target");
   const shared = sharedMaterials(slots);
   return (
-    <section className="start-card" aria-labelledby={headingId}>
+    <section
+      className="start-card start-materials-card"
+      aria-labelledby={headingId}
+    >
       <div className="start-card-head">
         <h3 id={headingId}>Materials</h3>
-        <span className="ui-caption">Attached from the project</span>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<Icon name="plus" />}
+          onClick={() => setAdding(true)}
+        >
+          Add
+        </Button>
       </div>
       {materials.loading ? (
         <p className="ui-caption" role="status">
@@ -219,8 +217,13 @@ export function MaterialsCard({ model }: { model: StartCheck }) {
               key={slot.name}
               slot={slot}
               complete={materials.complete}
-              addHref={paths.addMaterial}
-              onChoose={model.chooseMaterial}
+              onChoose={() =>
+                setPicker({ input: slot.name, preview: false, context })
+              }
+              onPreview={() =>
+                setPicker({ input: slot.name, preview: true, context })
+              }
+              onClear={() => model.chooseMaterial(slot.name, "")}
             >
               {model.exact?.program?.seed_source?.input === slot.name ? (
                 <AssertionMaterialEditor
@@ -265,11 +268,25 @@ export function MaterialsCard({ model }: { model: StartCheck }) {
         </div>
       ) : null}
       <p className="ui-caption">
-        Picked by file format: a format match does not check what is inside, so
-        make sure each one is right. The server validates exact metadata and
-        input formats at start.{" "}
-        <Link to={paths.addMaterial}>Add materials</Link>
+        Choose the saved version to use for this check. You can preview each
+        material before attaching it.
       </p>
+      {activeSlot === undefined || picker === undefined ? null : (
+        <MaterialPicker
+          key={`${context}:${activeSlot.name}`}
+          model={model}
+          slot={activeSlot}
+          previewInitially={picker.preview}
+          onClose={() => setPicker(undefined)}
+        />
+      )}
+      {adding ? (
+        <AddMaterialSheet
+          projectId={model.projectId}
+          onClose={() => setAdding(false)}
+          onAdded={() => setAdding(false)}
+        />
+      ) : null}
     </section>
   );
 }

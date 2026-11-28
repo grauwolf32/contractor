@@ -1,0 +1,16 @@
+{
+  "project": {
+    "id": "contractor-materials-picker-20261128",
+    "name": "Contractor \u00b7 Materials & material chooser",
+    "skillId": null,
+    "designSystemId": null,
+    "metadata": {
+      "skipDiscoveryBrief": true
+    },
+    "customInstructions": "Use only the explicitly supplied reference files in this new project. Preserve all existing projects and conversations. Use existing Contractor theme tokens. No Skills, installs, remote assets, external tools or network access. Write only opendesign.css and rationale.md in this new project.",
+    "createdAt": 1795878160126,
+    "updatedAt": 1795878160126,
+    "lastUserQueryAt": null
+  },
+  "conversationId": "9922b533-666a-474c-8f6f-7550a6baa4d3"
+}

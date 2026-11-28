@@ -2,6 +2,7 @@ import { screen, within, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { projectFactsFixture } from "../../../test/project-facts-fixtures";
 import { renderWithAPI } from "../../../test/render";
+import { ProjectFactsRoute } from "./project-facts";
 import { ProjectFindingsRoute } from "./findings";
 
 function setup(facts = true) {
@@ -12,7 +13,7 @@ function setup(facts = true) {
     routes: [
       {
         path: "/projects/:projectId/facts",
-        element: <ProjectFindingsRoute facts={facts} />,
+        element: facts ? <ProjectFactsRoute /> : <ProjectFindingsRoute />,
       },
     ],
   });
@@ -24,9 +25,7 @@ describe("Project Facts over canonical Findings", () => {
     const { data, user } = setup();
     const list = await screen.findByRole("list", { name: "Facts" });
     expect(within(list).getAllByRole("link")).toHaveLength(1);
-    expect(
-      screen.getByText("1 facts shown · 250 records loaded"),
-    ).toBeVisible();
+    expect(screen.getByText("1 fact shown · 250 records loaded")).toBeVisible();
     expect(data.listReads).toEqual([0, 50, 100, 150, 200]);
     expect(data.payloadReads).toEqual([]);
     await user.click(screen.getByRole("button", { name: "Load more facts" }));
@@ -36,14 +35,14 @@ describe("Project Facts over canonical Findings", () => {
     expect(data.listReads).toEqual([
       0, 50, 100, 150, 200, 250, 300, 350, 400, 450,
     ]);
-    expect(screen.getByLabelText("Severity")).toBeDisabled();
+    expect(screen.queryByLabelText("Severity")).toBeNull();
     expect(screen.queryByText("Unknown severity record")).toBeNull();
     const link = within(list).getByRole("link", {
       name: /Reported nginx deployment/,
     });
     expect(link).toHaveAttribute(
       "href",
-      expect.stringContaining("/issues/project_facts/fact_nginx?state=all"),
+      expect.stringContaining("/issues/project_facts/fact_nginx?from=facts"),
     );
   });
   it("uses canonical analyst severity on explicit refresh without replacing identity", async () => {

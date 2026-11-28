@@ -33,6 +33,7 @@ export function MaterialList<P extends MaterialPage>({
   pages,
   children,
   advancedFilter = false,
+  controls,
 }: {
   query: {
     data: P | undefined;
@@ -53,10 +54,12 @@ export function MaterialList<P extends MaterialPage>({
   };
   children: (page: P) => ReactNode;
   advancedFilter?: boolean;
+  controls?: ReactNode;
 }) {
   const filter = useNamespaceFilter({ value: namespace, onApply: onNamespace });
   return (
     <>
+      {controls}
       <div className="materials-panel-head">
         {advancedFilter ? (
           <details
