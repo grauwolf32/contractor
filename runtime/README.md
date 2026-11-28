@@ -493,7 +493,11 @@ declarations.
 `scan@1` also provides local `scan_semgrep`. Install Semgrep 1.187.0 separately
 from the Runtime environment and point `SEMGREP_RULES_DIR` at an installed local
 rule package. The Ansible role supplies an isolated locked Semgrep environment
-and the checksum-pinned upstream rules. The upstream rules are under the
+with compiled Python bytecode and the checksum-pinned upstream rules. Version
+checks use `semgrep --experimental --version --disable-version-check` to execute
+the packaged native OSS engine without importing the Python scan CLI. This
+keeps the independent two-second capability probe useful on cold installations;
+bytecode compilation also reduces scan CLI startup cost. The upstream rules are under the
 [Semgrep Rules License](https://semgrep.dev/legal/rules-license/), for internal
 business use; they are fetched on the operator host rather than redistributed
 in Contractor. Use rules with appropriate terms for other deployment models.

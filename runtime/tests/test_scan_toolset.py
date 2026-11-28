@@ -107,12 +107,13 @@ def test_capabilities_check_each_binary_independently(
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("hanging_binary", ["nuclei", "semgrep"])
 def test_hung_scanner_probe_does_not_hide_a_healthy_binary(
-    tmp_path, monkeypatch, scanner_probe_budget
+    tmp_path, monkeypatch, scanner_probe_budget, hanging_binary
 ):
     # Both children must start before the test expires the hung child's timer.
     marker = tmp_path / "hung.pid"
-    hanging = tmp_path / "nuclei"
+    hanging = tmp_path / hanging_binary
     hanging.write_text(
         f"#!/bin/sh\nprintf '%s' $$ > {shlex.quote(str(marker))}\n"
         "printf 'hung-ready\\n'\nexec /bin/sleep 120\n"
