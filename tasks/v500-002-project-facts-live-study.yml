@@ -1,0 +1,40 @@
+schema_version: '1.0'
+id: V500-002
+title: Measure Project Facts extraction on the frozen six-case corpus
+milestone: eval-maintenance-2026-10
+epic: evals
+kind: chore
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python, markdown, json]
+goal: Measure supported useful observations, unsupported assertions, duplicates, token usage and latency on the existing Project Facts corpus using the configured model.
+context:
+  authority: 'User request 2026-11-28 explicitly selects study 7 and requires debug traces before live execution.'
+  specification:
+    - docs/spec/evals/managed-evals.md
+    - docs/spec/platform/observability.md
+    - docs/spec/findings/findings.md
+  design: tests/eval/project_facts/README.md
+  boundary: Use ordinary native Managed Eval/Audit execution. Both arms use the same immutable binding for a mechanism/noise baseline; no instruction improvement or candidate superiority is claimed. Keep hidden expectations outside Worker materials and identify evaluator-assisted semantic review explicitly.
+scope:
+  in:
+    - All six frozen cases, three repeats in both arms, exact current configuration and source pins.
+    - Debug trace delivery, per-member semantic review and retained reproducible results.
+    - Isolated execution and cleanup of task-owned resources.
+  out:
+    - New production extraction logic, model changes, live demo schema changes and rewriting prior datasets.
+acceptance_criteria:
+  - id: A1
+    text: Every one of the 36 planned members has a retained outcome, including failed, cancelled, unsubmitted and incomplete cases, and uses debug telemetry.
+  - id: A2
+    text: Review each retained observation against its original attached memory and report unsupported assertion rate, duplicate/spam rate and useful-fact recall with explicit zero/missing denominators.
+  - id: A3
+    text: Report native observed usage, duration and known cost separately from quality, identify review authority and uncertainty, and verify owned cleanup.
+tests:
+  - command: python3 tests/eval/project_facts/prepare_recipe.py verify
+    covers: [A1, A2]
+  - command: go test -count=1 ./tests/eval/project_facts
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
