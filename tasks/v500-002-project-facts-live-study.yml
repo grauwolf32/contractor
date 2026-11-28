@@ -23,7 +23,9 @@ context:
     immutable source receipts and attached original memories were reviewed.
     Useful recall is 21/24; strict unsupported and spam rates are each 1/22,
     with the unsupported classification explicitly borderline. Native human
-    reviews remain unscored. Shared stack cleanup waits for V417-010.
+    reviews remain unscored. Shared owned processes joined; a recoverable
+    PostgreSQL backup was restored and all 61 table digests verified before
+    both owned databases and the cluster were removed. Evidence and traces remain retained.
   results: docs/research/project-facts-evaluation-20261128.md
   evidence: tasks/evidence/v500-002-project-facts-results-20261128.json
 scope:

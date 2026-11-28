@@ -1355,7 +1355,13 @@
     }
   ],
   "nativeConclusion": "inconclusive; human-review@1 remains unscored, not replaced by evaluator-assisted offline review",
-  "cleanup": "Pending shared study stack cleanup after the independent compaction series.",
+  "cleanup": {
+    "status": "complete",
+    "evidence": "tasks/evidence/v500-002-shared-cleanup-20261128.json",
+    "allOwnedRunsReleased": 103,
+    "databaseRestoredVerifiedAndDropped": true,
+    "processesJoined": true
+  },
   "members": [
     {
       "memberId": "01303a2486ed115832c2129c0f765963cb740d9f4df995cce779b1cb9a8094e3",

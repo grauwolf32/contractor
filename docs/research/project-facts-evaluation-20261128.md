@@ -134,5 +134,12 @@ model workspaces. Штатный Phoenix восстановлен с сохра�
 `go test -count=1 ./tests/eval/project_facts` и `make lint`.
 Native execution, collection и чтение source receipts использовали настоящий
 изолированный PostgreSQL, Server и Runtime. Все дочерние Runs released.
-Общий временный стенд пока нужен compaction-серии; его архивирование и удаление
-собственных процессов/базы будут зафиксированы после её завершения.
+Общий временный стенд закрыт после остановки неполной compaction-серии.
+Все 103 собственных Run released. Точный PostgreSQL custom archive восстановлен
+в отдельную проверочную базу: совпадают row counts и отсортированные row digests
+всех 61 таблицы, а также состояния sequences. Обе собственные базы удалены,
+процессы joined, временные ключи/PKI/workspaces удалены. Demo и общие secrets
+не менялись; существующий Phoenix оставлен работающим. В нём подтверждена
+доставка 200 сохранённых OTLP packets с 1 867 spans двух исследований и их
+development/неполных попыток. Это общий trace denominator, не только Facts.
+[Evidence cleanup](../../tasks/evidence/v500-002-shared-cleanup-20261128.json).

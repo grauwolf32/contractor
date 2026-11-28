@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "tasks": [
+    "V500-002",
+    "V417-010"
+  ],
+  "cleanup": {
+    "date": "2026-11-28",
+    "executions": {
+      "allOwnedRuns": 103,
+      "allReleased": true,
+      "nativeStates": {
+        "cancelled": 1,
+        "failed": 35,
+        "succeeded": 67
+      },
+      "retainedTracePackets": 200,
+      "phoenixAcknowledgedPackets": 200,
+      "phoenixAcknowledgedSpans": 1867,
+      "currentCollectorGap": false,
+      "historicalGapPreserved": true
+    },
+    "ownedProcesses": [
+      {
+        "resource": "runtime",
+        "joined": true,
+        "runningAfterJoin": false
+      },
+      {
+        "resource": "server",
+        "joined": true,
+        "runningAfterJoin": false
+      },
+      {
+        "resource": "collector",
+        "joined": true,
+        "runningAfterJoin": false
+      },
+      {
+        "resource": "traceReplayer",
+        "joined": true,
+        "runningAfterJoin": false
+      },
+      {
+        "resource": "compactionConsumer",
+        "joined": true
+      },
+      {
+        "resource": "factsHarvester",
+        "joined": true
+      }
+    ],
+    "databaseBackup": {
+      "format": "PostgreSQL custom",
+      "bytes": 2607151,
+      "sha256": "sha256:8b9500c0ea299fd4002fa5eeee156f4fc1869c4e96ce0dafe9c978705bfee97c",
+      "restoredAndVerified": true,
+      "tables": 61,
+      "rowCountsAndSortedRowDigestsMatch": true,
+      "sequenceStatesMatch": true
+    },
+    "ownedDatabaseDropped": true,
+    "verificationDatabaseDropped": true,
+    "ownedClusterStoppedAndRemoved": true,
+    "ephemeralCredentialsAndWorkspaceRemoved": [
+      "api-token",
+      "pki",
+      "runtime-work"
+    ],
+    "demoDatabaseOrSharedSecretsChanged": false,
+    "existingPhoenixServiceKept": true,
+    "rawEvidenceRetainedOwnerOnly": true
+  },
+  "retention": "Exact native exports, original OTLP/projections and verified PostgreSQL archive remain in an owner-only ignored local evidence directory. No credentials or raw reasoning are published.",
+  "retentionInventory": {
+    "files": 1985,
+    "bytes": 98884749,
+    "sha256": "sha256:3643773930bee5a9092c85c8dd651a45a50bdf2a499a54bc76fd1e524597bb23",
+    "allOwnedPortsClosed": true,
+    "existingPhoenixHealthy": true,
+    "residualPrivateKeyFiles": 0
+  }
+}
