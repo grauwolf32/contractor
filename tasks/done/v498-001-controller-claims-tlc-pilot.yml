@@ -5,7 +5,8 @@ milestone: persistence-api-cleanup-2026-10
 epic: persistence
 kind: chore
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: b84526a3288881b3653fababf47cdab9f1efa9e2
 depends_on: []
 languages: [go]
 goal: >-
