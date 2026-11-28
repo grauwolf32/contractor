@@ -6,7 +6,7 @@ epic: scan-tools
 kind: defect
 introduced_by: V493-001
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: A correctly installed Semgrep registers reliably without loading the Python scan CLI during its bounded version check.
@@ -57,3 +57,13 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification:
+  results:
+    - The new real-engine regression fails on baseline when the Python CLI fallback exits 97 and passes with the native command. Focused scanner suites pass 183 tests with zero skips.
+    - Read-only native version measurements on the actual two demo cloud hosts were 139 and 146 ms, compared with the original Python CLI measurements of 2690 and 2895 ms. These are observations, not wall-clock assertions.
+    - make test-runtime passes 6781 cases with 136 declared optional/platform skips, zero failures/errors, and 611 selected compaction cases. The required real native-engine regression ran and passed.
+    - make lint passes, including full Ansible, source/task/specification gates, Ruff and import boundaries. make test-ansible passes again after simplifying the final bytecode completion marker.
+    - The existing dependency graph was regenerated through make docs-dependencies after the specification change; only its fingerprint changed.
+    - Semgrep startup, Ansible preflight and per-scan verification reuse one native version command. Unsupported/malformed versions, failed probes and hung Semgrep cleanup remain covered without changing other scanner deadlines or scan-engine invocation.
+    - No database, live model, demo data, main merge or deployment change was made. Implementation remains on codex/semgrep-probe-stability.
+implementation_commit: 6515fa95e6923a2f78c1c0c3138f055c72430731
