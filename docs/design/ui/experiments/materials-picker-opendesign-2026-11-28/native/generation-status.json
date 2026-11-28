@@ -1,0 +1,599 @@
+{
+  "id": "c3729282-8627-43e9-998e-55fcf3364b41",
+  "projectId": "contractor-materials-picker-20261128",
+  "conversationId": "9922b533-666a-474c-8f6f-7550a6baa4d3",
+  "assistantMessageId": "c6ac8e6e-4254-4641-9c9e-34421ed409c9",
+  "clientRequestId": "430b94de-9bae-4fca-9128-f1879a635c80",
+  "agentId": "byok-opencode",
+  "designSystemId": null,
+  "designSystemRequestedId": null,
+  "designSystemSelectionSource": "none",
+  "designSystemDigest": null,
+  "appliedPluginSnapshotId": "e923adab-eb6f-410c-9dec-ec92ee5083fe",
+  "pluginId": "od-next-strategy",
+  "strategyRolloutDecision": {
+    "schemaVersion": 1,
+    "decisionClass": "active",
+    "requestedMode": "active",
+    "effectiveMode": "active",
+    "taskType": "discovery",
+    "assignmentBucket": 4501,
+    "eligible": true,
+    "syntheticCanary": false,
+    "reasonCodes": [],
+    "primaryReasonCode": "od_next_rollout_eligible"
+  },
+  "status": "succeeded",
+  "createdAt": 1795878252123,
+  "updatedAt": 1795878397856,
+  "startedAt": 1795878252520,
+  "terminalAt": 1795878397856,
+  "cancelRequested": false,
+  "cancelOrigin": null,
+  "terminalTrigger": null,
+  "childPid": 83,
+  "processGroupId": 83,
+  "childExited": true,
+  "childExitObservedAt": null,
+  "exitCode": 0,
+  "signal": null,
+  "error": null,
+  "errorCode": null,
+  "failureCategory": null,
+  "failureDetail": null,
+  "failureAction": null,
+  "retryable": null,
+  "resumable": false,
+  "endedWithUnfinishedWork": false,
+  "artifactCount": 0,
+  "artifactPaths": [],
+  "eventsLogPath": "/state/runs/c3729282-8627-43e9-998e-55fcf3364b41/events.jsonl",
+  "workspace": {
+    "storage": {
+      "kind": "od-owned",
+      "baseDir": null
+    },
+    "provenance": null
+  },
+  "mediaExecution": {
+    "mode": "enabled"
+  },
+  "toolBundle": {
+    "mcpServers": []
+  },
+  "promptCache": {
+    "stablePromptHash": "d6f50e39a55f9bdfb78fb7ba2a3c4f131a3ccc6fc8919f844375e210fa5b89d9",
+    "hit": false,
+    "missReason": "new-session",
+    "changedSections": null
+  },
+  "nativeSessionRecovery": {
+    "agentId": "byok-opencode",
+    "state": "not_applicable",
+    "acquisition": "none",
+    "continuation": "none",
+    "handle": {
+      "present": false,
+      "kind": "opaque-id",
+      "display": null,
+      "sha256": null,
+      "redacted": false
+    },
+    "guardReason": "unsupported",
+    "fallbackReason": null,
+    "updatedAt": 1795878252180
+  },
+  "clientType": "web",
+  "manualResumeAttemptCount": 0,
+  "rechargeWaitDurationMs": 0,
+  "deliverableValid": false,
+  "deliverableValidation": "no_artifact",
+  "strategyTask": {
+    "taskExecutionId": "odnext_48bb9f1daf3b4ea69073510947067981",
+    "display": {
+      "id": "odnext_48bb9f1daf3b4ea69073510947067981",
+      "currentRunId": "c3729282-8627-43e9-998e-55fcf3364b41",
+      "runIds": [
+        "c3729282-8627-43e9-998e-55fcf3364b41"
+      ],
+      "revision": 4,
+      "state": "completed",
+      "elapsedMs": 145336,
+      "observedAt": 1795878477888,
+      "ticking": false
+    },
+    "strategy": {
+      "id": "od-next-strategy",
+      "version": "3.3.8",
+      "packageHash": "d63d3a1c98904ae23e7ca3091cd175335f7d14c8e0421661df060c728086240c",
+      "snapshotId": "e923adab-eb6f-410c-9dec-ec92ee5083fe"
+    },
+    "inputStage": "request",
+    "settlementReason": "ended",
+    "settlementFacts": {
+      "physicalStatus": "succeeded",
+      "deliverableValid": false,
+      "truncated": false,
+      "todoUnfinished": false,
+      "askedUserQuestion": false,
+      "productionReady": false,
+      "emptyReply": false,
+      "executionIntent": "produce"
+    },
+    "deliverableValid": false,
+    "outcome": "completed",
+    "route": "full_plan",
+    "executionMode": null,
+    "activeRunId": "c3729282-8627-43e9-998e-55fcf3364b41",
+    "runMappings": [
+      {
+        "runId": "c3729282-8627-43e9-998e-55fcf3364b41",
+        "taskRunIndex": 0
+      }
+    ],
+    "terminal": true
+  },
+  "terminalLifecycle": {
+    "version": 1,
+    "runAttempt": 0,
+    "runtimeGenerationId": null,
+    "terminationOrigin": "unknown",
+    "terminalIntegrity": "canonical",
+    "terminalPersistence": {
+      "status": "acknowledged",
+      "errorType": null
+    },
+    "posthogDelivery": {
+      "status": "unknown",
+      "acknowledgement": "unknown",
+      "attemptCount": 0,
+      "errorType": null
+    },
+    "unfinishedState": "unknown",
+    "duplicateTerminalCount": 0,
+    "lateTerminalCount": 0
+  },
+  "executionDiagnostics": {
+    "schemaVersion": 1,
+    "collectorVersion": "open-design-execution-diagnostics-v2",
+    "collectedAt": 1795878397856,
+    "eventStreamCompleteness": "complete",
+    "timing": {
+      "queueDurationMs": {
+        "state": "available",
+        "value": 31,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "run accepted to execution start"
+      },
+      "promptBuildDurationMs": {
+        "state": "available",
+        "value": 27,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "prompt build start to end"
+      },
+      "launchPreflightDurationMs": {
+        "state": "available",
+        "value": 353,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "runtime preflight start to end"
+      },
+      "processSpawnDurationMs": {
+        "state": "available",
+        "value": 2,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "process spawn start to child ready"
+      },
+      "stdinWriteDurationMs": {
+        "state": "available",
+        "value": 0,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "prompt stdin write start to end"
+      },
+      "firstModelEventWaitMs": {
+        "state": "available",
+        "value": 13159,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "execution start to first model event"
+      },
+      "firstVisibleOutputWaitMs": {
+        "state": "available",
+        "value": 145646,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "execution start to first visible assistant output"
+      },
+      "agentExecutionDurationMs": {
+        "state": "available",
+        "value": 132543,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "first model event to terminal run state"
+      },
+      "toolDurationMs": {
+        "state": "available",
+        "value": 7,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "sum of paired tool_use to tool_result intervals"
+      },
+      "artifactWriteDurationMs": {
+        "state": "upstream_unavailable",
+        "source": "open-design-daemon",
+        "missingReason": "upstream_did_not_emit_metric"
+      },
+      "totalDurationMs": {
+        "state": "available",
+        "value": 145733,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "run accepted to terminal state"
+      },
+      "phaseTimingStatus": "complete",
+      "bottleneckPhase": "stream_output"
+    },
+    "modelSteps": {
+      "count": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "totalDurationMs": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "averageDurationMs": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "p50DurationMs": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "p90DurationMs": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "maxDurationMs": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "over60sCount": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "durationSampleCount": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "completed": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "failed": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "cancelled": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "incomplete": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "retryCount": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "reasoningTokens": {
+        "state": "available",
+        "value": 45,
+        "evidence": "computed",
+        "source": "model-provider",
+        "complete": true,
+        "definition": "provider-reported reasoning token count summed across unique model steps when turn-level usage is absent"
+      },
+      "reasoningDurationMs": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "reasoning_interval_boundaries_not_exposed_by_runtime"
+      }
+    },
+    "assistantMessages": {
+      "count": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "totalDurationMs": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "averageDurationMs": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "maxDurationMs": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "durationSampleCount": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "completed": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "failed": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "cancelled": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      },
+      "incomplete": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "assistant_message_lifecycle_not_exposed_by_runtime"
+      }
+    },
+    "anomalies": {
+      "retryCount": {
+        "state": "available",
+        "value": 0,
+        "evidence": "computed",
+        "source": "agent-runtime",
+        "complete": true,
+        "definition": "runtime-observed model retry events"
+      },
+      "rateLimitedCount": {
+        "state": "available",
+        "value": 0,
+        "evidence": "computed",
+        "source": "agent-runtime",
+        "complete": true,
+        "definition": "runtime-observed 429 or rate-limit events"
+      },
+      "timeoutCount": {
+        "state": "available",
+        "value": 0,
+        "evidence": "computed",
+        "source": "agent-runtime",
+        "complete": true,
+        "definition": "runtime-observed provider timeout events"
+      },
+      "upstreamErrorCount": {
+        "state": "available",
+        "value": 0,
+        "evidence": "computed",
+        "source": "agent-runtime",
+        "complete": true,
+        "definition": "runtime-observed upstream provider errors"
+      }
+    },
+    "tools": {
+      "total": {
+        "state": "available",
+        "value": 13,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "count of observed tool_use events"
+      },
+      "succeeded": {
+        "state": "available",
+        "value": 13,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "tool_result events without isError"
+      },
+      "failed": {
+        "state": "available",
+        "value": 0,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "tool_result events with isError"
+      },
+      "unknown": {
+        "state": "available",
+        "value": 0,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "tool_use events without a matching terminal result"
+      },
+      "durationMs": {
+        "state": "available",
+        "value": 7,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "sum of paired tool_use to tool_result intervals"
+      },
+      "byName": {
+        "state": "available",
+        "value": {
+          "read": 4,
+          "bash": 5,
+          "write": 4
+        },
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "tool_use count grouped by redacted tool name"
+      }
+    },
+    "cache": {
+      "inputTokensEffective": {
+        "state": "available",
+        "value": 81781,
+        "evidence": "computed",
+        "source": "agent-runtime",
+        "complete": true,
+        "definition": "normalized full prompt tokens"
+      },
+      "cacheReadInputTokens": {
+        "state": "available",
+        "value": 81664,
+        "evidence": "computed",
+        "source": "agent-runtime",
+        "complete": true,
+        "definition": "provider-reported cache-read input tokens"
+      },
+      "cacheCreationInputTokens": {
+        "state": "available",
+        "value": 0,
+        "evidence": "computed",
+        "source": "agent-runtime",
+        "complete": true,
+        "definition": "provider-reported cache-write input tokens"
+      },
+      "uncachedInputTokens": {
+        "state": "available",
+        "value": 117,
+        "evidence": "computed",
+        "source": "agent-runtime",
+        "complete": true,
+        "definition": "normalized uncached input tokens"
+      },
+      "cacheHitRatio": {
+        "state": "available",
+        "value": 0.9985693498489869,
+        "evidence": "computed",
+        "source": "agent-runtime",
+        "complete": true,
+        "definition": "cache read tokens divided by effective input tokens"
+      },
+      "firstCallInputTokens": {
+        "state": "available",
+        "value": 22936,
+        "evidence": "computed",
+        "source": "agent-runtime",
+        "complete": true,
+        "definition": "opening model call input tokens"
+      },
+      "firstCallCacheReadInputTokens": {
+        "state": "available",
+        "value": 128,
+        "evidence": "computed",
+        "source": "agent-runtime",
+        "complete": true,
+        "definition": "opening model call cache-read tokens"
+      },
+      "firstCallCacheHitRatio": {
+        "state": "available",
+        "value": 0.0055807464248343215,
+        "evidence": "computed",
+        "source": "agent-runtime",
+        "complete": true,
+        "definition": "opening model call cache read divided by effective input"
+      },
+      "stablePromptCacheHit": {
+        "state": "available",
+        "value": false,
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "local stable-prompt hash matched the prior run"
+      },
+      "stablePromptCacheMissReason": {
+        "state": "available",
+        "value": "new-session",
+        "evidence": "computed",
+        "source": "open-design-daemon",
+        "complete": true,
+        "definition": "local stable-prompt cache miss classification"
+      }
+    },
+    "environment": {
+      "agentId": {
+        "state": "available",
+        "value": "byok-opencode",
+        "evidence": "computed",
+        "source": "agent-runtime",
+        "complete": true,
+        "definition": "requested agent runtime"
+      },
+      "provider": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "provider_not_reported_by_runtime"
+      },
+      "requestedModel": {
+        "state": "available",
+        "value": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+        "evidence": "computed",
+        "source": "agent-runtime",
+        "complete": true,
+        "definition": "requested model configuration"
+      },
+      "resolvedModel": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "resolved_model_not_reported"
+      },
+      "reasoning": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "reasoning_configuration_not_recorded"
+      },
+      "agentCliVersion": {
+        "state": "not_collected",
+        "source": "agent-runtime",
+        "missingReason": "agent_cli_version_not_recorded"
+      }
+    }
+  },
+  "taskTelemetry": {
+    "version": 1,
+    "taskExecutionId": "odnext_48bb9f1daf3b4ea69073510947067981",
+    "status": "not_expected",
+    "traceId": null,
+    "protocol": null,
+    "transport": null,
+    "attemptCount": 0,
+    "reason": "metrics_consent_off",
+    "environment": "production",
+    "sampledAt": 1795878477892,
+    "remoteVerification": "not_checked"
+  }
+}

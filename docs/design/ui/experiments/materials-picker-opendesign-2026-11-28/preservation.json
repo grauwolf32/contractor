@@ -1,0 +1,31 @@
+{
+  "preservedOldProjectFiles": 278,
+  "changedOldProjectFiles": 0,
+  "preBackup": "/Users/ruslan/src/third-party/open-design-backups/20261128-materials-pre/preserved-state.tar",
+  "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+  "nativeProject": "contractor-materials-picker-20261128",
+  "nativeRun": "c3729282-8627-43e9-998e-55fcf3364b41",
+  "environment": "Isolated copy of preserved OpenDesign state, read-only container root and internal network, bounded relay to the configured Contractor gateway",
+  "upstreamCredentialsRetained": false,
+  "postBackup": "/Users/ruslan/src/third-party/open-design-backups/20261128-materials-post/preserved-state.tar",
+  "preBackupSha256": "780343b378178d9a480920d3b1e5cb7cad1d3e59ea4d7528cb85ddac54c9dac3",
+  "postBackupSha256": "45d4650af9e7cb6960454597c821229d77b36b2fbfd87d305b2e716723626fcb",
+  "retainedDatabaseKeys": {
+    "projects": {
+      "before": 16,
+      "after": 17,
+      "missingOldKeys": 0
+    },
+    "conversations": {
+      "before": 21,
+      "after": 22,
+      "missingOldKeys": 0
+    },
+    "messages": {
+      "before": 86,
+      "after": 88,
+      "missingOldKeys": 0
+    }
+  },
+  "relayStopped": true
+}

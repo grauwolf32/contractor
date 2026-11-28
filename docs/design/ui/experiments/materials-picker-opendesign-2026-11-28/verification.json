@@ -1,0 +1,32 @@
+{
+  "nativeRun": "c3729282-8627-43e9-998e-55fcf3364b41",
+  "nativeStatus": "succeeded",
+  "testsPassed": 15,
+  "themes": [
+    "light",
+    "dark",
+    "black"
+  ],
+  "widths": [
+    1440,
+    1024,
+    390
+  ],
+  "checks": [
+    "No horizontal overflow",
+    "Closed mobile chooser stays hidden",
+    "Search and category selection",
+    "Current preview follows visible selection",
+    "Cancel preserves previous attachment",
+    "Exact revision shown before attaching",
+    "Invalid upload format remains editable",
+    "Add and attach preserves objective, scope and time limit",
+    "Active HTTP check requires Engagement",
+    "Exact reference copied",
+    "Raw preview and material details open",
+    "Loading, empty and retry states",
+    "Secondary categories under More",
+    "Scaled review host retains exact iframe viewport"
+  ],
+  "nativeCssSha256": "e9b6e09887b8c475fe524ecc5a8cb7de4bab8658358f2655b381342eff85734f"
+}

@@ -1,0 +1,245 @@
+{
+  "files": {
+    "README.md": {
+      "sha256": "3a36de6cdb18bf482bd7074fd8f6be2db621833100255e0e8a48fc0f63d2da02",
+      "bytes": 3633
+    },
+    "contractor-logo.png": {
+      "sha256": "351b5909f13d131d50d7e75c64e55fbd822499dc425daae2708e91adfa115f6d",
+      "bytes": 40821
+    },
+    "host-polish.css": {
+      "sha256": "0bdcaadf5dee6fbaf20a8ccb4f668827fc6104ecb206ec49ebda0b6157f3741f",
+      "bytes": 1636
+    },
+    "index.html": {
+      "sha256": "76ad063a0014a79d4a7be0b23162a0b946419cc8220b36458a0ea07041bb1cc1",
+      "bytes": 1728
+    },
+    "native/generation-status.json": {
+      "sha256": "3873d40c513208901d620bd070e0f8cdfbff457cda6911008636fc4c20fb8a21",
+      "bytes": 18588
+    },
+    "native/inputs/brief.md": {
+      "sha256": "83de40e1fad25e62d74eb02d19284a9275773fd579ff3efb12ad5e07364028f7",
+      "bytes": 4382
+    },
+    "native/inputs/layout.css": {
+      "sha256": "40e9fffd232becb1302a30d995400fa68a626af65da8d3f76c9a45c9a71a97c8",
+      "bytes": 17588
+    },
+    "native/inputs/screen-map.html": {
+      "sha256": "1794e391490c11a6fa8cd9044b06d64b693f6909d4f7858589eeccb51d74e4e2",
+      "bytes": 26194
+    },
+    "native/inputs/theme.css": {
+      "sha256": "3c5a55ebf2e2b7080e2c5dbc89c58f94823c793787d868835444d81cc7933faa",
+      "bytes": 9396
+    },
+    "native/opendesign.css": {
+      "sha256": "e9b6e09887b8c475fe524ecc5a8cb7de4bab8658358f2655b381342eff85734f",
+      "bytes": 6781
+    },
+    "native/project-created.json": {
+      "sha256": "28d0afb36afef94642fe5c46b620168ef4bf30428a9f89d78b68890706493a31",
+      "bytes": 714
+    },
+    "native/prompt.txt": {
+      "sha256": "5c8ea6c8a5509dff9173a760f7f480f55f4e06f67cf2c1d0b01f76452a8d1a9d",
+      "bytes": 470
+    },
+    "native/rationale.md": {
+      "sha256": "febf10943e890c51791e963c9757588e98869a27cc538ada6e9aa744779a4328",
+      "bytes": 3546
+    },
+    "native/run.json": {
+      "sha256": "f836c818b1a09fce52abe9d206beb43b043cc2620f4f460495a548b067e0c6bf",
+      "bytes": 1654
+    },
+    "playwright.config.mjs": {
+      "sha256": "198fc64a15256cde25e75b77ac6c3ef0cf2a5a7527ccc090268b37d6c484b427",
+      "bytes": 728
+    },
+    "preservation.json": {
+      "sha256": "0da4a9f7ac6b0d3e900b4ab7a20c5ff0a6cb5d455ac43b4fe766b43048dcb995",
+      "bytes": 1194
+    },
+    "prototype.html": {
+      "sha256": "60b036c95fae337c1b68e39d1d580a4fa5a16910a4ed5100dcf412e300a60ca4",
+      "bytes": 981
+    },
+    "provenance.json": {
+      "sha256": "e85285ba707d1b62e3e0872a8687486ccc85cb71ef00b78f35d7be3a6327c300",
+      "bytes": 621
+    },
+    "reference/app.js": {
+      "sha256": "f6c0705149ad0cd5497c6667554e79b1b1520c4c2532ee49814f73d4260672f7",
+      "bytes": 33198
+    },
+    "reference/brief.md": {
+      "sha256": "83de40e1fad25e62d74eb02d19284a9275773fd579ff3efb12ad5e07364028f7",
+      "bytes": 4382
+    },
+    "reference/data.js": {
+      "sha256": "30f657b96f8c91370e5aea379eb35f39f42cad61b6d299c83f17e339ab69f869",
+      "bytes": 6110
+    },
+    "reference/layout.css": {
+      "sha256": "40e9fffd232becb1302a30d995400fa68a626af65da8d3f76c9a45c9a71a97c8",
+      "bytes": 17588
+    },
+    "reference/screen-map.html": {
+      "sha256": "1794e391490c11a6fa8cd9044b06d64b693f6909d4f7858589eeccb51d74e4e2",
+      "bytes": 26194
+    },
+    "reference/seed.html": {
+      "sha256": "e5de1d8e78100d7dbbabc35197c07d246ecf1ad64b0e843da369f20a83f8b52a",
+      "bytes": 774
+    },
+    "reference/theme.css": {
+      "sha256": "3c5a55ebf2e2b7080e2c5dbc89c58f94823c793787d868835444d81cc7933faa",
+      "bytes": 9396
+    },
+    "review/before-check-1440.png": {
+      "sha256": "151483f652849b1d0e6e755273f168fe9b584ea25bb8cedd07cd8d9304bfbf7e",
+      "bytes": 124877
+    },
+    "review/before-materials-1440.png": {
+      "sha256": "d9e6b411c40c46bfbff733c43887f1489b33590dbd8cf8ea983698f4d252e323",
+      "bytes": 178844
+    },
+    "review/check-black-1024.png": {
+      "sha256": "7fb673c3aee02a4143890724ccc2f89c53081c40881583dbb42b020ced370c44",
+      "bytes": 107363
+    },
+    "review/check-black-1440.png": {
+      "sha256": "48c6dc5f5c1fa42224974ba0bb6afa9c99d9d6afc46f773c8ebc04201905495b",
+      "bytes": 122069
+    },
+    "review/check-black-390.png": {
+      "sha256": "f24c8301c519f8d1bc57271714a08ab0cbfceccdf7f99e40a240f746ae828ad9",
+      "bytes": 73672
+    },
+    "review/check-dark-1024.png": {
+      "sha256": "d1057fc0e48ac6de6c55b50cc13a64bc10b852b0327bd23e36ea3a9e5d2525fb",
+      "bytes": 110896
+    },
+    "review/check-dark-1440.png": {
+      "sha256": "23a083a83fc6a59a2f9ed159cc887fcb485dc487c02293200ad595fef8adae42",
+      "bytes": 125644
+    },
+    "review/check-dark-390.png": {
+      "sha256": "8f699ed5d92626a9ab6e56688eab3764b79c15625b89b3daf240c3c6acc86457",
+      "bytes": 77838
+    },
+    "review/check-initial-dark-1440.png": {
+      "sha256": "ee0246ad0216abfbd0444bf3b1f98a9539df967c070d6794a65281de9b70cc5e",
+      "bytes": 121978
+    },
+    "review/check-initial-dark-390.png": {
+      "sha256": "341c45e0cd7efbaa74559db89ab9dedcccb063ac59d8d251ccf65b9be36479e9",
+      "bytes": 74238
+    },
+    "review/check-light-1024.png": {
+      "sha256": "fc9752be91d056533de1b67a1e6884a478eb20ae26a842330dba8fccdd38738a",
+      "bytes": 111688
+    },
+    "review/check-light-1440.png": {
+      "sha256": "7f780986dfa1763e3e72f4ff5ffa0b367839a948548d581251a5accbf2431f79",
+      "bytes": 127098
+    },
+    "review/check-light-390.png": {
+      "sha256": "d0411a0d4d8876f791582469aa4586492433f7466141fe4d235b043b2e6b0473",
+      "bytes": 78176
+    },
+    "review/chooser-black-1024.png": {
+      "sha256": "ae866ea71819e89885a38f6c740a326f51bc87c54137ba19be204c08fad98ae7",
+      "bytes": 109014
+    },
+    "review/chooser-black-1440.png": {
+      "sha256": "c3f6e169201d4408f8b15fcba67d0e0db4efffc6af931c2780ca8b32532b4e4d",
+      "bytes": 152112
+    },
+    "review/chooser-black-390.png": {
+      "sha256": "30fcb737353ba3233693355bf6d1be475a65b6c1dcc1fc9e78b7a811c563c4fb",
+      "bytes": 46604
+    },
+    "review/chooser-dark-1024.png": {
+      "sha256": "bd0098df15a5a6e9bbb20e6bf2dcf9dc99a6867d5c6a4f88b28eed94e6c35746",
+      "bytes": 116759
+    },
+    "review/chooser-dark-1440.png": {
+      "sha256": "bd11297f3851519a45309f85f0a13cab3d15f11e113f75c2e7f2ce884efec3dc",
+      "bytes": 163804
+    },
+    "review/chooser-dark-390.png": {
+      "sha256": "4beb99f29ab4869dd90c7cd1244e2252f8e420d2bbb965170ce42921496197a5",
+      "bytes": 48360
+    },
+    "review/chooser-light-1024.png": {
+      "sha256": "a24a471dcc08891119727ab3eb7a4079e6b897a785951778375037bc2aff4eb1",
+      "bytes": 123357
+    },
+    "review/chooser-light-1440.png": {
+      "sha256": "e2ff277c8c15f06ba4e0b2fc1245d03157d20a79f4502e30c6289dc533f0120a",
+      "bytes": 172352
+    },
+    "review/chooser-light-390.png": {
+      "sha256": "e11189a2d4ad591ce5bab3652bba271776ee3175c2bf9468596522ae6b4784ac",
+      "bytes": 48452
+    },
+    "review/materials-black-1024.png": {
+      "sha256": "d8a4cd2e8d70bd9763e6805868cef3625bc4441247c789008ec179cd4ed08bf5",
+      "bytes": 157731
+    },
+    "review/materials-black-1440.png": {
+      "sha256": "3933f70f516eafb747a4d1eb81ea00aa1e3d1ef8e43e014ca711248dc5e6afa1",
+      "bytes": 177744
+    },
+    "review/materials-black-390.png": {
+      "sha256": "9d6a5596bab65cfdab6b5d355abd8747183267cf7a27ba05119c15ae5dbfece4",
+      "bytes": 108898
+    },
+    "review/materials-dark-1024.png": {
+      "sha256": "1b571f66352832e23caf0ab4f58d7a13d206ed455f7799609daca2443ed103b1",
+      "bytes": 160799
+    },
+    "review/materials-dark-1440.png": {
+      "sha256": "83a072c2986ae93642a0d323d81dc4261988117d42b3643371a7bfed74635daa",
+      "bytes": 181047
+    },
+    "review/materials-dark-390.png": {
+      "sha256": "1bcf5ee6c1499c2358112c0f144e9784a9966ae00c2930a22ae779e16815feba",
+      "bytes": 112705
+    },
+    "review/materials-light-1024.png": {
+      "sha256": "6d90624028fe642135e30d947e37eeb5f12e62d55745b44e655d7ff5ce96a3b9",
+      "bytes": 160309
+    },
+    "review/materials-light-1440.png": {
+      "sha256": "7ca0e550d24965aafdd03f160c09328c8631eeb9a2cb290e904d05b0f0bcc17c",
+      "bytes": 180361
+    },
+    "review/materials-light-390.png": {
+      "sha256": "7357ec7194d9a516ca37641b34a9f090e2b28fceb885b9f5d75a2cf4c19502d3",
+      "bytes": 111745
+    },
+    "review-host.css": {
+      "sha256": "2baf1f8f2503e6a39f7b9d32854d9c2f6add1401a1e1145c80e48af68bc4b03d",
+      "bytes": 1404
+    },
+    "review-host.js": {
+      "sha256": "e9c0b7a989bffefc909b1e3baf9994f4c378389b3390892bad3aa97f6f6f9c0c",
+      "bytes": 1562
+    },
+    "review.spec.mjs": {
+      "sha256": "77f346120b030b04e84a25797d1e41f2287904393f70c074f8d86658c419d6be",
+      "bytes": 10894
+    },
+    "verification.json": {
+      "sha256": "fc8a1460078f76ee04943bff06a623c1b42754711fb156e27303e4d31591473a",
+      "bytes": 931
+    }
+  },
+  "historicalArchiveSha256": "194aa56c01511cb53b93b4d181951579a0975e1bd553ccf98e7d21d4149d94e2"
+}
