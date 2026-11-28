@@ -1,0 +1,56 @@
+schema_version: '1.0'
+id: V492-002
+title: Reserve progress capacity for Worker RPCs while Planners wait
+milestone: server-runtime-grpc-2026-11
+epic: execution-core
+kind: defect
+introduced_by: V490-004
+priority: P1
+status: pending
+depends_on: []
+languages:
+- go
+goal: Supported concurrent Planner executions cannot occupy the RPC capacity required by their dependent Workers.
+context:
+  authority: 'User decision 2026-11-28: create tasks for all five review findings, fix P1 first, add regression
+    tests and run required checks. Review baseline 2a54565054c89526d68ff86232f5d5fb8c99d3cc.'
+  severity: high
+  finding: internal/app/composition_http.go:197 shares 28 non-control permits with PlannerOperation. privateartifacts/grpc.go:207
+    holds a permit while streamline/tools.go:206 awaits a Worker. Twenty-eight Planner waits reject Artifact
+    Read/Write, ListArtifacts and GatewayRecovery.
+  siblings: Streamline and Router use the same PlannerOperation method. ControlPlane reserve, bulk transfer
+    admission, aggregate pre-decode memory, and per-service admission must remain bounded.
+  specification:
+  - docs/spec/execution/control-plane.md#CTL-R175
+  - docs/spec/execution/runtime-agent.md#RTA-R88
+  - docs/spec/platform/failure-model.md
+  - api/v1alpha1/README.md
+scope:
+  in:
+  - Supported concurrent Planner executions cannot occupy the RPC capacity required by their dependent Workers.
+  - Regression coverage on native transport/production owners; update the owning contract where clarification
+    is needed.
+  out:
+  - No new receipt table, model change, public API, deployment or unrelated protocol redesign.
+acceptance_criteria:
+- id: A1
+  text: At the supported Scheduler concurrency, pending Planner calls leave bounded admission for Worker artifact/domain
+    RPCs and ControlPlane heartbeat.
+- id: A2
+  text: Each traffic class is rejected before decode at its documented bound, and aggregate active calls remain
+    bounded under mixed traffic.
+- id: A3
+  text: A regression exercises waiting Planners and dependent Worker RPC progress through production composition;
+    existing admission and cancellation tests pass.
+tests:
+- command: go test -count=1 ./internal/app ./internal/httpapi/privateartifacts ./internal/planner/streamline
+    ./internal/planner/router
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3

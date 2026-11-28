@@ -1,0 +1,57 @@
+schema_version: '1.0'
+id: V492-001
+title: Keep admitted Finalize and Abort alive through RPC cancellation
+milestone: server-runtime-grpc-2026-11
+epic: execution-core
+kind: defect
+introduced_by: V490-003
+priority: P1
+status: in_progress
+depends_on: []
+languages:
+- python
+goal: Cancelling a lifecycle RPC does not terminate healthy sibling allocations; the original terminal operation
+  finishes within its supplied deadline and replays its report.
+context:
+  authority: 'User decision 2026-11-28: create tasks for all five review findings, fix P1 first, add regression
+    tests and run required checks. Review baseline 2a54565054c89526d68ff86232f5d5fb8c99d3cc.'
+  severity: high
+  finding: runtime/src/contractor_runtime/grpc_server.py:136 awaits the service in the gRPC handler task. Cancellation
+    reaches allocation/service.py:711, which exits the entire Runtime before the terminal deadline. A real
+    gRPC Finalize with two prepared allocations reproduces exit 70.
+  siblings: Finalize and Abort share _terminate; Release already owns its cleanup task. Lease drain and process
+    shutdown must join the same allocation lock/operation; failed or overdue Worker stop still fences and exits.
+  specification:
+  - docs/spec/execution/control-plane.md#CTL-R175
+  - docs/spec/execution/runtime-agent.md#RTA-R88
+  - docs/spec/platform/failure-model.md
+  - api/v1alpha1/README.md
+scope:
+  in:
+  - Cancelling a lifecycle RPC does not terminate healthy sibling allocations; the original terminal operation
+    finishes within its supplied deadline and replays its report.
+  - Regression coverage on native transport/production owners; update the owning contract where clarification
+    is needed.
+  out:
+  - No new receipt table, model change, public API, deployment or unrelated protocol redesign.
+acceptance_criteria:
+- id: A1
+  text: A cancelled or disconnected Finalize/Abort wait leaves its admitted cleanup running and never exits
+    the process while that cleanup can finish before its original deadline.
+- id: A2
+  text: Retrying the same operation ID returns the cached report, a different terminal ID conflicts, and a
+    sibling allocation remains usable.
+- id: A3
+  text: Process shutdown/release join the owner; a genuine stop failure or expired domain deadline still requests
+    process exit. Native gRPC regressions fail before the fix.
+tests:
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3

@@ -1,0 +1,57 @@
+schema_version: '1.0'
+id: V492-003
+title: Bound ControlPlane message reads independently of caller deadlines
+milestone: server-runtime-grpc-2026-11
+epic: execution-core
+kind: defect
+introduced_by: V490-003
+priority: P2
+status: pending
+depends_on: []
+languages:
+- go
+goal: A stalled authenticated ControlPlane request releases admission within a Server-owned read budget even
+  when the caller omits grpc-timeout.
+context:
+  authority: 'User decision 2026-11-28: create tasks for all five review findings, fix P1 first, add regression
+    tests and run required checks. Review baseline 2a54565054c89526d68ff86232f5d5fb8c99d3cc.'
+  severity: medium
+  finding: internal/controlplane/grpc.go:176 dispatches decoding without a read deadline; runtimewire/http.go:133
+    may wait for an incomplete frame forever. Thirty-two stalled bodies exhaust admission. system.go only bounds
+    headers and idle connections.
+  siblings: Bootstrap, Register and Heartbeat share boundedControlRPC. Allocation RPC already separates read/domain/write
+    budgets. Keep caller deadlines and joined cancellation intact.
+  specification:
+  - docs/spec/execution/control-plane.md#CTL-R175
+  - docs/spec/execution/runtime-agent.md#RTA-R88
+  - docs/spec/platform/failure-model.md
+  - api/v1alpha1/README.md
+scope:
+  in:
+  - A stalled authenticated ControlPlane request releases admission within a Server-owned read budget even
+    when the caller omits grpc-timeout.
+  - Regression coverage on native transport/production owners; update the owning contract where clarification
+    is needed.
+  out:
+  - No new receipt table, model change, public API, deployment or unrelated protocol redesign.
+acceptance_criteria:
+- id: A1
+  text: Every ControlPlane body has a Server-owned read deadline set before grpc-go decoding; it is cleared
+    before domain execution and response writing has its own bounded deadline.
+- id: A2
+  text: Stalled HTTP/2 streams with no grpc-timeout release permits and subsequent healthy control requests
+    progress; tests use controlled deadlines rather than elapsed-time assertions.
+- id: A3
+  text: Bootstrap/Register/Heartbeat and malformed/oversized request paths retain typed errors and no body
+    decode bypass.
+tests:
+- command: go test -count=1 ./internal/controlplane ./internal/runtimewire ./internal/app
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
