@@ -6,7 +6,7 @@ epic: evals
 kind: defect
 introduced_by: V417-008
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, go, yaml, markdown]
 goal: "Valid API outputs receive the same score under permitted OpenAPI encodings, while malformed output identifies the failing check."
@@ -42,3 +42,6 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: c22b31a244b3921c9bcaaf457b6e3a08b4c2ecc0
+verification: >-
+  make test-context-compaction-eval-fixtures passes: 46 offline tests including 105 recorded samples; both Go catalog/validator packages pass. New regressions reproduce the old scorer failures and now accept 201 responses, inherited security and path parameters while rejecting anonymous overrides and malformed fields. Scorer and visible-case pins match the final bytes; make lint passes. Live Runtime provenance/observer migration belongs to the separate V500 lane; integration must retain its fixes and refresh scorer pins after merging. No running-study scores were replaced.
