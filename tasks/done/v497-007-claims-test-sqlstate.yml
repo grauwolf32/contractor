@@ -6,7 +6,8 @@ epic: persistence
 kind: defect
 introduced_by: V498-001
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: ad5ca92234475e5e487be65d3578f0e7e29521fd
 depends_on: [V498-001]
 languages: [go]
 goal: Keep the real PostgreSQL claim-lock regression compatible with the shared SQLSTATE guard.
@@ -30,3 +31,10 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
+verification:
+  date: '2026-11-28'
+  outcome: The real PostgreSQL NOWAIT regression and whole persistence packages pass, as does make lint including the shared SQLSTATE source guard.
+  commands:
+    - go test -count=1 ./internal/persistence ./internal/persistence/postgres
+    - make lint
+  environment: Owned disposable PostgreSQL on port 55497; physical macOS TMPDIR; no demo database changes.
