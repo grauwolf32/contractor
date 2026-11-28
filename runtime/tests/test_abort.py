@@ -86,38 +86,40 @@ def test_abort_deadline_fences_slot_and_requests_process_exit(
     asyncio.run(scenario())
 
 
-def test_cancelled_abort_request_still_fences_and_requests_process_exit(
+def test_cancelled_abort_request_joins_stop_and_replays_report(
     tmp_path: Path,
     runtime_capabilities: CapabilitySnapshot,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def scenario() -> None:
         exits: list[int] = []
-        runtime_factory = BlockingRuntimeFactory()
-        state, service = await make_service(
-            tmp_path,
-            runtime_capabilities,
-            runtime_factory=runtime_factory,
-            force_exit=exits.append,
-        )
+        state, service = await make_service(tmp_path, runtime_capabilities, force_exit=exits.append)
         spec = allocation_spec()
         await service.prepare(spec)
-        task = asyncio.create_task(
-            service.abort(
-                abort_request(
-                    spec.allocation_id,
-                    "abort-disconnected",
-                    deadline=datetime.now(UTC) + timedelta(seconds=30),
-                )
-            )
-        )
-        await asyncio.wait_for(runtime_factory.started.wait(), timeout=1)
+        worker = allocation_context(service).worker
+        original = worker.abort
+        entered, resume = asyncio.Event(), asyncio.Event()
 
+        async def stop(deadline):
+            entered.set()
+            await resume.wait()
+            await original(deadline)
+
+        monkeypatch.setattr(worker, "abort", stop)
+        request = abort_request(spec.allocation_id, "abort-disconnected")
+        task = asyncio.create_task(service.abort(request))
+        await entered.wait()
         task.cancel()
+        await asyncio.sleep(0)
+        task.cancel()
+        resume.set()
         with pytest.raises(asyncio.CancelledError):
             await task
-
-        assert exits == [70]
-        assert (await state.snapshot("allocation-1")).process_state is ProcessState.FENCED
+        assert exits == []
+        report = await service.abort(request)
+        assert report.report.worker.complete
+        assert (await state.snapshot(spec.allocation_id)).process_state is ProcessState.DRAINING
+        await service.close(30)
 
     asyncio.run(scenario())
 

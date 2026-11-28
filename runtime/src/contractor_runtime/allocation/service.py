@@ -615,6 +615,27 @@ class Allocation:
         deadline: datetime,
         reason: TerminationError | None,
     ) -> AllocationFinalResponse:
+        # A terminal command belongs to the allocation, not the transport wait.
+        # Keep its existing lock, identity, deadline and cached report through
+        # repeated RPC cancellation; process shutdown joins that same lock.
+        owner = asyncio.create_task(
+            self._terminate_owned(allocation_id, kind, operation_id, deadline, reason),
+            name=f"allocation-{kind}-{allocation_id}",
+        )
+        interrupted = await join_owned_task(owner)
+        if interrupted:
+            consume_task_exception(owner)
+            raise asyncio.CancelledError
+        return owner.result()
+
+    async def _terminate_owned(
+        self,
+        allocation_id: str,
+        kind: Literal["finalize", "abort"],
+        operation_id: str,
+        deadline: datetime,
+        reason: TerminationError | None,
+    ) -> AllocationFinalResponse:
         async with self._lock:
             context = self._require_context(allocation_id)
             if (

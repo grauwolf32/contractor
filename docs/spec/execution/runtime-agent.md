@@ -826,6 +826,13 @@ the response is lost, repeating the same `finalization_id` returns that cached
 report even though the Worker has already exited; a different finalization ID
 for the same draining allocation is rejected (FAIL-RTA-4).
 
+Once admitted, Finalize and Abort cleanup is owned and joined by the allocation.
+Cancelling an RPC wait, losing its connection or reaching its request deadline
+cannot cancel the cleanup or shorten its supplied domain deadline. A repeated
+command joins the same lifecycle ownership and replays the cached report;
+process shutdown and release join that ownership before erasing resources.
+A genuine cleanup failure or domain deadline still fences and exits the process.
+
 The abort command's idempotence for `abort_id` is
 [CTL-R119](control-plane.md). Retention of workspace data until release for
 idempotent finalization and replay is specified in
