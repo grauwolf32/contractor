@@ -5,7 +5,7 @@ milestone: eval-maintenance-2026-10
 epic: evals
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [python, markdown, json]
 goal: A context study can use four concurrent demo Runs on the configured OpenRouter route without changing identities, usage ownership or selected records.
