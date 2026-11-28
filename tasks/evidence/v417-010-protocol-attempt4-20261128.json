@@ -1,0 +1,3442 @@
+{
+  "schemaVersion": 1,
+  "task": "V417-010",
+  "attempt": 4,
+  "date": "2026-11-28",
+  "phase": "Retained incomplete debug-collector admission attempt; superseded by frozen R5",
+  "measurementComplete": false,
+  "expected": 120,
+  "terminalBeforeStop": 2,
+  "cancelled": 1,
+  "notSubmitted": 117,
+  "consumerTimedOut": 1,
+  "cleanup": "All three submitted Runs are authoritative terminal and released; original consumer timeout is retained separately.",
+  "reason": "Task-owned collector wrongly restricted valid Run IDs to run_; corrected to the common Resource ID grammar before R5. Configured model, truth and gates unchanged.",
+  "expectedMembers": [
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "c5e993b6a45d4da1ca11c021a139035e2e15154c53fda6f2b8f84fdbb382b1b4",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 1,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "98939ba3255dce917481460c9b58529493fc29acc2d39714eaa860ebb319ea18",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 1,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "0af994b1c350f1397c3a76a02f7d5b77c9f28e136fb435371a9cf67fa535485e",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 2,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "10be11a81a1144ed375402b5ed5a8a4c491be5a009b3528a0affe2e7d7725809",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 2,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "baf8a9091752e746bf96b8c07984bdf706098fbe584a24bbc1a6a35a6b75a2f4",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 3,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "b295e86b93758fd5eb4779d82435533eacae53f126659c2283287f432383e55c",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 3,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "c1ac50130db84bb3d5f432d29db1064c135e14aab2b166cce0fee58b0978d3fd",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 4,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "5315d087bbd3c75f9ea8c8329f208a83a76a1b750bb381951a4a51abed876a9b",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 4,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "timed_out",
+      "execution": {
+        "ref": {
+          "kind": "run",
+          "id": "run-eval-b14008de5b554953d3ce1f19323520b01eeb1637e64a2500a773c50e5da1ebde"
+        },
+        "state": "cancelled",
+        "startedAt": "2026-11-28T13:24:26.392467Z",
+        "finishedAt": "2026-11-28T13:26:42.808609Z",
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "83ba215cda8dd5b0ac91d29c5234768d2563ef3a223502a1e703102a0fb06ca3",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 5,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "failed",
+      "execution": {
+        "ref": {
+          "kind": "run",
+          "id": "run-eval-d930eb3ff8efd5b295d44d76e87d3af47af12a265a861a137b5ea7450626aa5d"
+        },
+        "state": "failed",
+        "startedAt": "2026-11-28T13:23:08.785652Z",
+        "finishedAt": "2026-11-28T13:24:25.391308Z",
+        "reason": null
+      },
+      "assessment": "fail",
+      "resultSha256": "sha256:a8dad0a83a091127b924984b5a1620b191c97f9a6f60b4793c8aaafbc878ba72",
+      "assessmentSha256": "sha256:32d52210bb6b5ecb14af253d12eedc67982c1adc3b124d8993f8b0a8f4617414"
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "4b9f8836c1c101aeb862762c1e8a1e30adc51f61c02705faf3184543553a462d",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 5,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "860740dc761fd6154c969ada090925450d1cce34854b0416452e6dbcd834f215",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 1,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "9017df86ab112b030be052548a89ee3acc8383fe60b63e4d17eb2841d4ec996c",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 1,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "d128d3be369f4e210687724932f8a52a56ed662f0715638b14676d472a5002b7",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 2,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "a9d0e45f177436fa0b03671bdcca4b7e19aa47ad3a0cb59882690c2debdd86c6",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 2,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "7cb2aaef56ef47c0088d9945ff90cae18595ea5c5f98588165d151023ac525de",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 3,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "be25c8711cdb23c9adc7201b33b77117c2bedde09569e53b8c034238696222bb",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 3,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "0d5e6048cb2a4e0becb1a951efe4224e175be8f7b3938e21743d2ae98afa45bc",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 4,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "e7f8bd7766ebc7a8374174be4dc03d9a444defb8d10e2267cca8ba05040c86e7",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 4,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "6fd197f79dc0a96295c547de6d4be53f539598c7ef951926db5c8687fca0ac76",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 5,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "26b2a2f18d4b1069ae4beb7feb5fbf811f177429dd71fd535f0727ab1bbdab2e",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 5,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "a0acc3db282e90e09caf2d8ab59c6f1afb664356f3888a3c6c3fe45ca63d910b",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 1,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "e7c55d057f7368f12761e7092ba337613e3488bf1cba7d2ab9b9b63ea078f63d",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 1,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "failed",
+      "execution": {
+        "ref": {
+          "kind": "run",
+          "id": "run-eval-218c306f389fba3f1609a08e3cfa444b00aa787064ec656b1119fc989a8f8a12"
+        },
+        "state": "failed",
+        "startedAt": "2026-11-28T13:22:12.37585Z",
+        "finishedAt": "2026-11-28T13:23:06.773041Z",
+        "reason": null
+      },
+      "assessment": "fail",
+      "resultSha256": "sha256:951c7f7f65829885c37530d5243dc8e24259b0b621fd2a8536547829b88b58a9",
+      "assessmentSha256": "sha256:3c51e3df917be67eb77efd8a13ab3e6765285df5d9e202a252f472018f89a5cd"
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "e00f0bae90a0a521ff9aac1e61832ce6bf7a02f23a1cff90978f5f185ad8c03a",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 2,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "bac0c50ea63ecbbb4376dc5c1772cffa569f13a21c0456eb5cc7342746ac2230",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 2,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "98ab2960abaa318103d4a8b977e628481438802fec955f4418cf86cc6a7f4d77",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 3,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "f4a8f9be0d3669bece40b2d3ad6b74688cfc68bb7c8eec5968ed57586ad49988",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 3,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "394e2ccd892abfeebcd34d0a5b84d2b785f942c7b1e3217d62ec436bf498b9a2",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 4,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "1fee51a8af18eeb130f58ffa459f571f4c520933640fc27e1e742df3d07b4c55",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 4,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "32862b547046b6dc25ab6c47da9b35507453f13a09cae1bbe6c65251a7edb09c",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 5,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-768cd45c4c4c144fee473c826954bc98",
+      "memberId": "61cca39d6adab5b17b4001ed025e819f24b4d639dc14fe92020d2ed117198950",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 5,
+      "variantId": "terminal-on",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "c909ec3981b2cf79641492b5ab176c8ef1c7f38ab659312cfae9b74b265b7ed0",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 1,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "7e84e272758d2f45854711eef210752d95ce7341078bdd5662880a9c0389fc7f",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 1,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "7123cc221eecb48eb219b131024bbbae78b22e727fc377fb27be158590e3b84d",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 2,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "6410f1b2ee3075626986a872170fee3124c93506f07637e12669577491da13f5",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 2,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "d34d62e97189ad16feb938634883be7c322ee2339d0a7e8b96b925abc5d9d683",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 3,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "9e7fd0a231dcbef373e5e06ec65fa72f818aa66bdf072d16f262239d9e4fabe9",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 3,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "db820f6626e935c41552d8be08d74696ce1170f08ef34e4d4bd4e704e6e027b5",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 4,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "961396de696dbbddbc559c9a96a92835d10363bd181fb344344ce2c88ecb33c3",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 4,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "ce98094a5d102d10dbad380438aa0b41a3334c85f1b8736fda9d50b0fe308bf1",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 5,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "371c0ba76f1424e7f9b1a6dcc78ead95e0384f103f7415bd2c576b3f3ad1efc8",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 5,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "5735f8c6c3030ea9f495a46e6cb02e112938f6f2cd125d8068c9738e5861b480",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 1,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "293b1d82aba12b278a647dc3b712e5d3c2b8c12c0c1c19c44cfaf08d33ece9ec",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 1,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "c5a314abf31384906f40702be1e3f9e781cb355256d1d55e02dd43b414725be3",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 2,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "93310b30b57b9e5e30f0afee42d8946326976e77aa32fe4e6ef05de19dca59e6",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 2,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "b8d4b8308ff1e729f5a3342025d3333aac52c99d9f98ec99b9bf7284083db306",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 3,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "7fa582869307eb92a214ac45dbe65de9b20912fbb74a9df1b9f2baaf478104b0",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 3,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "2926d59cc31a0f9ac90e5969d114a049b7be0df2b040f35323f782ebf1323a8d",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 4,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "b17c8aa7b75d30f09eef39d9885fa4fc6b3c1f104c5843861e2d8319c5618871",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 4,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "57a9c100613b6f836833fe830b987d5c3d7737faebd0297537e7a4518a9210a3",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 5,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "dd95382bdab521d4e21145eb51f4a4a2617c1d49464daf270250006c26716428",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 5,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "b5d6aecc19e55811d007909ed1b86266fbe5636dbb3e0c2549f46b7d4d673fc2",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 1,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "870f2d05645b4bb85f79b1e2b9d236243a74d7a272d317962b68d21bf9912398",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 1,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "eb7123a95f0e187372a18288d73dc94e4a7418cd02dd5bbd55057a565b3d3718",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 2,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "8338c304d86e17d770d1631a6b45da061d1fa8c9d3acc1a13cf467b5f7b9d8c7",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 2,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "b52733425d2ec054f7bf2757754d3fa40081003124d918bbae1f1ae9959e1443",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 3,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "a24262e9f335f21cc76ab799cb8fa03f05b355c3b85915ec96b804998cc5d8d5",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 3,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "609aecd8b3627c7cc3cf25d2828481eb732a9d83778fb9615e6265ed0b236bda",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 4,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "b72d0711a59f54dd19374cc9e776509b67d93dc127dcc37a44a8fd6c729d19af",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 4,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "853cab240235e53af2c2f2d9f232df159e6aca64d436448ba107f8022b5b95c7",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 5,
+      "variantId": "compact-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-bdb49de20d67b4a8a1cfbceec00c0d8c",
+      "memberId": "c67655879757e1f435b59c2c2fd816bf823e0a6e83ef0225d54dab55d359f3f9",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 5,
+      "variantId": "compact-on",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "8d9d02d2933fc5ad8da0f1db11ccd6dd2ec745410b5395d7301156480cc37ab6",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 1,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "db0c05db69b15b6415e19dc769b0703e79fde0fd753e971fe7349f0ff2d6cc66",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 1,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "ee8964b43f6c593d326627ebf7b2661e56ceb8172c0c1032541956aa1141b4fb",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 2,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "d03e95e2b98aa736315820ce2107b911c191966fe125306b8c75634b13fd8c1d",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 2,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "b9e7a6c3d108a3a9ee743dc5120fda44fce7cccb1fde554ab1ebfb8b471149c8",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 3,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "c3f69cbb10ad311049d9c76ec46b7b3ff792260455bf4ad6aa5ec3f33b523dff",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 3,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "5b34ccf5e1fd6b927bf2eb383c34c6540d33daf84c8db36b5ce525de3a22a530",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 4,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "3416e000d62b73e4bff097d0e7f30da0f6d6d77e6101114d60869f6664343df7",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 4,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "a23b326b2f658c4af264f61f0080cbedd0ec004c3ff44c89276b18f7670e0a10",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 5,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "7007c0df96c3f31c8821eeb1523fc99cf425cb7a5b543c4fc724eed79139b170",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 5,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "0ffa89bab81109e644e740bad6e5ee620ecce581ecd0c3496bdcf63bb97eb816",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 1,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "e6c8de2698680d3af09af8cc9f62954c3a8279463add0e0ebfdfd9ea025199f6",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 1,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "9232dffb17210959a274474029fbdfa7e3e0de4d27a53efd7ae241ad579aed3d",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 2,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "986a4a68d81ae4d020ea1c32efc1c7593cfadbcf3dd56ad1c2d2dd7540f903a2",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 2,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "266480dc44fe7cd01d2cc7313047e4334b249b40e3d3724fee4b880031567a79",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 3,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "b185e9a5cb9b95cc256c775534b749f9d7e3d82af99d6f88e6fd4c7941d4009e",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 3,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "2010b61d7b95a820c6654aa96d2500baad9f91bf75a72857aa59ef370a691f39",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 4,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "7ccf4e2a90714627ce9697851f7098e1919f0814b7e573b5b4ef1a914ba8dc6e",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 4,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "eccafcab6517ecbf72adf92be53c8506aa83aa5752af6a91d5e72cadfa77df49",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 5,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "65f778e3228f96d1acd94db5ad515e9499425146284c19f7ca35901f4e85f0aa",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 5,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "eb04a85c75bc67e559cc8eea04f0c20b342d6f499bbd127f200e79876cb74cc6",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 1,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "7d026c2f77f3c353e04785833d23961cec71b8d9585758b0866c792196eabce1",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 1,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "2d9bf3707a922f1cbd57532192fe0eca5c4a66fbcfbcf628b86ac9ebffc4386a",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 2,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "ff3b0f3ae0855f04a276664ab67dc66c91fa5c9228bd41fadab858aa3070cd54",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 2,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "e6b50fe85b8ae76646ddcea8416a48b785c10f9249275768cf1c42ca33f82929",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 3,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "904212c3dfed5d648a3dba9b0f1193eca108529c231380da6ffd4fc34caa6fa8",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 3,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "c298ca5bd46f2c140420c3180592eb4610f5070e1e0834ba59510a94642c7002",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 4,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "48241c7ad774469195df043c1fe36bf8b482e937d9c3253257594e5bb9fe5464",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 4,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "835c249bba34e5669bbb1b67d16f65adf73445157726478208138e5a29cff2d9",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 5,
+      "variantId": "terminal-off",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-a0d9eccc03afca92077fef0f12e27418",
+      "memberId": "a8c9e5c615831435636c435e51d23e55c23b6c6a49a6ee87f2d137c574605207",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 5,
+      "variantId": "terminal-handoff",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "ea1f9fad9adf9a7163d8a92307b2de0379957e5fbfc100f62c7f084cd9a3a4bf",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 1,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "f6121f2ac13ff5363018f102aac5efb51812ee115dcc3f912bdd6e30759fcc13",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 1,
+      "variantId": "masking",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "c24960858d330f69a25180a0ae11629a8ea15d98e967f7ae59613d2ce3cd8031",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 2,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "ba2ff6db262ed8a93814d677812f6c2dc3b59f4cb067768b25c51a07fd1309c6",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 2,
+      "variantId": "masking",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "a05271421d9a81987f3552a0144b183739c1e516991de2f39d99f07efc866fea",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 3,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "058bce60204e617198dbdceae5718d5bce1dbdc0af47a6e0a4e4f0518e26195e",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 3,
+      "variantId": "masking",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "e5f15cabb07fe14ae17914d51869f59d37bdd1a615c23d661b1ff3f7fd4bc89b",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 4,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "a656119f3ec9ccc227a6c2f9a91554883cefc1a03f1ea8a3d17db4abc257f415",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 4,
+      "variantId": "masking",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "9f6d4d6ac8fb8e07e8c70a3f14c8122de901381fb7d3547892a4792100cf4bbf",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 5,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "7c82f639dba58ea5623e87dea501d0b4f12156d3e960ac29aae156c607d55eaf",
+      "suiteId": "context",
+      "caseId": "api-dependency",
+      "sample": 5,
+      "variantId": "masking",
+      "caseSha256": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "f7b131c2524163386c6c336dceb124f1b23aaf6f751fb69d05ca6f0173c5ca5f",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 1,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "67f2e7d03463c6cbfb0b95d644c96509e3406f999a393a926a575a6c0a12e788",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 1,
+      "variantId": "masking",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "97595eb00781b6236f243ee95cf9f4e841c5e5258329c30bf4a7a7961a1ffb82",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 2,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "2031540c15367da9ead51d4ce04e2445f59942b47d0f985cbe6bd746fa508717",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 2,
+      "variantId": "masking",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "b1c109b1d1ce7d8d9241f375695ca0cb65437e794849d8f94cec02876cf03208",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 3,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "6b7e7cc94fbaa3eedecd70ad426de4b5851ef64c98d749b3b7adf222db54254a",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 3,
+      "variantId": "masking",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "86331f789e64737b3c035ff6cc4220e3a32191e7d6dc4eed9d07d856d9934be3",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 4,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "bba2ac735cc6e4fabdad085969e9634e2fdce4b430db862cb9e0f114946896b7",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 4,
+      "variantId": "masking",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "765dbf7e24f8ec4ace10534d8928f6947bd501a75c5d8c3de7a527bf8f0beccb",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 5,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "a23fba4228b37b3f31be3dc48dc5fff25c6a036891ab7fb2dd299f79fb01c88e",
+      "suiteId": "context",
+      "caseId": "negative-memory",
+      "sample": 5,
+      "variantId": "masking",
+      "caseSha256": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "b3fc2dbf1c2ea36df1da1a6195f8d8f5ec00c74eafb614d2ec4c52eb1cd8ade5",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 1,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "5132be1e5a4f221236cf6e2d4ec6e22e2be04140b7371173527c2e2831b0d6ab",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 1,
+      "variantId": "masking",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "74f08e64e39d3a9cf6a07917f606548f4b8f1500c3561561fcf607034847174d",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 2,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "6ec44560bed2686259d5fc44bb374874968438066786b49e711841f923adb25f",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 2,
+      "variantId": "masking",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "87cc90a234f8b7bfcfe57061671d6a469cca81c78ba55fc1e0fa16954c9c9a61",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 3,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "cf8e4aba554d57de51027d8a343323b1124ebcd9ac94c73333f43b91ba0f2af4",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 3,
+      "variantId": "masking",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "277d125f3538dd09aef2aacec87966f69f593136b46e1d632bc8c5f2c738347b",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 4,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "9754100bfcbec01161eb3901653641a5e32cc9f66e8010da26869a73671781ce",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 4,
+      "variantId": "masking",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "1f6ae249d86a1987411e342095aab6cc0144ced6054dbe4a53af375f7c597a55",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 5,
+      "variantId": "controlled-compact",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    },
+    {
+      "experimentId": "experiment-ac2e1b0992e3edd38dd4bd6ad0401980",
+      "memberId": "3c92078e3204b7b7c7f29e6f5dce55dd1f6724c71250b9e8069b1a2e8aa13189",
+      "suiteId": "context",
+      "caseId": "source-review",
+      "sample": 5,
+      "variantId": "masking",
+      "caseSha256": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9",
+      "bindingSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+      "eligibility": "eligible",
+      "reason": null,
+      "consumerOutcome": "not_submitted",
+      "execution": {
+        "ref": null,
+        "state": "not_submitted",
+        "startedAt": null,
+        "finishedAt": null,
+        "reason": null
+      },
+      "assessment": "unscored",
+      "resultSha256": null,
+      "assessmentSha256": null
+    }
+  ],
+  "observedCosts": [
+    {
+      "runId": "run-eval-b14008de5b554953d3ce1f19323520b01eeb1637e64a2500a773c50e5da1ebde",
+      "released": true,
+      "cost": {
+        "scope": "run",
+        "scopeId": "run-eval-b14008de5b554953d3ce1f19323520b01eeb1637e64a2500a773c50e5da1ebde",
+        "currency": "USD",
+        "amount": "0.00553154",
+        "calls": "5",
+        "pricedCalls": "4",
+        "reports": "2",
+        "unknownReports": "0",
+        "basis": "reported",
+        "coverage": "partial",
+        "pending": false,
+        "historicalGap": false,
+        "asOf": "2026-11-28T13:36:11.929136Z",
+        "updatedAt": "2026-11-28T13:26:42.776799Z",
+        "checksAmount": "0",
+        "standaloneAmount": "0.00553154",
+        "activity": [
+          {
+            "key": "worker",
+            "label": "Worker analysis",
+            "calls": "4",
+            "amount": "0.00553154",
+            "basis": "reported"
+          }
+        ],
+        "models": [
+          {
+            "key": "model:openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "label": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "calls": "4",
+            "amount": "0.00553154",
+            "basis": "reported"
+          }
+        ],
+        "executions": []
+      },
+      "usage": {
+        "inputTokens": {
+          "value": 12003,
+          "unit": "tokens",
+          "completeness": "partial",
+          "sourceRefs": [
+            "sha256:fc9cbf67e34b4db16b1e26dd94f31de41bfcc83cda7da3361dd12cca8e7f2a55"
+          ],
+          "scope": {
+            "memberId": "5315d087bbd3c75f9ea8c8329f208a83a76a1b750bb381951a4a51abed876a9b",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-b14008de5b554953d3ce1f19323520b01eeb1637e64a2500a773c50e5da1ebde"
+              }
+            ],
+            "missing": [
+              "counter incompletely reported"
+            ],
+            "interval": null
+          }
+        },
+        "outputTokens": {
+          "value": 14740,
+          "unit": "tokens",
+          "completeness": "partial",
+          "sourceRefs": [
+            "sha256:fc9cbf67e34b4db16b1e26dd94f31de41bfcc83cda7da3361dd12cca8e7f2a55"
+          ],
+          "scope": {
+            "memberId": "5315d087bbd3c75f9ea8c8329f208a83a76a1b750bb381951a4a51abed876a9b",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-b14008de5b554953d3ce1f19323520b01eeb1637e64a2500a773c50e5da1ebde"
+              }
+            ],
+            "missing": [
+              "counter incompletely reported"
+            ],
+            "interval": null
+          }
+        },
+        "totalTokens": {
+          "value": 26743,
+          "unit": "tokens",
+          "completeness": "partial",
+          "sourceRefs": [
+            "sha256:fc9cbf67e34b4db16b1e26dd94f31de41bfcc83cda7da3361dd12cca8e7f2a55"
+          ],
+          "scope": {
+            "memberId": "5315d087bbd3c75f9ea8c8329f208a83a76a1b750bb381951a4a51abed876a9b",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-b14008de5b554953d3ce1f19323520b01eeb1637e64a2500a773c50e5da1ebde"
+              }
+            ],
+            "missing": [
+              "counter incompletely reported"
+            ],
+            "interval": null
+          }
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable",
+          "sourceRefs": [],
+          "scope": {
+            "memberId": "5315d087bbd3c75f9ea8c8329f208a83a76a1b750bb381951a4a51abed876a9b",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-b14008de5b554953d3ce1f19323520b01eeb1637e64a2500a773c50e5da1ebde"
+              }
+            ],
+            "missing": [
+              "counter unavailable"
+            ],
+            "interval": null
+          }
+        },
+        "modelCalls": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:fc9cbf67e34b4db16b1e26dd94f31de41bfcc83cda7da3361dd12cca8e7f2a55"
+          ],
+          "scope": {
+            "memberId": "5315d087bbd3c75f9ea8c8329f208a83a76a1b750bb381951a4a51abed876a9b",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-b14008de5b554953d3ce1f19323520b01eeb1637e64a2500a773c50e5da1ebde"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "toolCalls": {
+          "value": 7,
+          "unit": "calls",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:fc9cbf67e34b4db16b1e26dd94f31de41bfcc83cda7da3361dd12cca8e7f2a55"
+          ],
+          "scope": {
+            "memberId": "5315d087bbd3c75f9ea8c8329f208a83a76a1b750bb381951a4a51abed876a9b",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-b14008de5b554953d3ce1f19323520b01eeb1637e64a2500a773c50e5da1ebde"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "toolFailures": {
+          "value": 3,
+          "unit": "calls",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:fc9cbf67e34b4db16b1e26dd94f31de41bfcc83cda7da3361dd12cca8e7f2a55"
+          ],
+          "scope": {
+            "memberId": "5315d087bbd3c75f9ea8c8329f208a83a76a1b750bb381951a4a51abed876a9b",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-b14008de5b554953d3ce1f19323520b01eeb1637e64a2500a773c50e5da1ebde"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "wallMs": {
+          "value": 136416,
+          "unit": "milliseconds",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:2be03b7e8e8dd3fdd9908645131003b8be9c226a189c31f4bf13f1adf62a87bf"
+          ],
+          "scope": {
+            "memberId": "5315d087bbd3c75f9ea8c8329f208a83a76a1b750bb381951a4a51abed876a9b",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-b14008de5b554953d3ce1f19323520b01eeb1637e64a2500a773c50e5da1ebde"
+              }
+            ],
+            "missing": [],
+            "interval": {
+              "start": "2026-11-28T13:24:26.392467Z",
+              "end": "2026-11-28T13:26:42.808609Z"
+            }
+          }
+        }
+      }
+    },
+    {
+      "runId": "run-eval-d930eb3ff8efd5b295d44d76e87d3af47af12a265a861a137b5ea7450626aa5d",
+      "released": true,
+      "cost": {
+        "scope": "run",
+        "scopeId": "run-eval-d930eb3ff8efd5b295d44d76e87d3af47af12a265a861a137b5ea7450626aa5d",
+        "currency": "USD",
+        "amount": "0.011959425",
+        "calls": "4",
+        "pricedCalls": "4",
+        "reports": "2",
+        "unknownReports": "0",
+        "basis": "reported",
+        "coverage": "complete",
+        "pending": false,
+        "historicalGap": false,
+        "asOf": "2026-11-28T13:36:11.932967Z",
+        "updatedAt": "2026-11-28T13:24:25.383888Z",
+        "checksAmount": "0",
+        "standaloneAmount": "0.011959425",
+        "activity": [
+          {
+            "key": "summarization",
+            "label": "Summary",
+            "calls": "1",
+            "amount": "0.00382942",
+            "basis": "reported"
+          },
+          {
+            "key": "worker",
+            "label": "Worker analysis",
+            "calls": "3",
+            "amount": "0.008130005",
+            "basis": "reported"
+          }
+        ],
+        "models": [
+          {
+            "key": "model:openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "label": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "calls": "1",
+            "amount": "0.00382942",
+            "basis": "reported"
+          },
+          {
+            "key": "model:openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "label": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "calls": "3",
+            "amount": "0.008130005",
+            "basis": "reported"
+          }
+        ],
+        "executions": []
+      },
+      "usage": {
+        "inputTokens": {
+          "value": 16512,
+          "unit": "tokens",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:e14239f115bd66a43144c64d049a3dc3f2564636a2edc62fc427227e39a469c1"
+          ],
+          "scope": {
+            "memberId": "83ba215cda8dd5b0ac91d29c5234768d2563ef3a223502a1e703102a0fb06ca3",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-d930eb3ff8efd5b295d44d76e87d3af47af12a265a861a137b5ea7450626aa5d"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "outputTokens": {
+          "value": 21464,
+          "unit": "tokens",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:e14239f115bd66a43144c64d049a3dc3f2564636a2edc62fc427227e39a469c1"
+          ],
+          "scope": {
+            "memberId": "83ba215cda8dd5b0ac91d29c5234768d2563ef3a223502a1e703102a0fb06ca3",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-d930eb3ff8efd5b295d44d76e87d3af47af12a265a861a137b5ea7450626aa5d"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "totalTokens": {
+          "value": 37976,
+          "unit": "tokens",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:e14239f115bd66a43144c64d049a3dc3f2564636a2edc62fc427227e39a469c1"
+          ],
+          "scope": {
+            "memberId": "83ba215cda8dd5b0ac91d29c5234768d2563ef3a223502a1e703102a0fb06ca3",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-d930eb3ff8efd5b295d44d76e87d3af47af12a265a861a137b5ea7450626aa5d"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable",
+          "sourceRefs": [],
+          "scope": {
+            "memberId": "83ba215cda8dd5b0ac91d29c5234768d2563ef3a223502a1e703102a0fb06ca3",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-d930eb3ff8efd5b295d44d76e87d3af47af12a265a861a137b5ea7450626aa5d"
+              }
+            ],
+            "missing": [
+              "counter unavailable"
+            ],
+            "interval": null
+          }
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:e14239f115bd66a43144c64d049a3dc3f2564636a2edc62fc427227e39a469c1"
+          ],
+          "scope": {
+            "memberId": "83ba215cda8dd5b0ac91d29c5234768d2563ef3a223502a1e703102a0fb06ca3",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-d930eb3ff8efd5b295d44d76e87d3af47af12a265a861a137b5ea7450626aa5d"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "toolCalls": {
+          "value": 6,
+          "unit": "calls",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:e14239f115bd66a43144c64d049a3dc3f2564636a2edc62fc427227e39a469c1"
+          ],
+          "scope": {
+            "memberId": "83ba215cda8dd5b0ac91d29c5234768d2563ef3a223502a1e703102a0fb06ca3",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-d930eb3ff8efd5b295d44d76e87d3af47af12a265a861a137b5ea7450626aa5d"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "toolFailures": {
+          "value": 1,
+          "unit": "calls",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:e14239f115bd66a43144c64d049a3dc3f2564636a2edc62fc427227e39a469c1"
+          ],
+          "scope": {
+            "memberId": "83ba215cda8dd5b0ac91d29c5234768d2563ef3a223502a1e703102a0fb06ca3",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-d930eb3ff8efd5b295d44d76e87d3af47af12a265a861a137b5ea7450626aa5d"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "wallMs": {
+          "value": 76605,
+          "unit": "milliseconds",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:a1ef5a3a8ecf30c53c59661ec0cea35b4f88d1c2c75fb89e57bd9bf589c9b631"
+          ],
+          "scope": {
+            "memberId": "83ba215cda8dd5b0ac91d29c5234768d2563ef3a223502a1e703102a0fb06ca3",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-d930eb3ff8efd5b295d44d76e87d3af47af12a265a861a137b5ea7450626aa5d"
+              }
+            ],
+            "missing": [],
+            "interval": {
+              "start": "2026-11-28T13:23:08.785652Z",
+              "end": "2026-11-28T13:24:25.391308Z"
+            }
+          }
+        }
+      }
+    },
+    {
+      "runId": "run-eval-218c306f389fba3f1609a08e3cfa444b00aa787064ec656b1119fc989a8f8a12",
+      "released": true,
+      "cost": {
+        "scope": "run",
+        "scopeId": "run-eval-218c306f389fba3f1609a08e3cfa444b00aa787064ec656b1119fc989a8f8a12",
+        "currency": "USD",
+        "amount": "0.00344466",
+        "calls": "4",
+        "pricedCalls": "4",
+        "reports": "2",
+        "unknownReports": "0",
+        "basis": "reported",
+        "coverage": "complete",
+        "pending": false,
+        "historicalGap": false,
+        "asOf": "2026-11-28T13:36:11.936364Z",
+        "updatedAt": "2026-11-28T13:23:06.762527Z",
+        "checksAmount": "0",
+        "standaloneAmount": "0.00344466",
+        "activity": [
+          {
+            "key": "summarization",
+            "label": "Summary",
+            "calls": "1",
+            "amount": "0.0022131",
+            "basis": "reported"
+          },
+          {
+            "key": "worker",
+            "label": "Worker analysis",
+            "calls": "3",
+            "amount": "0.00123156",
+            "basis": "reported"
+          }
+        ],
+        "models": [
+          {
+            "key": "model:openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "label": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "calls": "1",
+            "amount": "0.0022131",
+            "basis": "reported"
+          },
+          {
+            "key": "model:openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "label": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "calls": "3",
+            "amount": "0.00123156",
+            "basis": "reported"
+          }
+        ],
+        "executions": []
+      },
+      "usage": {
+        "inputTokens": {
+          "value": 15351,
+          "unit": "tokens",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:39a612b5b97a34a53cce17790bfd0f8de598f9488d1ed497e9259d5a326818b2"
+          ],
+          "scope": {
+            "memberId": "e7c55d057f7368f12761e7092ba337613e3488bf1cba7d2ab9b9b63ea078f63d",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-218c306f389fba3f1609a08e3cfa444b00aa787064ec656b1119fc989a8f8a12"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "outputTokens": {
+          "value": 8177,
+          "unit": "tokens",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:39a612b5b97a34a53cce17790bfd0f8de598f9488d1ed497e9259d5a326818b2"
+          ],
+          "scope": {
+            "memberId": "e7c55d057f7368f12761e7092ba337613e3488bf1cba7d2ab9b9b63ea078f63d",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-218c306f389fba3f1609a08e3cfa444b00aa787064ec656b1119fc989a8f8a12"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "totalTokens": {
+          "value": 23528,
+          "unit": "tokens",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:39a612b5b97a34a53cce17790bfd0f8de598f9488d1ed497e9259d5a326818b2"
+          ],
+          "scope": {
+            "memberId": "e7c55d057f7368f12761e7092ba337613e3488bf1cba7d2ab9b9b63ea078f63d",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-218c306f389fba3f1609a08e3cfa444b00aa787064ec656b1119fc989a8f8a12"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "cachedInputTokens": {
+          "value": null,
+          "unit": "tokens",
+          "completeness": "unavailable",
+          "sourceRefs": [],
+          "scope": {
+            "memberId": "e7c55d057f7368f12761e7092ba337613e3488bf1cba7d2ab9b9b63ea078f63d",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-218c306f389fba3f1609a08e3cfa444b00aa787064ec656b1119fc989a8f8a12"
+              }
+            ],
+            "missing": [
+              "counter unavailable"
+            ],
+            "interval": null
+          }
+        },
+        "modelCalls": {
+          "value": 4,
+          "unit": "calls",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:39a612b5b97a34a53cce17790bfd0f8de598f9488d1ed497e9259d5a326818b2"
+          ],
+          "scope": {
+            "memberId": "e7c55d057f7368f12761e7092ba337613e3488bf1cba7d2ab9b9b63ea078f63d",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-218c306f389fba3f1609a08e3cfa444b00aa787064ec656b1119fc989a8f8a12"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "toolCalls": {
+          "value": 5,
+          "unit": "calls",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:39a612b5b97a34a53cce17790bfd0f8de598f9488d1ed497e9259d5a326818b2"
+          ],
+          "scope": {
+            "memberId": "e7c55d057f7368f12761e7092ba337613e3488bf1cba7d2ab9b9b63ea078f63d",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-218c306f389fba3f1609a08e3cfa444b00aa787064ec656b1119fc989a8f8a12"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "toolFailures": {
+          "value": 2,
+          "unit": "calls",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:39a612b5b97a34a53cce17790bfd0f8de598f9488d1ed497e9259d5a326818b2"
+          ],
+          "scope": {
+            "memberId": "e7c55d057f7368f12761e7092ba337613e3488bf1cba7d2ab9b9b63ea078f63d",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-218c306f389fba3f1609a08e3cfa444b00aa787064ec656b1119fc989a8f8a12"
+              }
+            ],
+            "missing": [],
+            "interval": null
+          }
+        },
+        "wallMs": {
+          "value": 54397,
+          "unit": "milliseconds",
+          "completeness": "complete",
+          "sourceRefs": [
+            "sha256:b5338dc4e638dc446ee3b6a353c423c658f11dcc8f9ec425fe2553533d1d44d9"
+          ],
+          "scope": {
+            "memberId": "e7c55d057f7368f12761e7092ba337613e3488bf1cba7d2ab9b9b63ea078f63d",
+            "kind": "workflow",
+            "executions": [
+              {
+                "kind": "run",
+                "id": "run-eval-218c306f389fba3f1609a08e3cfa444b00aa787064ec656b1119fc989a8f8a12"
+              }
+            ],
+            "missing": [],
+            "interval": {
+              "start": "2026-11-28T13:22:12.37585Z",
+              "end": "2026-11-28T13:23:06.773041Z"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "frozenManifestSha256": "sha256:3877b354bf81f311cb6500c4a680505d502667853172f70ef6df6885daa58dfb",
+  "earlierPreparation": "Four unexecuted external registrations requesting a non-observed scorer dimension were rejected by comparison preflight; never used for live dispatch. They are retained privately, not reinterpreted as comparable executions."
+}

@@ -12,6 +12,8 @@ depends_on:
 - V466-019
 - V466-020
 - V466-021
+- V500-001
+- V500-003
 languages:
 - python
 - yaml
@@ -42,6 +44,16 @@ context:
     This review does not resume the paused task. On explicit continuation, freeze a new
     source revision and plan for the changed admission semantics before new dispatch;
     never rewrite prior plans, results, comparisons or configured models.
+    User request 2026-11-28 explicitly resumes this study and selects Project
+    Facts research, with debug traces required before live dispatch.
+  resume_authority: >-
+    User request 2026-11-28 revokes the earlier pause. Prepare a new frozen
+    study on the current accepted Runtime SDK/lock/build after V500-001;
+    preserve all earlier identities, incomplete outcomes and observed costs.
+  current_sdk_decision: >-
+    Agent decision 2026-11-28: the accepted current Runtime lock supersedes the
+    historical 2.13.0 execution prerequisite for new Runs. All new arms use
+    the same locked ADK 2.15.0 closure; historical SDK/build pins stay intact.
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/evals/format.md#EVF-R1
@@ -71,13 +83,12 @@ context:
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
   current_state: >-
-    Paused by explicit user request 2026-11-16 until their continue command.
-    R3 has verified native source/task pins for all60 pairs: three natural
-    failed Runs collected/scored,117 unsubmitted of120. Known usage123541
-    tokens and USD0.0239856091 reported. No active Run was cancelled. Own
-    credential revoked, processes joined and disposable database dropped after
-    retaining exact native exports and a private PostgreSQL archive. All prior
-    attempts/costs remain. No quality acceptance or recommendation.
+    Resumed 2026-11-28 on accepted ADK 2.15.0 after V500-001/V500-003.
+    R5 has 120 frozen members and verified native source/task comparisons;
+    the exact consumer is running with debug telemetry retained before forwarding.
+    R4 retains two failed, one cancelled and 117 unsubmitted members after a
+    task-owned collector ID check failed. R1-R4 stay distinct incomplete attempts.
+    No final repeated-quality conclusion is claimed while R5 is running.
   prior_state_before_r3: >-
     V417-009 is accepted and network recovery is complete. Attempt1 retains
     one succeeded/unscored Run and119 unrun members. Attempt2 is stopped and
@@ -179,6 +190,8 @@ context:
     sha256:ffc1608d8cece6e4db9b0694ca4bd256fe5e0771af73c9ff2e57550bfeac8e6a.
     Exact operational results are retained in the ignored owner-only local
     runbook; no profile keys or concrete deployment addresses are published.
+  current_freeze: tasks/evidence/v417-010-freeze-r5-20261128.json
+  current_debug_correction: tasks/evidence/v417-010-protocol-attempt4-20261128.json
   development_evidence:
   - tasks/evidence/v417-010-development-20261115.json
   - tasks/evidence/v417-010-development-20261116-02.json
@@ -358,7 +371,7 @@ test_prerequisites:
   fabricated samples as a passing experiment.
 - At least five repeats are required per frozen case/variant; preserve both unsuccessful and successful
   attempts and report actual executed counts.
-- Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
+- Run new integration acceptance on the exact current ADK closure pinned by runtime/uv.lock; record Runtime revision
   and lock digest. No separate old-SDK compaction implementation or version-switching production path.
 - Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
   CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact

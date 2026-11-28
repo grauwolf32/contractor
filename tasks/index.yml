@@ -9,6 +9,9 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User request 2026-11-28 resumes V417-010 and selects Project Facts study
+    V500-002 with debug traces. V500-001 pins the current accepted SDK before
+    a new compaction freeze. Historical attempts and pauses remain below.
     User request 2026-11-16 completes V466-022: local main contains
     codex/v417-release-quality through two-parent merge
     017b8b289e6da12e68d13d28a592bc7fb66c43ba. All six primary working files
