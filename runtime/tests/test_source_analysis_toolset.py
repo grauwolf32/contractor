@@ -18,6 +18,7 @@ import pytest
 from fakes.worker_state import WorkerState
 
 import contractor_runtime.projectfs.paths as paths_module
+import contractor_runtime.toolsets.common.source_archive as source_archive_module
 import contractor_runtime.toolsets.source_analysis.tools as source_tools_module
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
@@ -25,14 +26,16 @@ from contractor_runtime.contracts.settings import default_source_archive_limits
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.lines import split_lines
 from contractor_runtime.factories import built_in_factories
-from contractor_runtime.toolsets.source_analysis.tools import (
+from contractor_runtime.toolsets.common.source_archive import (
     MAX_ARCHIVE_ENTRIES,
     MAX_FILE_UNCOMPRESSED_BYTES,
-    MAX_LIST_RESULTS,
     MAX_PATH_UTF8_BYTES,
     MAX_TOTAL_UNCOMPRESSED_BYTES,
-    SourceAnalysisToolsetFactory,
     _validate_entries,
+)
+from contractor_runtime.toolsets.source_analysis.tools import (
+    MAX_LIST_RESULTS,
+    SourceAnalysisToolsetFactory,
 )
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -170,18 +173,18 @@ def test_cancelled_source_read_keeps_preparation_owned_until_close(tmp_path, mon
 def test_shared_source_member_paths_match_producer_fixture() -> None:
     cases = producer_fixture()
     for path in cases["valid"]:
-        assert source_tools_module._validated_member_path(path) == path
+        assert source_archive_module._validated_member_path(path) == path
     for path in cases["invalid"]:
         with pytest.raises(ValueError):
-            source_tools_module._validated_member_path(path)
+            source_archive_module._validated_member_path(path)
 
 
 def test_shared_source_readability_lists_match_producer_fixture() -> None:
     cases = producer_fixture()
-    assert sorted(source_tools_module.IGNORED_DIRECTORY_NAMES) == sorted(
+    assert sorted(source_archive_module.IGNORED_DIRECTORY_NAMES) == sorted(
         cases["ignoredDirectoryNames"]
     )
-    assert sorted(source_tools_module.BINARY_EXTENSIONS) == sorted(cases["binaryExtensions"])
+    assert sorted(source_archive_module.BINARY_EXTENSIONS) == sorted(cases["binaryExtensions"])
 
 
 def test_shared_source_bundle_openability_matches_producer_fixture(tmp_path: Path) -> None:
@@ -198,11 +201,11 @@ def test_shared_source_bundle_openability_matches_producer_fixture(tmp_path: Pat
         }
         staging = tmp_path / f"bundle-{index}"
         if bundle["openable"]:
-            files, _, _ = source_tools_module._extract_archive(make_zip(members), staging)
+            files, _, _ = source_archive_module._extract_archive(make_zip(members), staging)
             assert files, bundle["name"]
         else:
             with pytest.raises(ValueError, match=errors[bundle["reason"]]):
-                source_tools_module._extract_archive(make_zip(members), staging)
+                source_archive_module._extract_archive(make_zip(members), staging)
 
 
 def test_source_archive_tools_return_bounded_file_line_evidence(tmp_path: Path) -> None:
@@ -1006,7 +1009,7 @@ def test_server_source_limits_reach_factory_and_extraction(tmp_path: Path) -> No
     payload = b"# source line\n" * ((5 * 1024 * 1024) // len(b"# source line\n") + 1)
     archive = make_zip({"large.py": payload})
     with pytest.raises(ValueError, match="file limit"):
-        source_tools_module._extract_archive(archive, tmp_path / "default")
+        source_archive_module._extract_archive(archive, tmp_path / "default")
 
     async def scenario() -> None:
         client = ReadOnlyArtifactClient()
@@ -1056,4 +1059,4 @@ def test_configured_source_declared_and_streamed_budgets() -> None:
         zipfile.ZipFile(io.BytesIO(make_zip({"part.txt": "123456"}))) as archive,
         pytest.raises(ValueError, match="streamed limit"),
     ):
-        source_tools_module._read_member_bounded(archive, archive.infolist()[0], limits)
+        source_archive_module._read_member_bounded(archive, archive.infolist()[0], limits)

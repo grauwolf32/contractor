@@ -26,6 +26,7 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.artifacts import ArtifactAPIError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.contracts.settings import default_source_archive_limits
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.process import (
     ProcessOutputLimitError,
@@ -45,7 +46,9 @@ from contractor_runtime.toolsets.common.artifact_visibility import require_model
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.toolsets.common.source_archive import _extract_archive
 from contractor_runtime.toolsets.common.versions import MaterialSelector, SelectedVersions
+from contractor_runtime.toolsets.scan import semgrep
 from contractor_runtime.toolsets.scan.ffuf import (
     ffuf_observation,
     validate_ffuf_filter,
@@ -172,7 +175,11 @@ class _ScanSession:
         namespace,
         target_policy: TargetPolicy | None,
         controlled_http: HTTPTransport | None = None,
+        semgrep_rules: Path | None = None,
+        source_limits=None,
     ):
+        self.semgrep_rules = semgrep_rules
+        self.source_limits = source_limits
         self.versions = SelectedVersions()
         self.workspace = workspace
         self.executables = executables
@@ -1723,7 +1730,210 @@ class KatanaTool(ScanTool):
         )
 
 
-SCANNERS = (NucleiTool, SQLMapTool, NaabuTool, FFUFTool, KatanaTool)
+class SemgrepTool(ScanTool):
+    name = "scan_semgrep"
+    binary = "semgrep"
+    version_arguments = ("--version", "--disable-version-check")
+    local_only = True
+    description = """Run offline Semgrep Community Edition static checks on an exact source ZIP.
+
+    Uses installed local rules or replaces them completely with selected custom
+    rules. Never downloads registry rules or uses a cloud account. Code is read
+    from a private snapshot; no source code, metavariable values or native
+    diagnostics are echoed in results. Rules report possible issues, not proof.
+
+    Args:
+        source_ref: Selected namespace/name material containing an application/zip
+            source archive, subject to the allocation source archive limits.
+        rulepack_ref: Optional selected namespace/name material containing
+            application/yaml rules or application/vnd.contractor.semgrep-rulepack+zip.
+            Up to 10000 rule files/rules, 1 MiB per file, 64 MiB expanded, 16 MiB ZIP.
+            When absent, use SEMGREP_RULES_DIR installed local rules.
+        rules_digest: Optional expected sha256 package digest. Pins installed rules; custom rules
+            instead retain their exact Artifact identity and computed digest.
+        timeout_seconds: Total preparation and process deadline, 1 through 3600
+            seconds; defaults to 300. Native rules have a 5-second timeout.
+
+    Returns:
+        Process outcome, exact source/rule provenance, rule digest and bounded
+        rule/file/line matches with explicit scanComplete and coverage gaps.
+        Empty results never certify that the source is secure. tool@1 stores a report.
+    """
+
+    async def publish_outputs(
+        self, observation: dict, outputs: dict[str, ArtifactRef], arguments: dict | None = None
+    ) -> dict:
+        if {"candidates", "evidence"} <= outputs.keys():
+            # Publication is explicit. Direct calls and report-only Workers do
+            # not expose source windows in their model-facing observations.
+            rows = observation.get("results", [])
+            if rows:
+                source = ArtifactRef.model_validate((arguments or {})["source_ref"]).require_exact()
+                value = await self._session.artifact_client.read_artifact(source)
+                if value.artifact != source or value.media_type != "application/zip":
+                    raise ValueError("Semgrep source evidence is unavailable")
+                batch = await threads.to_thread_until_done(
+                    semgrep.finding_candidates,
+                    observation,
+                    value.data,
+                    name="semgrep-selected-evidence",
+                )
+            else:
+                from contractor_runtime.toolsets.scan.findings import _batch
+
+                batch = _batch(observation, [], [], {}, [])
+                batch["complete"] = observation.get("scanComplete", False)
+            observation = {**observation, "findingCandidates": batch}
+        return await super().publish_outputs(observation, outputs, arguments)
+
+    @staticmethod
+    def accepts_probe(result: ProcessResult) -> bool:
+        return (
+            result.error_code is None and result.stdout.strip() == semgrep.ENGINE_VERSION.encode()
+        )
+
+    async def __call__(
+        self,
+        source_ref: MaterialSelector,
+        rulepack_ref: MaterialSelector | None = None,
+        rules_digest: str = "",
+        timeout_seconds: int = 300,
+    ) -> dict:
+        return await self.contractor_trusted_call(
+            source_ref=self._session.versions.resolve(source_ref).model_dump(exclude_none=True),
+            rulepack_ref=self._session.versions.resolve(rulepack_ref).model_dump(exclude_none=True)
+            if rulepack_ref is not None
+            else None,
+            rules_digest=rules_digest,
+            timeout_seconds=timeout_seconds,
+        )
+
+    async def contractor_trusted_call(
+        self,
+        source_ref: dict[str, str],
+        rulepack_ref: dict[str, str] | None = None,
+        rules_digest: str = "",
+        timeout_seconds: int = 300,
+    ) -> dict:
+        prepared = {}
+        source = custom = None
+
+        def arguments():
+            nonlocal source, custom
+            try:
+                source = ArtifactRef.model_validate(source_ref).require_exact()
+                require_model_visible_binding(source.namespace, source.name)
+                if rulepack_ref is not None:
+                    custom = ArtifactRef.model_validate(rulepack_ref).require_exact()
+                    require_model_visible_binding(custom.namespace, custom.name)
+                if rules_digest and (
+                    not isinstance(rules_digest, str)
+                    or not re.fullmatch(r"sha256:[0-9a-f]{64}", rules_digest)
+                ):
+                    raise ValueError
+            except (ValueError, TypeError):
+                raise ScanInputError(
+                    "Semgrep requires exact accessible inputs and a valid rules digest"
+                ) from None
+            prepared.update(
+                sourceArtifact=source.model_dump(by_alias=True),
+                source="rulepack" if custom else "installed",
+            )
+            if custom:
+                prepared["rulepackArtifact"] = custom.model_dump(by_alias=True)
+            return [
+                "scan",
+                "--oss-only",
+                "--json",
+                "--quiet",
+                "--metrics=off",
+                "--disable-version-check",
+                "--no-git-ignore",
+                "--no-rewrite-rule-ids",
+                "--disable-nosem",
+                "--x-ignore-semgrepignore-files",
+                "--jobs=1",
+                "--max-memory=512",
+                "--timeout=5",
+                "--timeout-threshold=3",
+            ]
+
+        async def prepare(directory: Path, deadline: float) -> list[str]:
+            try:
+                value = await self._session.artifact_client.read_artifact(source)
+            except Exception:
+                raise ScannerUnavailable("semgrep_source_unavailable") from None
+            if value.artifact != source or value.media_type != "application/zip":
+                raise PackageError("semgrep_source_invalid")
+            try:
+                files, size, ignored = await threads.to_thread_until_done(
+                    _extract_archive,
+                    value.data,
+                    directory / "source",
+                    self._session.source_limits,
+                    name="semgrep-source-materialize",
+                )
+            except (OSError, ValueError):
+                raise PackageError("semgrep_source_invalid") from None
+            source_digest = await threads.to_thread_until_done(
+                lambda: "sha256:" + hashlib.sha256(value.data).hexdigest(),
+                name="semgrep-source-digest",
+            )
+            prepared.update(
+                sourceFiles={f.path for f in files},
+                sourceBytes=size,
+                sourceDigest=source_digest,
+                ignoredFiles=ignored,
+            )
+            data, media = None, None
+            if custom:
+                try:
+                    value = await self._session.artifact_client.read_artifact(
+                        custom, max_bytes=semgrep.MAX_ZIP_BYTES
+                    )
+                except Exception:
+                    raise ScannerUnavailable("semgrep_rulepack_unavailable") from None
+                if value.artifact != custom:
+                    raise PackageError("semgrep_rulepack_invalid")
+                data, media = value.data, value.media_type
+            snapshot = await threads.to_thread_until_done(
+                lambda: semgrep.snapshot_rules(
+                    self._session.semgrep_rules,
+                    directory / "rules.json",
+                    deadline,
+                    data=data,
+                    media_type=media,
+                ),
+                name="semgrep-rules-snapshot",
+            )
+            prepared.update(snapshot)
+            if rules_digest and custom is None and snapshot["rulesDigest"] != rules_digest:
+                raise PackageError("semgrep_rules_mismatch")
+            version = await run_process(
+                [self._session.executables[self.name], *self.version_arguments],
+                directory,
+                max(0.001, deadline - time.monotonic()),
+            )
+            if not self.accepts_probe(version):
+                raise ScannerUnavailable(version.error_code or "semgrep_version_unsupported")
+            prepared["engineVersion"] = semgrep.ENGINE_VERSION
+            return [
+                "--config",
+                "rules.json",
+                "--max-target-bytes",
+                str(self._session.source_limits.max_file_bytes),
+                "source",
+            ]
+
+        return await self._call(
+            timeout_seconds,
+            arguments,
+            prepare=prepare,
+            observation=lambda result: semgrep.observation(result, prepared),
+        )
+
+
+SCANNERS = (NucleiTool, SQLMapTool, NaabuTool, FFUFTool, KatanaTool, SemgrepTool)
 
 
 class ScanToolsetFactory:
@@ -1734,6 +1944,7 @@ class ScanToolsetFactory:
         artifact_client_factory: ArtifactClientFactory | None = None,
         *,
         templates_directory: Path | None = None,
+        semgrep_rules_directory: Path | None = None,
         scanners: Sequence[type[ScanTool]] = SCANNERS,
         target_policy: TargetPolicyConfig | None = None,
     ) -> None:
@@ -1754,8 +1965,13 @@ class ScanToolsetFactory:
                     )
                 )
                 for name, scanner in self._scanners.items()
+                if not getattr(scanner, "local_only", False)
             }
         )
+        self._semgrep_rules = (
+            semgrep_rules_directory
+            or Path(os.environ.get("SEMGREP_RULES_DIR", "/opt/contractor-runtime/semgrep-rules"))
+        ).absolute()
         self._templates = (
             templates_directory
             or Path(os.environ.get("NUCLEI_TEMPLATES_DIR", Path.home() / "nuclei-templates"))
@@ -1812,7 +2028,9 @@ class ScanToolsetFactory:
         if not selected:
             return {}
         if controlled_http is not None and any(
-            self._scanners[name].http_proxy_arguments is None for name in selected
+            self._scanners[name].http_proxy_arguments is None
+            and not getattr(self._scanners[name], "local_only", False)
+            for name in selected
         ):
             raise ValueError("selected scanner cannot use the allocation HTTP transport")
         metrics = require_metrics(resources, "scan@1")
@@ -1827,11 +2045,30 @@ class ScanToolsetFactory:
             namespace=namespace,
             target_policy=(await self._target_policy.build(runtime_settings))
             if controlled_http is None
+            and any(not getattr(self._scanners[name], "local_only", False) for name in selected)
             else None,
             controlled_http=controlled_http,
         )
         session.versions = resources.selected_versions
-        return {name: self._scanners[name](session, metrics) for name in selected}
+        static_session = _ScanSession(
+            workspace.path,
+            self._executables,
+            self._templates,
+            proxy_configured=False,
+            artifact_client=session.artifact_client,
+            namespace=namespace,
+            target_policy=None,
+            semgrep_rules=self._semgrep_rules,
+            source_limits=runtime_settings.source_archive_limits or default_source_archive_limits(),
+        )
+        static_session.versions = resources.selected_versions
+        return {
+            name: self._scanners[name](
+                static_session if getattr(self._scanners[name], "local_only", False) else session,
+                metrics,
+            )
+            for name in selected
+        }
 
 
 def _proxy_routes_tools(settings: RuntimeSettings) -> bool:

@@ -3,6 +3,7 @@
 package findingintake
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -31,10 +32,13 @@ import (
 
 func TestPostgresCandidateOperationReplayAfterSourcePurgeAndNewRun(t *testing.T) {
 	for _, qualified := range []bool{true, false} {
-		t.Run(fmt.Sprintf("qualified=%t", qualified), func(t *testing.T) { candidateOperationReplayAfterPurge(t, qualified) })
+		t.Run(fmt.Sprintf("qualified=%t", qualified), func(t *testing.T) { candidateOperationReplayAfterPurge(t, qualified, false) })
 	}
 }
-func candidateOperationReplayAfterPurge(t *testing.T, qualified bool) {
+func TestPostgresCodeCandidateOperationRetainsUnassessedFinding(t *testing.T) {
+	candidateOperationReplayAfterPurge(t, true, true)
+}
+func candidateOperationReplayAfterPurge(t *testing.T, qualified, code bool) {
 	ctx := t.Context()
 	pool := isolatedFindingPool(t, ctx)
 	const owner, project = "candidate-owner", "candidate-project"
@@ -49,11 +53,17 @@ func candidateOperationReplayAfterPurge(t *testing.T, qualified bool) {
 	source := quotaSubmissionGrant(t, ctx, pool, owner, project, "original-scanner")
 	sourceOrigin := &artifacts.ExecutionOrigin{RunID: source.RunID, StageExecutionID: source.StageExecutionID, AllocationID: source.AllocationID, LogicalAgentName: source.LogicalAgentName}
 	sourceStore, _ := artifacts.NewService(storage.Repository(pool)).Run(source.RunID)
-	candidate := NormalizedCandidate{Key: strings.Repeat("a", 64), Producer: "test-scanner", Rule: "problem-rule", Title: "Observed problem", Assertion: "The selected scanner matched an exposed configuration.", Subject: "https://target.test/.git/config", Method: "GET", Severity: "medium", QualifiedKey: []string{"test-scanner", "rule-v1", "GET", "https://target.test/.git/config"}}
+	candidate := NormalizedCandidate{Key: strings.Repeat("a", 64), Producer: "test-scanner", Rule: "problem-rule", Title: "Observed problem", Assertion: "The selected scanner matched an exposed configuration.", Location: auditdomain.FindingLocation{URL: "https://target.test/.git/config", Method: "GET"}, Severity: "medium", QualifiedKey: []string{"test-scanner", "rule-v1", "GET", "https://target.test/.git/config"}}
+	if code {
+		candidate.Producer = "semgrep"
+		candidate.Rule = "python-eval"
+		candidate.Location = auditdomain.FindingLocation{File: "src/app.py", Range: &auditdomain.FindingLineRange{StartLine: 1, EndLine: 1}}
+		candidate.QualifiedKey = []string{"semgrep", "package-digest", "source-digest", "python-eval", "src/app.py", "1", "1"}
+	}
 	if !qualified {
 		candidate.QualifiedKey = nil
 	}
-	proof, _ := json.Marshal(map[string]any{"schema": "contractor.finding.scanner-evidence.v1", "records": []map[string]any{{"key": candidate.Key, "matched": true}}})
+	proof, _ := json.Marshal(map[string]any{"schema": "contractor.finding.scanner-evidence.v1", "records": []map[string]any{{"key": candidate.Key, "matched": true, "text": "eval(input())", "producer": candidate.Producer}}})
 	savedProof, err := sourceStore.Write(ctx, contracts.ArtifactRef{Namespace: source.Namespace, Name: "evidence"}, artifacts.Payload{MediaType: CandidateEvidenceMediaType, Data: proof, ExecutionOrigin: sourceOrigin}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -132,6 +142,25 @@ func candidateOperationReplayAfterPurge(t *testing.T, qualified bool) {
 	retained, err := service.GetProjectReceipt(ctx, owner, project, published.Sources[0].ReceiptID)
 	if err != nil || retained.Origin.Operation != contracts.PublishFindingsOperation || retained.Origin.AllocationID != "" || retained.Origin.LogicalAgentName != "" || retained.Origin.Scan == nil || !sameScanExecution(retained.Origin.Scan, sourceOrigin) || !retained.Origin.Scan.Artifact.SameExact(savedBatch.Ref) || len(retained.ProjectEvidence) != 2 {
 		t.Fatalf("source provenance: %+v %v", retained.Origin, err)
+	}
+	if code {
+		if len(retained.Document.Locations) != 1 || retained.Document.Locations[0].File != "src/app.py" || retained.Document.Locations[0].Range == nil || retained.Document.Locations[0].Range.StartLine != 1 {
+			t.Fatalf("code location lost after source purge: %+v", retained.Document.Locations)
+		}
+		projectEvidence, _ := artifacts.NewService(storage.Repository(pool)).Project(project)
+		found := false
+		for _, descriptor := range retained.ProjectEvidence {
+			if descriptor.MediaType == CandidateEvidenceMediaType {
+				saved, err := projectEvidence.ReadExact(ctx, descriptor)
+				if err != nil || !bytes.Contains(saved.Payload.Data, []byte("eval(input())")) || !bytes.Contains(saved.Payload.Data, []byte("semgrep")) {
+					t.Fatalf("selected code evidence lost: %v", err)
+				}
+				found = true
+			}
+		}
+		if !found {
+			t.Fatal("retained source window evidence missing")
+		}
 	}
 	var count int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM project_finding_sources WHERE project_id=$1`, project).Scan(&count); err != nil || count != 1 {

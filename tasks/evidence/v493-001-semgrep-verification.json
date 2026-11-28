@@ -1,0 +1,111 @@
+{
+  "task": "V493-001",
+  "verified_at": "2026-11-28T14:16:22.060129+03:00",
+  "branch": "codex/semgrep",
+  "base_commit": "4862f0c6e",
+  "outcome": "Real Semgrep static checks over exact source ZIPs publish unassessed Project Findings through the ordinary Runtime and publish-findings operation.",
+  "engine": {
+    "version": "1.187.0",
+    "mode": "OSS only",
+    "rules_revision": "a5ad1714f00c9f7fde980cab0ea1d6dc6d414fd2",
+    "rules_digest": "sha256:0e014cea11ee7c105694976997628805fd104f08c753f989d989466adeedbf36",
+    "rule_files": 2053,
+    "rules": 2127,
+    "native_engine_errors": 0,
+    "sources": "locked public HTTPS packages and checksum-pinned upstream archive; optional exact custom YAML/ZIP replaces installed rules"
+  },
+  "checks": [
+    {
+      "command": "make test-runtime",
+      "outcome": "passed",
+      "passed": 6767,
+      "skipped": 136,
+      "failures": 0,
+      "note": "Declared optional/platform skips are not passing coverage. Scanner suites and final adapter regressions were repeated after shared parser consolidation."
+    },
+    {
+      "command": "pytest runtime/tests/test_semgrep_scan.py",
+      "outcome": "passed",
+      "tests": 27,
+      "skipped": 0,
+      "failures": 0,
+      "note": "Final adapter source; includes real engine and tool Worker publication, input/output bounds, private diagnostics, source windows and joined cancellation."
+    },
+    {
+      "command": "pytest runtime/tests/test_semgrep_scan.py runtime/tests/test_scan_toolset.py runtime/tests/test_scan_findings.py runtime/tests/test_nuclei_package.py runtime/tests/test_nuclei_engagement.py runtime/tests/test_scan_error_codes.py",
+      "outcome": "passed",
+      "note": "Complete relevant scanner suites repeated for the shared YAML/ZIP grammar and source adapter changes."
+    },
+    {
+      "command": "go test ./internal/config/... ./internal/planner/scan ./internal/findingintake ./tests/e2e",
+      "outcome": "passed",
+      "note": "All touched Go packages; canonical TMPDIR and the owned disposable database were provided."
+    },
+    {
+      "command": "go test -tags=integration ./internal/findingintake",
+      "outcome": "passed",
+      "note": "Real PostgreSQL; unassessed code Finding, selected evidence retention after source purge, receipt replay and grouping. Optional heavy I/O remained disabled."
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "outcome": "passed",
+      "fixtures": 441,
+      "go_shared_tests": 474,
+      "python_shared_test_functions": 308,
+      "python_passed_cases": 1639,
+      "optional_heavy_io_skips": 1
+    },
+    {
+      "command": "make test-semgrep-e2e",
+      "outcome": "passed",
+      "note": "Final source, real Server/Runtime/Semgrep/PostgreSQL; positives, safe code, repeated scan grouping, bad rulepack and failure preservation. The selector also independently rejects zero tests."
+    },
+    {
+      "command": "go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock",
+      "outcome": "passed"
+    },
+    {
+      "command": "make ui-verify",
+      "outcome": "passed",
+      "unit_passed": 2615,
+      "expected_failures": 1,
+      "note": "Generation, lint, type checking, unit tests, static server tests and build."
+    },
+    {
+      "command": "Playwright local report preview QA",
+      "outcome": "passed",
+      "browser_cases": 3,
+      "viewport_width": 390,
+      "themes": [
+        "light",
+        "dark",
+        "black"
+      ],
+      "note": "No horizontal page overflow; incomplete coverage and possible-issue wording verified. Disposable test harness removed."
+    },
+    {
+      "command": "make lint",
+      "outcome": "passed",
+      "note": "The full gate passed, including Ansible, layers, schemas, public client generation checks and task/spec guards. A subsequent nonempty e2e selector was verified with both one-test and zero-test inventories; release graph/spec checks also passed."
+    }
+  ],
+  "retention_and_provenance": {
+    "producer": "semgrep",
+    "location": "file and line/range",
+    "evidence": "exact source reference and digest, selected code window and file digest, rule, engine and package provenance",
+    "analyst_verdict": "unset; scanner assertions do not confirm vulnerabilities",
+    "full_source_archive": "ordinary Project material lifecycle; no archive copy per Finding"
+  },
+  "future_work": "Dedicated tool-origin query filters and revision/version-pinned LLM validation are not implemented by this task. Their design discussion is recorded as an agent proposal, not a new requirement.",
+  "cleanup": {
+    "owned_test_database_dropped": true,
+    "private_postgresql_cluster_stopped_and_removed": true,
+    "owned_server_runtime_and_preview_processes_joined": true,
+    "heavy_io_enabled": false
+  },
+  "delivery": {
+    "merged_into_main": false,
+    "deployed": false,
+    "primary_user_work": "kept in the original checkout; implementation used an isolated worktree"
+  }
+}

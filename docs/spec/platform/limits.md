@@ -882,6 +882,11 @@ its owning requirement.
 | `LIM-SCN-92` | Retired | Independent scan orchestration removed | No current bound | [SCN-R225](../tools/scanners.md) |
 | `LIM-SCN-93` | 5 seconds each | tool Worker State admission and terminal publication | Runtime tool Worker; joined cleanup and fencing on terminal publication failure | [SCN-R51](../tools/scanners.md) |
 | `LIM-SCN-94` | Retired | Independent scan orchestration removed | No current bound | [SCN-R225](../tools/scanners.md) |
+| `LIM-SCN-95` | 16 MiB ZIP; 1 MiB YAML; 64 MiB expanded; 10000 files/rules | Semgrep custom/installed package | Complete preflight and snapshot before launch | [SCN-R272](../tools/scanners.md) |
+| `LIM-SCN-96` | 50000 entries; 100000 YAML tokens/file; depth 64 | Semgrep installed walk and rules parsing | Bounded traversal and token validation | [SCN-R272](../tools/scanners.md), [SCN-R273](../tools/scanners.md) |
+| `LIM-SCN-97` | 1 job; 512 MiB/job; 5 seconds/rule; timeout threshold 3 | Semgrep native execution | Fixed argv and invocation deadline | [SCN-R274](../tools/scanners.md) |
+| `LIM-SCN-98` | 100 matches; 128 KiB normalized; 1 MiB native output | Semgrep results | Process ceiling and explicit result truncation | [SCN-R275](../tools/scanners.md) |
+| `LIM-SCN-99` | 4 MiB/file; 8 MiB selected file bytes; 400 lines and 4096 bytes/window | Semgrep selected code evidence | Exact source digest verification and bounded matched-file reads | [SCN-R277](../tools/scanners.md) |
 | `LIM-SEC-1` | 256 bits (exactly 32 decoded bytes) | Credential-encryption master key in the --credential-master-key-file (RFC 4648 base64) | Server startup (master key loader) | [SEC-R17](security.md) |
 | `LIM-SEC-2` | at most 1 trailing newline | Content of the credential master key file | Server startup (master key loader) | [SEC-R17](security.md) |
 | `LIM-SEC-3` | 1 active master key | Credential-encryption keyring | Server | [SEC-R20](security.md) |

@@ -51,6 +51,8 @@ def child_environment(directory: Path) -> dict[str, str]:
         "LANG": "C.UTF-8",
         "NO_COLOR": "1",
         "CI": "1",
+        "SEMGREP_SEND_METRICS": "off",
+        "SEMGREP_ENABLE_VERSION_CHECK": "0",
         "DISABLE_NUCLEI_TEMPLATES_PUBLIC_DOWNLOAD": "true",
         "DISABLE_NUCLEI_TEMPLATES_GITHUB_DOWNLOAD": "true",
         "DISABLE_NUCLEI_TEMPLATES_GITLAB_DOWNLOAD": "true",

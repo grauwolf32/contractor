@@ -1,0 +1,53 @@
+---
+# Isolate Semgrep's Python dependencies from the Runtime's locked environment.
+# The final versioned path keeps the venv's absolute shebangs stable.
+- name: Create the versioned Semgrep directory
+  ansible.builtin.file:
+    path: "{{ __contractor_runtime_semgrep_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Copy the locked Semgrep environment
+  ansible.builtin.copy:
+    src: semgrep/{{ item }}
+    dest: "{{ __contractor_runtime_semgrep_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: [pyproject.toml, uv.lock]
+
+- name: Build Semgrep privately
+  block:
+    - name: Build the locked Semgrep environment
+      ansible.builtin.command:
+        argv: ["{{ ansible_facts.python.executable }}", -I, "{{ contractor_runtime_prefix }}/tools/private_command.py"]
+        stdin: >-
+          {{ {'argv': [contractor_runtime_prefix ~ '/tools/uv-' ~ __contractor_runtime_tools.uv.version ~ '/' ~ __contractor_runtime_tools.uv.path,
+                       'sync', '--locked', '--no-dev', '--no-editable', '--python', contractor_runtime_python_version,
+                       '--project', __contractor_runtime_semgrep_dir],
+              'environment': {'UV_PYTHON_INSTALL_DIR': contractor_runtime_prefix ~ '/python',
+                              'UV_PYTHON_PREFERENCE': 'only-managed', 'UV_CACHE_DIR': contractor_runtime_prefix ~ '/cache/uv',
+                              'UV_NO_PROGRESS': '1'} | combine(contractor_runtime_uv_environment)} | to_json }}
+        creates: "{{ __contractor_runtime_semgrep_dir }}/.complete"
+      no_log: true
+  rescue:
+    - name: Report the Semgrep environment build failure safely
+      ansible.builtin.fail:
+        msg: Semgrep environment build failed; raw package and environment diagnostics are withheld.
+
+- name: Mark the Semgrep environment complete
+  ansible.builtin.copy:
+    dest: "{{ __contractor_runtime_semgrep_dir }}/.complete"
+    content: "{{ __contractor_runtime_tools.semgrep.version }}\n"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Record the Semgrep executable
+  ansible.builtin.set_fact:
+    __contractor_runtime_tool_paths: >-
+      {{ __contractor_runtime_tool_paths | default({}) | combine({
+           'semgrep': __contractor_runtime_semgrep_dir ~ '/.venv/bin/semgrep'
+         }) }}

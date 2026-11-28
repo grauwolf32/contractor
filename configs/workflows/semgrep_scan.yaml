@@ -1,0 +1,35 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: semgrep-scan, version: '1'}
+spec:
+  parameters: {}
+  inputs:
+    source: {required: true, mediaTypes: [application/zip]}
+    rulepack:
+      required: false
+      mediaTypes: [application/yaml, application/vnd.contractor.semgrep-rulepack+zip]
+  outputs:
+    report: {required: true, primary: true, mediaTypes: [application/json]}
+  entryStage: scan
+  stages:
+    scan:
+      objective: Run static security checks on the selected code and retain coverage gaps.
+      instructions: {ref: instructions/scanner-findings.md}
+      planner: passthrough@1
+      agents:
+        scanner: {template: semgrep-scan@1}
+      context:
+        artifacts:
+          source: {namespace: inputs, name: source, required: true}
+          rulepack: {namespace: inputs, name: rulepack, required: false}
+      result:
+        artifacts:
+          report:
+            required: true
+            mediaTypes: [application/json]
+            from: {namespace: scanner, name: report}
+      workflowOutputs: {report: report}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

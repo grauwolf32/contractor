@@ -151,6 +151,10 @@ OPT_IN_E2E_TESTS = {
         "test-podman-e2e",
         "requires rootless Podman and a preinstalled digest-pinned image",
     ),
+    "TestSemgrepFindingsAcrossProductionProcesses": (
+        "test-semgrep-e2e",
+        "requires the reviewed external Semgrep engine on PATH",
+    ),
     "TestScannerFindingsAcrossProductionProcesses": (
         "test-scan-e2e",
         "requires real Nuclei and SQLMap plus isolated loopback targets",

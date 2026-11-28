@@ -173,3 +173,9 @@ test-worker-compaction-e2e: require-database runtime-venv test-release-reports
 	$(call run-family-test,python3 scripts/release_test_reports.py verify-compaction-runtime --report "$(RELEASE_REPORTS)/worker-compaction-runtime.xml")
 	$(call run-family-test,python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/worker-compaction-process.jsonl" --timeout-seconds 900 -- go test -json -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^($(WORKER_COMPACTION_PROCESS_TESTS))$$')
 	$(call run-family-test,python3 scripts/release_test_reports.py verify-compaction-process --report "$(RELEASE_REPORTS)/worker-compaction-process.jsonl")
+
+.PHONY: test-semgrep-e2e
+# Requires the reviewed external Semgrep executable; never substitutes a fake.
+test-semgrep-e2e: require-database runtime-venv
+	@go test -tags=e2e ./tests/e2e -list '^TestSemgrepFindingsAcrossProductionProcesses$$' | awk '$$0 == "TestSemgrepFindingsAcrossProductionProcesses" { found++ } END { exit found != 1 }'
+	go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestSemgrepFindingsAcrossProductionProcesses$$'

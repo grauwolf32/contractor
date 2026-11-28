@@ -34,17 +34,16 @@ type CandidateBatch struct {
 }
 
 type NormalizedCandidate struct {
-	Key          string   `json:"key" strictjson:"required"`
-	Producer     string   `json:"producer" strictjson:"required"`
-	Rule         string   `json:"rule" strictjson:"required"`
-	Title        string   `json:"title" strictjson:"required"`
-	Assertion    string   `json:"assertion" strictjson:"required"`
-	Subject      string   `json:"subject" strictjson:"required"`
-	Method       string   `json:"method" strictjson:"required"`
-	Severity     string   `json:"severity" strictjson:"required"`
-	QualifiedKey []string `json:"qualifiedKey" strictjson:"required,nullable"`
-	ItemKey      *string  `json:"itemKey,omitempty"`
-	Incidental   bool     `json:"incidental,omitempty"`
+	Key          string                      `json:"key" strictjson:"required"`
+	Producer     string                      `json:"producer" strictjson:"required"`
+	Rule         string                      `json:"rule" strictjson:"required"`
+	Title        string                      `json:"title" strictjson:"required"`
+	Assertion    string                      `json:"assertion" strictjson:"required"`
+	Location     auditdomain.FindingLocation `json:"location" strictjson:"required"`
+	Severity     string                      `json:"severity" strictjson:"required"`
+	QualifiedKey []string                    `json:"qualifiedKey" strictjson:"required,nullable"`
+	ItemKey      *string                     `json:"itemKey,omitempty"`
+	Incidental   bool                        `json:"incidental,omitempty"`
 }
 
 func decodeCandidateBatch(data []byte) (CandidateBatch, error) {
@@ -65,7 +64,10 @@ func decodeCandidateBatch(data []byte) (CandidateBatch, error) {
 			return batch, ErrInvalid
 		}
 		seen[candidate.Key] = true
-		if !candidateKey.MatchString(candidate.Key) || !boundedCandidateText(candidate.Producer, 160) || !boundedCandidateText(candidate.Rule, 160) || !boundedCandidateText(candidate.Title, 512) || !boundedCandidateText(candidate.Assertion, 8192) || !boundedCandidateText(candidate.Subject, 8192) || candidate.Method != "" && !candidateMethod.MatchString(candidate.Method) || len(candidate.QualifiedKey) > 8 {
+		if !candidateKey.MatchString(candidate.Key) || !boundedCandidateText(candidate.Producer, 160) || !boundedCandidateText(candidate.Rule, 160) || !boundedCandidateText(candidate.Title, 512) || !boundedCandidateText(candidate.Assertion, 8192) || len(candidate.QualifiedKey) > 8 || candidate.Location.Method != "" && !candidateMethod.MatchString(candidate.Location.Method) {
+			return batch, ErrInvalid
+		}
+		if _, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(candidateSubmission(candidate, nil, batch.Complete).Proposal)); err != nil {
 			return batch, ErrInvalid
 		}
 		for _, part := range candidate.QualifiedKey {
@@ -91,18 +93,19 @@ func candidateSubmission(candidate NormalizedCandidate, refs []contracts.Artifac
 	if !complete {
 		limitations = append(limitations, "scanner_incomplete")
 	}
-	subjectDigest, _ := contentdigest.CanonicalJSON([]string{candidate.Subject, candidate.Method})
+	kind := "endpoint"
+	if candidate.Location.File != "" {
+		kind = "source-file"
+	}
+	subjectDigest, _ := contentdigest.CanonicalJSON(candidate.Location)
 	proposal := auditdomain.FindingProposal{
 		Schema: "contractor.audit.finding-proposal.v1", ClientKey: candidate.Key,
 		Title: candidate.Title, Description: candidate.Assertion,
-		Subject:       &auditdomain.FindingSubject{Kind: "endpoint", Key: "endpoint-" + strings.TrimPrefix(subjectDigest, "sha256:")},
+		Subject:       &auditdomain.FindingSubject{Kind: kind, Key: kind + "-" + strings.TrimPrefix(subjectDigest, "sha256:")},
 		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
 		EvidenceIDs: []string{"evidence-1", "evidence-2"}, ProposedChecks: []auditdomain.ProposedCheck{},
 		SeveritySuggestion: candidate.Severity, Limitations: limitations,
-		Locations: []auditdomain.FindingLocation{{URL: candidate.Subject, Method: candidate.Method}},
-	}
-	if candidate.Method == "" {
-		proposal.Locations[0].Method = ""
+		Locations: []auditdomain.FindingLocation{candidate.Location},
 	}
 	return Submission{APIVersion: contracts.APIVersion, InvocationID: "candidate-" + candidate.Key,
 		SubmissionID: stableSubmissionID("candidate-"+candidate.Key, candidate.Key), Proposal: proposal, EvidenceRefs: refs,

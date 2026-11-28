@@ -30,10 +30,9 @@
           "rule",
           "title",
           "assertion",
-          "subject",
-          "method",
           "severity",
-          "qualifiedKey"
+          "qualifiedKey",
+          "location"
         ],
         "properties": {
           "key": {
@@ -59,15 +58,6 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 8192
-          },
-          "subject": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 8192
-          },
-          "method": {
-            "type": "string",
-            "pattern": "^(|[A-Z]{1,16})$"
           },
           "severity": {
             "enum": [
@@ -95,6 +85,75 @@
           },
           "incidental": {
             "type": "boolean"
+          },
+          "location": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8192,
+                    "pattern": "^https?://[^\\s/]+[^\\s]*$"
+                  },
+                  "method": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{1,16}$"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096,
+                    "pattern": "^(?!.*(?:^|/)\\.{1,2}(?:/|$))[^\\u0000-\\u001f\\u007f\\\\:/]+(?:/[^\\u0000-\\u001f\\u007f\\\\:/]+)*$"
+                  },
+                  "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "range": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "start_line",
+                      "end_line"
+                    ],
+                    "properties": {
+                      "start_line": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "end_line": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      }
+                    }
+                  }
+                },
+                "not": {
+                  "required": [
+                    "line",
+                    "range"
+                  ]
+                }
+              }
+            ]
           }
         }
       }

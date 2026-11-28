@@ -747,6 +747,14 @@ Assembled from every document.
 | `taint_annotation_target_not_found` | — | not specified | Taint annotation target not found | [ERR-R12](errors.md), [CAN-R110](../tools/code-analysis.md) |
 | `taint_annotation_unavailable` | — | yes | Taint annotation unavailable | [ERR-R12](errors.md), [CAN-R139](../tools/code-analysis.md) |
 | `taint_annotation_workspace_changed` | — | yes | Workspace changed during taint annotation | [ERR-R12](errors.md), [CAN-R124](../tools/code-analysis.md) |
+| `semgrep_rules_unavailable` | — | no | Installed local rule directory is unavailable. | [SCN-R275](../tools/scanners.md) |
+| `semgrep_source_unavailable` | — | no | Exact source input cannot be read in this invocation. | [SCN-R275](../tools/scanners.md) |
+| `semgrep_source_invalid` | — | no | Source identity, media type or bounded ZIP validation failed. | [SCN-R275](../tools/scanners.md) |
+| `semgrep_rulepack_unavailable` | — | no | Exact custom rules input cannot be read in this invocation. | [SCN-R275](../tools/scanners.md) |
+| `semgrep_rulepack_invalid` | — | no | Local rules violate the bounded YAML/ZIP/package contract; no fallback. | [SCN-R275](../tools/scanners.md) |
+| `semgrep_rules_mismatch` | — | no | Installed package digest differs from the authored pin. | [SCN-R275](../tools/scanners.md) |
+| `semgrep_version_unsupported` | — | no | Native engine does not match the reviewed command contract. | [SCN-R275](../tools/scanners.md) |
+| `semgrep_scan_incomplete` | — | no | Native rule errors or malformed result rows; complete positives remain observations. | [SCN-R275](../tools/scanners.md) |
 | `nuclei_package_invalid` | — | no | Installed rules contain unsupported files, exceed materialization limits or cannot be copied safely; no target scan. | [SCN-R231](../tools/scanners.md) |
 | `nuclei_rulepack_invalid` | — | no | Supplied custom rulepack has unsupported media, structure, size or native template syntax; no target scan or fallback. | [SCN-R240](../tools/scanners.md) |
 | `nuclei_package_mismatch` | — | no | Computed private package digest differs from the authored pin; no target scan. | [SCN-R231](../tools/scanners.md) |

@@ -297,14 +297,14 @@ contract.
 
 ## CLI scanners
 
-`scan@1` exposes `scan_nuclei`, `scan_sqlmap`, `scan_naabu`, `scan_ffuf` and
-`scan_katana`.
+`scan@1` exposes `scan_nuclei`, `scan_sqlmap`, `scan_naabu`, `scan_ffuf`,
+`scan_katana` and offline `scan_semgrep`.
 Select the exact operations in an AgentTemplate:
 
 ```yaml
 toolsets:
   - ref: scan@1
-    tools: [scan_nuclei, scan_sqlmap, scan_naabu, scan_ffuf, scan_katana]
+    tools: [scan_nuclei, scan_sqlmap, scan_naabu, scan_ffuf, scan_katana, scan_semgrep]
 ```
 
 Provision the executables on the Runtime service's `PATH` before startup.
@@ -486,3 +486,43 @@ owns wording, argument/return documentation and ADK declaration behavior.
 Callable implementations in `src/contractor_runtime/toolsets/` expose their
 single `description` value as `__doc__`; native Skill tools construct explicit
 declarations.
+
+
+### Semgrep static checks
+
+`scan@1` also provides local `scan_semgrep`. Install Semgrep 1.187.0 separately
+from the Runtime environment and point `SEMGREP_RULES_DIR` at an installed local
+rule package. The Ansible role supplies an isolated locked Semgrep environment
+and the checksum-pinned upstream rules. The upstream rules are under the
+[Semgrep Rules License](https://semgrep.dev/legal/rules-license/), for internal
+business use; they are fetched on the operator host rather than redistributed
+in Contractor. Use rules with appropriate terms for other deployment models.
+
+The shipped `semgrep-scan@1` report Workflow and `project-semgrep-scan@1` Finding
+Workflow accept an exact `source` ZIP and an
+optional exact `rulepack` (`application/yaml` or
+`application/vnd.contractor.semgrep-rulepack+zip`). The default installed package
+is pinned in the AgentTemplate. Custom rules replace that package completely.
+Execution needs no model, Semgrep account, registry connection or engagement.
+Reports retain rules, files, lines, exact inputs and explicit coverage gaps;
+Semgrep assertions remain possible issues requiring review.
+
+```sh
+SOURCE_REF="$(contractor --output name artifact put sources/code --file source.zip --type application/zip --create)"
+RUN_ID="$(contractor --output name run create semgrep-scan@1 --artifact "source=$SOURCE_REF")"
+contractor run watch "$RUN_ID" --wait-timeout 10m
+contractor run output "$RUN_ID" report --to report.json
+```
+
+For custom rules, upload a YAML/ZIP artifact and also pass
+`--artifact "rulepack=$RULEPACK_REF"`. Native output is bounded to 1 MiB;
+normalized output retains at most 100 matches and 128 KiB. Truncation, parser
+errors, ignored files and unsupported languages do not establish clean coverage.
+
+
+For a Project, select `project-semgrep-scan@1` to publish evidenced static matches
+through the normal Finding operation. Matches are possible issues with no analyst
+verdict. Each source retains `producer=semgrep`, rule and package identity,
+exact source/file digests and a bounded selected code window; repeated scans of
+the same source/rules group through the existing producer fingerprint. This
+preserves inputs for later review without claiming a completed LLM validation.

@@ -2121,7 +2121,11 @@ Nuclei equality includes exact package/content digest, rule ID, sanitized
 endpoint, evidenced method and matcher identity; missing method/package leaves
 an unavailable key. SQLMap equality includes sanitized endpoint, request method,
 actual parameter location and name (JSON body location remains distinct from
-GET/POST). Query values and credentials never enter these keys. Candidate
+GET/POST). Semgrep equality includes rules digest, exact source content digest,
+qualified rule ID, relative file and line range. Its normalized candidates use
+source locations, retaining selected source windows and tool/rule/package
+provenance in ordinary evidence; native JSON interpretation remains Runtime-owned.
+Query values and credentials never enter these keys. Candidate
 identity and original exact evidence descriptors remain distinct from problem
 equality and the publishing Stage identity.
 Analyst assessment remains null until an explicit owner command.

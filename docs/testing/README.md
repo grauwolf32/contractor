@@ -673,3 +673,11 @@ latency and total-cost recommendations belong to V417-010, using the opt-in
 `make test-memory-snapshot-e2e` runs the offline Findings family, including the
 real Server/Runtime selected-note snapshot, ordinary read and no-export Workflow.
 It rejects missing/skipped required PostgreSQL cases and uses a scripted Gateway.
+
+
+`make test-semgrep-e2e` requires Semgrep 1.187.0 on PATH and the lane's disposable
+PostgreSQL database. It drives the real Server, Runtime and engine without a
+model, proving Project Finding publication, source coordinates/evidence, repeated
+scan grouping, empty matches and explicit invalid-rulepack failure. Semgrep's
+unit/process tests also run with `make test-runtime`; the real-engine cases skip
+only when its external executable is absent. Such skips are not engine coverage.

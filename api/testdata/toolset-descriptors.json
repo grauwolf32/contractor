@@ -324,6 +324,7 @@
         "scan_katana",
         "scan_naabu",
         "scan_nuclei",
+        "scan_semgrep",
         "scan_sqlmap"
       ],
       "infrastructureChannels": {

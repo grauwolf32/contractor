@@ -1,0 +1,21 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: semgrep-scan, version: '1'}
+spec:
+  description: Run local Semgrep static security checks over exact source code.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+    - ref: scan@1
+      tools: [scan_semgrep]
+  execution:
+    tool: scan_semgrep
+    arguments:
+      source_ref: {source: artifact, name: source}
+      rulepack_ref: {source: artifact, name: rulepack, optional: true}
+      rules_digest:
+        source: literal
+        value: sha256:0e014cea11ee7c105694976997628805fd104f08c753f989d989466adeedbf36
+      timeout_seconds: {source: literal, value: 300}
+    resultArtifact: report
+    timeoutSeconds: 330
