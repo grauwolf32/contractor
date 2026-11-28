@@ -8,13 +8,14 @@ priority: P1
 status: pending
 depends_on:
 - V490-005
+- V490-008
 languages:
 - go
 - python
 - protobuf
 - markdown
-goal: All Server/Runtime operational traffic uses gRPC, with A2A preserved and no obsolete private HTTP stack
-  retained.
+goal: All Server/Runtime commands and data use gRPC, with A2A preserved and no obsolete private HTTP stack
+  retained; existing operational health probes keep their own HTTPS interface.
 demonstration: The production process gates run ordinary, Router/Streamline and Audit paths on capacities one
   and four, including lost replies, cancellation and process restart, using real PostgreSQL and scripted providers.
 context:
@@ -31,6 +32,16 @@ context:
   - docs/spec/platform/security.md#SEC-R5
   - docs/spec/platform/failure-model.md
   - docs/spec/platform/persistence.md#PER-R24
+  boundary_decision: >-
+    Agent clarification 2026-11-28: operational /healthz and /readyz have existing
+    probe callers and remain on their dedicated HTTPS backend. Starlette and
+    uvicorn are retained for those callers; the A2A SDK http-server extra,
+    sse-starlette, private HTTP client/parser/pool and unused DTO helpers are
+    removed. They are not compatibility fallbacks. Test-only scripted domain
+    response records remain fixtures, not an installed Runtime transport.
+    Native status validation replaces integer HTTP status compatibility. Shared
+    native lifetime fixtures distinguish Server active-call limits from Runtime
+    channel admission; no new pool, retry owner or telemetry subsystem is added.
   baseline: main 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b
 scope:
   in:
@@ -80,7 +91,7 @@ lifecycle:
     domain.
 acceptance_criteria:
 - id: A1
-  text: Every production Server/Runtime request has a named gRPC method; A2A uses its standard gRPC binding
+  text: Every production Server/Runtime command or data request has a named gRPC method; A2A uses its standard gRPC binding
     and no compatibility fallback remains.
 - id: A2
   text: Full deterministic release verification, public API/PostgreSQL, wire and architecture checks pass;
