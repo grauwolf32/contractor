@@ -20,17 +20,19 @@
           - __contractor_runtime_instances[0].advertised_url == 'https://127.0.0.1:9443'
           - __contractor_runtime_instances[0].cert_ips == ['127.0.0.1', '::1']
           - __contractor_runtime_instances[0].cert_dns == ['localhost']
-          - __contractor_runtime_instances[0].tools == ['vacuum', 'likec4', 'nuclei', 'sqlmap', 'naabu', 'ffuf', 'katana']
+          - __contractor_runtime_instances[0].tools == ['vacuum', 'likec4', 'nuclei', 'sqlmap', 'naabu', 'ffuf', 'katana', 'semgrep']
           - __contractor_runtime_instances[0].podman and __contractor_runtime_instances[0].podman_network
           - __contractor_runtime_instances[0].unit == 'contractor-runtime-localhost-1.service'
           - __contractor_runtime_instances[0].environment.LANG == 'C.UTF-8'
           - __contractor_runtime_instances[0].environment.NUCLEI_TEMPLATES_DIR == '/opt/contractor-runtime/tools/nuclei_templates-10.5.0'
+          - __contractor_runtime_instances[0].environment.SEMGREP_RULES_DIR ==
+            '/opt/contractor-runtime/tools/semgrep_rules-a5ad1714f00c9f7fde980cab0ea1d6dc6d414fd2'
           - __contractor_runtime_instances[0].probe_refs | sort == ['code-analysis@1', 'code-execution@1', 'edit-files@1',
               'filesystem@1', 'podman-network@1', 'podman@1', 'scan@1', 'taint-annotations@1',
               'workspace-changes@1', 'workspace-storage'] | sort
           - __contractor_runtime_host.podman and __contractor_runtime_host.podman_network
           - __contractor_runtime_host.tools | sort == ['ffuf', 'katana', 'likec4', 'naabu', 'node', 'nuclei',
-              'nuclei_templates', 'sqlmap', 'uv', 'vacuum'] | sort
+              'nuclei_templates', 'semgrep', 'semgrep_rules', 'sqlmap', 'uv', 'vacuum'] | sort
           - __contractor_runtime_absent == []
         quiet: true
 

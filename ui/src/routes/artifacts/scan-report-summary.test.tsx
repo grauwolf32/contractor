@@ -32,6 +32,26 @@ function report(overrides: Record<string, unknown> = {}, tool = "scan_ffuf") {
 
 describe("Scan report preview", () => {
   it.each([
+    [true, "Completed"],
+    [false, "Incomplete"],
+  ])(
+    "shows Semgrep coverage without confirming its matches",
+    async (scanComplete, outcome) => {
+      render(
+        <LoadedArtifactPreview
+          mediaType="application/json"
+          source={report({ scanComplete }, "scan_semgrep")}
+        />,
+      );
+      const summary = await screen.findByRole("region", {
+        name: "Scanner execution",
+      });
+      expect(summary).toHaveTextContent(outcome);
+      expect(summary).toHaveTextContent("possible issues pending review");
+    },
+  );
+
+  it.each([
     [
       "Completed (bounded discovery)",
       {

@@ -256,3 +256,12 @@ Ansible's verbose transport command when `task.environment` is used. Do not
 turn on `ANSIBLE_DEBUG`, add debug tasks for host variables, or publish inventory,
 rendered unit files or private command payloads; those explicitly expose the
 operator's private configuration outside the role's diagnostic boundary.
+
+
+Semgrep is included in the default scanner set. It uses its own locked Python
+environment at `tools/semgrep-1.187.0`, separate from Runtime dependencies.
+`contractor_runtime_semgrep_rules_dir` overrides the checksum-pinned upstream
+rules directory; the effective path is exported as `SEMGREP_RULES_DIR` only to
+instances selecting Semgrep. Upstream rules are fetched at provisioning time
+under their [internal-use license](https://semgrep.dev/legal/rules-license/).
+Scanning uses only local rules and does not fetch from the Semgrep registry.

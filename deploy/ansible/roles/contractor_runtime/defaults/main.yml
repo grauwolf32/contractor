@@ -102,8 +102,8 @@ contractor_runtime_capabilities_default:
   openapi_validator: true
   # validate_likec4 (likec4@1) through the likec4 CLI on Node.
   likec4_validator: true
-  # scan@1 operations: nuclei, sqlmap, naabu, ffuf, katana.
-  scanners: [nuclei, sqlmap, naabu, ffuf, katana]
+  # scan@1 operations: nuclei, sqlmap, naabu, ffuf, katana, semgrep.
+  scanners: [nuclei, sqlmap, naabu, ffuf, katana, semgrep]
   # podman@1 and code-execution@1: rootless Podman, Linux only.
   podman: true
   # podman-network@1 through pasta; requires podman.
@@ -112,6 +112,8 @@ contractor_runtime_capabilities: {}
 
 # Use operator-provided nuclei templates instead of the pinned release.
 contractor_runtime_nuclei_templates_dir: ""
+# Internal-use upstream rules, or an operator-provided local Semgrep package.
+contractor_runtime_semgrep_rules_dir: ""
 
 # Podman ----------------------------------------------------------------------
 
@@ -243,6 +245,18 @@ contractor_runtime_tools_default:
       any:
         url: https://github.com/sqlmapproject/sqlmap/archive/11afdcb02640211826b71af11a646a87157d223f.tar.gz
         sha256: fd91e67979a46372a8d4b6551601776a95b1a10792160848ea00c0fe3e7ff579
+  semgrep:
+    version: 1.187.0
+    path: .venv/bin/semgrep
+    probe: [--version, --disable-version-check]
+  semgrep_rules:
+    version: a5ad1714f00c9f7fde980cab0ea1d6dc6d414fd2
+    path: LICENSE
+    strip: 1
+    assets:
+      any:
+        url: https://codeload.github.com/semgrep/semgrep-rules/tar.gz/a5ad1714f00c9f7fde980cab0ea1d6dc6d414fd2
+        sha256: e5a7ec33035fc7707b87385cb99e1228c76b1604efe5439e92891f3005714cc3
   nuclei_templates:
     version: 10.5.0
     path: http

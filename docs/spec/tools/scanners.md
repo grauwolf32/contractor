@@ -9,7 +9,7 @@ This document owns the deterministic scanning path of Contractor:
 - model-free tool Workers (`tool@1`): their `execution` bindings, model
   absence, invocation receipts, reports, replay and failure handling;
 - the scanner Toolset `scan@1` and its adapters `scan_nuclei`, `scan_sqlmap`,
-  `scan_naabu` and `scan_ffuf`;
+  `scan_naabu`, `scan_ffuf`, `scan_katana` and `scan_semgrep`;
 - the SQLMap HTTP request artifact and the scanner wordlist artifact;
 - deterministic scan request preparation: RequestSet v1 and single-operation
   preparation from an OpenAPI document, including the source-document bounds
@@ -64,7 +64,7 @@ Terms are defined once in the [glossary](../glossary.md).
 | Invocation receipt | The Runtime-owned `tool-invocation.<hex-key>` artifact that records the phase of one tool invocation. |
 | Input digest | The digest of the template ref, resolved arguments and output bindings of one tool invocation. |
 | Tool Worker report | The bounded `application/json` artifact that carries a tool invocation's observation, with adapter-owned compact projections for separately published findings. |
-| ScanToolset | The `scan@1` Toolset exporting `scan_nuclei`, `scan_sqlmap`, `scan_naabu` and `scan_ffuf`. |
+| ScanToolset | The `scan@1` Toolset exporting Nuclei, SQLMap, naabu, ffuf, Katana and offline Semgrep checks. |
 | SQLMap request artifact | The six-field JSON description of one HTTP request that `scan_sqlmap` request mode accepts. |
 | Scanner wordlist | A `text/vnd.contractor.wordlist` (or `text/plain`) artifact holding one scanner payload per line. |
 | RequestSet | The bounded, versioned `application/vnd.contractor.http-requests+json` set of neutral prepared HTTP requests with exact source provenance and preparation gaps. |
@@ -423,12 +423,13 @@ remains a no-rescan fence when final persistence is fenced.
 
 ### Scan toolset
 
-**SCN-R52.** `scan@1` exports `scan_nuclei`, `scan_sqlmap`, `scan_naabu` and
-`scan_ffuf` through the explicit tool allowlist of [Toolsets](toolsets.md).
-`scan_ffuf` is independently selectable.
+**SCN-R52.** `scan@1` exports `scan_nuclei`, `scan_sqlmap`, `scan_naabu`,
+`scan_ffuf`, `scan_katana` and `scan_semgrep` through the explicit tool allowlist
+of [Toolsets](toolsets.md). Each is independently selectable.
 
-**SCN-R53.** Every scanner operation declares the `runtime-subprocess-launcher`
-infrastructure channel.
+**SCN-R53.** Target-network scanner operations declare the
+`runtime-subprocess-launcher` infrastructure channel. Offline `scan_semgrep`
+uses only local inputs and declares no network infrastructure channel.
 
 **SCN-R54.** Runtime startup probes each optional scanner executable
 separately, and only tools whose version commands succeed are advertised.
@@ -440,8 +441,9 @@ scanners. Before admitting another release family, its real loopback adapter
 suite must verify origin isolation, redirect/form suppression, depth and page
 bounds, exact target export, timeout and transport-failure outcomes.
 
-**SCN-R55.** All four scanner operations are active checks for Audit
-compatibility.
+**SCN-R55.** Nuclei, SQLMap, naabu, ffuf and Katana operations are active
+checks for Audit compatibility. Offline Semgrep is static analysis and does not
+require active-check or target-network authority.
 
 The scanner CLI contract and provisioning requirements are documented in the
 [Runtime README](../../../runtime/README.md#cli-scanners). `scan_sqlmap`
@@ -1836,7 +1838,7 @@ The target-policy decisions that raise `scan_target_denied` and
 ## Security
 
 Scanners execute active checks against targets (SCN-R55). The security rules of
-this document are: the shared target policy before every scanner launch
+this document are: the shared target policy before every target-network scanner launch
 (SCN-R56); exact, authorized artifact refs instead of host paths for request
 and wordlist inputs (SCN-R58, SCN-R83, SCN-R84, SCN-R11); `request.http` and
 the normalized wordlist created exclusively with mode `0600` in a private
@@ -2006,3 +2008,112 @@ unknown/ambiguous/hidden selections fail before launch. Nested model revision
 fields are rejected. Deterministic tool@1 uses the trusted callable (SCN-R269),
 retains strict exact inputs and never resolves them to latest. Reports/manifests
 and tool results continue to record exact revisions.
+
+
+### Offline Semgrep static code checks
+
+**SCN-R271.** `scan@1` exports `scan_semgrep`, an offline static code adapter
+without target-network or active-check authority. It requires Semgrep Community
+Edition 1.187.0, advertised only after its independent version probe succeeds.
+The model callable accepts source/rulepack namespace/name selectors resolved
+through selected exact versions; deterministic `tool@1` receives exact refs.
+`source_ref` is one `application/zip` source artifact. The shared source-analysis
+ZIP parser owns path, file-kind, duplicate, expanded-byte and UTF-8 selection
+rules under the allocation's SourceArchiveLimits. Interpretation is shared,
+not a new scanner-specific source archive grammar.
+
+**SCN-R272.** Optional `rulepack_ref` replaces all installed rules and accepts
+`application/yaml` or `application/vnd.contractor.semgrep-rulepack+zip`.
+The compressed custom ZIP limit is 16 MiB; packages contain at most 10000 YAML
+files and 10000 rules, 1 MiB per file and 64 MiB expanded. Archives reject unsafe
+paths, duplicates, links, special files and encrypted members. Bounded central
+directory preflight rejects more than 10000 entries before ZipFile allocation;
+ZIP64, split archives, appended bytes and self-extracting archives are unsupported. YAML rejects
+aliases, anchors, tags, duplicate/non-string keys, nesting beyond 64 and more
+than 100000 tokens per file. Nuclei and Semgrep share the bounded YAML/ZIP syntax reader; native Semgrep
+owns rule-pattern validation.
+Malformed/empty custom input never falls back to installed rules.
+
+**SCN-R273.** With no custom input, Runtime snapshots the local directory from
+`SEMGREP_RULES_DIR` (default `/opt/contractor-runtime/semgrep-rules`). The
+provisioned upstream semgrep/semgrep-rules revision is
+`a5ad1714f00c9f7fde980cab0ea1d6dc6d414fd2`, downloaded at provisioning time
+with its SHA-256 checksum. Hidden directories/files, root `stats`, Pro-language directories `apex`/`elixir`, root
+`template.yaml` and `*.test.yaml`/`*.test.yml` are repository support files,
+excluded from the installed rule selection. Custom archives have no such
+exclusions. Installed walks examine at most 50000 filesystem entries and reject
+selected links/special files. A package digest is SHA-256 of compact UTF-8 JSON
+of sorted `[relativePath,"sha256:<raw-file-digest>"]` entries. Rules use the
+first 16 hex characters of SHA-256(relativePath), a dot and the original rule ID
+as their native ID. Thus distinct paths may repeat upstream short IDs.
+`rules_digest` optionally pins installed content; custom mode instead records
+the exact source artifact and computed package digest. All selected rules are
+validated and materialized before native execution; later installed changes
+cannot alter that private invocation snapshot.
+
+**SCN-R274.** Semgrep uses only its OSS engine and explicit local rules config,
+with metrics, version checking, git ignores, source `.semgrepignore` and nosem
+suppression disabled. It receives a fresh private HOME and no inherited tokens,
+scanner configuration or proxy environment. The reviewed pinned internal flag
+`--x-ignore-semgrepignore-files` disables source ignore files; an engine upgrade
+must revalidate that flag. No registry, account, autofix, Pro installation or
+remote source mode is accepted. One job, 512 MiB native per-job memory setting,
+5-second per-rule timeout and threshold 3 bound native work. Preparation and
+process share `timeout_seconds` (1–3600, default 300); existing subprocess group
+cleanup and joined worker threads complete before scratch removal.
+
+**SCN-R275.** Runtime parses bounded native JSON off the event loop and retains
+at most 100 matches and 128 KiB normalized match bytes within the existing
+1 MiB process-output ceiling. A match records qualified rule ID, validated
+source-relative file, start/end line, native severity and message. Raw source,
+metavariables, native diagnostics and error messages are suppressed in tool
+observations; explicit selected Finding evidence follows SCN-R277. Reports
+retain exact input refs, source content digest, package digest and rule counts.
+`scanComplete` requires successful native execution, no native errors, valid
+untruncated results and exact scanned-file coverage without extraction omissions.
+Unsupported languages, filtering and bounds remain visible coverage gaps;
+empty output never establishes secure code. Missing executable/rules, invalid
+source/rules, digest drift, unsupported engine, partial native errors, invalid
+output, timeout and output overflow are failed observations using fixed codes:
+`scanner_unavailable`, `semgrep_rules_unavailable`, `semgrep_source_unavailable`,
+`semgrep_source_invalid`, `semgrep_rulepack_unavailable`,
+`semgrep_rulepack_invalid`, `semgrep_rules_mismatch`,
+`semgrep_version_unsupported`, `semgrep_scan_incomplete`,
+`invalid_scanner_output`, `scanner_failed`, `scan_timeout`,
+`output_limit_exceeded`. Complete positive rows survive ordinary native errors;
+no automatic process retry or additional mutation journal is introduced.
+
+
+**SCN-R276.** Normalized scanner candidates use one required `location` with
+the existing Finding source/web location grammar: `file` with optional `line`
+or `range`, or `url` with optional evidenced uppercase method (1–16 letters).
+Unknown methods are omitted. The former candidate `subject`/`method` fields
+are rejected; all HTTP and source adapters use this common location. Server
+validates the common location and derives its domain subject as an endpoint or
+source file, without native-provider branches. The common artifact schema and
+shared Go/Python fixtures hold this boundary together. No public Finding
+location or analyst-state vocabulary changes.
+
+**SCN-R277.** `project-semgrep-scan@1` declares ordinary candidates/evidence
+outputs and follows them with `publish-findings@1`, including a failure branch
+that preserves scan failure after publishing complete positive assertions.
+`semgrep-scan@1` remains report-only. Semgrep's INFO rows remain informational
+skips; WARNING/MEDIUM become medium, ERROR/HIGH high, LOW low and CRITICAL
+critical possible issues. Positive evidence publication rereads the exact source
+ZIP and verifies its digest before selecting matched code windows off the event
+loop. At most 4 MiB per file and 8 MiB cumulative selected file bytes are read;
+windows contain at most 400 lines and 4096 bytes. Unavailable windows are explicit
+skips, never invented evidence. The existing 256 KiB report projection and
+512 KiB candidate/evidence output limits apply; removed candidates are counted.
+Each retained record includes producer, original qualified native rule ID,
+engine version, rules digest, optional custom rulepack ref, exact source ref and
+content digest, file digest, range and selected source text. Source windows
+appear only in explicitly requested evidence, not direct model observations.
+Selected evidence and candidate descriptors use ordinary Finding retention and
+receipts, without retaining an entire source archive per assertion. Full-repository
+revalidation must separately select a Project source artifact and verify its
+matching digest; the retained window alone does not promise full-repository
+context after purge.
+Qualified equality includes rules digest, source content digest, qualified rule
+ID, file and range. Unknown/partial coverage adds the existing scanner limitation;
+publication never confirms a vulnerability or sets an analyst verdict.

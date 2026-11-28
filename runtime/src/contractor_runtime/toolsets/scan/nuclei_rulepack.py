@@ -7,7 +7,6 @@ import io
 import os
 import re
 import stat
-import struct
 import time
 import unicodedata
 import zipfile
@@ -15,19 +14,20 @@ import zlib
 from pathlib import Path
 
 import jcs
-import yaml
-from yaml.tokens import AliasToken, AnchorToken, TagToken
 
 from contractor_runtime.toolsets.scan.nuclei_package import PackageError, PackageSnapshot
+from contractor_runtime.toolsets.scan.rule_formats import (
+    MAX_FILE_BYTES,
+    InvalidRuleYAML,
+    load_rule_yaml,
+    preflight_rule_zip,
+)
 
 RULEPACK_MEDIA_TYPE = "application/vnd.contractor.nuclei-rulepack+zip"
 MAX_ZIP_BYTES = 16 * 1024 * 1024
 MAX_EXPANDED_BYTES = 64 * 1024 * 1024
 MAX_FILES = 1000
-MAX_FILE_BYTES = 1024 * 1024
 MAX_NAME_BYTES = 128
-MAX_YAML_TOKENS = 100_000
-MAX_YAML_DEPTH = 64
 _IDENTIFIER = re.compile(r"[A-Za-z0-9_.-]{1,256}")
 # Other protocols and Workflow templates cannot be hidden beside valid HTTP rules.
 _PROTOCOLS = {
@@ -55,56 +55,14 @@ def _deadline(deadline: float) -> None:
         raise PackageError("scan_timeout")
 
 
-class _UniqueLoader(yaml.CSafeLoader):
-    def construct_mapping(self, node, deep=False):
-        result = {}
-        for key_node, value_node in node.value:
-            key = self.construct_object(key_node, deep=deep)
-            if not isinstance(key, str) or key in result:
-                raise _invalid()
-            result[key] = self.construct_object(value_node, deep=deep)
-        return result
-
-
 def parse_template(data: bytes, deadline: float) -> dict:
     """Read bounded plain YAML without evaluating Nuclei variables or helpers."""
-    if not data or len(data) > MAX_FILE_BYTES:
-        raise _invalid()
     try:
-        text = data.decode("utf-8", errors="strict")
-        depth = 0
-        for count, token in enumerate(yaml.scan(text, Loader=yaml.CSafeLoader), 1):
-            _deadline(deadline)
-            if count > MAX_YAML_TOKENS or isinstance(token, (AliasToken, AnchorToken, TagToken)):
-                raise _invalid()
-            if isinstance(
-                token,
-                (
-                    yaml.tokens.BlockMappingStartToken,
-                    yaml.tokens.BlockSequenceStartToken,
-                    yaml.tokens.FlowMappingStartToken,
-                    yaml.tokens.FlowSequenceStartToken,
-                ),
-            ):
-                depth += 1
-                if depth > MAX_YAML_DEPTH:
-                    raise _invalid()
-            elif isinstance(
-                token,
-                (
-                    yaml.tokens.BlockEndToken,
-                    yaml.tokens.FlowMappingEndToken,
-                    yaml.tokens.FlowSequenceEndToken,
-                ),
-            ):
-                depth -= 1
-        value = yaml.load(text, Loader=_UniqueLoader)
-    except (UnicodeError, yaml.YAMLError, ValueError, RecursionError):
+        return load_rule_yaml(data, deadline)
+    except InvalidRuleYAML:
         raise _invalid() from None
-    _deadline(deadline)
-    if not isinstance(value, dict):
-        raise _invalid()
-    return value
+    except TimeoutError:
+        raise PackageError("scan_timeout") from None
 
 
 def _template_id(data: bytes, deadline: float) -> str:
@@ -125,42 +83,12 @@ def _template_id(data: bytes, deadline: float) -> str:
 
 
 def _preflight_zip(data: bytes, deadline: float) -> None:
-    # Count entries from the bounded EOCD before ZipFile allocates per-entry
-    # Python objects. ZIP64, split archives, appended data and SFX are unsupported.
-    if not data.startswith(b"PK\x03\x04"):
-        raise _invalid()
-    position = data.rfind(b"PK\x05\x06", max(0, len(data) - 65557))
-    if position < 0 or position + 22 > len(data):
-        raise _invalid()
-    _, disk, directory_disk, on_disk, total, size, offset, comment = struct.unpack_from(
-        "<4s4H2LH", data, position
-    )
-    if (
-        disk != 0
-        or directory_disk != 0
-        or on_disk != total
-        or not 1 <= total <= MAX_FILES
-        or offset + size != position
-        or position + 22 + comment != len(data)
-    ):
-        raise _invalid()
-
-    cursor, count = offset, 0
-    while cursor < position:
-        _deadline(deadline)
-        if (
-            count >= MAX_FILES
-            or cursor + 46 > position
-            or data[cursor : cursor + 4] != b"PK\x01\x02"
-        ):
-            raise _invalid()
-        name, extra, note = struct.unpack_from("<3H", data, cursor + 28)
-        cursor += 46 + name + extra + note
-        if cursor > position:
-            raise _invalid()
-        count += 1
-    if count != total:
-        raise _invalid()
+    try:
+        preflight_rule_zip(data, deadline, MAX_FILES)
+    except ValueError:
+        raise _invalid() from None
+    except TimeoutError:
+        raise PackageError("scan_timeout") from None
 
 
 def valid_rulepack_metadata(media_type: str, size: int) -> bool:

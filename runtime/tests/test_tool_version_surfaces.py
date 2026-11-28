@@ -79,4 +79,4 @@ def test_all_registered_model_tool_schemas_hide_technical_versions(tmp_path):
             )
             _check(schema)
             seen.add((ref, name))
-    assert len(seen) == 117
+    assert len(seen) == 118

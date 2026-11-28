@@ -14,7 +14,7 @@ func TestScanToolsetDescriptor(t *testing.T) {
 		t.Fatal("scan@1 descriptor is missing")
 	}
 	want := []string{"scan_ffuf", "scan_katana", "scan_naabu", "scan_nuclei", "scan_sqlmap"}
-	if !slices.Equal(descriptor.Tools, want) || !slices.Equal(descriptor.ActiveCheckTools, want) {
+	if !slices.Equal(descriptor.Tools, []string{"scan_ffuf", "scan_katana", "scan_naabu", "scan_nuclei", "scan_semgrep", "scan_sqlmap"}) || !slices.Equal(descriptor.ActiveCheckTools, want) {
 		t.Fatalf("scan@1 must classify each scanner as an active check: %+v", descriptor)
 	}
 	for _, name := range want {
@@ -77,5 +77,14 @@ func TestControlledHTTPSelectionIncludesIdentityAndSessionOperations(t *testing.
 				t.Fatalf("HTTP owner needed=%v want=%v", got, test.want)
 			}
 		})
+	}
+}
+
+func TestSemgrepIsLocalStaticAnalysis(t *testing.T) {
+	template := contracts.ResolvedAgentTemplate{Toolsets: []contracts.ToolsetSelection{{
+		Ref: contracts.ToolsetRef{ToolsetID: "scan", Version: "1"}, Tools: []string{"scan_semgrep"},
+	}}}
+	if TemplateRequiresNetwork(template) || TemplateRequiresUncontrolledNetwork(template) || TemplateUsesControlledHTTP(template) {
+		t.Fatal("Semgrep local rules must not require target network authority")
 	}
 }

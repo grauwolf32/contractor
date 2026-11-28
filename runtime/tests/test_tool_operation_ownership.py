@@ -27,6 +27,7 @@ from test_openapi_toolset import MemoryArtifactClient as OpenAPIArtifactClient
 from test_openapi_toolset import StaticWorkspaceReader
 from test_source_analysis_toolset import ReadOnlyArtifactClient, make_zip
 
+import contractor_runtime.toolsets.common.source_archive as source_archive
 import contractor_runtime.toolsets.likec4.tools as likec4_tools
 import contractor_runtime.toolsets.source_analysis.tools as source_tools
 from contractor_runtime.adapters import AdapterHandles
@@ -105,7 +106,7 @@ def test_source_abort_and_release_join_file_work_before_reusing_slot(
         assert context.execution is None  # Ordinary local-workdir has no process supervisor.
         workspace = context.workspace.path
         started, resume = threading.Event(), threading.Event()
-        owner = source_tools if phase == "extract" else source_tools._SourceArchiveSession
+        owner = source_archive if phase == "extract" else source_tools._SourceArchiveSession
         name = "_read_member_bounded" if phase == "extract" else "_install_staging"
         original = getattr(owner, name)
 

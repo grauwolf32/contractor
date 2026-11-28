@@ -6,18 +6,21 @@ epic: scan-tools
 kind: feature
 priority: P1
 status: in_progress
-depends_on: []
-languages: [python, go]
+depends_on: [V493-002]
+languages: [python, go, typescript]
 goal: >-
   Users run static security checks over an exact source ZIP through an ordinary
   model-free Workflow, using installed Semgrep rules or an exact custom rulepack,
   and retain a bounded report plus unassessed Project Findings with rule, file,
   line, selected code evidence and incomplete-scan status.
 demonstration: >-
-  The real Semgrep engine scans a vulnerable and a safe source fixture using
-  local rules through scan_semgrep; the ordinary tool Worker writes its report.
+  The production Server, Runtime and real Semgrep engine scan a vulnerable
+  source ZIP and publish an unassessed Project Finding with file/line and retained
+  code evidence. A safe ZIP adds none; repeated scans group and invalid rules
+  fail without fallback. The ordinary tool Worker retains the technical report.
 context:
-  specification: docs/spec/tools/scanners.md
+  specification: docs/spec/tools/scanners.md#SCN-R271
+  verification_evidence: tasks/evidence/v493-001-semgrep-verification.json
   authority: >-
     User request 2026-11-28: add Semgrep and its rulepack like Nuclei for static
     code checks. Implementation choice: Runtime owns Semgrep parsing; existing
@@ -26,8 +29,9 @@ context:
     at provisioning time with a pinned revision and checksum, never at scan time.
     User decision 2026-11-28 after clarification: publish scanner assertions as
     Project Findings immediately. Preserve source tool/rule/package provenance;
-    no scanner match sets analyst verdicts. Future LLM validation should record
-    an assessment against an exact Finding revision and checker Workflow version.
+    no scanner match sets analyst verdicts. Agent proposal for future work only:
+    LLM validation records a separate assessment against an exact Finding revision
+    and checker Workflow version; the user has not assigned that implementation.
     Scope grows from reports to normal Findings publication by extending the
     existing common candidate location to support code and HTTP, without a new
     store, journal, parser on Server or validation subsystem.
@@ -65,6 +69,12 @@ failure_outcomes:
     ambiguous: Static reads have no remote mutation to reconcile.
     cancelled: Existing process-group cancellation kills and joins descendants before scratch cleanup.
     timeout: Invocation timeout plus bounded native per-rule timeout and memory controls.
+  - operation: Publish normalized candidate/evidence outputs and Project Findings
+    permanent: Common validation failures reject publication; failed scans retain failure after partial-positive publication.
+    retryable: Existing tool Worker publication outcomes and Finding operation retry classifications apply, with no new retry loop.
+    ambiguous: Existing exact Artifact publication fences, tool invocation receipts and per-candidate Finding receipts reconcile replay without rescanning or blindly appending.
+    cancelled: The ordinary Worker and operation owners join in-flight publication under their current lifecycle.
+    timeout: Existing Worker publication and Server operation deadlines own their respective boundaries.
 cardinality:
   - collection: Source archive
     expected: One source ZIP, thousands of files.
@@ -115,3 +125,7 @@ tests:
     covers: [A1, A3, A4]
   - command: make test-semgrep-e2e
     covers: [A1, A2, A3, A4]
+  - command: make ui-verify
+    covers: [A3, A4]
+  - command: go test ./internal/planner/scan
+    covers: [A2, A3]

@@ -52,11 +52,15 @@ def executable(tmp_path: Path, name: str, source: str) -> Path:
 def test_capabilities_check_each_binary_independently(
     tmp_path, monkeypatch, scanner_probe_budget, available_scanner
 ):
-    failures = iter(["exit 5", "exit 2", "exit 3", "exit 4"])
+    failures = iter(["exit 5"] * (len(scan.SCANNERS) - 1))
     for scanner in scan.SCANNERS:
         # These probes test scanner independence, not Python interpreter startup time.
         source = (
-            "printf '%s\\n' 'Current version: v1.7.0'"
+            (
+                "printf '%s\\n' '1.187.0'"
+                if scanner.name == "scan_semgrep"
+                else "printf '%s\\n' 'Current version: v1.7.0'"
+            )
             if scanner is available_scanner
             else next(failures)
         )
@@ -87,6 +91,7 @@ def test_capabilities_check_each_binary_independently(
         (tmp_path / "naabu").write_text("#!/missing/interpreter\n")
         (tmp_path / "ffuf").unlink()
         (tmp_path / "katana").unlink()
+        (tmp_path / "semgrep").unlink()
         missing_factory = scan.ScanToolsetFactory()
         empty = await discover_capabilities(
             FactoryRegistry(
@@ -163,7 +168,9 @@ async def make_tools(tmp_path, *, selected=None, proxy=False, scanners=scan.SCAN
     )
     state = WorkerState()
     tools = await factory.create_selected(
-        selected=sorted(factory.exported_tools) if selected is None else selected,
+        selected=sorted(factory.exported_tools - {"scan_semgrep"})
+        if selected is None
+        else selected,
         allocation_id="allocation",
         run_id="run",
         namespace="scanner",
@@ -295,8 +302,12 @@ def test_all_scanners_available_from_relative_path(tmp_path, monkeypatch):
         executable(
             tmp_path,
             scanner.binary,
-            "print('Current version: v1.7.0')\n"
-            f"import sys; sys.exit(0 if sys.argv[1:] == {arguments!r} else 1)",
+            (
+                "print('1.187.0')\n"
+                if scanner.name == "scan_semgrep"
+                else "print('Current version: v1.7.0')\n"
+            )
+            + f"import sys; sys.exit(0 if sys.argv[1:] == {arguments!r} else 1)",
         )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("PATH", ".")
@@ -342,6 +353,7 @@ def test_registered_adapter_owns_binary_preparation_and_decoding(tmp_path, monke
         "scan_ffuf",
         "scan_katana",
         "scan_fixture",
+        "scan_semgrep",
     }
     assert factory.infrastructure_channels["scan_fixture"] == {"runtime-subprocess-launcher"}
 

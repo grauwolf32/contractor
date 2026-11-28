@@ -8,6 +8,15 @@ type WorkerErrorOutcome = "unavailable" | "incomplete" | "failed";
 // The job outcome the Planner records for each Worker errorCode. Tests pin it
 // to api/testdata/scan/worker-error-codes.json.
 const WORKER_ERROR_OUTCOMES: ReadonlyMap<string, WorkerErrorOutcome> = new Map([
+  ["semgrep_rules_unavailable", "unavailable"],
+  ["semgrep_version_unsupported", "unavailable"],
+  ["semgrep_source_unavailable", "incomplete"],
+  ["semgrep_source_invalid", "incomplete"],
+  ["semgrep_rulepack_unavailable", "incomplete"],
+  ["semgrep_rulepack_invalid", "incomplete"],
+  ["semgrep_rules_mismatch", "incomplete"],
+  ["semgrep_scan_incomplete", "incomplete"],
+
   ["scanner_unavailable", "unavailable"],
   ["nuclei_templates_unavailable", "unavailable"],
   ["nuclei_rulepack_invalid", "incomplete"],

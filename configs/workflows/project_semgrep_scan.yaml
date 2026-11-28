@@ -1,0 +1,117 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: project-semgrep-scan
+  version: '1'
+spec:
+  parameters: {}
+  inputs:
+    rulepack:
+      required: false
+      mediaTypes:
+      - application/yaml
+      - application/vnd.contractor.semgrep-rulepack+zip
+    source:
+      required: true
+      mediaTypes:
+      - application/zip
+  outputs: {}
+  entryStage: scan
+  stages:
+    scan:
+      objective: Run static code checks and retain possible issues with exact selected
+        source evidence.
+      instructions:
+        ref: instructions/scanner-findings.md
+      planner: passthrough@1
+      agents:
+        scanner:
+          template: semgrep-scan@1
+      context:
+        artifacts:
+          rulepack:
+            namespace: inputs
+            name: rulepack
+            required: false
+          source:
+            namespace: inputs
+            name: source
+            required: true
+      result:
+        artifacts:
+          report:
+            required: true
+            mediaTypes:
+            - application/json
+            from:
+              namespace: scanner
+              name: report
+          candidates:
+            required: true
+            mediaTypes:
+            - application/vnd.contractor.finding-candidates+json
+            from:
+              namespace: scanner
+              name: candidates
+          evidence:
+            required: true
+            mediaTypes:
+            - application/vnd.contractor.finding-evidence+json
+            from:
+              namespace: scanner
+              name: evidence
+      'on':
+        succeeded:
+          next: publish
+        failed:
+          next: publish-partial
+        interrupted:
+          next: publish-partial
+    publish:
+      operation:
+        ref: publish-findings@1
+        arguments: {}
+      context:
+        artifacts:
+          candidates:
+            namespace: scanner
+            name: candidates
+            required: true
+          evidence:
+            namespace: scanner
+            name: evidence
+            required: true
+      result:
+        artifacts: {}
+      'on':
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}
+      objective: Publish the selected evidenced assertions as Project Findings.
+    publish-partial:
+      operation:
+        ref: publish-findings@1
+        arguments: {}
+      context:
+        artifacts:
+          candidates:
+            namespace: scanner
+            name: candidates
+            required: true
+          evidence:
+            namespace: scanner
+            name: evidence
+            required: true
+      result:
+        artifacts: {}
+      'on':
+        succeeded:
+          fail: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}
+      objective: Publish complete scanner assertions while preserving scan failure.

@@ -463,3 +463,14 @@ tools inspect the prepared overlay; code evidence uses `workspace=true` to retai
 exact source provenance. Archive validation failures stop allocation preparation
 before a model call. Existing Audits retain their pinned definitions; select a
 new `@3` profile for checks using prepared workspaces.
+
+
+`semgrep-scan@1` runs offline Semgrep static security checks over an exact
+`source` ZIP with the pinned installed rules, or an optional custom `rulepack`.
+It requires `scan@1.scan_semgrep` and `tool@1`, without a model or engagement.
+See [Runtime provisioning and invocation](../runtime/README.md#semgrep-static-checks).
+
+`project-semgrep-scan@1` additionally publishes unassessed Project Findings through
+`publish-findings@1`, with selected code windows and tool/rule/source/package
+provenance. Source windows remain in evidence after the scanner Run is purged;
+LLM validation and dedicated tool-origin filters are separate future work.

@@ -61,7 +61,7 @@ func candidateAuditBatchPartialCommit(t *testing.T, materialSet bool) {
 	records := []map[string]any{}
 	for index := 0; index < 3; index++ {
 		item := auditcontract.ExecutionItemKey(min(index, 1))
-		candidate := NormalizedCandidate{Key: fmt.Sprintf("%064x", index), Producer: "nuclei", Rule: fmt.Sprintf("rule-%d", index), Title: "Observed problem", Assertion: "The selected scanner matched the selected endpoint.", Subject: fmt.Sprintf("https://target.test/%d", index), Method: "GET", Severity: "medium", QualifiedKey: []string{"nuclei", fmt.Sprint(index)}, ItemKey: &item, Incidental: index == 2}
+		candidate := NormalizedCandidate{Key: fmt.Sprintf("%064x", index), Producer: "nuclei", Rule: fmt.Sprintf("rule-%d", index), Title: "Observed problem", Assertion: "The selected scanner matched the selected endpoint.", Location: auditdomain.FindingLocation{URL: fmt.Sprintf("https://target.test/%d", index), Method: "GET"}, Severity: "medium", QualifiedKey: []string{"nuclei", fmt.Sprint(index)}, ItemKey: &item, Incidental: index == 2}
 		candidates = append(candidates, candidate)
 		records = append(records, map[string]any{"key": candidate.Key, "matched": true})
 	}

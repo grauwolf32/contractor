@@ -22,7 +22,7 @@
 
 - name: Install archived tools
   ansible.builtin.include_tasks: tool_archive.yml
-  loop: "{{ __contractor_runtime_host.tools | difference(['likec4']) }}"
+  loop: "{{ __contractor_runtime_host.tools | difference(['likec4', 'semgrep']) }}"
   loop_control:
     loop_var: __contractor_runtime_tool_name
   vars:
@@ -34,6 +34,10 @@
     __contractor_runtime_archive: >-
       {{ contractor_runtime_prefix }}/downloads/{{ __contractor_runtime_tool_name }}-{{
          __contractor_runtime_asset.url | basename }}
+
+- name: Install Semgrep
+  ansible.builtin.include_tasks: semgrep.yml
+  when: "'semgrep' in __contractor_runtime_host.tools"
 
 - name: Install likec4
   ansible.builtin.include_tasks: likec4.yml

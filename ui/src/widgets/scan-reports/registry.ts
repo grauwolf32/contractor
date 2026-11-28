@@ -19,6 +19,14 @@ const standard: ScanReportWidget = {
 // of the Workflow that produced it. Common outcome/error checks stay in view.
 const widgets = new Map<string, ScanReportWidget>([
   ["scan_nuclei", standard],
+  [
+    "scan_semgrep",
+    {
+      ...standard,
+      requiresScanComplete: true,
+      note: " Static matches are possible issues pending review.",
+    },
+  ],
   ["scan_naabu", standard],
   ["scan_sqlmap", standard],
   ["scan_ffuf", { ...standard, requiresScanComplete: true }],

@@ -260,7 +260,7 @@ func builtInDescriptors() descriptorTable {
 			},
 			"sitemap@1": {Tools: contracts.SitemapToolNames()},
 			"scan@1": {
-				Tools: []string{"scan_ffuf", "scan_katana", "scan_naabu", "scan_nuclei", "scan_sqlmap"},
+				Tools: []string{"scan_ffuf", "scan_katana", "scan_naabu", "scan_nuclei", "scan_semgrep", "scan_sqlmap"},
 				InfrastructureChannels: map[string][]infrastructureChannel{
 					"scan_ffuf":   {channelRuntimeHTTPClient, channelRuntimeSubprocessLauncher},
 					"scan_katana": {channelRuntimeSubprocessLauncher},

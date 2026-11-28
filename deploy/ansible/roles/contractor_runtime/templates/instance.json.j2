@@ -80,6 +80,9 @@
 {%- if 'nuclei' in scanners -%}
 {%-   set environment = environment | combine({'NUCLEI_TEMPLATES_DIR': __contractor_runtime_nuclei_templates_dir}) -%}
 {%- endif -%}
+{%- if 'semgrep' in scanners -%}
+{%-   set environment = environment | combine({'SEMGREP_RULES_DIR': __contractor_runtime_semgrep_rules_dir}) -%}
+{%- endif -%}
 {%- set environment = environment
       | combine(contractor_runtime_extra_environment, e.extra_environment | default({})) -%}
 {%- set probe_refs = ['code-analysis@1', 'taint-annotations@1']

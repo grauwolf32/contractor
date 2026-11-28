@@ -196,6 +196,15 @@ func observationStatus(observation map[string]json.RawMessage) (string, string) 
 // shared table api/testdata/scan/worker-error-codes.json pins it to the
 // Runtime producers and the UI.
 var workerErrorOutcomes = map[string]string{
+	"semgrep_rules_unavailable":    planner.ScanJobUnavailable,
+	"semgrep_version_unsupported":  planner.ScanJobUnavailable,
+	"semgrep_source_unavailable":   planner.ScanJobIncomplete,
+	"semgrep_source_invalid":       planner.ScanJobIncomplete,
+	"semgrep_rulepack_unavailable": planner.ScanJobIncomplete,
+	"semgrep_rulepack_invalid":     planner.ScanJobIncomplete,
+	"semgrep_rules_mismatch":       planner.ScanJobIncomplete,
+	"semgrep_scan_incomplete":      planner.ScanJobIncomplete,
+
 	// Scanner absence.
 	"scanner_unavailable":          planner.ScanJobUnavailable,
 	"nuclei_templates_unavailable": planner.ScanJobUnavailable,

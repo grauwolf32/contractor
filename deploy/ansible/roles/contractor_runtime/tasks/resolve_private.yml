@@ -83,6 +83,13 @@
     __contractor_runtime_absent: "{{ contractor_runtime_instances | selectattr('state', 'defined')
                      | selectattr('state', 'equalto', 'absent') | map(attribute='name') | list }}"
 
+- name: Set the Semgrep installation paths
+  ansible.builtin.set_fact:
+    __contractor_runtime_semgrep_dir: "{{ contractor_runtime_prefix }}/tools/semgrep-{{ __contractor_runtime_tools.semgrep.version }}"
+    __contractor_runtime_semgrep_rules_dir: >-
+      {{ contractor_runtime_semgrep_rules_dir
+         or contractor_runtime_prefix ~ '/tools/semgrep_rules-' ~ __contractor_runtime_tools.semgrep_rules.version }}
+
 - name: Set the nuclei templates directory
   ansible.builtin.set_fact:
     __contractor_runtime_nuclei_templates_dir: >-
@@ -135,7 +142,7 @@
     label: "{{ __contractor_runtime_instance.name }}"
   vars:
     __contractor_runtime_caps: "{{ __contractor_runtime_instance.capabilities }}"
-    __contractor_runtime_scanners: [nuclei, sqlmap, naabu, ffuf, katana]
+    __contractor_runtime_scanners: [nuclei, sqlmap, naabu, ffuf, katana, semgrep]
 
 - name: Require an explicit adapter decision and a reachable advertise address
   ansible.builtin.assert:
@@ -189,7 +196,9 @@
         {{ (['uv'] + __contractor_runtime_tool_union
             + (['node'] if 'likec4' in __contractor_runtime_tool_union else [])
             + (['nuclei_templates'] if 'nuclei' in __contractor_runtime_tool_union
-               and not contractor_runtime_nuclei_templates_dir else [])) | unique }}
+               and not contractor_runtime_nuclei_templates_dir else [])
+            + (['semgrep_rules'] if 'semgrep' in __contractor_runtime_tool_union
+               and not contractor_runtime_semgrep_rules_dir else [])) | unique }}
     __contractor_runtime_instance_names: "{{ contractor_runtime_instances | map(attribute='name') | list }}"
   vars:
     __contractor_runtime_tool_union: "{{ __contractor_runtime_instances | map(attribute='tools') | flatten | unique }}"
@@ -207,8 +216,8 @@
   ansible.builtin.assert:
     that:
       - __contractor_runtime_tool.version is defined
-      - __contractor_runtime_tool_name == 'likec4' or __contractor_runtime_asset.url is defined
-      - __contractor_runtime_tool_name == 'likec4' or __contractor_runtime_asset.sha256 | default('') is match('^[0-9a-f]{64}$')
+      - __contractor_runtime_tool_name in ['likec4', 'semgrep'] or __contractor_runtime_asset.url is defined
+      - __contractor_runtime_tool_name in ['likec4', 'semgrep'] or __contractor_runtime_asset.sha256 | default('') is match('^[0-9a-f]{64}$')
     fail_msg: Configuration validation failed.
     quiet: true
   loop: "{{ __contractor_runtime_host.tools }}"

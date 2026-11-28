@@ -188,8 +188,7 @@ def nuclei_candidates(observation: dict, *, methods: dict[str, str] | None = Non
                     "rule": rule,
                     "title": title,
                     "assertion": assertion,
-                    "subject": subject,
-                    "method": method,
+                    "location": {"url": subject, **({"method": method} if method else {})},
                     "severity": severity,
                     "qualifiedKey": qualified,
                 }
@@ -271,8 +270,7 @@ def sqlmap_candidates(
                 + " parameter "
                 + name
                 + ".",
-                "subject": subject,
-                "method": method,
+                "location": {"url": subject, **({"method": method} if method else {})},
                 "severity": "high",
                 "qualifiedKey": identity,
             }
