@@ -1,0 +1,46 @@
+{
+  "branch": "codex/materials-opendesign-20261128",
+  "integratedMain": "b708454f7",
+  "nativeRun": "c3729282-8627-43e9-998e-55fcf3364b41",
+  "unit": {
+    "files": 233,
+    "passed": 2637,
+    "expectedFailure": 1
+  },
+  "chromium": {
+    "passed": 68,
+    "bundle": "production",
+    "themes": [
+      "light",
+      "dark",
+      "black"
+    ],
+    "widths": [
+      1440,
+      1100,
+      1024,
+      390,
+      320
+    ]
+  },
+  "checks": {
+    "sourceTypes": true,
+    "browserTestTypes": true,
+    "eslint": true,
+    "prettier": true,
+    "build": true,
+    "cssGate": true,
+    "exportGate": true,
+    "specifications": 52,
+    "liveReviewHost": true
+  },
+  "preview": "http://127.0.0.1:17575/test-results/materials-production/index.html",
+  "previewData": "Synthetic API adapter and browser-memory uploads. Production components use existing authenticated API operations.",
+  "visualReview": [
+    "Grouped rows and categories",
+    "Full-width exact material reader",
+    "Mobile chooser and persistent confirmation footer",
+    "Objective and time limit retained during selection and upload",
+    "Return restores the material list reading position"
+  ]
+}

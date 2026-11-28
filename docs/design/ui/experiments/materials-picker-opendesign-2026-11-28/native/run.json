@@ -1,0 +1,50 @@
+{
+  "userSubmission": {
+    "id": "run-c3729282-8627-43e9-998e-55fcf3364b41",
+    "projectId": "contractor-materials-picker-20261128",
+    "conversationId": "9922b533-666a-474c-8f6f-7550a6baa4d3",
+    "acceptedAt": 1795878252125
+  },
+  "runId": "c3729282-8627-43e9-998e-55fcf3364b41",
+  "conversationId": "9922b533-666a-474c-8f6f-7550a6baa4d3",
+  "assistantMessageId": "c6ac8e6e-4254-4641-9c9e-34421ed409c9",
+  "clientRequestId": "430b94de-9bae-4fca-9128-f1879a635c80",
+  "reused": false,
+  "resumed": false,
+  "appliedPluginSnapshotId": "e923adab-eb6f-410c-9dec-ec92ee5083fe",
+  "pluginId": "od-next-strategy",
+  "taskExecutionId": "odnext_48bb9f1daf3b4ea69073510947067981",
+  "strategyTask": {
+    "taskExecutionId": "odnext_48bb9f1daf3b4ea69073510947067981",
+    "display": {
+      "id": "odnext_48bb9f1daf3b4ea69073510947067981",
+      "currentRunId": "c3729282-8627-43e9-998e-55fcf3364b41",
+      "runIds": [
+        "c3729282-8627-43e9-998e-55fcf3364b41"
+      ],
+      "revision": 1,
+      "state": "preparing",
+      "elapsedMs": null,
+      "observedAt": 1795878252147,
+      "ticking": false
+    },
+    "strategy": {
+      "id": "od-next-strategy",
+      "version": "3.3.8",
+      "packageHash": "d63d3a1c98904ae23e7ca3091cd175335f7d14c8e0421661df060c728086240c",
+      "snapshotId": "e923adab-eb6f-410c-9dec-ec92ee5083fe"
+    },
+    "inputStage": "request",
+    "outcome": "running",
+    "route": null,
+    "executionMode": null,
+    "activeRunId": "c3729282-8627-43e9-998e-55fcf3364b41",
+    "runMappings": [
+      {
+        "runId": "c3729282-8627-43e9-998e-55fcf3364b41",
+        "taskRunIndex": 0
+      }
+    ],
+    "terminal": false
+  }
+}

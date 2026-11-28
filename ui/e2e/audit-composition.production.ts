@@ -114,15 +114,22 @@ test("common preparation and canonical scanner Findings survive Run deletion", a
   for (const [label, name] of [
     ["API spec", "openapi"],
     ["Request values", "request-values"],
-  ]) {
-    const select = page.getByRole("combobox", {
-      name: "Material for " + label,
-    });
-    await select.selectOption({
-      label: (await select.getByRole("option").allTextContents()).find((text) =>
-        text.startsWith("fixture/" + name + "@"),
-      )!,
-    });
+  ] as const) {
+    const lower = /^[A-Z][A-Z]/.test(label)
+      ? label
+      : label[0]!.toLowerCase() + label.slice(1);
+    await page
+      .getByRole("button", {
+        name: new RegExp(`^(Choose|Change) ${lower} material$`),
+      })
+      .click();
+    const picker = page.getByRole("dialog", { name: `Choose ${lower}` });
+    await picker
+      .getByRole("button", { name: new RegExp(`^fixture/${name}@`) })
+      .click();
+    await picker
+      .getByRole("button", { name: "Attach material", exact: true })
+      .click();
   }
   await page
     .getByLabel("API server URL", { exact: false })

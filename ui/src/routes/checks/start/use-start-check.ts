@@ -233,11 +233,11 @@ export function useStartCheck(
   const materials = {
     ...remoteMaterials,
     items:
-      remoteMaterials.items === undefined
+      remoteMaterials.items === undefined && authoredItems.length === 0
         ? undefined
         : [
             ...authoredItems,
-            ...remoteMaterials.items.filter(
+            ...(remoteMaterials.items ?? []).filter(
               (item) =>
                 !authoredItems.some(
                   (known) => materialKey(known) === materialKey(item),

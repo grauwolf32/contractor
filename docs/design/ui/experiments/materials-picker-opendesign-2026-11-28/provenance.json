@@ -1,0 +1,21 @@
+{
+  "branch": "codex/materials-opendesign-20261128",
+  "baseline": "7e46ebca5922e448faab12ba48bbafc16cad376c",
+  "openDesignVersion": "0.25.1",
+  "nativeProject": "contractor-materials-picker-20261128",
+  "nativeRun": "c3729282-8627-43e9-998e-55fcf3364b41",
+  "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+  "nativeOutputs": {
+    "opendesign.css": "e9b6e09887b8c475fe524ecc5a8cb7de4bab8658358f2655b381342eff85734f",
+    "rationale.md": "febf10943e890c51791e963c9757588e98869a27cc538ada6e9aa744779a4328"
+  },
+  "preview": "http://127.0.0.1:17574/",
+  "data": "Synthetic local review fixtures",
+  "reviewFollowup": {
+    "date": "2026-11-28",
+    "request": "Open materials on a dedicated page with Preview preloaded",
+    "implementation": "Host scaffold and review host only; exact native outputs preserved",
+    "archive": "/Users/ruslan/Documents/ChatGPT/AppSec/archives/contractor-ui-experiments-2026-11-06/iterations/2026-11-28-materials-picker-full-view",
+    "priorArchive": "/Users/ruslan/Documents/ChatGPT/AppSec/archives/contractor-ui-experiments-2026-11-06/iterations/2026-11-28-materials-picker"
+  }
+}

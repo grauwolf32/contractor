@@ -1,0 +1,228 @@
+/* Materials workspace and shared material identity from the approved OpenDesign iteration. */
+.materials-kind-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  background: var(--surface-subtle);
+}
+.materials-kind-mark[data-kind="source"] {
+  color: var(--accent);
+  background: var(--sel);
+  border-color: var(--sel-line);
+}
+.materials-kind-mark[data-kind="api"] {
+  color: var(--info);
+  background: var(--info-bg);
+  border-color: var(--info-line);
+}
+.materials-kind-mark[data-kind="engagement"] {
+  color: var(--success);
+  background: var(--success-bg);
+  border-color: var(--success-line);
+}
+.materials-kind-mark[data-kind="diffs"] {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning-line);
+}
+.materials-library-heading h2 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.materials-library.materials-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+.materials-library-filters {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.materials-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-md);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--muted);
+}
+.materials-search:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.materials-search input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+.materials-category-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1-5);
+}
+.materials-category-chips .ui-btn,
+.materials-category-chips select {
+  width: auto;
+  height: auto;
+  min-height: 28px;
+  padding: var(--space-1) var(--space-2-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--muted);
+}
+.materials-category-chips .ui-btn[aria-pressed="true"] {
+  border-color: var(--sel-line);
+  background: var(--sel);
+  color: var(--accent);
+}
+.materials-category-count {
+  margin-left: var(--space-1);
+  font-variant-numeric: tabular-nums;
+}
+.materials-library > .materials-panel-head {
+  padding: 0 0 var(--space-3);
+  border: 0;
+  background: transparent;
+}
+.materials-library .materials-filter-disclosure {
+  font-size: var(--text-xs);
+}
+.materials-library .ui-list-section {
+  margin-block: var(--space-4);
+}
+.materials-library .ui-list-section-heading {
+  padding: 0 0 var(--space-2);
+}
+.materials-library .ui-list-section-title {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.materials-library .ui-list-section-count {
+  margin-left: auto;
+  font-size: var(--text-xs);
+}
+.materials-library .ui-list {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
+}
+.materials-library .ui-row {
+  padding: var(--space-3) var(--space-4);
+  align-items: center;
+  gap: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.materials-library .ui-row:last-child {
+  border-bottom: 0;
+}
+.materials-library .ui-row-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.materials-library .ui-row-meta {
+  font-size: var(--text-xs);
+}
+.materials-library .ui-row-trailing {
+  color: var(--muted);
+}
+.materials-library > .materials-page-note {
+  padding: 0;
+}
+.materials-detail-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.materials-detail-identity > div {
+  min-width: 0;
+}
+.materials-detail-identity .materials-kicker {
+  margin: 0 0 var(--space-1);
+}
+.project-artifact-page .materials-detail-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+.project-artifact-page .materials-detail-support {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4) var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.project-artifact-page .materials-support-title {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.project-artifact-page .materials-detail-support .materials-facts {
+  grid-row: span 2;
+}
+.project-artifact-page .materials-detail-support .materials-tech,
+.project-artifact-page .materials-detail-support .materials-update {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.project-artifact-page .materials-detail-actions {
+  align-self: flex-start;
+}
+.project-artifact-page .materials-detail-revision {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  gap: var(--space-2);
+}
+.project-artifact-page .materials-detail-revision > span {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.project-artifact-page .materials-detail-reader > .artifact-preview-panel {
+  padding: var(--space-5);
+  min-height: 30rem;
+}
+@media (max-width: 820px) {
+  .project-artifact-page .materials-detail-titlebar {
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+  }
+  .project-artifact-page .materials-detail-titles {
+    flex-basis: auto;
+  }
+  .project-artifact-page .materials-detail-actions {
+    width: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 112px;
+  }
+  .project-artifact-page .materials-detail-reader > .artifact-preview-panel {
+    padding: var(--space-3);
+    min-height: 24rem;
+  }
+  .project-artifact-page .materials-detail-support {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -252,15 +252,6 @@
   gap: var(--space-3) var(--space-6);
 }
 
-.materials-region-intro {
-  flex: 1 1 22rem;
-  max-width: 68ch;
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-sm);
-  line-height: 1.55;
-}
-
 /* ---------- List panel (materials and files) ---------- */
 
 .materials-panel {

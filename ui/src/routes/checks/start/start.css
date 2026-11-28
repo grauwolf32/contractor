@@ -417,12 +417,6 @@
   gap: var(--space-3-5) var(--space-5);
 }
 
-/* A material choice (.ui-control) inside a materials card; its label is
-   the slot name. Room for the arrow on the right. */
-.start-material-select {
-  padding-right: var(--space-8);
-}
-
 .start-textarea {
   line-height: 1.45;
   resize: vertical;
