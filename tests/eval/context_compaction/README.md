@@ -5,6 +5,18 @@ externally controlled Managed Eval experiments. It does not publish configuratio
 plan members, choose models, create a charge ledger or compute comparison conclusions.
 Actual Gateway measurements belong to V417-010; its development trial and infrastructure status are recorded in `docs/research/context-compaction-evaluation.md`.
 
+The 2026-11-28 R5 study stopped after 63 of 120 members and remains incomplete.
+Real exported evidence exposed two measurement prerequisites: the current OTLP
+adapter removes `model.phase`, and the observer rejects a Planner diagnostic
+whose local adapters list is empty despite retained Planner spans. The API
+scorer also rejects valid representations not prohibited by the visible task.
+[V500-005](../../../tasks/v500-005-delivered-context-observer-evidence.yml) and
+[V500-006](../../../tasks/v500-006-context-eval-output-contract.yml) record the
+required evaluator corrections before another frozen study. Passing the offline
+fixture gate does not establish valid live continuation measurement. Preserve
+the old registrations and assessments; do not treat their generic failures as
+proof of lost context or repeat the matrix with the unchanged observer.
+
 Run the deterministic gate from the repository root:
 
 ```sh

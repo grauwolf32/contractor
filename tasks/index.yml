@@ -9,9 +9,14 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
-    User request 2026-11-28 resumes V417-010 and selects Project Facts study
-    V500-002 with debug traces. V500-001 pins the current accepted SDK before
-    a new compaction freeze. Historical attempts and pauses remain below.
+    User research 2026-11-28: Facts V500-002 has all36 outcomes and reviewed
+    source receipts; recall21/24, native human reviews remain unscored.
+    Compaction V417-010 returns pending after R5 stopped at63/120, with57
+    unsubmitted and all native verdicts inconclusive. V500-005/V500-006 record
+    delivered-observer and output-contract prerequisites. Owned stack cleanup
+    and recoverable backup verification are complete. Debug traces and exact
+    evidence retained; configured models unchanged. This research branch is
+    pushed separately and not merged into main. Historical attempts follow.
     User request 2026-11-16 completes V466-022: local main contains
     codex/v417-release-quality through two-parent merge
     017b8b289e6da12e68d13d28a592bc7fb66c43ba. All six primary working files

@@ -5,7 +5,7 @@ milestone: worker-context-compaction-quality-2026-10
 epic: evals
 kind: chore
 priority: P2
-status: in_progress
+status: pending
 depends_on:
 - V417-008
 - V417-009
@@ -15,6 +15,8 @@ depends_on:
 - V500-001
 - V500-003
 - V500-004
+- V500-005
+- V500-006
 languages:
 - python
 - yaml
@@ -84,12 +86,26 @@ context:
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
   current_state: >-
-    Resumed 2026-11-28 on accepted ADK 2.15.0 after V500-001/V500-003.
-    R5 has 120 frozen members and verified native source/task comparisons;
-    the exact consumer is running with debug telemetry retained before forwarding.
-    R4 retains two failed, one cancelled and 117 unsubmitted members after a
-    task-owned collector ID check failed. R1-R4 stay distinct incomplete attempts.
-    No final repeated-quality conclusion is claimed while R5 is running.
+    R5 stopped on 2026-11-28 after 63 of 120 expected members: 31 succeeded,
+    32 failed, 62 scored fail, one executed unscored, 57 unsubmitted. The
+    observer rejects a planner_executor diagnostic with no local adapter;
+    its real phase evidence is also filtered by the current OTLP exporter.
+    Native token coverage of the handoff member is partial. All four native
+    comparisons remain inconclusive. All experiments cancelled, Runs released,
+    owned processes joined, backup restored and 61 table digests verified,
+    owned databases/cluster and ephemeral credentials removed. Exact evidence
+    retained. Return pending for V500-005/V500-006; A1-A4 are not all met.
+  next_study_decision: >-
+    Agent proposal: after the observer/output-contract prerequisites and
+    investigation of handoff partial usage, freeze a new study with new
+    identities and preserve all R1-R5 outcomes. A smaller viable first step
+    is a development-only end-to-end compaction and handoff pair through the
+    actual exporter before another complete matrix. This trades initial
+    coverage for early confirmation that measurement is valid. No new live
+    matrix or production change is performed by this report.
+  current_results: docs/research/context-compaction-evaluation.md
+  current_results_evidence: tasks/evidence/v417-010-results-r5-20261128.json
+  cleanup_evidence: tasks/evidence/v500-002-shared-cleanup-20261128.json
   prior_state_before_r3: >-
     V417-009 is accepted and network recovery is complete. Attempt1 retains
     one succeeded/unscored Run and119 unrun members. Attempt2 is stopped and
@@ -410,3 +426,16 @@ verification:
     dispatch. Retain123541 known tokens and USD0.0239856091 reported. No active
     Run cancelled; own key revoked, processes joined, private native/archive
     evidence retained and owned database dropped. Await continue command.
+
+# Later verification preserves the historical attempts above.
+- command: make test-context-compaction-eval-fixtures
+  result: '2026-11-28 final rerun passed: 45 Python cases, 105 recorded scores, both Go packages. Real export limitations are separately retained in V500-005/V500-006.'
+- command: make eval-context-compaction-live
+  result: >-
+    2026-11-28 R5 incomplete (consumer exit1, make exit2): 63 executed,
+    62 fail assessments, one unscored and57 unsubmitted. Retain3370127 complete
+    tokens for62 members,80328 partial observed tokens for one and
+    USD0.5732791227 reported for all63. All native verdicts inconclusive.
+    Worker/Planner diagnostic mismatch and dropped phase metadata prevent
+    valid continuation conclusions. Native assessments unchanged; cleanup
+    verified. Task returns pending; no implementation_commit is claimed.

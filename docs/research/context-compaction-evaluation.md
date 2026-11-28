@@ -1,65 +1,211 @@
 # Context compaction: live-исследование
 
-28 ноября 2026 года пользователь возобновил исследование. Новая **R5-серия
-из 120 участников выполняется** на текущем ADK 2.15.0 и настроенной модели.
-Все четыре сравнения прошли native source/task preflight до первого dispatch.
-Итоговая оценка R5 ещё не опубликована; старые результаты не смешиваются с ней.
-[Точная заморозка R5](../../tasks/evidence/v417-010-freeze-r5-20261128.json).
+28 ноября 2026 года R5 остановлена с **63 выполненными из 120 запланированных
+участников**: 31 Run succeeded, 32 failed; 62 native assessments — fail,
+один выполненный участник unscored, ещё 57 не запускались. Все четыре native
+сравнения остаются **inconclusive**. Полной повторной проверки handoff/masking
+нет; V417-010 не закрыта. Для новой серии сначала нужны исправления измерений
+[V500-005](../../tasks/v500-005-delivered-context-observer-evidence.yml) и
+[V500-006](../../tasks/v500-006-context-eval-output-contract.yml).
+[Все 120 исходов, расходы и native summaries](../../tasks/evidence/v417-010-results-r5-20261128.json).
 
-Перед R5 исправлены текущая SDK attestation и имя общего Artifact reader
-(V500-001/V500-003). Предшествующая R4 сохранена целиком: два failed, один
-cancelled и 117 unsubmitted. Её локальный OTLP-сборщик отклонял допустимые
-Run IDs внешних Eval; формат исправлен, новая серия получает новые identities.
-Все три старых Run released; timeout, который видел consumer при остановке,
-сохранён отдельно от последующего авторитетного cancellation.
-[Неполная R4](../../tasks/evidence/v417-010-protocol-attempt4-20261128.json).
-Перед вторым блоком V500-004 исправила распознавание native compaction по
-`model.phase`, исключив зависимость от auxiliary alias. Оба observer дали
-одинаковые наблюдения для всех 30 уже завершённых terminal Runs; их execution
-IDs и ранее выбранные records сохранены. Продолжение использует тот же native
-план и ключи submission, без повторных модельных исполнений.
-[Обновление observer attestation](../../tasks/evidence/v417-010-observer-phase-r5-20261128.json).
+Это исследование показало рабочее применение compaction и несколько конкретных
+проблем на границах инструментов, telemetry и evaluator. Оно пока не позволяет
+выбрать `includeReasoning`, оптимальный threshold или production-пилот.
+Замороженные оценки сохранены без исправления задним числом.
 
-Исходный OTLP новой серии сохраняется до пересылки; работающий Phoenix получает
-сохранённые spans без повторения model calls.
+## Исполнение и причина остановки R5
 
-У текущего scorer обнаружены ограничения интерпретации. Неизменённый recorded
-API answer проходит проверку; замена только POST-ответа `200` на `201` или
-перенос той же tenant security на уровень документа дают
-`well_formed_evidence=false`. Все три документа принимает pinned OpenAPI
-validator, а видимое задание не требует `200` или только operation-level
-security. Это offline counterexamples, без новых model calls. Есть и реальный
-валидный API-документ с `201`; тип поля LikeC4 в нём тоже расходится с ожиданием
-scorer. Замороженные правила и native assessments остаются неизменными.
-Общий fail нельзя без разбора приписывать потере доменных данных при compaction.
-[Воспроизведение ограничений scorer](../../tasks/evidence/v417-010-scorer-contract-counterexamples-20261128.json).
+| Сравнение | Expected | Выполнено | Succeeded / failed | Scored | Не запускалось |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Terminal reasoning off/on | 30 | 30 | 2 / 28 | 30 | 0 |
+| Compactor reasoning off/on | 30 | 30 | 28 / 2 | 30 | 0 |
+| Terminal off / terminal handoff | 30 | 3 | 1 / 2 | 2 | 27 |
+| Controlled compact / masking | 30 | 0 | 0 / 0 | 0 | 30 |
 
-## Наблюдение 28 ноября: граница instrumentation → OTLP
+Непосредственный триггер остановки consumer воспроизведён read-only:
+`verify_export` требует `otlp-http@1` у каждого diagnostic report и отвергает
+`planner_executor` с `adapters: []`. Два Worker report этого Run полны и
+успешно flushed; Planner spans также сохранены. Успешный Run не получил
+assessment из-за ошибки evaluator. Дополнительно native Eval помечает его
+80 328 наблюдаемых токенов как `partial`; даже после устранения ошибки observer
+это блокирует новые submissions по правилу полного cumulative usage.
+Причина неполной маркировки требует разбора общего владельца accounting;
+наличие токенов в spans не превращает native counter в complete.
 
-После завершения первых двух сравнений сохранены точные native экспорты
-60 участников. Разбор всех 30 compact off/on Runs выявил ограничение
-предыдущего исправления observer: producer выставляет `model.phase`, но
-allowlist в `runtime/src/contractor_runtime/adapters/otlp_http.py` удаляет этот
-атрибут. Имя `contractor.worker.context_compaction` также заменяется на
-`contractor.worker.error`; при этом `operation.kind=context_compaction`,
-успешный status и исходные timestamps сохраняются.
+После остановки все четыре внешних experiment закрыты через native cancellation;
+уже завершённые Run не заменялись и не повторялись ради лучшей оценки.
+`make eval-context-compaction-live` завершился ошибкой неполной серии
+(consumer exit 1, make exit 2). Инфраструктурные и measurement-сбои остаются
+отдельными от ошибок доменных ответов.
 
-В 24 из 30 Runs native diagnostics подтверждает применённую compaction.
-В 21 из 30 исходные spans подтверждают успешные инструменты после завершения
-такой операции. Замороженный observer показывает ноль во всех 30, поскольку
-не видит ожидаемого phase. Это ошибка измерения; ноль нельзя трактовать как
-отсутствие продолжения. V500-004 проверила распознавание emitted phase, но её
-синтетический fixture не обнаружил потерю на реальной export-границе.
-[Воспроизводимые счётчики и evidence](../../tasks/evidence/v417-010-otlp-phase-observation-20261128.json).
+## Что можно заключить из артефактов и traces
 
-Замороженные assessments и параметры серии не переписываются. Supplementary
-подсчёт по сохранённому `operation.kind` описывает порядок реальных действий,
-не заменяет native quality check. Остальные сравнения сохраняют собственные
-frozen denominator. До нового валидированного измерения выводы о пользе
-`includeReasoning`, превосходстве masking и выборе production threshold
-остаются недоказанными. Приоритетный follow-up — согласовать emitted telemetry
-с allowlist и проверять observer через настоящий OTLP adapter, а также отделить
-ошибки контракта scorer от ошибок доменных данных.
+Во всех 30 compact off/on Runs проверен исходный OTLP и native diagnostics:
+
+- В **24/30** применена хотя бы одна compaction: по 12/15 в каждой стороне.
+  Шесть небольших исполнений не создали достаточного давления на контекст.
+- В **21/30** успешные tool spans начинаются после конца успешной операции
+  `operation.kind=context_compaction`. Это реальное продолжение работы.
+- В OTLP всех 30 отсутствует `model.phase`. Producer выставляет этот атрибут,
+  но allowlist адаптера его удаляет; имя context span заменяется на
+  `contractor.worker.error`. `operation.kind`, status и timestamps сохраняются.
+  Замороженный observer поэтому считает продолжение нулевым во всех 30.
+  V500-004 проверила emitted phase на синтетической protobuf-проекции,
+  но не обнаружила потерю через настоящий adapter.
+- Native diagnostics сообщает 48 compactor calls и два archive reads.
+  Доступность reasoning видна в применённых checkpoints обеих сторон;
+  off не включает reasoning, on включает его с отмеченным bounded truncation.
+  Последний snapshot каждого Run не является полным журналом всех checkpoints.
+  В первом terminal-блоке также разобраны 14/14 auxiliary inputs каждой
+  стороны: tagged reasoning отсутствует во всех off и присутствует во всех on.
+  В восьми on inputs reasoningTruncated=true. Это подтверждает применение
+  переключателя и его лимита, а не выигрыш от него.
+
+[Счётчики по каждому compact Run и исходная граница потери phase](../../tasks/evidence/v417-010-otlp-phase-observation-20261128.json).
+Supplementary подсчёт порядка действий не заменяет frozen native quality check.
+Source receipts из обычного `read_artifact` и чтение native archive — разные
+измерения. HTTP/probe capability не предоставлялась; отсутствие сетевых probes
+обеспечено capabilities и не доказывает решения модели.
+
+Среди 31 опубликованного результата все 31 — синтаксически корректный JSON,
+все сохраняют constraint IDs. Все 13 опубликованных OpenAPI документов
+принимает pinned `kin-openapi` validator. Во всех девяти опубликованных source
+reviews проекция finding на path/line/kind совпадает с независимо разобранным
+AST; точная структура finding совпадает только в пяти. Эти частичные проверки
+не повышают native quality assessments до pass.
+
+Общий `well_formed_evidence=false` часто описывает несовпадение контракта, а не
+невалидный JSON или потерю сведений. Scorer напрямую требует `responses[200]`
+для каждой операции и operation-level security, хотя видимое задание допускает
+стандартные альтернативы. Offline замена только POST200 на POST201 или перенос
+той же tenant security на уровень документа ломает scorer при сохранении
+валидности OpenAPI. В live-артефактах шесть документов используют 201, два имеют
+LikeC4 как list вместо ожидаемой строки. В negative-memory видимое «observed
+fact IDs» не уточняет probe IDs против receipt IDs и состав набора; все девять
+опубликованных ответов расходятся с точным expected observed set. Этот fail
+нельзя целиком приписывать compaction.
+[Независимые counterexamples](../../tasks/evidence/v417-010-scorer-contract-counterexamples-20261128.json).
+
+Из failed attempts сохранены `worker_summarized`, `worker_summarization_failed`,
+`worker_output_limit_exceeded` и `worker_compaction_failed`. Успех lifecycle
+Run и успех полного quality gate учитываются отдельно. У terminal off/on
+28 из 30 Run не дошли до обычного опубликованного результата; по этой серии
+нельзя оценить самостоятельную полезность текста terminal summary.
+
+## Наблюдаемые расходы и неопределённость
+
+Для **62/63** выполненных участников полны **3 370 127 токенов**. Ещё у одного
+наблюдаемы 80 328 токенов с native coverage `partial`: это не полный итог.
+Для всех 63 полны counters: **495 model calls, 528 tool calls, 121 tool failure**;
+native стоимость всех 63 — **USD 0.5732791227 reported**. Cached-input counters
+не доступны как полная сравнимая метрика. Cost per quality-passed result
+не определена: подтверждённых полных quality passes нет.
+
+| Role | Calls | Tokens в Runtime phase breakdown | USD reported |
+| --- | ---: | ---: | ---: |
+| Worker main | 380 | 2 385 844 | 0.3551507646 |
+| Compaction | 48 | 627 676 | 0.1367655726 |
+| Finalization | 30 | 56 591 | 0.0138111793 |
+| Terminal summary | 32 | 364 154 | 0.0655014092 |
+| Planner handoff | 5 | phase total недоступен; spans содержат 16 190 | 0.0020501970 |
+
+Role costs и Runtime phases — breakdowns, их не прибавляют повторно к cumulative
+Eval usage. Родительские Audit и дочерние Run расходы также не суммируются.
+Цена может иметь complete coverage при partial token counter.
+
+В двух полностью выполненных блоках native metric cohorts включают все 15 пар,
+в том числе execution failures:
+
+| Сравнение | Tokens off / on | p50 / p90 tokens off | p50 / p90 tokens on | Ratio on/off, условный 95% interval |
+| --- | ---: | ---: | ---: | ---: |
+| Terminal | 404 732 / 479 196 | 26 287 / 39 685 | 33 659 / 44 364 | 1.184 [1.011; 1.394] |
+| Compactor | 1 011 437 / 1 418 003 | 65 994 / 99 572 | 92 986 / 149 717 | 1.402 [1.067; 1.802] |
+
+Native duration p50/p90: terminal off 82.2/101.6 с, on 71.3/210.9 с;
+compact off 141.3/179.5 с, on 177.4/285.5 с. Ratio суммарной duration:
+terminal 1.514 [0.996; 2.106], compact 1.360 [1.065; 1.677].
+Intervals — supplementary percentile bootstrap из 10 000 resamples существующих
+native pair deltas, seed417. Они условны для этих трёх синтетических кейсов и
+их повторов, не отражают неопределённость на новых задачах и не создают нового
+comparison verdict. Пары — независимые end-to-end Run, не replay одинакового
+checkpoint. Первые блоки частично выполнялись одновременно с Facts на общем
+Gateway; duration не является изолированным performance benchmark.
+
+В этих блоках on расходует больше токенов, но валидного подтверждения качества
+недостаточно. Terminal и compactor рассматриваются отдельно: выбирать off/on
+или оптимальные параметры по этим данным преждевременно. Handoff и masking
+не имеют достаточных повторов для сравнительного вывода.
+
+## Заморозка, воспроизводимость и следующие шаги
+
+Все четыре R5 сравнения прошли native source/task preflight до первого dispatch:
+120 expected members, три кейса, пять повторов на сторону, seed417,
+concurrency1, 20 минут на участника и 24 часа на consumer. Все прочие finite
+call/token/tool ceilings сохранены в manifest. Модель осталась настроенной
+`glm-5.3-flash`, upstream `openrouter/z-ai/glm-5.3-flash`; четыре фактических
+Worker/Planner/summary/compactor alias принадлежат общему frozen policy set.
+Физическая ревизия весов недоступна.
+
+Runtime: Python3.13.16, ADK2.15.0, lock
+`sha256:e644f2f9bac0d9eac615deb2a425da4214781795253bc20af05e847efa3197ee`,
+build `sha256:01d5753d7daf3184358a0ef393114ec292c2f6f6f9845894376499c972c9c88a`.
+Server source — `d4b8c5112fef383a47ce3aae9abc1094e346c2e5`.
+Policy clones сохраняют текущие configured sampling/aliases; это другая
+заморозка, чем ноябрьские ограниченные policies старых попыток. Template4,
+Workflow1; ratio0.006 при context1M даёт soft6000, keepRecentGroups1,
+maxCompactions4. Эти значения не объявляются оптимальными.
+[Полная заморозка](../../tasks/evidence/v417-010-freeze-r5-20261128.json).
+
+Перед вторым блоком исправлен observer по emitted phase. Read-only replay
+обоих observers совпал на всех 30 прежних terminal Run; execution IDs и ранее
+выбранные records сохранены. Resume использовал прежние native plans и
+submission keys, без повторных model calls. Первоначальный R5 consumer snapshot
+с 30 завершёнными и 90 незапущенными — пересекающийся snapshot той же серии,
+не дополнительная выборка. Последующий реальный export выявил описанное выше
+ограничение этого исправления.
+[Observer bridge](../../tasks/evidence/v417-010-observer-phase-r5-20261128.json).
+
+Предложения по следующему шагу:
+
+1. V500-005: проверить evaluator через реальный OTLP adapter, разделить контракты
+   Worker/Planner и сохранить fail-closed при неполном native usage. Отдельно
+   выяснить partial token coverage handoff; не подменять его суммой spans.
+2. V500-006: объявить точный видимый output schema и независимые domain checks;
+   различать JSON/schema/данные/continuation. Подтвердить исправление offline
+   на контрпримерах до новой заморозки.
+3. После этих prerequisites подготовить новую frozen серию. Старые identities,
+   truth, scores и расходы сохранить. Выбор includeReasoning, threshold и
+   production-пилота оставить открытым до валидного сравнения.
+
+R1–R4 остаются отдельными неполными попытками. R4 от 28 ноября: два failed,
+один cancelled, 117 unsubmitted из 120. Её collector отвергал допустимые
+external Run IDs; проверка формата исправлена, R5 получила новые identities.
+Все три R4 Run released; первоначальный consumer timeout и последующий native
+cancellation сохранены отдельно.
+[Evidence R4](../../tasks/evidence/v417-010-protocol-attempt4-20261128.json).
+
+`debug` был выбран до dispatch. Для всех 63 R5 Run сохранено 1 276 исходных
+spans, digests начальной redacted OTLP-проекции контекста и точные native outputs/diagnostics/costs.
+Digests вычислены по сохранённым model alias/phase и GenAI input messages,
+system instructions и tool definitions первого Worker span. Они меняются
+вместе с Run/revision IDs; это не raw provider bytes, не controlled SDK
+projection после callback и не доказательство одинакового checkpoint.
+Controlled later-question/masking adapter в R5 не исполнялся. Truth, вопросы,
+ответы и reasoning остаются вне публичного отчёта и model workspaces.
+
+Собственные процессы joined; все 103 Run общего стенда released. PostgreSQL
+custom archive восстановлен в проверочную базу: совпали counts и sorted row
+digests всех 61 таблицы и состояния sequences. Обе базы и собственный cluster
+удалены, временные ключи/PKI/workspaces удалены. Demo и общие secrets не менялись.
+Существующий Phoenix оставлен работающим; 200 сохранённых packets / 1 867 spans
+общего стенда получили подтверждение доставки.
+[Общий cleanup](../../tasks/evidence/v500-002-shared-cleanup-20261128.json).
+
+Offline fixture gate прошёл: 45 Python cases, 105 recorded samples и два Go
+package suites. Эти проверки не доказывают пригодность live observer: найденные
+разрывы export-границы сохранены как отдельные дефекты. `make lint` также
+проверяется после финального bookkeeping; полный release gate не запускался.
 
 ## Исторический отчёт на 16 ноября 2026
 

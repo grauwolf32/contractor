@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 11 in progress, 44 pending, 13 deferred. 1751 finished: 1732 completed, 19 archived.
+68 open tasks: 10 in progress, 45 pending, 13 deferred. 1751 finished: 1732 completed, 19 archived.
 
 ## In progress
 
@@ -18,7 +18,6 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | workflows | feature | P1 | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
-| [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V500-002](v500-002-project-facts-live-study.yml) | evals | chore | P2 | Measure Project Facts extraction on the frozen six-case corpus |
@@ -87,6 +86,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate HTTP investigation quality with frozen repeated comparisons |
+| [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V500-005, V500-006 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V500-005](v500-005-delivered-context-observer-evidence.yml) | defect | P1 | — | Verify context continuation against delivered Worker and Planner evidence |
 | [V500-006](v500-006-context-eval-output-contract.yml) | defect | P1 | — | Align visible context-eval output contracts with independent domain checks |
 
