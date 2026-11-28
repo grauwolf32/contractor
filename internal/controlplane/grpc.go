@@ -166,7 +166,7 @@ func controlRPCError(ctx context.Context, err error) error {
 
 // Admission precedes grpc-go message decoding, bounding aggregate request memory.
 // A complete control message gets six seconds to arrive or leave the Server.
-// Domain work has its own request/storage budgets (CTL-R175, LIM-CTL-30).
+// Domain work has its own request/storage budgets (CTL-R175, LIM-CTL-32).
 const controlRPCIOTimeout = 6 * time.Second
 
 type controlRPCContextKey struct{}
