@@ -1,0 +1,236 @@
+{
+  "schemaVersion": 1,
+  "task": "V500-002",
+  "date": "2026-11-28",
+  "purpose": "Six-case, three-repeat identical-arm mechanism/noise baseline; not a candidate superiority study",
+  "projectId": "project_cb0515c2b194c288c96ba65f4c121216",
+  "experimentId": "experiment-e63fd97a4406dfba5b411a79ea03f686",
+  "portableExperimentId": "eval-59e598b1f51740885f6bde3532c0e844",
+  "planSha256": "sha256:b4c410362ea13dcbae925201724d8b33b0f9a54e8d86c89ca828928273029597",
+  "expected": 36,
+  "setup": {
+    "dataset": {
+      "id": "project-facts-v1",
+      "revision": "revision-4415ff45b40448e2ac5d73368a2bb2dc"
+    },
+    "caseIds": [
+      "technology",
+      "repetition",
+      "speculation",
+      "negative-probe",
+      "injection",
+      "distractors"
+    ],
+    "repetitions": 3,
+    "variants": [
+      {
+        "id": "a",
+        "kind": "audit",
+        "selector": "project-facts-eval@1",
+        "runtimeLabels": [
+          "debug"
+        ]
+      },
+      {
+        "id": "b",
+        "kind": "audit",
+        "selector": "project-facts-eval@1",
+        "runtimeLabels": [
+          "debug"
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": "memory-quality",
+        "evaluator": "human-review@1",
+        "required": true,
+        "rubricRevision": "v1",
+        "implementationSha256": "sha256:25740d3d9f24f4894b4f44d4e90585df006712bc84017be40114c6c1fea6d8c1"
+      }
+    ],
+    "comparison": {
+      "baseline": "a",
+      "candidate": "b",
+      "gates": {
+        "minCandidateEndToEndPass": 1,
+        "maxQualityDrop": 0
+      },
+      "requiredEqual": [
+        "source",
+        "tasks",
+        "scorers"
+      ],
+      "allowedDifferences": []
+    },
+    "budgets": {
+      "maxMembers": 36,
+      "maxInFlight": 1,
+      "wallMs": 14400000,
+      "maxObservedTotalTokens": null
+    }
+  },
+  "readiness": {
+    "pins": [
+      {
+        "dimension": "audit-execution",
+        "requiredEqual": false,
+        "baselineOrigin": "observed",
+        "candidateOrigin": "observed",
+        "status": "equal"
+      },
+      {
+        "dimension": "audit-interaction",
+        "requiredEqual": false,
+        "baselineOrigin": "observed",
+        "candidateOrigin": "observed",
+        "status": "equal"
+      },
+      {
+        "dimension": "execution",
+        "requiredEqual": false,
+        "baselineOrigin": "observed",
+        "candidateOrigin": "observed",
+        "status": "equal"
+      },
+      {
+        "dimension": "expected",
+        "requiredEqual": false,
+        "baselineOrigin": "observed",
+        "candidateOrigin": "observed",
+        "status": "equal"
+      },
+      {
+        "dimension": "instructions",
+        "requiredEqual": false,
+        "baselineOrigin": "observed",
+        "candidateOrigin": "observed",
+        "status": "equal"
+      },
+      {
+        "dimension": "model-revision",
+        "requiredEqual": false,
+        "baselineOrigin": "unavailable",
+        "candidateOrigin": "unavailable",
+        "status": "unavailable"
+      },
+      {
+        "dimension": "models",
+        "requiredEqual": false,
+        "baselineOrigin": "observed",
+        "candidateOrigin": "observed",
+        "status": "equal"
+      },
+      {
+        "dimension": "runtime-build",
+        "requiredEqual": false,
+        "baselineOrigin": "unavailable",
+        "candidateOrigin": "unavailable",
+        "status": "unavailable"
+      },
+      {
+        "dimension": "runtime-config",
+        "requiredEqual": false,
+        "baselineOrigin": "observed",
+        "candidateOrigin": "observed",
+        "status": "equal"
+      },
+      {
+        "dimension": "sampling",
+        "requiredEqual": false,
+        "baselineOrigin": "observed",
+        "candidateOrigin": "observed",
+        "status": "equal"
+      },
+      {
+        "dimension": "scorers",
+        "requiredEqual": true,
+        "baselineOrigin": "observed",
+        "candidateOrigin": "observed",
+        "status": "equal"
+      },
+      {
+        "dimension": "skills",
+        "requiredEqual": false,
+        "baselineOrigin": "observed",
+        "candidateOrigin": "observed",
+        "status": "equal"
+      },
+      {
+        "dimension": "source",
+        "requiredEqual": true,
+        "baselineOrigin": "observed",
+        "candidateOrigin": "observed",
+        "status": "equal"
+      },
+      {
+        "dimension": "standards",
+        "requiredEqual": false,
+        "baselineOrigin": "observed",
+        "candidateOrigin": "observed",
+        "status": "equal"
+      },
+      {
+        "dimension": "tasks",
+        "requiredEqual": true,
+        "baselineOrigin": "observed",
+        "candidateOrigin": "observed",
+        "status": "equal"
+      },
+      {
+        "dimension": "tool-docstrings",
+        "requiredEqual": false,
+        "baselineOrigin": "unavailable",
+        "candidateOrigin": "unavailable",
+        "status": "unavailable"
+      },
+      {
+        "dimension": "tools",
+        "requiredEqual": false,
+        "baselineOrigin": "observed",
+        "candidateOrigin": "observed",
+        "status": "equal"
+      }
+    ],
+    "arms": [
+      {
+        "variantId": "a",
+        "expected": 18,
+        "eligible": 18,
+        "unsupported": 0,
+        "blocked": 0
+      },
+      {
+        "variantId": "b",
+        "expected": 18,
+        "eligible": 18,
+        "unsupported": 0,
+        "blocked": 0
+      }
+    ]
+  },
+  "corpusLockSha256": "sha256:46254596e8eed2631ed25d2c09f91ac5e81e58b73bf8a12434a5d0b0a5054017",
+  "inputs": {
+    "distractors": "sha256:8b478b6aff9c3de0aeb6599d01d26d5d718f2a96161a9e53fab44c9e8ee37938",
+    "injection": "sha256:ccc6ad49e6dfe045590cf95151c4f372c498d65398662056eca130ccd89caa1c",
+    "negative-probe": "sha256:96bf5111a2300dd44503558ff177d7e1091c4eb3c7a4ed8eb746a5697681fa10",
+    "repetition": "sha256:8154fcd728605f1757c47bac0d76d9ffc57ee570e1b25970b1c931cf05f3a6ee",
+    "speculation": "sha256:a7ae3523c127c7354db9153df706c871e9dd4a38bbffaa44d847adb968290d23",
+    "technology": "sha256:19646f4be2dccd54ede43296cd605d584a99f93a9c942a49891e3d8a6a5303c1"
+  },
+  "serverSourceCommit": "d4b8c5112fef383a47ce3aae9abc1094e346c2e5",
+  "runtimeAttestation": {
+    "adk": "2.15.0",
+    "lockSha256": "sha256:e644f2f9bac0d9eac615deb2a425da4214781795253bc20af05e847efa3197ee",
+    "build": "sha256:01d5753d7daf3184358a0ef393114ec292c2f6f6f9845894376499c972c9c88a"
+  },
+  "debug": {
+    "runtimeLabel": "debug",
+    "config": "eval-debug-20261128@1",
+    "capture": "Original bounded OTLP stream persisted outside model workspaces; sink-forwarding failures stay separate",
+    "collectorCorrection": "Corrected common Resource ID validation before the new R5 compaction matrix; Facts Run IDs were admitted throughout except the owned collector restart window, checked through each exporter report."
+  },
+  "reviewAuthority": "Codex evaluator-assisted semantic review of exact immutable source receipts against original attached memories. Native human-review@1 stays unscored.",
+  "timeBudgetDecision": "Create a new frozen four-hour plan before any held-out call, after the distinct development pilot needed about 4.5 minutes. Original one-hour prepared identity remains unsubmitted. Model unchanged.",
+  "privacy": "No secrets, endpoint values, raw reasoning, raw model answers or private expected claims in this freeze projection."
+}
