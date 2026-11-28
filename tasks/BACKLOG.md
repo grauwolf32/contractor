@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 11 in progress, 43 pending, 13 deferred. 1730 finished: 1711 completed, 19 archived.
+66 open tasks: 10 in progress, 43 pending, 13 deferred. 1731 finished: 1712 completed, 19 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V490-005](v490-005-grpc-artifact-streams.yml) | projects-artifacts | feature | P1 | Transfer Artifact and finding evidence payloads through bounded gRPC streams |
 
 ## Pending
 
@@ -31,7 +30,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
 | [V469-002](v469-002-opencode-audit-runtime.yml) | feature | P1 | V469-001 | Run OpenCode in one retained Audit environment through existing A2A |
-| [V490-006](v490-006-grpc-release.yml) | chore | P1 | V490-005 | Accept the complete gRPC boundary and remove replaced transport |
+| [V490-006](v490-006-grpc-release.yml) | chore | P1 | — | Accept the complete gRPC boundary and remove replaced transport |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -169,7 +168,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 22 | 16 | 13 | 30 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 42 | 41 | 21 | 78 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 41 | 21 | 78 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 23 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |

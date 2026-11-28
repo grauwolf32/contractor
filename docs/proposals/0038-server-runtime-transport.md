@@ -242,7 +242,7 @@ maps в JSON-совместимые значения; Go SDK не принима
 | [V490-002](../../tasks/done/v490-002-grpc-run-slice.yml) | Первый настоящий Run: registration → prepare → A2A gRPC → finalize/release, плюс cancel | 001 |
 | [V490-003](../../tasks/done/v490-003-grpc-control-lifecycle.yml) | Полный control/State, четыре slots, lease, shutdown, lost replies и restart | 002 |
 | [V490-004](../../tasks/done/v490-004-grpc-allocation-services.yml) | Planner callbacks, Audit, sitemap, finding reads/selections и Artifact metadata на gRPC | 003 |
-| [V490-005](../../tasks/v490-005-grpc-artifact-streams.yml) | Artifact и finding evidence streams с CAS, receipt, bounded memory и cleanup | 004 |
+| [V490-005](../../tasks/done/v490-005-grpc-artifact-streams.yml) | Artifact и finding evidence streams с CAS, receipt, bounded memory и cleanup | 004 |
 | [V490-006](../../tasks/v490-006-grpc-release.yml) | Удалён старый транспорт, обновлены consumers/specs/ops, пройден release gate | 005 |
 
 001 — ограниченная проверка предпосылки, не отдельный транспортный framework.

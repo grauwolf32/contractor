@@ -5,7 +5,7 @@ milestone: server-runtime-grpc-2026-11
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V490-004
 languages:
@@ -172,3 +172,24 @@ implementation_notes:
 - Native cancellation exposed grpc-go HTTP-handler eager reads and early return.
   Shared request receive credit and application joins now bound both allocation and
   Control Plane HTTP/2 adapters without a new connection or storage subsystem.
+
+implementation_commit: f284489e1a938e1fa544aa57edbfcde306c59fd6
+verification:
+  status: passed
+  observed: >-
+    make lint, make test-wire-cross-language, make test-runtime and make test-go
+    passed with the owned disposable PostgreSQL available. Runtime passed 6801
+    cases with 136 declared skips and both report verifiers, including all 611
+    compaction cases. Wire passed 1636 selected Python cases and covered 438
+    fixtures through 472 Go and 305 Python shared readers; its one disabled
+    optional heavy-I/O case is not passing coverage. The five selected real
+    Server/Runtime/PostgreSQL process roots all passed, with a nonzero/exact
+    selection verified from reports/v490-005-process.jsonl. Full runtimewire,
+    privateartifacts, controlplane, contracts, mtls, archtest and scheduler race
+    suites passed with integration tags and real PostgreSQL. A native Go/Python
+    TLS/PG lost-reply regression confirms existing CAS reconciliation leaves
+    one revision; native finding/capture replay preserves identical documents
+    and the original receipt. make verify-architecture also passed. Earlier
+    failing fixtures and interrupted outdated-code runs were superseded by these
+    stable gates. Heavy-I/O remained disabled. The complete process/release
+    matrix belongs to V490-006; no deployment or main merge occurred.
