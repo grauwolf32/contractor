@@ -23,8 +23,8 @@ import {
   IconButton,
   TechnicalDetails,
 } from "../../../ui";
-import { LoadedArtifactPreview } from "../../artifacts/loaded-preview";
-import { artifactDetailPath } from "../../artifacts/paths";
+import { LoadedArtifactPreview } from "../../../widgets/artifact-preview/view";
+import { artifactDetailPath } from "../../../app/artifact-path";
 import type { ResearchMaterial } from "./research-data";
 
 function Publication({

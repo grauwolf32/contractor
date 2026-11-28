@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { artifactDetailPath } from "./paths";
+import { artifactDetailPath } from "./artifact-path";
 
 describe("artifactDetailPath", () => {
   const ref = { namespace: "inputs", name: "spec v1", revision: "r/1" };

@@ -14,7 +14,7 @@ import {
 import { usePublicAPI } from "../../../api/context";
 import { RecordedTime } from "../../../app/recorded-time";
 import { Button } from "../../../ui";
-import { artifactDetailPath } from "../../artifacts/paths";
+import { artifactDetailPath } from "../../../app/artifact-path";
 import { SourceEvidence } from "../../issues/evidence-panel";
 import "../../issues/issues.css";
 import { ExactArtifactLink } from "./shared";

@@ -4,7 +4,7 @@ import { Button, EmptyState, Facts, TechnicalDetails } from "../../../ui";
 import { Icon } from "../../../app/icon";
 import { readableValue } from "../../../app/vocabulary";
 import { formatNumber, formatTimestamp } from "../../../app/format";
-import { artifactDetailPath } from "../paths";
+import { artifactDetailPath } from "../../../app/artifact-path";
 import type { SitemapDocument } from "./sitemap-document";
 import "./sitemap.css";
 

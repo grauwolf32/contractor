@@ -9,7 +9,7 @@ import { useCursorStack } from "../../app/pagination";
 import { ProjectSectionActions } from "./navigation";
 import { QueryView } from "../../app/query-view";
 import { ArtifactBindingsTable } from "../artifacts/bindings";
-import { artifactDetailPath } from "../artifacts/paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 
 export function ProjectRegion({
   eyebrow,

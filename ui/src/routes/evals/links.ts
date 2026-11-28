@@ -1,5 +1,5 @@
 import type { EvalArtifact } from "../../api/evals";
-import { artifactDetailPath } from "../artifacts/paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 
 export function artifactHref(a: EvalArtifact): string {
   return artifactDetailPath(

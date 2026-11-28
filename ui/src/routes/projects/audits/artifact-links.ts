@@ -1,5 +1,5 @@
 import type { Audit } from "../../../api/audits";
-import { artifactDetailPath } from "../../artifacts/paths";
+import { artifactDetailPath } from "../../../app/artifact-path";
 
 type AuditExactArtifact = Audit["inputs"][string];
 

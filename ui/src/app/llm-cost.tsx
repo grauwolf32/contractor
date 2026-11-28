@@ -1,7 +1,7 @@
 import type { CostScope } from "../api/llm-cost";
 import { QueryView } from "./query-view";
 import { useLLMCost, type CostQueryOptions } from "./llm-cost-query";
-import { LLMCostCard } from "./llm-cost-card";
+import { LLMCostCard } from "../widgets/llm-cost/card";
 
 export function LLMCostPanel({
   scope,

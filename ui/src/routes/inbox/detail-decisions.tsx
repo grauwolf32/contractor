@@ -7,9 +7,12 @@ import { RecordedTime } from "../../app/recorded-time";
 import { verdictLabel } from "../../app/vocabulary";
 import { DetailHeader, DetailPane } from "../../ui";
 import { IssueDetail as FullIssueDetail } from "../issues/issue-detail";
-import { checkPath } from "../projects/audits/check-links";
+import { checkPath, sectionPath } from "../projects/audits/check-links";
 import { useAuditReport } from "../reports/report-data";
-import { ReportContent, ReportStatusChip } from "../reports/report-view";
+import {
+  ReportContent,
+  ReportStatusChip,
+} from "../../widgets/audit-report/view";
 import {
   DetailBar,
   OpenLink,
@@ -130,7 +133,14 @@ export function ReportDetail({
       }
     >
       <Recorded text={context.recorded} />
-      <ReportContent audit={audit} query={query} />
+      <ReportContent
+        audit={audit}
+        query={query}
+        links={{
+          taskResults: checkPath(audit.projectId, audit.auditId),
+          coverageGaps: `${sectionPath(audit.projectId, audit.auditId, "work")}?work=gap`,
+        }}
+      />
     </DetailPane>
   );
 }

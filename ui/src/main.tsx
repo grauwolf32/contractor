@@ -11,7 +11,6 @@ import "./app/theme.css";
 import "./styles.css";
 import "./app/ui-primitives.css";
 import "./ui/ui.css";
-import "./app/llm-cost.css";
 
 function renderBootstrapFailure(root: HTMLElement, error: unknown): void {
   const message =

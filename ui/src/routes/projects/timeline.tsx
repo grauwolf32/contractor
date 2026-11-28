@@ -23,7 +23,7 @@ import {
   TechnicalDetails,
   StatusChip,
 } from "../../ui";
-import { artifactDetailPath } from "../artifacts/paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 import { auditProfileLabel } from "./audits/labels";
 import { RunPrimaryResult } from "./overview-runs";
 import { projectPath } from "./project-sections";

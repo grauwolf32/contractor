@@ -24,7 +24,9 @@ import {
 type Metrics = components["schemas"]["MetricsSummary"];
 type Diagnostics = components["schemas"]["AttemptDiagnostics"];
 
-const MarkdownPreview = lazy(() => import("../artifacts/previews/markdown"));
+const MarkdownPreview = lazy(
+  () => import("../../widgets/artifact-preview/previews/markdown"),
+);
 
 /** Planner summaries are Markdown; the preview is bounded and lazy-loaded. */
 function ResultSummary({ summary }: { summary: string }) {

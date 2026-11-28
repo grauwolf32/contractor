@@ -12,7 +12,7 @@ import { Icon } from "../../app/icon";
 import { QueryView } from "../../app/query-view";
 import { RecordedTime } from "../../app/recorded-time";
 import { Button, EmptyState, IconButton, StatusChip } from "../../ui";
-import { artifactDetailPath } from "../artifacts/paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
 import { useRunArtifactActions } from "../artifacts/use-run-artifact-actions";
 import {

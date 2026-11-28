@@ -13,7 +13,7 @@ import { RecordedTime } from "../app/recorded-time";
 import { RefreshButton } from "../app/refresh-button";
 import { Button, EmptyState } from "../ui";
 import { ArtifactStoredNotice } from "./artifacts/bindings";
-import { artifactDetailPath } from "./artifacts/paths";
+import { artifactDetailPath } from "../app/artifact-path";
 import { LibrarySectionHeader } from "./catalog/library-parts";
 import { SkillDescription } from "./skill-description";
 import { SkillUploadDialog } from "./skill-upload-dialog";

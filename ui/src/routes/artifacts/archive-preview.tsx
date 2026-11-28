@@ -16,7 +16,7 @@ import { formatBytes } from "../../app/format";
 import { QueryView } from "../../app/query-view";
 import { Button } from "../../ui";
 import { Icon } from "../../app/icon";
-import { LoadedArtifactPreview } from "./loaded-preview";
+import { LoadedArtifactPreview } from "../../widgets/artifact-preview/view";
 import "./archive-preview.css";
 import "./materials.css";
 

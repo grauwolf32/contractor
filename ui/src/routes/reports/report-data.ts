@@ -10,7 +10,6 @@ import {
 } from "../../api/audits";
 import type { PublicAPI } from "../../api/client";
 import { queryKeys } from "../../api/query-keys";
-import { saveBlob } from "../../app/download";
 import { pollInterval } from "../../app/polling";
 import { useAuditProjectionRefresh } from "../projects/audits/projection-refresh";
 
@@ -58,25 +57,4 @@ export function useAuditReport(
   });
   useAuditProjectionRefresh(audit, queryKey);
   return report;
-}
-
-const CERTIFICATION_NOTICE = "not a security or compliance certification";
-
-/** The summary already says the report is not a certification. */
-export function summaryDisclaimsCertification(
-  summary: string | undefined,
-): boolean {
-  return (
-    summary !== undefined &&
-    summary.replace(/\s+/g, " ").toLowerCase().includes(CERTIFICATION_NOTICE)
-  );
-}
-
-/** Saves report content generated in the browser from the report response. */
-export function downloadReportFile(
-  name: string,
-  mediaType: string,
-  content: string,
-): void {
-  saveBlob(new Blob([content], { type: mediaType }), name);
 }

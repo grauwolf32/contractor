@@ -1,7 +1,7 @@
 import { ENGAGEMENT_MEDIA_TYPE } from "../../../api/artifacts";
 import { useId } from "react";
 import { useNavigate } from "react-router";
-import { artifactDetailPath } from "../../artifacts/paths";
+import { artifactDetailPath } from "../../../app/artifact-path";
 import { ButtonLink } from "../../../ui";
 import { presentCheckType, scopeSummary } from "./check-types";
 import type { StartCheck } from "./use-start-check";

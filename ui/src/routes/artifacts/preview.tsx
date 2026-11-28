@@ -17,7 +17,7 @@ import { ErrorNotice } from "../../app/error-notice";
 import { Button, IconButton } from "../../ui";
 import { Icon } from "../../app/icon";
 import { ArchivePreviewPanel } from "./archive-preview";
-import { LoadedArtifactPreview } from "./loaded-preview";
+import { LoadedArtifactPreview } from "../../widgets/artifact-preview/view";
 import "./materials.css";
 
 /**

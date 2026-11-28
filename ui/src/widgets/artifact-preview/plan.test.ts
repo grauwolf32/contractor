@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createArtifactPreviewPlan } from "./preview-plan";
+import { createArtifactPreviewPlan } from "./plan";
 import memories from "../../../../api/testdata/finding-memory-sources.json";
 
 // LIM-UI-17 in docs/spec/platform/limits.md, pinned here so the module cannot

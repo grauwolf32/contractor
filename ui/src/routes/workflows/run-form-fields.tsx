@@ -19,7 +19,7 @@ import {
   GitImportDialog,
   GitSourceDetails,
 } from "../artifacts/git-import-dialog";
-import { artifactDetailPath } from "../artifacts/paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 import type { RunDraftErrors } from "./run-form-state";
 import type { RunFormInventories } from "./run-form-inventories";
 import { RunInputUploadDialog } from "./run-input-upload-dialog";

@@ -32,7 +32,7 @@ import {
 } from "./research-data";
 import { TaskResultView } from "./task-result-view";
 import { useLLMCost } from "../../../app/llm-cost-query";
-import { CostAmount, CostBasisLabel } from "../../../app/llm-cost-card";
+import { CostAmount, CostBasisLabel } from "../../../widgets/llm-cost/card";
 import { ErrorNotice } from "../../../app/error-notice";
 
 function TaskAttempts({ audit, task }: { audit: Audit; task: ResearchTask }) {

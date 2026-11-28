@@ -10,9 +10,9 @@ import {
 import type { HTTPExchangeDocument } from "../../../api/http-exchange";
 import HTTPExchangePreview from "./http-exchange";
 import { saveBlob } from "../../../app/download";
-import { LoadedArtifactPreview } from "../loaded-preview";
+import { LoadedArtifactPreview } from "../view";
 import { renderWithAPI } from "../../../test/render";
-import { ArtifactPreviewPanel } from "../preview";
+import { ArtifactPreviewPanel } from "../../../routes/artifacts/preview";
 
 vi.mock("../../../app/download", () => ({ saveBlob: vi.fn() }));
 

@@ -19,15 +19,30 @@ import {
   type StatusTone,
 } from "../../ui";
 
-import {
-  downloadReportFile,
-  summaryDisclaimsCertification,
-} from "./report-data";
+import { saveBlob } from "../../app/download";
 
-import "./reports.css";
-import { checkPath, sectionPath } from "../projects/audits/check-links";
+import "./report.css";
 
-const ReportMarkdown = lazy(() => import("./report-markdown"));
+const ReportMarkdown = lazy(() => import("./markdown"));
+
+const CERTIFICATION_NOTICE = "not a security or compliance certification";
+
+/** The summary already says the report is not a certification. */
+function summaryDisclaimsCertification(summary: string | undefined): boolean {
+  return (
+    summary !== undefined &&
+    summary.replace(/\s+/g, " ").toLowerCase().includes(CERTIFICATION_NOTICE)
+  );
+}
+
+/** Saves report content generated in the browser from the report response. */
+function downloadReportFile(
+  name: string,
+  mediaType: string,
+  content: string,
+): void {
+  saveBlob(new Blob([content], { type: mediaType }), name);
+}
 
 /** The report's status word and tone. */
 export function ReportStatusChip({
@@ -228,7 +243,13 @@ function loadErrorHint(error: Error): string {
   return "Try again to load the report.";
 }
 
+interface ReportLinks {
+  taskResults: string;
+  coverageGaps: string;
+}
+
 interface ReportContentProps {
+  links: ReportLinks;
   audit: Audit;
   /** The report read (useAuditReport). */
   query: Pick<
@@ -241,7 +262,7 @@ interface ReportContentProps {
  * A check's report: status messages, the summary as Markdown, downloads,
  * the certification notice and the exact files.
  */
-export function ReportContent({ audit, query }: ReportContentProps) {
+export function ReportContent({ audit, query, links }: ReportContentProps) {
   return (
     <div className="reports-body">
       <QueryView
@@ -254,7 +275,9 @@ export function ReportContent({ audit, query }: ReportContentProps) {
         errorContext="Could not load the report"
         errorHint={loadErrorHint}
       >
-        {(report) => <LoadedReportContent audit={audit} report={report} />}
+        {(report) => (
+          <LoadedReportContent audit={audit} report={report} links={links} />
+        )}
       </QueryView>
     </div>
   );
@@ -263,9 +286,11 @@ export function ReportContent({ audit, query }: ReportContentProps) {
 function LoadedReportContent({
   audit,
   report,
+  links,
 }: {
   audit: Audit;
   report: AuditReport;
+  links: ReportLinks;
 }) {
   const summaryId = useId();
   const readable = report.status === "ready";
@@ -280,15 +305,9 @@ function LoadedReportContent({
           </span>
         ) : null}
         {report.status === "unavailable" ? (
-          <Link to={checkPath(audit.projectId, audit.auditId)}>
-            View task results →
-          </Link>
+          <Link to={links.taskResults}>View task results →</Link>
         ) : (
-          <Link
-            to={`${sectionPath(audit.projectId, audit.auditId, "work")}?work=gap`}
-          >
-            Review coverage gaps →
-          </Link>
+          <Link to={links.coverageGaps}>Review coverage gaps →</Link>
         )}
       </p>
       {readable ? (
