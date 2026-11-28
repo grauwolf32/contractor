@@ -1,0 +1,121 @@
+schema_version: "1.0"
+id: V498-005
+title: "Verify Artifact publication against deletion and purge with TLC"
+milestone: artifact-release-cleanup-2026-11
+epic: projects-artifacts
+kind: chore
+priority: P2
+status: in_progress
+depends_on: [V498-004]
+languages: [go]
+goal: >-
+  Establish checked evidence that a published exact Run output survives source
+  deletion, Project deletion fences new publication, and purge preserves content
+  still referenced outside the deleted scope.
+context:
+  authority:
+    - "User request 2026-11-28: run the Artifact publication/deletion/purge TLA+/TLC pilot, create a task and connect results to PostgreSQL tests."
+    - "User request 2026-11-28: store artifacts in /Users/ruslan/src/contractor/.lean/artifact-publication."
+  specification:
+    - docs/spec/artifacts/artifact-store.md#ART-R99
+    - docs/spec/artifacts/projects.md#PRJ-R52
+    - docs/spec/artifacts/projects.md#PRJ-R53
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R11
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R13
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R22
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R27
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R40
+    - docs/spec/artifacts/retention-and-deletion.md#DEL-R44
+  finding: >-
+    internal/artifacts/postgres/fork_sql.go owns exact metadata publication and
+    source-scope locking; purge.go owns scope, version and blob locking plus
+    fresh reference checks. Existing tests exercise deletion admission and
+    publication-first purge, but do not bind a protocol model to both committed
+    and rolled-back orders of source purge and destination deletion.
+  boundary: >-
+    ArtifactStore owns exact revision/binding/lineage publication and shared
+    version/blob retention. ProjectStore owns the active-to-deleting fence;
+    RunDeletion owns terminal/released eligibility and atomic source deletion.
+    Model finite metadata transactions, rollback, lifecycle fencing and fresh
+    garbage-collection decisions. PostgreSQL lock/constraint/atomicity semantics
+    are assumptions checked independently on the real store, not formally proved.
+    Controlled source purge may remove lineage and source revisions while an
+    independently owned destination binding retains the version and blob.
+  decision: >-
+    Use a bounded local safety model with mutation controls and reachability
+    witnesses, new PostgreSQL regressions and existing lifecycle/GC coverage.
+    A publication-only atomic model would be simpler but miss stale reference
+    checks and deletion fencing. No intended production behavior change; any
+    established defect requires a separately scoped task. ArtifactStore and
+    lifecycle owners reopen this evidence when admission, locks, references,
+    purge batches or transaction boundaries change.
+scope:
+  in:
+    - "Exact create-only Run-to-Project publication against source purge and destination deletion in both orders, including transaction rollback."
+    - "Independent target retention, lineage removal, shared version/blob GC and fresh post-lock reference checks."
+    - "Destination batch purge after source drain, with surviving references in another scope."
+    - "Bounded safety checks, named negative controls, reachability witnesses, real PostgreSQL regressions, complete touched packages and lint."
+    - "Hash-pinned local model/logs, tracked task/evidence/tests, explicit skips and owned database cleanup."
+  out:
+    - "Production/schema/API changes, automatic CI adoption, deployment and unbounded correctness or liveness claims."
+    - "All Audit/finding publication callers, historical revision retention, physical filesystem deletion/read leases, prepared payload ingestion and arbitrary SQL interleavings."
+    - "Scheduler terminal publication receipts/recovery, network fault injection and authorization beyond existing lifecycle gates."
+acceptance_criteria:
+  - id: A1
+    text: "Finite baseline graphs exhaust without violations of exact publication, deletion fencing, atomicity, independent retention and reference-safe GC; bounds and code correspondence are recorded."
+  - id: A2
+    text: "Each weakened gate violates its named invariant and witnesses reach both race orders, rollback and collection after the last reference disappears."
+  - id: A3
+    text: "Real PostgreSQL tests observe actual lock waits and verify publication/source-purge and publication/Project-deletion outcomes after commit and rollback; a composed Run deletion preserves the published exact payload."
+  - id: A4
+    text: "Existing real-store shared-blob/version and bounded Project purge tests pass and are mapped to model properties by exact executed test identities."
+  - id: A5
+    text: "Full touched packages, exact-test evidence validation and lint pass; no disabled heavy fixture counts as coverage and owned database resources are removed."
+tests:
+  - command: "python3 /Users/ruslan/src/contractor/.lean/artifact-publication/run.py"
+    covers: [A1, A2]
+  - command: "go test -json -race -tags=integration -count=1 -timeout 20m ./internal/artifacts/postgres ./internal/rundeletion"
+    covers: [A3, A4, A5]
+  - command: "python3 /Users/ruslan/src/contractor/.lean/artifact-publication/verify_postgres.py"
+    covers: [A3, A4, A5]
+  - command: make lint
+    covers: [A5]
+verification:
+  evidence: tasks/evidence/v498-005-artifact-publication.json
+  local_report: /Users/ruslan/src/contractor/.lean/artifact-publication/README.md
+  result: >-
+    Eight finite baseline graphs exhaust without violations: Publication has
+    75, 348, 346 and 347 distinct states; GC has 6, 30, 56 and 404. All nine
+    negative controls violate their named invariants and all 28 reachability
+    witnesses are reached, for 45 expected TLC outcomes. Independent target
+    retention is checked until its own committed purge, including while the
+    Project is deleting. Both complete Go packages pass under race/integration:
+    94 top-level tests and all nine new scenarios. Exact test identity checks
+    confirm required existing publication, lifecycle, shared-content and bounded
+    Project purge tests. Full make lint passes. Owned disposable database,
+    server, data and socket cleanup succeeds after both gates finish.
+  skips: >-
+    Four explicitly disabled disk-heavy Go cases are not coverage:
+    TestPostgresIntegration64MiBPayloadBoundary,
+    TestPostgresArtifactSelectiveQueryPlans,
+    TestPostgresRunRevisionLimitAndBoundedPurge and
+    TestPostgresRunRevisionLimitIsNotRefundedByHistoryRetention.
+    One auxiliary Python unittest also skips during lint. The ordinary bounded
+    Project purge test runs with 15 revisions and batch=4; production maximum
+    revision cardinality is not established by this pilot.
+  limits: >-
+    Finite safety, not an unbounded or Go/SQL refinement proof, liveness,
+    fairness or a composition theorem between models. One frozen source and
+    Project, up to two publication clients/slots; GC separately explores up to
+    two purgers of separate versions sharing one blob and one writer. PostgreSQL
+    atomicity, locking and constraints are assumptions checked independently on
+    real PostgreSQL. Mutant traces omit some remaining FK defenses, which can
+    turn an unsafe deletion into an abort in actual SQL. Direct Purger races
+    assume lifecycle authority; the composed scenario checks ordinary RunDeletion
+    and a drained Project, not Project controller restart/claim behavior.
+    Audit/finding publication, physical filesystem cleanup/read leases,
+    historical retention, prepared ingestion, Scheduler terminal receipts,
+    HTTP authorization and network failure remain outside the pilot.
+    No production defect was established or production/schema/API changed.
+    ArtifactStore and lifecycle owners revisit when admission, locks, exact
+    references, transaction boundaries or purge batches change. No CI gate.
