@@ -217,6 +217,74 @@
       "read-only",
       "tenant-isolation"
     ],
-    "objective": "Review the supplied source and produce a structured evidence report. Preserve tenant isolation and read-only operation. Distinguish observed defects from hypotheses. Return JSON with findings (path, line and kind per finding), observed and uncertain hypothesis IDs, and constraints copied by ID. Verify hypotheses against source; do not promote an unsupported exploitability claim to an observation. Classify a concatenated SQL expression as kind sql_concatenation."
+    "objective": "Review the supplied source and produce a structured evidence report. Preserve tenant isolation and read-only operation. Distinguish observed defects from hypotheses. Return JSON with findings (path, line and kind per finding), observed and uncertain hypothesis IDs, and constraints copied by ID. Verify hypotheses against source; do not promote an unsupported exploitability claim to an observation. Classify a concatenated SQL expression as kind sql_concatenation. Output must match task.outputSchema exactly; futureAnswer is optional until a later question requests it. findings is an array of objects with exactly path, line (1-based integer) and kind (canonical machine slug); no extra finding metadata. observed and uncertain contain hypothesis IDs from inputs.hypotheses, classified by direct source support versus unproven claims.",
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "constraints",
+        "findings",
+        "observed",
+        "uncertain"
+      ],
+      "properties": {
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "maxItems": 1024
+        },
+        "futureAnswer": {},
+        "findings": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "line",
+              "kind"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "kind": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "observed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "maxItems": 1024
+        },
+        "uncertain": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "maxItems": 1024
+        }
+      }
+    }
   }
 }

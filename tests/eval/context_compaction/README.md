@@ -66,6 +66,16 @@ ordinary task `{kind, objective, parameters}`. Never upload `private/`.
   an earlier receipt when needed, and avoid repeating a settled probe or
   generalizing it to untested inputs.
 
+Visible tasks include a closed JSON Schema in `task.outputSchema` and declare
+constraint/hypothesis IDs. The source finding object has only path/line/kind;
+source observed/uncertain arrays use hypothesis IDs. Negative-memory negative
+and observed arrays use `probeId`, with observed including every recorded probe
+(both denied and allowed); receipt IDs remain retrieval evidence. Shape checks
+and domain/environment checks remain independent, including when a field is
+malformed. The optional futureAnswer field is judged only after a controlled
+later question. These are new visible-case/scorer pins; old R5 assessments stay
+unchanged.
+
 Visible tasks declare output fields and constraint/hypothesis IDs. Private truth
 contains expected answers and later questions; the execution projection allowlists
 only `id`, `task`, `inputs`, `requires`, `outputs`. Scorers reject plausible wrong

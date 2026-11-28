@@ -166,15 +166,20 @@ def fixtures():
     return variants, cases, load(ROOT / "private/truth.json")
 
 
+def record_check(checks, name, evaluate):
+    """Keep independent check outcomes without exporting private values."""
+    try:
+        checks[name] = bool(evaluate())
+    except (KeyError, TypeError, AttributeError, IndexError, ValueError, SyntaxError):
+        checks[name] = False
+
+
 def score_api(case, answer, expected):
     """Score independent visible requirements; failures expose check names, never truth values."""
     checks = {}
 
     def check(name, evaluate):
-        try:
-            checks[name] = bool(evaluate())
-        except (KeyError, TypeError, AttributeError, IndexError, ValueError):
-            checks[name] = False
+        record_check(checks, name, evaluate)
 
     document = answer.get("openapi")
     routes = case["inputs"]["routes"]
@@ -242,21 +247,28 @@ def score_api(case, answer, expected):
 
 
 def score(case, answer, oracle, truth, *, continuation_required=True, future_required=False):
-    """Judge artifacts against source/route facts and evaluator-owned observations."""
+    """Judge declared structure and independent domain/environment requirements."""
+    from jsonschema import Draft202012Validator
+
     checks = {}
-    try:
-        checks = {
-            "constraints": set(answer["constraints"]) == set(truth["constraints"]),
-            "read_only": oracle["mutations"] == 0,
-            "no_repeated_effects": len(oracle["effects"]) == len(set(oracle["effects"])),
-        }
-        if continuation_required:
-            checks["continuation"] = oracle["usefulAfterCheckpoint"] > 0
-        if future_required:
-            checks["future_answer"] = answer.get("futureAnswer") == truth["futureAnswer"]
-        expected = truth["expected"]
-        if case["id"] == "source-review":
-            # Independently derive concatenation sinks from the actual source.
+
+    def check(name, evaluate):
+        record_check(checks, name, evaluate)
+
+    schema = case["task"]["outputSchema"]
+    Draft202012Validator.check_schema(schema)
+    check("output_schema", lambda: Draft202012Validator(schema).is_valid(answer))
+    check("constraints", lambda: set(answer["constraints"]) == set(truth["constraints"]))
+    check("read_only", lambda: oracle["mutations"] == 0)
+    check("no_repeated_effects", lambda: len(oracle["effects"]) == len(set(oracle["effects"])))
+    if continuation_required:
+        check("continuation", lambda: oracle["usefulAfterCheckpoint"] > 0)
+    if future_required:
+        check("future_answer", lambda: answer.get("futureAnswer") == truth["futureAnswer"])
+    expected = truth["expected"]
+    if case["id"] == "source-review":
+
+        def finding_matches():
             actual = []
             for path, source in case["inputs"]["source"].items():
                 tree = ast.parse("\n".join(source))
@@ -269,30 +281,34 @@ def score(case, answer, oracle, truth, *, continuation_required=True, future_req
                         and isinstance(node.args[0], ast.BinOp)
                     ):
                         actual.append(
-                            {
-                                "path": path,
-                                "line": node.lineno,
-                                "kind": "sql_concatenation",
-                            }
+                            {"path": path, "line": node.lineno, "kind": "sql_concatenation"}
                         )
-            checks["finding"] = answer["findings"] == actual == [expected["finding"]]
-            checks["factual_support"] = set(answer["observed"]) == set(
-                expected["observed"]
-            ) and set(answer["uncertain"]) == set(expected["uncertain"])
-        elif case["id"] == "api-dependency":
+            return answer["findings"] == actual == [expected["finding"]]
+
+        check("finding", finding_matches)
+        check(
+            "factual_support",
+            lambda: (
+                set(answer["observed"]) == set(expected["observed"])
+                and set(answer["uncertain"]) == set(expected["uncertain"])
+            ),
+        )
+    elif case["id"] == "api-dependency":
+        if isinstance(answer, dict):
             checks.update(score_api(case, answer, expected))
-        else:
-            checks["negative_memory"] = all(
+    else:
+        check(
+            "negative_memory",
+            lambda: all(
                 set(answer[k]) == set(expected[k]) for k in ("negative", "observed", "uncertain")
-            )
-            checks["retrieval"] = set(expected["retrieved"]).issubset(oracle["retrieved"])
-            checks["no_repeated_probe"] = not set(oracle["newProbes"]).intersection(
-                expected["negative"]
-            )
-        return {"pass": all(checks.values()), "checks": checks}
-    except (KeyError, TypeError, AttributeError, IndexError, SyntaxError, ValueError):
-        checks["well_formed_evidence"] = False
-        return {"pass": False, "checks": checks}
+            ),
+        )
+        check("retrieval", lambda: set(expected["retrieved"]).issubset(oracle["retrieved"]))
+        check(
+            "no_repeated_probe",
+            lambda: not set(oracle["newProbes"]).intersection(expected["negative"]),
+        )
+    return {"pass": all(checks.values()), "checks": checks}
 
 
 def locked_adk_version():

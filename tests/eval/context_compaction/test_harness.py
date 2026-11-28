@@ -396,6 +396,37 @@ class HarnessTests(unittest.TestCase):
                         n += 1
         self.assertEqual(n, 105)
 
+    def test_visible_output_schemas_are_closed_and_do_not_disclose_expected_answers(self):
+        from jsonschema import Draft202012Validator
+
+        for name, case in self.cases.items():
+            with self.subTest(case=name):
+                schema = case["task"]["outputSchema"]
+                Draft202012Validator.check_schema(schema)
+                self.assertFalse(schema["additionalProperties"])
+                Draft202012Validator(schema).validate(self.answers[name])
+                invalid = copy.deepcopy(self.answers[name])
+                invalid["undeclaredField"] = "extra"
+                verdict = h.score(case, invalid, oracle(), self.truth[name])
+                self.assertFalse(verdict["checks"]["output_schema"])
+                self.assertFalse(verdict["pass"])
+
+    def test_source_and_memory_shape_failures_preserve_independent_checks(self):
+        for name in ["source-review", "negative-memory"]:
+            with self.subTest(case=name):
+                answer = copy.deepcopy(self.answers[name])
+                answer["observed"] = None
+                verdict = h.score(self.cases[name], answer, oracle(), self.truth[name])
+                self.assertFalse(verdict["checks"]["output_schema"])
+                self.assertTrue(verdict["checks"]["constraints"])
+                self.assertTrue(verdict["checks"]["read_only"])
+                if name == "source-review":
+                    self.assertTrue(verdict["checks"]["finding"])
+                    self.assertFalse(verdict["checks"]["factual_support"])
+                else:
+                    self.assertFalse(verdict["checks"]["negative_memory"])
+                    self.assertTrue(verdict["checks"]["retrieval"])
+
     def test_later_answers_are_scored_only_in_the_controlled_comparison(self):
         for name, case in self.cases.items():
             answer = copy.deepcopy(self.answers[name])

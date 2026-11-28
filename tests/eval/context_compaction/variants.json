@@ -1,8 +1,8 @@
 {
   "cases": {
-    "api-dependency": "sha256:a2ef123f7c369667e2f877b2583f4c12950bf7001cf55b9cdda4c84488425bf5",
-    "negative-memory": "sha256:60ea8a9c18280167ca66798269d9cb6cfbb7a7dba210e37b066911126f457963",
-    "source-review": "sha256:fd34e2cfe7b920874b8bbf64fd770ee0cda19d2ad0b202895d985380e0f1ae1e"
+    "api-dependency": "sha256:36a928d870f3cf7b2f1ad6c42bd5be80ab5935488a8b7e6ff00faaf324b7fe1e",
+    "negative-memory": "sha256:02eea6ec659a2b4a33d4c0d033e1453d42ac6213e0db0af8c3a021637c696f02",
+    "source-review": "sha256:d8a9b96f4468557c9dc447eb77551041f90542cb8b6954f2f54f37f9dd1f5807"
   },
   "catalogFiles": {
     "catalog/agent-templates/context-eval-controlled-compact.yaml": "sha256:bab8b85ea6d014d11b097670dce91a22aeda0d31abee172c30f41a8d6f989959",
@@ -44,7 +44,7 @@
   },
   "repetitions": 5,
   "schemaVersion": "context-compaction-variants/v1",
-  "scorerSha256": "sha256:17d7917ee25c3fefb7551195aecfb30007cdb02c04fc90dd51f9f1f710449409",
+  "scorerSha256": "sha256:d4ba0b24c56a4020582cf3bacdc128ad0ac9e5df4387100be88f5fb86c14ecce",
   "thresholds": {
     "maxQualityDrop": 0,
     "maxTokenRatio": 1.0,

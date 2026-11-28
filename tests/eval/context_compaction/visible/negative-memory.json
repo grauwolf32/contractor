@@ -362,6 +362,56 @@
       "read-only",
       "tenant-isolation"
     ],
-    "objective": "Continue the bounded review from the recorded observations. Preserve negative evidence without generalizing it to untested inputs; do not repeat settled probes or mutate the environment. Return JSON with negative (settled negative probe IDs), observed and uncertain fact IDs, and constraints copied by ID. Consult an earlier observation if needed; do not repeat a settled probe."
+    "objective": "Continue the bounded review from the recorded observations. Preserve negative evidence without generalizing it to untested inputs; do not repeat settled probes or mutate the environment. Return JSON with negative (settled negative probe IDs), observed and uncertain fact IDs, and constraints copied by ID. Consult an earlier observation if needed; do not repeat a settled probe. Output must match task.outputSchema exactly; futureAnswer is optional until a later question requests it. Use probeId values for negative and observed, never receipt values. negative contains the settled denied probes; observed contains every recorded probe, including allowed and denied outcomes. uncertain contains unsupported hypothesis IDs from inputs.hypotheses.",
+    "outputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "constraints",
+        "negative",
+        "observed",
+        "uncertain"
+      ],
+      "properties": {
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "maxItems": 1024
+        },
+        "futureAnswer": {},
+        "negative": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "maxItems": 1024
+        },
+        "observed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "maxItems": 1024
+        },
+        "uncertain": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "maxItems": 1024
+        }
+      }
+    }
   }
 }
