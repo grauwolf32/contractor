@@ -73,7 +73,7 @@ def observe(directory, run_id):
             continue
         name = values.get("tool.name")
         require(
-            name in {"read_text_artifact", "write_text_artifact", "read_context_history"},
+            name in {"read_artifact", "write_text_artifact", "read_context_history"},
             "unmeasured tool capability",
         )
         argument = json.loads(values["contractor.input"])
@@ -92,7 +92,7 @@ def observe(directory, run_id):
         if output.get("ok") is False:
             continue
         tools.append(span)
-        if name == "read_text_artifact":
+        if name == "read_artifact":
             require(isinstance(output.get("text"), str), "source observation missing")
             retrieved.update(re.findall(r"\bobs-P[0-9]+\b", output["text"]))
         elif name == "write_text_artifact":

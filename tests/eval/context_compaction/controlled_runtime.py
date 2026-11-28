@@ -119,7 +119,7 @@ class RequestProbe:
                 data = response.response or {}
                 artifact = data.get("artifact", {})
                 if (
-                    response.name == "read_text_artifact"
+                    response.name == "read_artifact"
                     and artifact.get("namespace") == "inputs"
                     and artifact.get("name") == "source"
                     and isinstance(data.get("text"), str)
@@ -151,7 +151,7 @@ class RequestProbe:
                     if (
                         response is not None
                         and response.id in responses
-                        and response.name == "read_text_artifact"
+                        and response.name == "read_artifact"
                         and isinstance(response.response.get("text"), str)
                         and bool(response.response["text"])
                     ):
@@ -220,8 +220,8 @@ def controlled_worker(questions, record):
                     "unsupported controlled Worker configuration",
                 )
                 h.require(
-                    "read_text_artifact" in context.tools
-                    and set(context.tools) <= {"read_text_artifact", "write_text_artifact"}
+                    "read_artifact" in context.tools
+                    and set(context.tools) <= {"read_artifact", "write_text_artifact"}
                     and not context.resolved_skills,
                     "controlled probes require the frozen text-only capability set",
                 )

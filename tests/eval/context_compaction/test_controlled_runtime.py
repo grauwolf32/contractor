@@ -60,7 +60,7 @@ def pair(number, text):
                     types.Part(
                         function_call=types.FunctionCall(
                             id=f"call-{number}",
-                            name="read_text_artifact",
+                            name="read_artifact",
                             args={"start_line": number},
                         )
                     )
@@ -76,7 +76,7 @@ def pair(number, text):
                     types.Part(
                         function_response=types.FunctionResponse(
                             id=f"call-{number}",
-                            name="read_text_artifact",
+                            name="read_artifact",
                             response={
                                 "artifact": {
                                     "namespace": "inputs",
@@ -273,7 +273,7 @@ class ControlledRuntimeTests(unittest.TestCase):
 
     def test_unsupported_shared_control_joins_native_factory_rollback(self):
         async def scenario():
-            async def read_text_artifact() -> dict:
+            async def read_artifact() -> dict:
                 """Read the frozen source."""
                 return {}
 
@@ -281,7 +281,7 @@ class ControlledRuntimeTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as directory:
                 context = replace(
                     build_context(
-                        Path(directory), WorkerState(), {"read_text_artifact": read_text_artifact}
+                        Path(directory), WorkerState(), {"read_artifact": read_artifact}
                     ),
                     template_ref=AgentTemplateRef(
                         templateId="context-eval-masking", version="1", digest="sha256:" + "e" * 64
@@ -333,7 +333,7 @@ class ControlledRuntimeTests(unittest.TestCase):
                 raise OSError("private recorder unavailable")
             records.append(row)
 
-        async def read_text_artifact(start_line: int = 1) -> dict:
+        async def read_artifact(start_line: int = 1) -> dict:
             """Read a frozen evidence page."""
             effects.append(start_line)
             return {
@@ -342,7 +342,7 @@ class ControlledRuntimeTests(unittest.TestCase):
             }
 
         responses = [
-            tool_call("read_text_artifact", {"start_line": n}, call_id=f"call-{n}")
+            tool_call("read_artifact", {"start_line": n}, call_id=f"call-{n}")
             for n in [1, 2, 3]
         ]
         if outcome == "gateway-error":
@@ -354,7 +354,7 @@ class ControlledRuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             state = WorkerState()
             context = replace(
-                build_context(Path(directory), state, {"read_text_artifact": read_text_artifact}),
+                build_context(Path(directory), state, {"read_artifact": read_artifact}),
                 worker_session_mode=WorkerSessionMode.ISOLATED,
                 template_ref=AgentTemplateRef(
                     templateId="context-eval-masking", version="1", digest="sha256:" + "e" * 64
@@ -385,7 +385,7 @@ class ControlledRuntimeTests(unittest.TestCase):
 
     def test_native_compactor_finishes_before_the_later_question_is_disclosed(self):
         async def scenario():
-            async def read_text_artifact(start_line: int = 1) -> dict:
+            async def read_artifact(start_line: int = 1) -> dict:
                 """Read a frozen evidence page."""
                 return {
                     "artifact": {"namespace": "inputs", "name": "source", "revision": "r1"},
@@ -395,9 +395,9 @@ class ControlledRuntimeTests(unittest.TestCase):
             model = ClosedModel(
                 model="worker-model",
                 responses=[
-                    usage(tool_call("read_text_artifact", {"start_line": 1}, call_id="first"), 100),
+                    usage(tool_call("read_artifact", {"start_line": 1}, call_id="first"), 100),
                     usage(
-                        tool_call("read_text_artifact", {"start_line": 2}, call_id="second"), 500
+                        tool_call("read_artifact", {"start_line": 2}, call_id="second"), 500
                     ),
                     usage(text_result("done"), 100),
                 ],
@@ -412,7 +412,7 @@ class ControlledRuntimeTests(unittest.TestCase):
                     compact_context(
                         Path(directory),
                         WorkerState(),
-                        {"read_text_artifact": read_text_artifact},
+                        {"read_artifact": read_artifact},
                         max_tool_calls=2,
                     ),
                     template_ref=AgentTemplateRef(

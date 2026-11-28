@@ -100,7 +100,7 @@ class ObserverTests(unittest.TestCase):
                     tool_start,
                     tool_start + 1,
                     {
-                        "tool.name": "read_text_artifact",
+                        "tool.name": "read_artifact",
                         "contractor.input": "{}",
                         "contractor.output": encode_content(
                             {"text": "x" * (MAX_CONTENT_BYTES + 100)}
