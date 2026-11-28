@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 10 in progress, 42 pending, 13 deferred. 1743 finished: 1724 completed, 19 archived.
+66 open tasks: 11 in progress, 42 pending, 13 deferred. 1743 finished: 1724 completed, 19 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V494-001](v494-001-security-playground-managed-evals.yml) | evals | feature | P2 | Connect Security Playground datasets and Invoice Lab to current Managed Evals |
 
 ## Pending
 
@@ -169,7 +170,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 21 | 79 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
-| Evaluations (`evals`) | 4 | 23 | 47 | 24 | 55 |
+| Evaluations (`evals`) | 5 | 24 | 47 | 24 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
 | Web UI (`ui`) | 1 | 57 | 83 | 36 | 81 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |

@@ -7,7 +7,7 @@
 
 # Private paired targets: mandatory cases, actual Runtime captures and Podman
 # isolation. No database or Gateway; never silently skips unavailable prerequisites.
-PENTEST_PLAYGROUND_ROOT ?= $(abspath ../contractor-playground)
+PENTEST_PLAYGROUND_ROOT ?= $(abspath ../security-playground)
 .PHONY: test-pentest-fixtures
 test-pentest-fixtures: runtime-venv
 	cd runtime && uv run python ../tests/eval/pentest/gate.py --playground-root "$(PENTEST_PLAYGROUND_ROOT)"

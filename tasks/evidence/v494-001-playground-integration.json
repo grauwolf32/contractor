@@ -1,0 +1,93 @@
+{
+  "schema_version": "contractor.playground-integration-evidence.v1",
+  "date": "2026-11-28",
+  "task": "V494-001",
+  "contractor_base": "86ceaf2cb507db3334936133b9ea312c12ad6cbb",
+  "playground_commit": "7f4ead9a2d60e5b6dc09ce19026b6f06ece4c5d5",
+  "boundary": "Playground imports visible datasets and exact input refs; native Contractor services own planning, execution and comparison. The fixture gate pins security-playground/targets/invoice-lab.",
+  "verification": [
+    {
+      "command": "uv run --project evals --locked --offline pytest",
+      "cwd": "security-playground",
+      "passed": 320,
+      "skipped": 0
+    },
+    {
+      "command": "uv run --project evals --locked --offline playground-eval validate",
+      "projects": 211,
+      "suites": 9,
+      "status": "passed"
+    },
+    {
+      "command": "uv run --project evals --locked --offline ruff check evals/src evals/tests evals/scripts",
+      "status": "passed"
+    },
+    {
+      "command": "uv run --project evals --locked --offline python evals/scripts/sync_contractor_contract.py --contractor-root ../contractor --check",
+      "status": "passed"
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts -p test_pentest_pin.py",
+      "passed": 4,
+      "skipped": 0
+    },
+    {
+      "command": "make test-pentest-fixtures PENTEST_PLAYGROUND_ROOT=/Users/ruslan/src/security-playground",
+      "standalone_passed": 14,
+      "mandatory_checks": [
+        "paired-identity-matrix",
+        "paired-injection",
+        "denied-traffic",
+        "fabricated-assertion",
+        "wrong-identity",
+        "missing-evidence",
+        "truncated-evidence",
+        "incomplete-response",
+        "forged-capture",
+        "no-state-effect",
+        "cancelled-check",
+        "private-controls-runtime",
+        "private-controls-target",
+        "private-controls-sandbox",
+        "private-files-target",
+        "failure-teardown"
+      ],
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "command": "make lint",
+      "status": "passed"
+    },
+    {
+      "command": "TMPDIR=/private/tmp CONTRACTOR_TEST_DATABASE_URL=<owned disposable database> go test -json -count=1 ./internal/httpapi/public",
+      "passed_test_nodes": 1053,
+      "skipped": 0,
+      "status": "passed"
+    },
+    {
+      "command": "go test -count=1 -run '^TestSharedPlaygroundNativeClientProbe$' ./internal/httpapi/public",
+      "source": "tasks/evidence/v494-001-native-client-probe.go.txt",
+      "status": "passed",
+      "observed": [
+        "Real PostgreSQL and httptest public HTTP server",
+        "Current Python ManagedClient imports exact existing case/source refs",
+        "Dataset and experiment receipt replay is identical",
+        "Native Prepare reaches ready with a pinned plan",
+        "Capabilities, command status, experiment, members and report decode strictly",
+        "Start receives a server command receipt"
+      ]
+    }
+  ],
+  "cleanup": {
+    "database": "playground_eval_test dropped",
+    "postgres": "owned temporary PostgreSQL cluster stopped and removed",
+    "podman": "fixture removes its uniquely labelled containers, volumes and temporary images",
+    "primary_user_files": "tasks/BACKLOG.md and untracked tasks/v486-001-portable-linux-kit.yml preserved during isolated implementation"
+  },
+  "limitations": [
+    "No live model campaign, provider quality measurement or deployment was performed.",
+    "Native required-artifact/media checks are structural; semantic domain scorers remain external and private.",
+    "The existing paused V417 experiments and configured model policies were not changed."
+  ]
+}

@@ -1,0 +1,75 @@
+package public
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http/httptest"
+	"os/exec"
+	"path/filepath"
+	"testing"
+
+	"github.com/grauwolf32/contractor/internal/evaldomain"
+)
+
+func TestSharedPlaygroundNativeClientProbe(t *testing.T) {
+	h := newEvalAPIHarness(t)
+	draft, data := h.dataset(t, "workflow")
+	server := httptest.NewServer(h.handler)
+	defer server.Close()
+	root := "/Users/ruslan/src/security-playground"
+	invoke := func(script string, input any) map[string]any {
+		t.Helper()
+		raw, err := json.Marshal(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmd := exec.CommandContext(t.Context(), filepath.Join(root, "evals/.venv/bin/python"), "-c", script, server.URL, testBearerToken)
+		cmd.Stdin = bytes.NewReader(raw)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("native client probe: %v: %s", err, output)
+		}
+		var result map[string]any
+		if err := json.Unmarshal(output, &result); err != nil {
+			t.Fatalf("decode probe: %v: %s", err, output)
+		}
+		return result
+	}
+	result := invoke(`import json,sys
+from playground_evals.managed import ManagedClient
+v=json.load(sys.stdin)
+with ManagedClient(sys.argv[1],sys.argv[2]) as c:
+ c.capabilities()
+ d=c.import_dataset('evaluation',v['data'],key='probe-import')
+ if d!=c.import_dataset('evaluation',v['data'],key='probe-import'): raise RuntimeError('import replay changed')
+ v['draft']['dataset']['revision']=d['revision']
+ body={'name':'Playground native probe','controlMode':'server','draft':v['draft']}
+ e,etag=c.create_native('evaluation',body,key='probe-create')
+ if e!=c.create_native('evaluation',body,key='probe-create')[0]: raise RuntimeError('create replay changed')
+ receipt,_=c.command(e['experimentId'],{'kind':'prepare'},key='probe-prepare',etag=etag)
+ print(json.dumps(receipt))
+`, map[string]any{"data": data, "draft": draft})
+	id := result["experimentId"].(string)
+	for range 4 {
+		h.tick(t)
+	}
+	prepared := h.get(t, id)
+	if prepared.State != "ready" || prepared.PlanSHA256 == nil {
+		t.Fatalf("not prepared: %+v", prepared)
+	}
+	final := invoke(`import json,sys
+from playground_evals.managed import ManagedClient
+v=json.load(sys.stdin)
+with ManagedClient(sys.argv[1],sys.argv[2]) as c:
+ e,etag=c.experiment(v['experimentId'])
+ c.command_status(e['experimentId'],v['commandId'])
+ c.members(e['experimentId'])
+ c.report(e['experimentId'])
+ receipt,_=c.command(e['experimentId'],{'kind':'start','planSha256':e['planSha256']},key='probe-start',etag=etag)
+ print(json.dumps(receipt))
+`, result)
+	if final["kind"] != "start" {
+		t.Fatalf("start receipt: %+v", final)
+	}
+	_ = evaldomain.Digest
+}
