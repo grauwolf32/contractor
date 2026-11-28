@@ -5,8 +5,8 @@
 один выполненный участник unscored, ещё 57 не запускались. Все четыре native
 сравнения остаются **inconclusive**. Полной повторной проверки handoff/masking
 нет; V417-010 не закрыта. Для новой серии сначала нужны исправления измерений
-[V500-005](../../tasks/v500-005-delivered-context-observer-evidence.yml) и
-[V500-006](../../tasks/v500-006-context-eval-output-contract.yml).
+[V500-005](../../tasks/done/v500-005-delivered-context-observer-evidence.yml) и
+[V500-006](../../tasks/done/v500-006-context-eval-output-contract.yml).
 [Все 120 исходов, расходы и native summaries](../../tasks/evidence/v417-010-results-r5-20261128.json).
 
 Это исследование показало рабочее применение compaction и несколько конкретных
