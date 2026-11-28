@@ -31,10 +31,12 @@ import { ConfigurationBodyView } from "../operations/llm-configurations/body";
 import { useCatalogCursorState } from "./cursor-state";
 import { LibraryDetailHeading, LibraryTag } from "./browser";
 import { Icon } from "../../app/icon";
-import { artifactDetailPath } from "../artifacts/paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 import { locationDestination } from "./navigation";
 
-const MarkdownPreview = lazy(() => import("../artifacts/previews/markdown"));
+const MarkdownPreview = lazy(
+  () => import("../../widgets/artifact-preview/previews/markdown"),
+);
 const INITIAL_CURSOR = null;
 
 function AgentVersionSelector({

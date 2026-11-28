@@ -22,7 +22,7 @@ import { EmptyState, FilterChips } from "../../ui";
 import { ArtifactDetailView } from "../artifacts/artifact-detail-view";
 import { ArtifactBindingsTable } from "../artifacts/bindings";
 import { useNamespaceFilter } from "../artifacts/namespace-filter";
-import { artifactDetailPath } from "../artifacts/paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 import { type RunDisclosureProps, RunSection } from "./components";
 
 /** Technical details: every Artifact binding of the Run, by namespace. */

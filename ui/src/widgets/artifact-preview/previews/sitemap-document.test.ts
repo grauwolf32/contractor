@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fixture from "../../../test/fixtures/sitemap-preview.json" with { type: "json" };
 import shared from "../../../../../api/testdata/project-sitemap-cases.json" with { type: "json" };
 import { parseSitemapDocument } from "./sitemap-document";
-import { createArtifactPreviewPlan } from "../preview-plan";
+import { createArtifactPreviewPlan } from "../plan";
 import {
   MAXIMUM_PREVIEW_BYTES,
   SITEMAP_MEDIA_TYPE,

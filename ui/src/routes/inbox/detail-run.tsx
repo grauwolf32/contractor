@@ -11,7 +11,7 @@ import { RecordedTime } from "../../app/recorded-time";
 import { runRecoveryReason, runStateLabel } from "../../app/vocabulary";
 import { useSession } from "../../auth/session";
 import { DetailPane, Facts, IdChip, TechnicalDetails } from "../../ui";
-import { artifactDetailPath } from "../artifacts/paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 import { recoveryProgress, useRetryModelConnection } from "../runs/recovery";
 import { runStatusQuery } from "../runs/status";
 import { deriveRunTriage } from "../runs/triage";

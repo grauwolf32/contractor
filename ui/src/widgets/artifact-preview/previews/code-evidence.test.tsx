@@ -2,8 +2,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import proof from "../../../../../api/testdata/finding-trace-evidence.json";
-import { createArtifactPreviewPlan } from "../preview-plan";
-import { LoadedArtifactPreview } from "../loaded-preview";
+import { createArtifactPreviewPlan } from "../plan";
+import { LoadedArtifactPreview } from "../view";
 import { parseCodeEvidence } from "./code-evidence-document";
 import CodeEvidencePreview from "./code-evidence";
 

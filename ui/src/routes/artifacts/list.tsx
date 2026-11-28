@@ -16,7 +16,7 @@ import { MaterialIcon } from "./icons";
 import { MaterialList } from "./material-list";
 import { MaterialRow } from "./material-row";
 import { FileStoredNotice } from "./notices";
-import { artifactDetailPath } from "./paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 import { UploadDialog } from "./upload-dialog";
 import { uploadCancelNote } from "./upload-operation";
 import "./materials.css";

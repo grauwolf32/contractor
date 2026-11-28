@@ -17,10 +17,13 @@ import {
 } from "../../ui";
 import { auditProfileLabel } from "../projects/audits/labels";
 import { useAuditReport } from "./report-data";
-import { ReportContent, ReportStatusChip } from "./report-view";
+import {
+  ReportContent,
+  ReportStatusChip,
+} from "../../widgets/audit-report/view";
 
 import "./reports.css";
-import { checkPath } from "../projects/audits/check-links";
+import { checkPath, sectionPath } from "../projects/audits/check-links";
 
 /** The detail pane when no report is selected. */
 export function NoReportSelected() {
@@ -74,7 +77,14 @@ function LoadedReport({ audit }: { audit: Audit }) {
         />
       }
     >
-      <ReportContent audit={audit} query={query} />
+      <ReportContent
+        audit={audit}
+        query={query}
+        links={{
+          taskResults: checkPath(audit.projectId, audit.auditId),
+          coverageGaps: `${sectionPath(audit.projectId, audit.auditId, "work")}?work=gap`,
+        }}
+      />
     </DetailPane>
   );
 }

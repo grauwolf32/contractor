@@ -5,7 +5,7 @@ import {
   ENGAGEMENT_MEDIA_TYPE,
   MAXIMUM_PREVIEW_BYTES,
 } from "../../../api/artifacts";
-import { createArtifactPreviewPlan } from "../preview-plan";
+import { createArtifactPreviewPlan } from "../plan";
 import {
   parseEngagementDocument,
   type EngagementDocument,

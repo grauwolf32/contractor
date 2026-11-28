@@ -16,7 +16,7 @@ import { ErrorNotice } from "../../app/error-notice";
 import { compactDigest, plural } from "../../app/format";
 import { QueryView } from "../../app/query-view";
 import { ButtonLink, Facts, TechnicalDetails } from "../../ui";
-import { artifactDetailPath } from "../artifacts/paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 import { locationDestination } from "../catalog/navigation";
 import { ConsumerConfigList } from "./consumer-config";
 import { WorkflowOverview } from "./overview";

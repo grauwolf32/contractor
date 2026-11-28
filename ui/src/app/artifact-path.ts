@@ -1,4 +1,4 @@
-import type { ArtifactArchiveScope } from "../../api/artifact-archive";
+import type { ArtifactArchiveScope } from "../api/artifact-archive";
 
 /** UI path of an Artifact binding's detail page, optionally at a revision. */
 export function artifactDetailPath(

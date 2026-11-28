@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { renderWithAPI } from "../../test/render";
 import { artifactMetadata } from "../../test/builders";
 import { ArtifactPreviewPanel } from "./preview";
-import { AUTOMATIC_OPENAPI_LIMIT_LABEL } from "./preview-plan";
+import { AUTOMATIC_OPENAPI_LIMIT_LABEL } from "../../widgets/artifact-preview/plan";
 
 // LIM-UI-17 in docs/spec/platform/limits.md.
 const MAXIMUM_AUTOMATIC_OPENAPI_BYTES = 128 * 1024;

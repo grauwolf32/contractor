@@ -2,7 +2,7 @@
   "prefixes": [
     {
       "prefix": "hljs-",
-      "source": "lowlight syntax tree className properties, rendered as escaped React spans by artifacts/previews/code-highlight.tsx"
+      "source": "lowlight syntax tree className properties, rendered as escaped React spans by widgets/artifact-preview/previews/code-highlight.tsx"
     },
     {
       "prefix": "ops-signin-spiral-",
@@ -20,11 +20,11 @@
     },
     {
       "name": "light-mode",
-      "source": "rendered by @scalar/api-reference-react; scoped theme variables in artifacts/previews/openapi.css"
+      "source": "rendered by @scalar/api-reference-react; scoped theme variables in widgets/artifact-preview/previews/openapi.css"
     },
     {
       "name": "dark-mode",
-      "source": "rendered by @scalar/api-reference-react; scoped theme variables in artifacts/previews/openapi.css"
+      "source": "rendered by @scalar/api-reference-react; scoped theme variables in widgets/artifact-preview/previews/openapi.css"
     },
     {
       "name": "introduction-section",

@@ -11,12 +11,12 @@ import {
   AUTOMATIC_OPENAPI_LIMIT_LABEL,
   createArtifactPreviewPlan,
   type ArtifactPreviewPlan,
-} from "./preview-plan";
+} from "./plan";
 import { Button } from "../../ui";
 import { SourcePreview } from "./source-preview";
-import { ScanReportSummary } from "../../widgets/scan-reports/view";
+import { ScanReportSummary } from "../scan-reports/view";
 import { PanelTabs } from "./tabs";
-import "./materials.css";
+import "./preview.css";
 
 const MarkdownArtifactPreview = lazy(() => import("./previews/markdown"));
 const OpenApiArtifactPreview = lazy(() => import("./previews/openapi"));

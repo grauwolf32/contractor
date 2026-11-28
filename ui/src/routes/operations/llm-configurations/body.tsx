@@ -7,7 +7,7 @@ import type {
 import { Link } from "react-router";
 import { formatNumber } from "../../../app/format";
 import { Facts } from "../../../ui";
-import { artifactDetailPath } from "../../artifacts/paths";
+import { artifactDetailPath } from "../../../app/artifact-path";
 
 function present(value: number | undefined): string {
   return value === undefined ? "omitted" : formatNumber(value);

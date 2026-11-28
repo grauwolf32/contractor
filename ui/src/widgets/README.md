@@ -1,23 +1,38 @@
-# Bundled UI widgets
+# Shared subject-specific widgets
 
-Widgets own specialized presentation. Their hosts own authenticated APIs,
-query/poll lifecycles, creation keys, navigation and authorized evidence links.
-The shared `src/ui` building blocks still own controls, focus and themes.
+Widgets compose reusable presentation and local interaction. Their hosts own
+authenticated API reads, query/poll lifecycles, exact revisions, creation keys,
+navigation targets and authorized mutations. `src/ui` owns controls, focus and
+themes. Widgets never import `src/routes`, including its CSS or lazy modules;
+`scripts/widget-boundaries.test.mjs` checks this against production sources.
 
-- `src/workflow-widgets`: exact Workflow contract dispatch and Nuclei launch
-  controls. Audit scan results render the registered
-  React fields. Compatibility checks cover version, parameters and input scope.
-- `scan-reports`: versioned scanner result presentation, dispatched by the
-  report's tool. Nuclei, Naabu and SQLMap use the shared outcome view; ffuf
-  requires complete scan accounting, and Katana adds bounded discovery facts.
-  Unknown reports retain the ordinary raw JSON preview. The error outcome table
-  is shared across these adapters and tested against the wire fixture.
-- `audit-scans`: Nuclei URL and SQLMap request presentation plus their coverage
-  kind identity. The Audit host supplies source/result links and their existing
-  receipts. Unsupported scanners retain explicit evidence access without being
-  interpreted as SQLMap.
+- `artifact-preview/view.tsx`: render already loaded bytes by media type, with
+  Rendered/Source tabs, bounded source lines and safe Markdown. Parsers,
+  renderer styles and the lazy OpenAPI/LikeC4 renderer and Worker belong here.
+  Generic format dispatch is shared across Materials, results, evidence and
+  archives; it is independent of the Workflow that produced the material.
+  `routes/artifacts/preview.tsx` still owns the request/response shell and archive
+  transport. Hosts retain size limits, scope authorization and exact revisions.
+  Standalone lazy Markdown consumers import `previews/markdown` directly to keep
+  heavy renderer dependencies out of the initial bundle.
+- `audit-report/view.tsx`: report status, safe lazy Markdown, downloads and
+  retained-file facts for Reports and Inbox. The host supplies its existing
+  query state and destinations for task results/coverage gaps. The widget does
+  not fetch, poll or choose a check URL. List selection and report queries stay
+  in `routes/reports`.
+- `llm-cost/card.tsx`: Project/Audit/Run monetary summaries and local breakdown
+  controls. `app/llm-cost.tsx` and `app/llm-cost-query.ts` retain query ownership,
+  refresh and terminal reconciliation. Amounts and coverage come from the API;
+  a missing amount is never interpreted as zero.
+- `scan-reports/view.tsx`: scanner-specific presentation selected by the
+  report's tool and supported schema, independently of its originating
+  Workflow. Shared error outcomes remain one definition. Unknown reports keep
+  source preview, and scanner success does not establish result quality.
 
-Register only widgets with a production caller. Keep ordinary Run lifecycle,
-Project selection, artifact transport and MIME-based OpenAPI/LikeC4 previews
-shared. Widgets neither execute Workflows nor change their Server contracts.
-No dynamic code loading, user-defined JavaScript or Studio editor is involved.
+Each widget imports its own CSS; rendering in Inbox must not depend on first
+visiting another page. Route styles own only their layout and list/header
+presentation. Theme tokens and existing DOM contracts remain shared.
+
+Only extract blocks with real consumers. These modules are ordinary bundled
+React components; no dynamic plugin loader, user-defined JavaScript, separate
+launch lifecycle or new widget registry is introduced.

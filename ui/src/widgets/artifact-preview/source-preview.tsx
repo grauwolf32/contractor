@@ -7,6 +7,7 @@ import {
 } from "react";
 import { Button } from "../../ui";
 import { sourceLines } from "./source-lines";
+import "./preview.css";
 import "./source-preview.css";
 
 // LIM-UI-18: preserve the full text without creating an element per line in

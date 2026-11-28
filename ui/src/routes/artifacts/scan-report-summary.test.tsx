@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import workerErrorCodes from "../../../../api/testdata/scan/worker-error-codes.json";
-import { LoadedArtifactPreview } from "./loaded-preview";
+import { LoadedArtifactPreview } from "../../widgets/artifact-preview/view";
 
 const OUTCOME_LABELS: Record<string, string> = {
   unavailable: "Unavailable",

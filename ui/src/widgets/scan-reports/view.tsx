@@ -2,6 +2,7 @@ import { DIGEST } from "../../api/contract";
 import { isRecord } from "../../api/json-guards";
 import { scanReportWidget, type ScanReportWidget } from "./registry";
 import { Facts } from "../../ui";
+import "./report.css";
 
 type WorkerErrorOutcome = "unavailable" | "incomplete" | "failed";
 
@@ -146,7 +147,7 @@ export function ScanReportSummary({ source }: { source: string }) {
   const observation = report.observation;
   return (
     <section className="materials-scan" aria-label="Scanner execution">
-      <h3 className="materials-subtitle">Scanner execution</h3>
+      <h3 className="materials-scan-title">Scanner execution</h3>
       <Facts
         layout="row"
         className="materials-facts"

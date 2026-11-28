@@ -7,7 +7,7 @@ import { compactDigest } from "../../app/format";
 import { Icon } from "../../app/icon";
 import { runStateLabel } from "../../app/vocabulary";
 import { StatusChip } from "../../ui";
-import { artifactDetailPath } from "../artifacts/paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 
 type ArtifactRef = components["schemas"]["ExactArtifactRef"];
 

@@ -9,7 +9,7 @@ import { IconButton, IdChip, StatusGlyph } from "../../ui";
 import { MaterialIcon } from "./icons";
 import { formatLabel, materialKindLabel } from "./kinds";
 import { GitCommitChip, MaterialName } from "./material-row";
-import { artifactDetailPath } from "./paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 import "./materials.css";
 
 /** Where a Git import came from: repository, branch or tag, commit. */

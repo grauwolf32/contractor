@@ -1509,6 +1509,14 @@ Unknown reports keep raw preview; unsupported scanner input views remain
 explicit and preserve evidence access. Generic lifecycle and format-based
 OpenAPI/LikeC4 previews remain shared.
 
+Shared subject-specific presentation is composed under `ui/src/widgets`:
+loaded Artifact rendering, Audit report content, LLM cost cards and scanner
+report views. Widgets own their styles and local interactions and do not
+import route modules. Hosts retain authenticated reads, query keys, polling,
+exact revisions, authorized navigation destinations and mutations. Renderer
+and Worker imports remain lazy; moving presentation does not introduce a new
+request, plugin registry or alternate lifecycle.
+
 **UI-R207.** The shared User/Project/Run material Technical details disclosure
 shows every ART-R130 storage timestamp with absolute time and timezone. Labels
 identify storage scope creation, shared blob registration, storage version

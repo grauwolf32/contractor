@@ -6,7 +6,7 @@ import { json } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
 import { inferredArtifactMediaType } from "./artifact-file";
 import { ArtifactWriteForm } from "./common";
-import { LoadedArtifactPreview } from "./loaded-preview";
+import { LoadedArtifactPreview } from "../../widgets/artifact-preview/view";
 import { artifactMetadata, artifactWrite } from "../../test/builders";
 
 const wordlist = "text/vnd.contractor.wordlist";

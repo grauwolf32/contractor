@@ -17,7 +17,7 @@ import {
   StatusChip,
   TechnicalDetails,
 } from "../../ui";
-import { artifactDetailPath } from "../artifacts/paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 import {
   organizeRunOutputs,
   parseWorkflowIdentity,

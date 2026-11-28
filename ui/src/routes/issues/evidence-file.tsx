@@ -12,7 +12,7 @@ import { ErrorNotice } from "../../app/error-notice";
 import { formatBytes } from "../../app/format";
 import { Icon } from "../../app/icon";
 import { Button, IconButton, IdChip } from "../../ui";
-import { artifactDetailPath } from "../artifacts/paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
 import { HTTP_EXCHANGE_MEDIA_TYPE } from "../../api/artifacts";
 

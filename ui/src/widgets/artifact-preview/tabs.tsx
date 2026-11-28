@@ -1,6 +1,6 @@
 import { useId, useState, type ReactNode } from "react";
 
-import "./materials.css";
+import "./preview.css";
 
 /**
  * Tabs over panels that stay mounted (Rendered / Source of a preview,

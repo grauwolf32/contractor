@@ -19,7 +19,7 @@ import {
   StatusChip,
   TechnicalDetails,
 } from "../../../ui";
-import { LoadedArtifactPreview } from "../../artifacts/loaded-preview";
+import { LoadedArtifactPreview } from "../../../widgets/artifact-preview/view";
 import type { ResearchTask } from "./research-data";
 import { checkPath } from "./check-links";
 import { issuePath } from "../../issues/links";

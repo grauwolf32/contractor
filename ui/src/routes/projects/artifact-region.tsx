@@ -17,7 +17,7 @@ import { groupMaterialsByKind } from "../artifacts/kinds";
 import { MaterialList } from "../artifacts/material-list";
 import { MaterialRow } from "../artifacts/material-row";
 import { MaterialAddedNotice } from "../artifacts/notices";
-import { artifactDetailPath } from "../artifacts/paths";
+import { artifactDetailPath } from "../../app/artifact-path";
 import { ProjectSectionActionsContext } from "./section-actions-context";
 import "../artifacts/materials.css";
 

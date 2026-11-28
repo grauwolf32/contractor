@@ -9,7 +9,7 @@ import { usePublicAPI } from "../api/context";
 import { queryKeys } from "../api/query-keys";
 import { plural } from "../app/format";
 import { Button } from "../ui";
-import { splitFrontmatter } from "./artifacts/previews/frontmatter";
+import { splitFrontmatter } from "../widgets/artifact-preview/previews/frontmatter";
 
 /**
  * A Skill package's purpose: the `description` of its SKILL.md front matter

@@ -54,7 +54,7 @@ beforeAll(async () => {
     import("./findings"),
     import("../detail"),
     import("../../issues"),
-    import("../../artifacts/previews/markdown"),
+    import("../../../widgets/artifact-preview/previews/markdown"),
   ]);
 });
 

@@ -8,7 +8,7 @@ import { fakeServer } from "../test/fake-server";
 import { failure, json, unavailableCostForURL } from "../test/responses";
 import { Button } from "../ui";
 import { LLMCostPanel } from "./llm-cost";
-import { LLMCostCard } from "./llm-cost-card";
+import { LLMCostCard } from "../widgets/llm-cost/card";
 import { formatUSD } from "./format";
 
 describe("LLM cost presentation", () => {
