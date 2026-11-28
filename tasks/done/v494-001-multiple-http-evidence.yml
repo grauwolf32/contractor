@@ -5,7 +5,7 @@ milestone: findings-tools
 epic: findings
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, python, typescript, json, markdown]
 goal: A researcher can attach a control request and one or more test requests to the same Finding and read every retained exchange in the UI.
@@ -80,3 +80,17 @@ tests:
     covers: [A1]
   - command: make lint
     covers: [A1, A2, A3]
+
+implementation_commit: bc1ec0d79ae3e23c8a2c9691841a4f4a1b1b1ea3
+verification: >-
+  Verified on 2026-11-28 with a private UTF-8 PostgreSQL database and pinned ffuf 2.3.0.
+  Complete affected Go/PostgreSQL suites, public API and cross-language gates pass;
+  Runtime has 6746 passed and 136 declared skips, with all 611 selected compaction cases passing.
+  The complete UI suite has 2614 passed and one expected failure; all 17 static-service
+  tests and all 20 browser cases pass, including 390px in light, dark and black themes.
+  Full lint passes; UI gates, types, generation, build and the complete UI suite were
+  repeated after the final Caido display correction. The real process regression
+  retains both HTTP captures through Runtime loss, Server restart and producer Run deletion.
+  Optional disk-heavy fixtures remain disabled; their skips are not passing coverage.
+  The owned database was explicitly dropped and its private PostgreSQL stopped and removed.
+  Implemented on codex/multiple-http-evidence; not merged into main or deployed.
