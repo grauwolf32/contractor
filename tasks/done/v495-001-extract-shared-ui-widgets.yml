@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V494-001
+id: V495-001
 title: Extract shared artifact, report and cost presentation into widgets
 milestone: ui-consolidation-2026-10
 epic: ui
@@ -10,7 +10,7 @@ depends_on: []
 languages: [typescript, javascript, css]
 goal: Shared presentation has explicit owners outside route modules while retaining the current design and data lifecycle.
 context:
-  authority: User 2026-11-28 approves the first extraction of Artifact preview, Audit report and LLM cost after reviewing the UI dependency graph at revision 86ceaf2.
+  authority: User 2026-11-28 approves the first extraction of Artifact preview, Audit report and LLM cost after reviewing the UI dependency graph at revision 86ceaf2, then explicitly requests merging it into main.
   finding: Reusable preview renderers live in routes/artifacts, ReportContent is imported from routes/reports by Inbox, and LLMCostCard is composed in app despite being shared subject-specific presentation.
   boundary: Widgets own presentation, local interaction and their CSS. Existing host controllers retain authenticated reads, exact revisions, query keys, polling, cancellation, authorized links and mutations. No widget may import route modules.
 scope:
@@ -48,5 +48,6 @@ verification:
     - The cost query hook, Run artifact action controller and Audit projection-refresh owner are byte-for-byte unchanged. Report queries retain their original keys and polling; report hosts now supply the same task-result and coverage-gap destinations explicitly.
     - CSS declaration comparison found no removed property/value declarations. The only added declarations give the scanner title its independently owned equivalent style. Report list/header styling stays with the route; preview, report and cost styles load with their widgets.
     - make ui-browser-mocked passed all 266 browser cases across 37 specs with no failures or skipped cases, covering report/Inbox readers, all preview formats and LLM cost at desktop/mobile widths in the three themes. The final Project and mobile Materials captures were also visually inspected.
+    - During merge preparation, parallel Playground delivery had claimed V494-001 on main; this UI task is renamed to V495-001 without changing the reviewed implementation.
     - UI release is 0.11.48. No API, Server, schema or OpenDesign archive changes, deployment or main merge are included. Finding review and Check workspace remain separate later extractions.
 implementation_commit: 3dffed35cbb40d54463bd601c7c5efe40a8d576d
