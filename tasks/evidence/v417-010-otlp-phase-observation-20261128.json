@@ -1,0 +1,322 @@
+{
+  "schemaVersion": 1,
+  "task": "V417-010",
+  "date": "2026-11-28",
+  "kind": "measurement limitation found during R5 analysis",
+  "reviewedFrozenMembers": 30,
+  "rows": [
+    {
+      "memberId": "8b333f402d394448f54f6801a629fe514cfaa75e07162aa4f38ecbcab296b138",
+      "runId": "run-eval-db9a54173b6c35aa17e717162f5bfb68bac098ebd91ab2781bed55c2171283ef",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 2,
+      "successfulToolsAfterContextOperation": 5,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "eb1ddfdb775a6cddf26cc5965e9b91544fd240b15a7f817210d15af889240f14",
+      "runId": "run-eval-2dc28809d4c50d522fde6eccee0230ebf348479adbd2a569fefcd01831b4011e",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 3,
+      "successfulToolsAfterContextOperation": 5,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "28b816976cbda5192058bb3ed81c81e40657deb5b082d9d67c6e68f9d1c1a32a",
+      "runId": "run-eval-df7412e49ef3146a45e514e74b289f193eb4a4e402209328b71780ba8b12e48d",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 2,
+      "successfulToolsAfterContextOperation": 3,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "3413bdbc8361dfcf20d48047e05fa082a87190da868f0f0dc6d867c70f6e78bd",
+      "runId": "run-eval-62cde1cdcf0e9df72b3dd63f43f8c832343475dfa233699df65b2c31048b84de",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": false,
+      "contextOperationSpans": 0,
+      "successfulToolsAfterContextOperation": 0,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "184efa6fc70370b5a66266433c6651d836214a4d99509cab51434851db1267f2",
+      "runId": "run-eval-123b43ece21ce66f90811772495457e4b43e8638e2e7498d85b171d1879486db",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 3,
+      "successfulToolsAfterContextOperation": 4,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "1579c91741383e780af57276065ba8744cd820ae1e303236e3d34d7579ade4d7",
+      "runId": "run-eval-d861153e021611ad06ecf46f2e2f6bea43350e7ea673e6c380ac74063fbfc970",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 3,
+      "successfulToolsAfterContextOperation": 8,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "7b934fbde7a2bbcd523080cb08bcebdf026f9ec40e34c7f4e2118d655503bf5e",
+      "runId": "run-eval-ce33b66a7f1169c20efd22970ce9445938637f02713bab9062bd38c93d25bf47",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 2,
+      "successfulToolsAfterContextOperation": 5,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "281f033df280002385596791e8c6efa788f1b8078a5ac43bd947a4cc1a073f7e",
+      "runId": "run-eval-4581d3d25ea65e86c1d6ec0a8a9db8fa8162110bff7e9bc2cf32bcbbfacc0b2e",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 1,
+      "successfulToolsAfterContextOperation": 0,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "efc32caffa247f9bad038700bde6a8f2535858fb278e899a2b6044f096e5738e",
+      "runId": "run-eval-9e83559ff1235e58d220473b8624a18503e328b4d403ddfe0ae227dd12d94887",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 3,
+      "successfulToolsAfterContextOperation": 6,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "f1cd36ee584bc84480509b70e401594b114af294ae88c5653d7e5b5b278292c6",
+      "runId": "run-eval-c4d88d66e977174007a1440838ac323cd13b82c1deaf766481f9b83006911f0a",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 2,
+      "successfulToolsAfterContextOperation": 6,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "84f7a2cfc7c4923512bbcdf3d723b2fd09162003fe46c7c450bab08b3f772a1b",
+      "runId": "run-eval-176c12f00d59c52bbc9d762fad52bff53cc9ad88a00ab7fd59d75e32aff39767",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 2,
+      "successfulToolsAfterContextOperation": 5,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "15c226e6271bf5b7b76c2a0001121cf344c49a86b0c358ce13d93907a213e2b8",
+      "runId": "run-eval-90301c31577f0efb76b721e12fad4e2925dee38b773add32742e810d69c61c4f",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 2,
+      "successfulToolsAfterContextOperation": 4,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "c3eca3c0c227de4bc08abdd507a91671481e3d2320c3b95f100ae7e23aa002cd",
+      "runId": "run-eval-82720fed5a9b70031da2817ea8bfee6b7fc9be9bd72775955a2b1c0b8dfb7d94",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 2,
+      "successfulToolsAfterContextOperation": 5,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "e7539013061ad400059b29e66b9375bb9ffa8357fa3dc93224b44533f2181955",
+      "runId": "run-eval-c75c554a715f176c1e639bb9c1a096c4021632f960bc4961fb2b92ba457f2d4d",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": false,
+      "contextOperationSpans": 0,
+      "successfulToolsAfterContextOperation": 0,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "fcf1e8728268ea5e4593888afad496bba0c4b80d8c8b797877f2a7924fa29b35",
+      "runId": "run-eval-fb1271ba9e835f9c40a2f00264fe18db895344453fea52f611ddc9b49a1cdfb2",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 2,
+      "successfulToolsAfterContextOperation": 3,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "4a71573fdf33136c76197b26f52731563e1a1f7dadbd19f262720106af0824ed",
+      "runId": "run-eval-4fa9fc37527f85d849a02d0ed75da26b75da8a66d4a34aeeb29282fd93f2f839",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": false,
+      "contextOperationSpans": 0,
+      "successfulToolsAfterContextOperation": 0,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "5645bd993dbc53cece960bf207ced0322d666925a0a3d126541e67adc5a1447e",
+      "runId": "run-eval-97e306c1ac4ffe6a3d6c3b6ec419bb2210df5d12900bd0eb5881954afe1bec24",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": false,
+      "contextOperationSpans": 0,
+      "successfulToolsAfterContextOperation": 0,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "23cdd81281d48ecb07342ea5ab944b2e13e0d08e9f4a213aa509815a5ede5332",
+      "runId": "run-eval-abe958b708083a36c34fda8ad1b64707d72843298302e83d473300fa1f8cba31",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 1,
+      "successfulToolsAfterContextOperation": 1,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "ea833c8a45e2f515e31ec23763f19db3ffe5910f304a5f29d6631d56900fadee",
+      "runId": "run-eval-3a15cab45ef692f6f1d9ffb73b784686b00ca6edaff54eca7b085c35c81c1a66",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": false,
+      "contextOperationSpans": 0,
+      "successfulToolsAfterContextOperation": 0,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "a23e2309021a59aaf77ae47053a136f84122c99a8e89884b8f92a878e8c7c3fd",
+      "runId": "run-eval-e97506f4d97464841f0e0eb66995e86bd2d94715a3090bfd45dc72353ce5ae8f",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 1,
+      "successfulToolsAfterContextOperation": 2,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "a0d603c50c279fd5ac6ef2244fbbe6d32ee90a1eecd9fc747f5cc437d56384e5",
+      "runId": "run-eval-c9471b717e1c267345948202924b0285f1c70e9ce65176e9df78d108ba07b2a3",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 3,
+      "successfulToolsAfterContextOperation": 3,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "0b1fc322cafad056c4d41c98311375e36e4b10e83703c9a062fa8354201159ef",
+      "runId": "run-eval-1b542eea45081785f227ae09d03c4a5697fb7bb86ed5ef4290c4967f51f9968b",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 2,
+      "successfulToolsAfterContextOperation": 3,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "cf683b8db31755fd72e66febc511f3b21aa8bfd59504b24883e5c0cb0df43a94",
+      "runId": "run-eval-5812d400aedcf1f72fd89c8876841648de38e78c8dfcb25c75f1a2790b7f0744",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 2,
+      "successfulToolsAfterContextOperation": 4,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "a821b66bb79d4ae8b95f39c17fef28c7deeddce3a5afd8e80e9e809fab608b97",
+      "runId": "run-eval-12862a7202f63af93c540541a225fabaf71cfa81e07297dc201105876bc39260",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 3,
+      "successfulToolsAfterContextOperation": 4,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "d1f9e10f5c2855d56376592184c75e07b5077ae7af538c718bf8301be74b3b07",
+      "runId": "run-eval-f7c2874079340b4d7c492d81b65119339e737935350633b20540dc12636f286b",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 1,
+      "successfulToolsAfterContextOperation": 0,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "10eb679c27f74c502a512d539cb7bd0994474f05449524381e10dc3a75d6f6ef",
+      "runId": "run-eval-53f493873d3a83c374c9f00d72b68c095ca7e96db8badce2a1839312a5c0017b",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 1,
+      "successfulToolsAfterContextOperation": 1,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "01036dbd10a7e8ffcd88655734c0ab8f2135a2598751c42a4a27d34f1b0b5849",
+      "runId": "run-eval-bde4f550b40dff088bab5ccc2af2b6754ca471ad11f6e461cb13b65e9fd70c0d",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 1,
+      "successfulToolsAfterContextOperation": 0,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "77418087e35905dc225de970b3bb05e95ea13b1213ae847f44b365197d4f4f16",
+      "runId": "run-eval-1e7f4c5894d0bb9a4302b60e2db0af9dcc286d96ac53a157508429e33f6d86bf",
+      "variant": "compact-on",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": false,
+      "contextOperationSpans": 0,
+      "successfulToolsAfterContextOperation": 0,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "c18130558ca31036e3cec6357f93813728467b775262bcce9485b2e1dd6d0db6",
+      "runId": "run-eval-85a5259988099f677c6c97c3e1d9d56354e046171b1b12321abe5cf89d3151f8",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 2,
+      "successfulToolsAfterContextOperation": 5,
+      "frozenObserverPostCheckpoint": 0
+    },
+    {
+      "memberId": "f58ecfee48a9bfb9ffb18a4b09e9ef20651f7a143a864e169dabced6c0eeeda7",
+      "runId": "run-eval-01df35fedbd9ee729362d582ef68c7cb50c23698d09384deb45555d3b2d01f04",
+      "variant": "compact-off",
+      "modelPhaseAttributes": 0,
+      "appliedDiagnostic": true,
+      "contextOperationSpans": 2,
+      "successfulToolsAfterContextOperation": 2,
+      "frozenObserverPostCheckpoint": 0
+    }
+  ],
+  "findings": {
+    "modelPhaseAttributes": 0,
+    "appliedCompactionMembers": 24,
+    "membersWithLaterSuccessfulTools": 21,
+    "frozenObserverMembersWithLaterTools": 0
+  },
+  "sourceEvidence": {
+    "producer": "runtime/src/contractor_runtime/worker/instrumentation.py:510 emits model.phase",
+    "adapter": "runtime/src/contractor_runtime/adapters/otlp_http.py:71 allowlist omits model.phase; line263 rewrites unsupported context span to contractor.worker.error",
+    "retainedMarker": "operation.kind=context_compaction survives, with successful status and original times"
+  },
+  "interpretation": "V500-004 recognizes an emitted phase but the deployed OTLP adapter filters it out. Its phase-only native compactor recognition remains ineffective in this study. Frozen continuation=false is not evidence of no continuation. All frozen plans/results/assessments remain unchanged. Supplementary timing counts are descriptive, not replacement quality assessments. No recommendation of reasoning superiority or compaction parameter optimum follows.",
+  "privacy": "No raw answers, request payloads, reasoning, questions or credentials included"
+}

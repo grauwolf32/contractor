@@ -191,6 +191,14 @@ context:
     sha256:ffc1608d8cece6e4db9b0694ca4bd256fe5e0771af73c9ff2e57550bfeac8e6a.
     Exact operational results are retained in the ignored owner-only local
     runbook; no profile keys or concrete deployment addresses are published.
+  measurement_limitation_2026_11_28: >-
+    Retained real OTLP for all 30 compact members has zero model.phase
+    attributes because the current adapter allowlist removes them. Native
+    diagnostics confirms 24 applied members; retained context operation times
+    confirm later successful tools in 21. Frozen observer counts all as zero.
+    Preserve frozen assessments and qualify continuation/quality conclusions;
+    supplementary timing observations do not replace native comparisons.
+  current_trace_observation: tasks/evidence/v417-010-otlp-phase-observation-20261128.json
   current_freeze: tasks/evidence/v417-010-freeze-r5-20261128.json
   current_observer_attestation: tasks/evidence/v417-010-observer-phase-r5-20261128.json
   current_debug_correction: tasks/evidence/v417-010-protocol-attempt4-20261128.json

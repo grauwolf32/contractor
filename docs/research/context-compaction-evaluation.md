@@ -34,6 +34,33 @@ scorer. Замороженные правила и native assessments остаю
 Общий fail нельзя без разбора приписывать потере доменных данных при compaction.
 [Воспроизведение ограничений scorer](../../tasks/evidence/v417-010-scorer-contract-counterexamples-20261128.json).
 
+## Наблюдение 28 ноября: граница instrumentation → OTLP
+
+После завершения первых двух сравнений сохранены точные native экспорты
+60 участников. Разбор всех 30 compact off/on Runs выявил ограничение
+предыдущего исправления observer: producer выставляет `model.phase`, но
+allowlist в `runtime/src/contractor_runtime/adapters/otlp_http.py` удаляет этот
+атрибут. Имя `contractor.worker.context_compaction` также заменяется на
+`contractor.worker.error`; при этом `operation.kind=context_compaction`,
+успешный status и исходные timestamps сохраняются.
+
+В 24 из 30 Runs native diagnostics подтверждает применённую compaction.
+В 21 из 30 исходные spans подтверждают успешные инструменты после завершения
+такой операции. Замороженный observer показывает ноль во всех 30, поскольку
+не видит ожидаемого phase. Это ошибка измерения; ноль нельзя трактовать как
+отсутствие продолжения. V500-004 проверила распознавание emitted phase, но её
+синтетический fixture не обнаружил потерю на реальной export-границе.
+[Воспроизводимые счётчики и evidence](../../tasks/evidence/v417-010-otlp-phase-observation-20261128.json).
+
+Замороженные assessments и параметры серии не переписываются. Supplementary
+подсчёт по сохранённому `operation.kind` описывает порядок реальных действий,
+не заменяет native quality check. Остальные сравнения сохраняют собственные
+frozen denominator. До нового валидированного измерения выводы о пользе
+`includeReasoning`, превосходстве masking и выборе production threshold
+остаются недоказанными. Приоритетный follow-up — согласовать emitted telemetry
+с allowlist и проверять observer через настоящий OTLP adapter, а также отделить
+ошибки контракта scorer от ошибок доменных данных.
+
 ## Исторический отчёт на 16 ноября 2026
 
 Ниже сохранены исходы и ограничения прежних попыток. Указание о паузе относится
