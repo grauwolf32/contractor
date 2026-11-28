@@ -5,7 +5,8 @@ milestone: workflow-scheduler-concurrency
 epic: execution-core
 kind: chore
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: b9ce06d4f94c5e22e168666ff6cc9fdadcf27c6b
 depends_on: [V498-001]
 languages: [go]
 goal: >-
@@ -78,3 +79,23 @@ tests:
     covers: [A3, A4, A5]
   - command: make lint
     covers: [A5]
+verification:
+  evidence: tasks/evidence/v498-002-stage-execution.json
+  local_report: /Users/ruslan/src/contractor/.lean/stage-execution/README.md
+  result: >-
+    Four finite baseline graphs exhaust without violations: Planner 5693/11769
+    distinct states and Server operation 7059/17656 for two/three ownership
+    generations. All seven mutation controls fail the expected invariant;
+    all 22 reachability witnesses are found. Four new PostgreSQL tests execute
+    14 leaf scenarios. Both complete Go packages pass under race/integration:
+    333 top-level tests, no skips. Exact test identity validator and make lint
+    pass; one auxiliary Python unittest skip is not passing coverage. The
+    owned PostgreSQL database, server, data and socket directory are removed.
+  limits: >-
+    Finite protocol safety plus real-store regressions, not Go/SQL refinement,
+    arbitrary-size proof or liveness. Fresh Scheduler objects are tested with
+    real PostgreSQL and test Worker/Control Plane adapters; this does not prove
+    Runtime process restart or complete allocation release. No production
+    defect was established; behavior, schema and API remain unchanged. Local
+    ignored artifacts are not a CI gate. See the report for source mappings,
+    clock/claim assumptions and excluded summary/multi-Stage behavior.
