@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 10 in progress, 42 pending, 13 deferred. 1741 finished: 1722 completed, 19 archived.
+67 open tasks: 12 in progress, 42 pending, 13 deferred. 1741 finished: 1722 completed, 19 archived.
 
 ## In progress
 
@@ -21,6 +21,8 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V493-001](v493-001-semgrep-code-scanner.yml) | scan-tools | feature | P1 | Run bounded Semgrep static checks with pinned local rulepacks |
+| [V493-002](v493-002-code-evidence-fixture-readers.yml) | ui | chore | P3 | Declare shared code evidence preview fixture readers |
 
 ## Pending
 
@@ -164,14 +166,14 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 27 | 38 | 18 | 39 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 13 | 30 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 22 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 22 | 16 | 13 | 30 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 21 | 79 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 24 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
-| Web UI (`ui`) | 1 | 57 | 83 | 35 | 80 |
+| Web UI (`ui`) | 2 | 57 | 83 | 36 | 81 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 3 | 44 | 30 | 22 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 20 |

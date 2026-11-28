@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: V493-002
+title: Declare shared code evidence preview fixture readers
+milestone: ui-journey-usability
+epic: ui
+kind: chore
+introduced_by: V491-001
+priority: P3
+status: in_progress
+depends_on: []
+languages: [typescript, python]
+goal: Keep the shared fixture gate aligned with the shipped code evidence preview tests.
+context:
+  finding: >-
+    ui/src/routes/artifacts/previews/code-evidence.test.tsx:4 and
+    ui/src/routes/issues/evidence-file.test.tsx:11 import the shared
+    finding-trace-evidence.json fixture added by V491-001, but
+    api/testdata/readers.json has no entry, so the unchanged baseline fails lint.
+  authority: Discovered while verifying the user-requested Semgrep integration on 2026-11-28; narrow verification prerequisite, without product changes.
+scope:
+  in:
+    - Declare the fixture's actual Python and UI readers in the existing manifest.
+  out:
+    - Code evidence behavior, schema changes, scanner features or fixture contents.
+acceptance_criteria:
+  - id: A1
+    text: The manifest declares every existing reader and the shared fixture naming/coverage gate passes.
+  - id: A2
+    text: Existing code evidence and reader tests require no behavioral changes.
+tests:
+  - command: cd runtime && uv run python -m unittest discover -s ../scripts -p test_shared_fixture_gate.py
+    covers: [A1, A2]
+  - command: python3 scripts/shared_fixture_gate.py --sources-only
+    covers: [A1, A2]
