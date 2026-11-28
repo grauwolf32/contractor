@@ -1,0 +1,58 @@
+schema_version: '1.0'
+id: V500-005
+title: Verify context continuation against delivered Worker and Planner evidence
+milestone: eval-maintenance-2026-10
+epic: evals
+kind: defect
+introduced_by: V500-004
+priority: P1
+status: pending
+depends_on: [V500-004]
+languages: [python, markdown]
+goal: Make a future context study measure real continuation and validate handoff trace coverage through the actual export boundary.
+context:
+  authority: 'Agent-proposed follow-up from user-authorized research on 2026-11-28. This task records the prerequisite; it does not authorize another live matrix or change existing frozen assessments.'
+  review: docs/research/context-compaction-evaluation.md
+  finding: >-
+    tests/eval/context_compaction/observer.py:68 expects model.phase, but
+    runtime/src/contractor_runtime/adapters/otlp_http.py:71 filters it and
+    line263 renames the context span. All 30 R5 compact Runs lack the phase;
+    24 applied compaction and 21 have later successful tools, while the
+    observer reports zero. observer.py:132 also requires an otlp-http adapter
+    on every diagnostic row, rejecting a planner_executor report whose
+    adapters list is empty even though Planner spans were delivered.
+  siblings: >-
+    Cover ordinary compaction, terminal summaries, explicit main/finalization,
+    multiple Worker attempts, Planner handoff and both controlled projections.
+    Distinguish delivered trace coverage from Runtime report completeness and
+    from model usage completeness. Partial native usage must still close live
+    dispatch; an exporter check cannot manufacture complete tokens.
+  specification:
+    - docs/spec/platform/observability.md
+    - docs/spec/evals/format.md
+  design: tests/eval/context_compaction/README.md
+  boundary: >-
+    Consume the owning telemetry contracts. The smallest proposed correction
+    uses the retained successful operation.kind=context_compaction boundary
+    and validates Worker and Planner coverage according to their actual owners.
+    Do not infer compaction from an arbitrary model alias. Broadening production
+    telemetry is a separate option requiring its own contract and task.
+scope:
+  in:
+    - Correct evaluator checkpoint and coverage interpretation using existing emitted evidence.
+    - Regression through the real OTLP adapter and protobuf projection, including Planner handoff diagnostics.
+    - Preserve R5 frozen assessments and require a new observer attestation before any later live study.
+  out:
+    - Production telemetry or accounting redesign, new models, another live matrix and rewriting old scores.
+acceptance_criteria:
+  - id: A1
+    text: A real adapter export containing a successful compaction and later tool counts that tool, without counting earlier or failed tools; the regression fails on the current observer.
+  - id: A2
+    text: Planner handoff with complete retained Worker and Planner traces is accepted according to their distinct report contracts; missing, truncated, dropped or failed trace export remains rejected.
+  - id: A3
+    text: All sibling modes retain correct checkpoint boundaries and incomplete native token usage still stops dispatch. No old execution, result or assessment is replaced.
+tests:
+  - command: make test-context-compaction-eval-fixtures
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
