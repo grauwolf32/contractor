@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-66 open tasks: 11 in progress, 42 pending, 13 deferred. 1751 finished: 1732 completed, 19 archived.
+68 open tasks: 11 in progress, 44 pending, 13 deferred. 1751 finished: 1732 completed, 19 archived.
 
 ## In progress
 
@@ -87,6 +87,8 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate HTTP investigation quality with frozen repeated comparisons |
+| [V500-005](v500-005-delivered-context-observer-evidence.yml) | defect | P1 | — | Verify context continuation against delivered Worker and Planner evidence |
+| [V500-006](v500-006-context-eval-output-contract.yml) | defect | P1 | — | Align visible context-eval output contracts with independent domain checks |
 
 ### Podman sandbox (`sandbox`)
 
@@ -170,7 +172,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 21 | 80 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
-| Evaluations (`evals`) | 5 | 24 | 48 | 27 | 56 |
+| Evaluations (`evals`) | 7 | 24 | 50 | 27 | 58 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
 | Web UI (`ui`) | 1 | 57 | 83 | 38 | 81 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |

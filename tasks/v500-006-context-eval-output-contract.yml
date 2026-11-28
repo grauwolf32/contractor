@@ -1,0 +1,58 @@
+schema_version: '1.0'
+id: V500-006
+title: Align visible context-eval output contracts with independent domain checks
+milestone: eval-maintenance-2026-10
+epic: evals
+kind: defect
+introduced_by: V417-008
+priority: P1
+status: pending
+depends_on: []
+languages: [python, json, markdown]
+goal: Make a future context study distinguish invalid output, domain mistakes and continuation misses without rejecting valid unprohibited API representations.
+context:
+  authority: 'Agent-proposed follow-up from user-authorized research on 2026-11-28; no live execution or retrospective R5 rescoring is authorized by this task.'
+  review: docs/research/context-compaction-evaluation.md
+  finding: >-
+    tests/eval/context_compaction/harness.py:216-248 indexes every operation's
+    responses[200] and operation-level security, then collapses any shape or
+    key error into well_formed_evidence=false. The visible API task does not
+    prohibit POST201 or inherited tenant security. Both single-change
+    counterexamples pass the pinned OpenAPI validator but fail the scorer.
+    In R5 all 13 published API documents pass that validator. Source finding
+    metadata and exact observed/uncertain set shapes also need a declared
+    output contract rather than hidden assumptions.
+  siblings: >-
+    Review all three visible cases, private recorded answers, independent
+    scorers, offline corruptions, public check pins and the controlled future
+    answer field. Keep a malformed JSON failure distinct from valid JSON with
+    missing fields and from false domain facts. No lenient legacy reader.
+  specification:
+    - docs/spec/evals/format.md
+    - docs/spec/evals/managed-evals.md
+  design: tests/eval/context_compaction/README.md
+  boundary: >-
+    Deterministic evaluation owns structure and domain validation. Publish one
+    strict visible output schema and accept standards-valid domain choices
+    which that contract permits. Hidden expected facts remain evaluator-only.
+    Keep the current R5 scorer, identities and assessments immutable; changed
+    scorer/fixtures require new digests and new native registrations.
+scope:
+  in:
+    - Exact visible output schemas and independently classified checks for each case.
+    - Real pinned-validator regressions for POST201, inherited security and malformed or unsupported domain content.
+    - Explainable per-check evidence and a new scorer closure for future registrations.
+  out:
+    - Production result assembly, model or parameter changes, another live matrix and promotion of old R5 failures to passes.
+acceptance_criteria:
+  - id: A1
+    text: Valid POST201 and inherited tenant security permitted by the visible contract pass their API checks; malformed OpenAPI, missing tenant protection and wrong routes still fail independently.
+  - id: A2
+    text: Every case declares field types and identity/constraint semantics without disclosing private expected answers. Shape failures retain available independent domain checks and a precise reason.
+  - id: A3
+    text: Regressions exercise the real pinned validator and full fixture gate; all changed inputs/scorer pins receive new identities and retained R5 evidence stays unchanged.
+tests:
+  - command: make test-context-compaction-eval-fixtures
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
