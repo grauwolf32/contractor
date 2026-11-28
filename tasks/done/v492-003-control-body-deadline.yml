@@ -4,9 +4,9 @@ title: Bound ControlPlane message reads independently of caller deadlines
 milestone: server-runtime-grpc-2026-11
 epic: execution-core
 kind: defect
-introduced_by: V490-003
+introduced_by: V490-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -26,6 +26,10 @@ context:
   - docs/spec/execution/runtime-agent.md#RTA-R88
   - docs/spec/platform/failure-model.md
   - api/v1alpha1/README.md
+  boundary_decision: Use separate Server read and write stream budgets, clearing socket deadlines during domain
+    execution. A whole-RPC timeout would incorrectly constrain registration/storage by the body-read allowance.
+    Controlled real HTTP/2 expiry and phase-specific tests pin the boundary; reopen if message size or supported
+    transport throughput changes.
 scope:
   in:
   - A stalled authenticated ControlPlane request releases admission within a Server-owned read budget even
@@ -36,8 +40,8 @@ scope:
   - No new receipt table, model change, public API, deployment or unrelated protocol redesign.
 acceptance_criteria:
 - id: A1
-  text: Every ControlPlane body has a Server-owned read deadline set before grpc-go decoding; it is cleared
-    before domain execution and response writing has its own bounded deadline.
+  text: Every ControlPlane body has a six-second Server-owned read deadline (LIM-CTL-32) set before grpc-go
+    decoding; it is cleared before domain execution and response writing has its own bounded deadline.
 - id: A2
   text: Stalled HTTP/2 streams with no grpc-timeout release permits and subsequent healthy control requests
     progress; tests use controlled deadlines rather than elapsed-time assertions.
@@ -55,3 +59,10 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: f0030be1db178f5505394e7f462bcceb0f93d557
+verification:
+  status: passed
+  evidence: tasks/evidence/v492-grpc-review-fixes-20261128.json
+  observed: All listed commands passed against the combined fixes. Native regression probes fail before the
+    respective fix. PostgreSQL was enabled for Go and wire checks. Runtime skips remain explicitly reported;
+    optional heavy I/O was not enabled.
