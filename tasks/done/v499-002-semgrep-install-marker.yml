@@ -6,7 +6,7 @@ epic: scan-tools
 kind: defect
 introduced_by: V499-001
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V499-001]
 languages: [python]
 goal: Semgrep provisioning copies both locked inputs, compiles bytecode once and marks completion only after success.
@@ -33,3 +33,10 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification:
+  results:
+    - The real Ansible installer regression fails on the baseline with an undefined item and passes after correcting both destinations.
+    - All 19 diagnostics tests pass, including exact lockfile copies before compilation, a pre-existing legacy marker, idempotent rerun, failed compilation without completion and protected verbose diagnostics.
+    - make lint passes including the complete Ansible gate, task/spec checks, Go and Python source checks. Runtime production code is unchanged from the independently verified V499-001 revision.
+    - The failed demo installation marker was verified against the exact lockfile digest and preserved aside; no business data was changed. Corrected deployment follows main integration.
+implementation_commit: 41e553efbd87ab22542bcbf1fbc6a375a0c26b1c

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-66 open tasks: 11 in progress, 42 pending, 13 deferred. 1750 finished: 1731 completed, 19 archived.
+65 open tasks: 10 in progress, 42 pending, 13 deferred. 1751 finished: 1732 completed, 19 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V499-002](v499-002-semgrep-install-marker.yml) | scan-tools | defect | P1 | Keep Semgrep lockfile destinations separate from its completion marker |
 
 ## Pending
 
@@ -165,7 +164,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 27 | 38 | 18 | 39 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 22 | 15 | 13 | 32 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 22 | 15 | 13 | 32 |
 | Findings tools and collections (`findings`) | 0 | 23 | 16 | 14 | 30 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 21 | 79 |
