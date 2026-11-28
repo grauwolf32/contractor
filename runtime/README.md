@@ -530,3 +530,31 @@ verdict. Each source retains `producer=semgrep`, rule and package identity,
 exact source/file digests and a bounded selected code window; repeated scans of
 the same source/rules group through the existing producer fingerprint. This
 preserves inputs for later review without claiming a completed LLM validation.
+
+## Playwright frontend exploration
+
+Provision the Chromium revision matching the locked Python dependency before
+starting Runtime (never install a browser during allocation preparation):
+
+```sh
+uv sync --locked --project runtime
+uv run --project runtime playwright install chromium
+# On Linux provision OS dependencies once, as an administrator:
+uv run --project runtime playwright install-deps chromium
+```
+
+Run these commands from the repository root, with the browser cache accessible
+to the Runtime service account. The actual Chromium launch/close probe controls
+`browser-tools@1` advertisement; a missing browser leaves it unavailable.
+
+The shipped `frontend-route-map@1` Workflow takes a required engagement artifact
+and a text/Markdown `brief` containing entry URLs and intended UI scenarios.
+Its `route-map` JSON output is assembled by Runtime from real route, action and
+request observations. Screenshots are ordinary PNG artifacts in `frontend` and
+can be selected as exact Finding sources. Action/request association is temporal;
+background requests and unsupported capabilities are explicit gaps. See
+[the browser contract](../docs/spec/tools/browser.md) for limits and lifecycle.
+
+Run `make test-pentest-browser-adapter-e2e` with the installed browser and an
+active RFC1918 interface for the deterministic real-socket frontend fixture.
+The gate fails when Chromium is missing; it does not substitute mocks or skip.

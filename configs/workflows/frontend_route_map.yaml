@@ -1,0 +1,39 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: frontend-route-map, version: '1'}
+spec:
+  parameters: {}
+  inputs:
+    engagement:
+      required: true
+      mediaTypes: [application/vnd.contractor.engagement+json]
+    brief:
+      required: true
+      mediaTypes: [text/plain, text/markdown]
+  outputs:
+    route-map: {required: true, primary: true, mediaTypes: [application/json]}
+  executionConfig:
+    workers: {llmGateway: local-litellm@1, credential: development-worker, modelPolicy: worker@1}
+  entryStage: map
+  stages:
+    map:
+      objective: Explore the frontend routes specified in the brief within engagement; record UI action and API observations and relevant screenshots
+      instructions: {ref: instructions/frontend-route-mapper-v1.md}
+      planner: passthrough@1
+      agents:
+        mapper: {template: frontend_route_mapper@1, namespace: frontend}
+      context:
+        artifacts:
+          engagement: {namespace: inputs, name: engagement, required: true}
+          brief: {namespace: inputs, name: brief, required: true}
+      result:
+        artifacts:
+          route-map:
+            required: true
+            mediaTypes: [application/json]
+            from: {namespace: frontend, name: route-map}
+      workflowOutputs: {route-map: route-map}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}
