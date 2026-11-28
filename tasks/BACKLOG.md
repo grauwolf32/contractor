@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 10 in progress, 42 pending, 13 deferred. 1735 finished: 1716 completed, 19 archived.
+65 open tasks: 10 in progress, 42 pending, 13 deferred. 1741 finished: 1722 completed, 19 archived.
 
 ## In progress
 
@@ -156,7 +156,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 54 | 76 | 46 | 112 |
+| Run execution core (`execution-core`) | 3 | 54 | 80 | 46 | 116 |
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 51 | 63 | 54 | 106 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
@@ -167,12 +167,12 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 22 | 16 | 13 | 30 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 41 | 21 | 78 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 21 | 79 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 24 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
 | Web UI (`ui`) | 1 | 57 | 83 | 35 | 80 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
-| Public API and wire contracts (`api-contracts`) | 1 | 3 | 43 | 30 | 21 |
+| Public API and wire contracts (`api-contracts`) | 1 | 3 | 44 | 30 | 22 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 20 |
 | Quality, CI and process (`quality`) | 11 | 1 | 38 | 157 | 32 |

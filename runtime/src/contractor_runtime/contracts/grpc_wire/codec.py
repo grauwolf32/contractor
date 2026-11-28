@@ -115,6 +115,20 @@ def decode(message: Message) -> dict[str, Any]:
     return value
 
 
+def json_bytes(message: Message) -> bytes:
+    """Return the strict domain projection as compact UTF-8 JSON bytes.
+
+    Callers apply their own byte budgets. Invalid Unicode or JSON values are
+    wire failures, never raw serializer exceptions that bypass classification.
+    """
+    try:
+        return json.dumps(
+            decode(message), ensure_ascii=False, allow_nan=False, separators=(",", ":")
+        ).encode("utf-8")
+    except (ValueError, TypeError, RecursionError):
+        raise InvalidWireValue from None
+
+
 def _decode(message: Message) -> Any:
     name = message.DESCRIPTOR.name
     if name.endswith("Document"):

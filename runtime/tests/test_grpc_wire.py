@@ -7,8 +7,11 @@ from pathlib import Path
 
 import pytest
 
+from contractor_runtime._grpc_client import _decode_response
+from contractor_runtime.contracts.base import WireModel
 from contractor_runtime.contracts.grpc_wire import codec, limits
 from contractor_runtime.contracts.grpc_wire import runtime_pb2 as pb
+from contractor_runtime.grpc_server import _decode_request
 
 FIXTURES = Path(__file__).parents[2] / "api/testdata/v1alpha1"
 INDEX = json.loads((FIXTURES / "index.json").read_text())
@@ -105,3 +108,33 @@ def test_shared_allocation_protobuf_shapes():
     for case in cases["invalid"]:
         with pytest.raises(codec.InvalidWireValue):
             codec.encode(case["value"], getattr(pb, case["type"])())
+
+
+class LifecycleText(WireModel):
+    text: str
+
+
+def test_shared_lifecycle_compact_utf8_size():
+    cases = json.loads((FIXTURES / "grpc-json-size-cases.json").read_bytes())["cases"]
+    for case in cases:
+        assert len(case["unit"].encode()) == case["utf8Bytes"]
+        for extra in (0, 1):
+            size = limits.MAX_CONTROL_BYTES - len(b'{"text":""}') + extra
+            value = {
+                "text": case["unit"] * (size // case["utf8Bytes"])
+                + "a" * (size % case["utf8Bytes"])
+            }
+            raw = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()
+            assert len(raw) == limits.MAX_CONTROL_BYTES + extra
+            message = codec.encode(value, pb.ResolvedInstructions())
+            for decode in (_decode_request, _decode_response):
+                if extra:
+                    with pytest.raises(codec.InvalidWireValue):
+                        decode(message, LifecycleText)
+                else:
+                    decoded = decode(message, LifecycleText)
+                    assert (
+                        decoded.text if isinstance(decoded, LifecycleText) else decoded["text"]
+                    ) == value["text"]
+    with pytest.raises(codec.InvalidWireValue):
+        _decode_request(pb.ResolvedInstructions(text="a" * limits.MAX_CONTROL_BYTES), LifecycleText)

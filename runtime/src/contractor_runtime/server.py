@@ -35,7 +35,7 @@ from contractor_runtime.contracts.grpc_wire.limits import (
     PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS,
 )
 from contractor_runtime.core.async_tasks import join_owned_task
-from contractor_runtime.grpc_server import LifecycleHandler
+from contractor_runtime.grpc_server import LifecycleHandler, RPCAdmission
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
 
@@ -239,7 +239,7 @@ class RuntimeServer:
             grpc_path = Path(directory) / "runtime.sock"
             http_path = Path(directory) / "http.sock"
             server = grpc.aio.server(
-                maximum_concurrent_rpcs=MAX_CONCURRENT_RPCS,
+                interceptors=(RPCAdmission(),),
                 options=(
                     ("grpc.max_receive_message_length", MAX_A2A_REQUEST_BYTES),
                     ("grpc.max_send_message_length", MAX_STATE_MESSAGE_BYTES),

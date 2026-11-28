@@ -1,0 +1,81 @@
+schema_version: '1.0'
+id: V492-004
+title: Count private protobuf domain projections as compact UTF-8
+milestone: server-runtime-grpc-2026-11
+epic: api-contracts
+kind: defect
+introduced_by: V490-002
+priority: P2
+status: completed
+depends_on: []
+languages:
+- go
+- python
+goal: Go and Python accept the same valid Unicode lifecycle/control documents within the existing UTF-8 and
+  protobuf byte ceilings.
+context:
+  authority: 'User decision 2026-11-28: create tasks for all five review findings, fix P1 first, add regression
+    tests and run required checks. Review baseline 2a54565054c89526d68ff86232f5d5fb8c99d3cc.'
+  severity: medium
+  finding: runtime/src/contractor_runtime/grpc_server.py:181 uses json.dumps ensure_ascii=True. A signed Prepare
+    with 180000 Cyrillic characters is 361839 UTF-8 bytes and 361559 protobuf bytes, yet the ASCII projection
+    exceeds 1 MiB and is rejected.
+  siblings: Python control reply decode repeats the same projection; Go lifecycle Encode uses json.Marshal
+    HTML escaping while domain encode/decode uses compact JSON. Audit all native domain/control projections
+    and preserve exact document digests.
+  specification:
+  - docs/spec/execution/control-plane.md#CTL-R175
+  - docs/spec/execution/runtime-agent.md#RTA-R88
+  - docs/spec/platform/failure-model.md
+  - api/v1alpha1/README.md
+  boundary_decision: Use the existing compact UTF-8 Go encoder and one Python protobuf JSON projection with
+    normalized serialization errors. Counting ASCII-escaped JSON produces language-dependent bounds; changing
+    canonical digest encoding would change identities outside this fix. Shared exact-boundary cases and native
+    valid/malformed Unicode tests pin the accounting. Reopen only with an explicit redesign of the JSON document
+    boundary.
+scope:
+  in:
+  - Go and Python accept the same valid Unicode lifecycle/control documents within the existing UTF-8 and protobuf
+    byte ceilings.
+  - Regression coverage on native transport/production owners; update the owning contract where clarification
+    is needed.
+  out:
+  - No new receipt table, model change, public API, deployment or unrelated protocol redesign.
+acceptance_criteria:
+- id: A1
+  text: A signed Unicode Prepare below both byte limits reaches the real allocation service; genuinely oversized
+    domain projections or protobuf envelopes are still rejected.
+- id: A2
+  text: Go/Python shared fixtures cover Unicode, HTML characters and U+2028/U+2029 with compact UTF-8 byte
+    counts at the limit and one byte over.
+- id: A3
+  text: Canonical document bytes/digests, strict validation and independent State/bulk limits are preserved;
+    regressions fail on the original code.
+tests:
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: go test -count=1 ./internal/runtimewire ./internal/controlplane ./internal/httpapi/privateartifacts
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: 5ae638213052003f44fc7f4a1e42177776e9ac25
+verification:
+  status: passed
+  evidence: tasks/evidence/v492-grpc-review-fixes-20261128.json
+  observed: All listed commands passed against the combined fixes. Native regression probes fail before the
+    respective fix. PostgreSQL was enabled for Go and wire checks. Runtime skips remain explicitly reported;
+    optional heavy I/O was not enabled.

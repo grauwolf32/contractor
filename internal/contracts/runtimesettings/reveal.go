@@ -8,8 +8,6 @@ package runtimesettings
 // every other field keeps the default encoding without a second field list.
 
 import (
-	"encoding/json"
-
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -18,7 +16,7 @@ import (
 // RuntimeSettings uses json.Marshal, which redacts the same fields.
 func (s RuntimeSettings) RevealJSON() ([]byte, error) {
 	type plain RuntimeSettings
-	return json.Marshal(struct {
+	return contracts.EncodeCompactJSON(struct {
 		plain
 		HTTPIdentities   map[string]revealedHTTPIdentity `json:"httpIdentities,omitempty"`
 		LLMGatewayToken  *string                         `json:"llmGatewayToken,omitempty"`

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
@@ -43,7 +44,7 @@ func NewGRPCHandler(registry Registry, principals PrincipalRegistrar) (http.Hand
 		grpc.MaxRecvMsgSize(runtimewire.MaxControlBytes),
 		grpc.MaxSendMsgSize(runtimewire.MaxControlBytes),
 		grpc.MaxHeaderListSize(runtimewire.MaxMetadataBytes),
-		grpc.UnaryInterceptor(runtimewire.UnaryHTTP(nil)),
+		grpc.UnaryInterceptor(runtimewire.UnaryHTTP(controlRPCDecoded)),
 	)
 	pb.RegisterControlPlaneServer(server, &controlRPCServer{registry: registry, principals: principals})
 	return &boundedControlRPC{next: server, permits: make(chan struct{}, runtimewire.MaxConcurrentRPCs)}, nil
@@ -164,6 +165,20 @@ func controlRPCError(ctx context.Context, err error) error {
 }
 
 // Admission precedes grpc-go message decoding, bounding aggregate request memory.
+// A complete control message gets six seconds to arrive or leave the Server.
+// Domain work has its own request/storage budgets (CTL-R175, LIM-CTL-32).
+const controlRPCIOTimeout = 6 * time.Second
+
+type controlRPCContextKey struct{}
+
+func controlRPCDecoded(ctx context.Context, request any, _ *grpc.UnaryServerInfo, next grpc.UnaryHandler) (any, error) {
+	controller := ctx.Value(controlRPCContextKey{}).(*http.ResponseController)
+	_ = controller.SetReadDeadline(time.Time{})
+	_ = controller.SetWriteDeadline(time.Time{})
+	defer func() { _ = controller.SetWriteDeadline(time.Now().Add(controlRPCIOTimeout)) }()
+	return next(ctx, request)
+}
+
 type boundedControlRPC struct {
 	next    http.Handler
 	permits chan struct{}
@@ -173,7 +188,12 @@ func (h *boundedControlRPC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	select {
 	case h.permits <- struct{}{}:
 		defer func() { <-h.permits }()
-		runtimewire.ServeHTTP(w, r, h.next, runtimewire.MaxControlBytes, false)
+		controller := http.NewResponseController(w)
+		deadline := time.Now().Add(controlRPCIOTimeout)
+		_ = controller.SetReadDeadline(deadline)
+		_ = controller.SetWriteDeadline(deadline)
+		ctx := context.WithValue(r.Context(), controlRPCContextKey{}, controller)
+		runtimewire.ServeHTTP(w, r.WithContext(ctx), h.next, runtimewire.MaxControlBytes, false)
 	default:
 		runtimewire.WriteError(w, runtimewire.Error(r.Context(), codes.ResourceExhausted, "control_rpc_capacity", true))
 	}

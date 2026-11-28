@@ -266,11 +266,19 @@ def test_bulk_early_typed_rejection_stops_upload_without_replay_or_peer_text(pki
         owner = RPCConnections(runtime_context(pki), bulk=True)
         try:
             payload = b"x" * (2 * BULK_CHUNK_BYTES + 7)
-            with pytest.raises(ArtifactAPIError) as failure:
+            with pytest.raises((ArtifactAPIError, ArtifactTransportError)) as failure:
                 await BulkRPC(owner, origin, "runtime-1", 5).write_artifact(
                     "allocation-1", header(len(payload)), payload
                 )
-            assert failure.value.code == "allocation_write_fenced" and not failure.value.retryable
+            if isinstance(failure.value, ArtifactAPIError):
+                assert failure.value.code == "allocation_write_fenced"
+                assert not failure.value.retryable
+            else:
+                # A reset can lose the peer trailers entirely. That is an
+                # ambiguous transport failure, never evidence of a rejection
+                # or of non-commit. Available final status is pinned separately
+                # by the deterministic upload-step tests below.
+                assert str(failure.value) == "allocation RPC transport failed"
             assert "PRIVATE_PEER_DIAGNOSTIC" not in str(failure.value)
             assert service.calls == 1 and not owner._tasks
         finally:
@@ -326,5 +334,79 @@ def test_native_finding_lost_reply_reuses_capture_and_original_receipt(pki):
         finally:
             await owner.aclose()
             await server.stop(0)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("phase", ["frame", "half_close"])
+@pytest.mark.parametrize("fault", ["already_finished", "native_write_error"])
+@pytest.mark.parametrize("peer_success", [False, True])
+def test_bulk_upload_joins_final_peer_status_after_local_send_error(
+    monkeypatch, phase, fault, peer_success
+):
+    from types import SimpleNamespace
+
+    import grpc
+
+    async def scenario():
+        final = grpc.aio.AioRpcError(grpc.StatusCode.FAILED_PRECONDITION, (), ())
+        local = (
+            asyncio.InvalidStateError("finished")
+            if fault == "already_finished"
+            else grpc.aio.AioRpcError(grpc.StatusCode.INTERNAL, (), ())
+        )
+
+        class Call:
+            writes = 0
+            half_closes = 0
+            status_reads = 0
+
+            async def write(self, _frame):
+                self.writes += 1
+                if phase == "frame":
+                    raise local
+
+            async def done_writing(self):
+                self.half_closes += 1
+                raise local
+
+            def __await__(self):
+                async def status():
+                    self.status_reads += 1
+                    if peer_success:
+                        return b"unexpected early success"
+                    raise final
+
+                return status().__await__()
+
+            def done(self):
+                return True
+
+            async def code(self):
+                return final.code()
+
+        call = Call()
+        starts = []
+
+        def start(**_kwargs):
+            starts.append(None)
+            return call
+
+        monkeypatch.setattr(rpc, "ArtifactStub", lambda _channel: SimpleNamespace(Write=start))
+
+        class Owner:
+            async def execute(self, _origin, operation, _limit, _timeout):
+                return await operation(None, lambda: 5, "request_1")
+
+        expected = ArtifactTransportError if peer_success else grpc.aio.AioRpcError
+        with pytest.raises(expected) as failure:
+            await BulkRPC(Owner(), "https://control.invalid", "runtime-1", 5).write_artifact(
+                "allocation-1", header(0), b""
+            )
+        if not peer_success:
+            assert failure.value is final
+        assert len(starts) == call.writes == 1
+        assert call.half_closes == (1 if phase == "half_close" else 0)
+        assert call.status_reads == 2  # status normalization plus existing cleanup join
 
     asyncio.run(scenario())

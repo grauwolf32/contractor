@@ -138,3 +138,34 @@ def test_status_details_preserve_domain_retry_verdict():
     )
     result = _error(error, "request_test")
     assert result.retryable and result.code == "conflict" and result.request_id == "request_1"
+
+
+def test_shared_private_rpc_error_classification():
+    cases = json.loads(
+        (Path(__file__).parents[2] / "api/testdata/v1alpha1/grpc-error-cases.json").read_bytes()
+    )["cases"]
+    statuses = {value.value[0]: value for value in grpc.StatusCode}
+    for case in cases:
+        trailers = ()
+        if case["detail"] is not None:
+            detail = pb.ErrorDetail(
+                **{
+                    {"requestId": "request_id"}.get(key, key): value
+                    for key, value in case["detail"].items()
+                }
+            )
+            if case.get("unknownDetail"):
+                detail.MergeFromString(b"\xf8\x07\x01")
+            packed = Any()
+            packed.Pack(detail)
+            trailers = (
+                (
+                    "grpc-status-details-bin",
+                    Status(code=case["status"], details=[packed]).SerializeToString(),
+                ),
+            )
+        error = grpc.aio.AioRpcError(
+            statuses[case["status"]], (), trailers, "untrusted diagnostics"
+        )
+        failure = _error(error, "request_fallback")
+        assert (failure.code, failure.retryable) == (case["code"], case["retryable"]), case["name"]

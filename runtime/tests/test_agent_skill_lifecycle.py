@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 from fakes.allocation import allocation_context, allocation_snapshot
-from fakes.clock import advance_clock, run_with_advanceable_clock
+from fakes.clock import run_with_advanceable_clock
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
 from filesystem_audit import FilesystemAudit
@@ -320,13 +320,14 @@ def test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced(
             assert allocation_context(service).workspace.path.is_dir()
             if cancelled:
                 running.cancel()
+                await asyncio.sleep(0)
+                # The caller wait is cancelled; allocation-owned cleanup keeps
+                # its deadline and only a real stop failure may fence siblings.
+                assert not running.done() and exits == []
+                assert any(not task.done() for task in closing_tasks)
+                resume.set()
                 with pytest.raises(asyncio.CancelledError):
                     await running
-                if component == "native":
-                    # ADK joins its shielded ten-second toolset-close timer.
-                    # The native owner is already held at resume.wait().
-                    assert any(not task.done() for task in closing_tasks)
-                    advance_clock(11)
             else:
                 resume.set()
                 with pytest.raises(AllocationError) as failed:

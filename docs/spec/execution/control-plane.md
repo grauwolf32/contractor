@@ -1899,11 +1899,24 @@ permit an arbitrary method/path/JSON envelope. Secret Prepare bytes are cleared
 after the call; their diagnostic representation remains redacted.
 
 A control/lifecycle message and its domain projection are bounded by
-LIM-CTL-20 (except the State response envelope, LIM-CTL-27), A2A envelopes
-by LIM-CTL-21, metadata by LIM-CTL-22. Python grpcio sets both its soft
+LIM-CTL-20. Domain projections count compact UTF-8 JSON bytes without ASCII,
+HTML or JavaScript-only escaping; this accounting is not a canonical digest
+encoding and does not alter document identities. The independent protobuf byte
+ceiling still applies to the complete message (except the State response
+envelope, LIM-CTL-27). A2A envelopes are bounded by LIM-CTL-21 and metadata by
+LIM-CTL-22. Python grpcio sets both its soft
 metadata threshold and absolute hard limit to that ceiling; probabilistic
 soft rejection alone does not enforce it. Both receivers
-bound aggregate admission with LIM-CTL-23 before application decoding. Caller
+bound aggregate admission with LIM-CTL-23 before application decoding. Server
+PlannerOperation calls have a separate sublimit inside that ceiling: callbacks
+may wait for a Worker that needs Artifact or Allocation RPCs to finish. Reserving
+Worker progress positions prevents those callbacks from consuming their own
+dependencies; surplus receives the existing typed retryable capacity error.
+The independent ControlPlane reserve remains available. ControlPlane message
+reads and writes also have independent Server-owned LIM-CTL-32 stream deadlines,
+including when the caller omits a deadline. The read deadline is cleared before
+domain execution, and the response receives a fresh write budget; socket I/O
+budgets do not become database or registration timeouts. Caller
 deadlines include admission, connection, TLS and response; domain finalization,
 lease and Stage deadlines remain separate. Invalid input is `InvalidArgument`,
 missing TLS identity `Unauthenticated`, state conflicts `FailedPrecondition`,
@@ -1923,8 +1936,12 @@ State document keeps LIM-WRK-17 independently of the protobuf envelope.
 Heartbeat sequences, acknowledgements and echoed acknowledgements remain exact
 `uint64` values; channel connectivity and HTTP/2 PING never renew their lease.
 Malformed control replies (including oversized untyped receive failures) are
-permanent. Server admission exhaustion carries typed `control_rpc_capacity`
-with `retryable=true`; existing caller backoff and deadline bounds apply.
+permanent. Server and Runtime admission exhaustion carries typed
+`control_rpc_capacity` with `retryable=true`; an untyped `ResourceExhausted`
+is a permanent `invalid_response`, since it can be a local receive-limit
+failure. Runtime pre-decode admission owns each SDK RPC task through completion
+and rejects surplus before deserialization, replacing the SDK's untyped capacity
+rejection. Existing caller backoff and deadline bounds apply.
 
 
 **CTL-R176.** Runtime allocation-domain calls use the named `Allocation`
@@ -2053,3 +2070,10 @@ Non-client-streaming RPCs permit the second bounded message needed for the SDK
 cardinality check. HTTP/2 windows alone do not bound that eager queue. Cancellation closes receive credit and joins admitted unary
 or streaming application handlers before the listener releases admission or
 its HTTP/2 writer. This also applies to Control Plane unary RPCs.
+
+When an upload frame write or half-close fails locally, Runtime joins the native
+call before classification so an available final typed peer status takes
+precedence. A reset may lose trailers entirely; that remains an explicit
+ambiguous transport failure, reconciled through the existing Artifact binding
+or finding receipt. Runtime never replays a frame or invents a domain rejection
+from an SDK diagnostic string.

@@ -1,0 +1,82 @@
+schema_version: '1.0'
+id: V492-005
+title: Classify oversized lifecycle replies as permanent protocol failures
+milestone: server-runtime-grpc-2026-11
+epic: execution-core
+kind: defect
+introduced_by: V490-002
+priority: P2
+status: completed
+depends_on: []
+languages:
+- go
+- python
+goal: Oversized or malformed private replies fail permanently while a typed retryable admission rejection retains
+  its bounded retry policy.
+context:
+  authority: 'User decision 2026-11-28: create tasks for all five review findings, fix P1 first, add regression
+    tests and run required checks. Review baseline 2a54565054c89526d68ff86232f5d5fb8c99d3cc.'
+  boundary_decision: Replace Runtime SDK concurrency rejection with native pre-decode interceptor admission
+    on the same 32-RPC ceiling. The SDK RPC task owns its permit until done, covering decode failure, cancellation
+    and joined terminal cleanup. Surplus is a typed retryable control_rpc_capacity; clients fail closed for
+    untyped ResourceExhausted. Parsing SDK diagnostic strings would be fragile, while retaining untyped admission
+    cannot distinguish receive-limit failures. Native held-RPC, malformed-decode and cancellation tests pin
+    the SDK task lifetime. Reopen if a grpcio upgrade changes interceptor scheduling or exposes typed SDK admission.
+  severity: medium
+  finding: internal/controlplane/runtime_grpc.go:85 marks every untyped ResourceExhausted retryable. A real
+    gRPC response beyond MaxCallRecvMsgSize becomes transport_unavailable/retryable=true rather than a permanent
+    protocol failure.
+  siblings: ReadState shares decodeLifecycleError. Python ControlRPC already makes untyped receive-limit failures
+    permanent; allocation clients and Runtime SDK admission must use the same distinction without parsing raw
+    error text.
+  specification:
+  - docs/spec/execution/control-plane.md#CTL-R175
+  - docs/spec/execution/runtime-agent.md#RTA-R88
+  - docs/spec/platform/failure-model.md
+  - api/v1alpha1/README.md
+scope:
+  in:
+  - Oversized or malformed private replies fail permanently while a typed retryable admission rejection retains
+    its bounded retry policy.
+  - Regression coverage on native transport/production owners; update the owning contract where clarification
+    is needed.
+  out:
+  - No new receipt table, model change, public API, deployment or unrelated protocol redesign.
+acceptance_criteria:
+- id: A1
+  text: A real oversized lifecycle or State reply is a permanent classified failure; malformed typed details
+    fail closed.
+- id: A2
+  text: Capacity exhaustion that is explicitly classified by the serving Runtime remains typed and retryable;
+    generic SDK exhaustion cannot be confused with receive-limit failures.
+- id: A3
+  text: Cross-language failure fixtures and native Go/Python RPC regressions cover missing details, typed capacity,
+    malformed details, Unavailable, DeadlineExceeded and receive limits.
+tests:
+- command: go test -count=1 ./internal/controlplane ./internal/runtimewire ./internal/mtls
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: 6cad2d12878f0e69fe529d9eab79122893ac8494
+verification:
+  status: passed
+  evidence: tasks/evidence/v492-grpc-review-fixes-20261128.json
+  observed: All listed commands passed against the combined fixes. Native regression probes fail before the
+    respective fix. PostgreSQL was enabled for Go and wire checks. Runtime skips remain explicitly reported;
+    optional heavy I/O was not enabled.

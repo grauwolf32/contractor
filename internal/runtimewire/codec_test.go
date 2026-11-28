@@ -2,7 +2,9 @@ package runtimewire
 
 import (
 	"encoding/json"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"reflect"
+	"strings"
 	"testing"
 
 	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
@@ -140,5 +142,62 @@ func TestSharedProtobufSequencePrecision(t *testing.T) {
 		if err := encodeMessage([]byte(`{"heartbeatSeq":`+value+`}`), (&pb.AgentHeartbeat{}).ProtoReflect()); err == nil {
 			t.Fatalf("invalid sequence %s accepted", value)
 		}
+	}
+}
+
+type lifecycleText struct {
+	Text string `json:"text"`
+}
+
+func (v lifecycleText) Validate() error {
+	if v.Text == "" {
+		return ErrInvalid
+	}
+	return nil
+}
+func TestSharedLifecycleCompactUTF8Size(t *testing.T) {
+	var cases struct {
+		Cases []struct {
+			Name, Unit string
+			UTF8Bytes  int `json:"utf8Bytes"`
+		}
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "grpc-json-size-cases.json"), &cases); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range cases.Cases {
+		t.Run(test.Name, func(t *testing.T) {
+			if len(test.Unit) != test.UTF8Bytes {
+				t.Fatal("incorrect UTF-8 fixture")
+			}
+			const overhead = len(`{"text":""}`)
+			for _, extra := range []int{0, 1} {
+				size := MaxControlBytes - overhead + extra
+				value := lifecycleText{Text: strings.Repeat(test.Unit, size/test.UTF8Bytes) + strings.Repeat("a", size%test.UTF8Bytes)}
+				raw, err := contracts.EncodeCompactJSON(value)
+				if err != nil || len(raw) != MaxControlBytes+extra {
+					t.Fatal("incorrect boundary fixture")
+				}
+				message := &pb.ResolvedInstructions{}
+				err = Encode(value, message)
+				if extra == 1 {
+					if err == nil {
+						t.Fatal("accepted oversized domain")
+					}
+					continue
+				}
+				if err != nil {
+					t.Fatalf("compact UTF-8 request rejected: %v", err)
+				}
+				var decoded lifecycleText
+				if err := Decode(message, &decoded); err != nil || decoded != value {
+					t.Fatal("domain round trip failed", err)
+				}
+			}
+			// Independently reject an oversized protobuf message even before projection.
+			if Decode(&pb.ResolvedInstructions{Text: proto.String(strings.Repeat("a", MaxControlBytes))}, &lifecycleText{}) == nil {
+				t.Fatal("accepted oversized protobuf")
+			}
+		})
 	}
 }

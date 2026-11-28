@@ -1,6 +1,9 @@
 package control
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"github.com/grauwolf32/contractor/internal/contracts"
+)
 
 // RevealJSON encodes the prepare request, the one private wire message that
 // carries RuntimeSettings secrets in plaintext (SEC-R29, SEC-R88). Default
@@ -11,7 +14,7 @@ func (r PrepareAllocationRequest) RevealJSON() ([]byte, error) {
 		return nil, err
 	}
 	type plain PrepareAllocationRequest
-	return json.Marshal(struct {
+	return contracts.EncodeCompactJSON(struct {
 		plain
 		Spec json.RawMessage `json:"spec"`
 	}{plain(r), spec})
@@ -25,7 +28,7 @@ func (s AllocationSpec) RevealJSON() ([]byte, error) {
 		return nil, err
 	}
 	type plain AllocationSpec
-	return json.Marshal(struct {
+	return contracts.EncodeCompactJSON(struct {
 		plain
 		RuntimeSettings json.RawMessage `json:"runtimeSettings"`
 	}{plain(s), settings})

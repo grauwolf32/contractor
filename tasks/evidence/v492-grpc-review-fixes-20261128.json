@@ -1,0 +1,138 @@
+{
+  "date": "2026-11-28",
+  "baseline": "2a54565054c89526d68ff86232f5d5fb8c99d3cc",
+  "code_revision": "eec333fdab397a0ee6a15459fe3637b5051aa680",
+  "branch": "codex/grpc-review-fixes",
+  "tasks": {
+    "V492-001": "f5586c7ca73bd558e30b0110ef774bd3b8d4ece5",
+    "V492-002": "eebc7930aaf02ab013a7a6479f3b8590ef2498fc",
+    "V492-003": "f0030be1db178f5505394e7f462bcceb0f93d557",
+    "V492-004": "5ae638213052003f44fc7f4a1e42177776e9ac25",
+    "V492-005": "6cad2d12878f0e69fe529d9eab79122893ac8494",
+    "V492-006": "eec333fdab397a0ee6a15459fe3637b5051aa680"
+  },
+  "runtime": {
+    "tests": 6877,
+    "passed": 6741,
+    "skipped": 136,
+    "failures": 0,
+    "errors": 0,
+    "duration_seconds": 565.757,
+    "required_regressions": [
+      "test_bulk_upload_joins_final_peer_status_after_local_send_error[False-native_write_error-frame]",
+      "test_cancelled_terminal_rpc_preserves_siblings_and_cached_report[abort]",
+      "test_cancelled_terminal_rpc_preserves_siblings_and_cached_report[finalize]",
+      "test_lifecycle_rejects_invalid_wire_before_dispatch[surrogate]",
+      "test_runtime_admission_is_typed_before_decode_and_releases_every_outcome",
+      "test_shared_lifecycle_compact_utf8_size",
+      "test_shared_private_rpc_error_classification"
+    ]
+  },
+  "go_integration": {
+    "packages": {
+      "github.com/grauwolf32/contractor/internal/planner/router": "skip",
+      "github.com/grauwolf32/contractor/internal/contracts/contractstest": "pass",
+      "github.com/grauwolf32/contractor/internal/runtimewire": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/runlabels": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/memorycontract": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/llmgateway": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/control": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/engagementcontract": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/runtimesettings": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/reporting": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/scan": "pass",
+      "github.com/grauwolf32/contractor/internal/mtls": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/auditcontract": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts": "pass",
+      "github.com/grauwolf32/contractor/internal/app": "pass",
+      "github.com/grauwolf32/contractor/internal/planner/streamline": "pass",
+      "github.com/grauwolf32/contractor/internal/httpapi/privateartifacts": "pass",
+      "github.com/grauwolf32/contractor/internal/controlplane": "pass"
+    },
+    "test_events": {
+      "pass": 2603
+    }
+  },
+  "go_unit": {
+    "packages": {
+      "github.com/grauwolf32/contractor/internal/planner/router": "skip",
+      "github.com/grauwolf32/contractor/internal/contracts/contractstest": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/memorycontract": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/runlabels": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/engagementcontract": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/llmgateway": "pass",
+      "github.com/grauwolf32/contractor/internal/runtimewire": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/control": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/reporting": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/runtimesettings": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/scan": "pass",
+      "github.com/grauwolf32/contractor/internal/mtls": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts/auditcontract": "pass",
+      "github.com/grauwolf32/contractor/internal/httpapi/privateartifacts": "pass",
+      "github.com/grauwolf32/contractor/internal/contracts": "pass",
+      "github.com/grauwolf32/contractor/internal/controlplane": "pass",
+      "github.com/grauwolf32/contractor/internal/planner/streamline": "pass",
+      "github.com/grauwolf32/contractor/internal/app": "pass"
+    },
+    "test_events": {
+      "pass": 2563
+    }
+  },
+  "checks": [
+    {
+      "command": "make test-runtime",
+      "result": "passed; Runtime and compaction report verifiers passed"
+    },
+    {
+      "command": "go test -json -tags=integration -count=1 -timeout=5m ./internal/controlplane ./internal/runtimewire ./internal/mtls ./internal/httpapi/privateartifacts ./internal/app ./internal/planner/streamline ./internal/planner/router ./internal/contracts/...",
+      "result": "passed with disposable PostgreSQL; canonical temporary directory"
+    },
+    {
+      "command": "go test -json -count=1 ./internal/app ./internal/httpapi/privateartifacts ./internal/planner/streamline ./internal/planner/router ./internal/controlplane ./internal/runtimewire ./internal/mtls ./internal/contracts/...",
+      "result": "passed with disposable PostgreSQL"
+    },
+    {
+      "command": "go test -json -count=1 ./internal/controlplane",
+      "result": "passed after the deterministic HTTP/2 deadline test refinement"
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "result": "passed; 440 fixtures, 474 Go and 307 Python shared tests; one explicitly optional heavy-I/O skip is not passing coverage"
+    },
+    {
+      "command": "make lint",
+      "result": "passed"
+    },
+    {
+      "command": "make build",
+      "result": "passed"
+    }
+  ],
+  "regression_evidence": {
+    "V492-001": "Before fix native Finalize and Abort cancellation tests both fail after process exit 70; after fix four-slot native tests preserve siblings and replay the same report. Skill teardown tests retain fencing on actual close failure.",
+    "V492-002": "Before fix dependent Artifact.Read receives ResourceExhausted after Planner waits; production composition now bounds Planner callbacks within the existing process ceiling and preserves Worker/control progress.",
+    "V492-003": "Before fix 32 stalled HTTP/2 bodies never install Server read deadlines; after fix controlled expiration releases admission and a healthy native Bootstrap succeeds. Request/domain/response budgets are checked separately.",
+    "V492-004": "Before fix Cyrillic Prepare and shared Unicode projection fail; Go baseline overlay rejects HTML and JavaScript separators. Final native malformed-surrogate case fails before normalization and now returns typed invalid_request.",
+    "V492-006": "Deterministic write and half-close tests fail before the fix. A native race exposes the pre-existing failure on baseline (12/30 attempts) and current code (6/30). Available final status is now joined; actual trailer loss remains an explicit ambiguous transport failure without replay. Native tests separately verify bounded cleanup and no peer diagnostic leak.",
+    "V492-005": "Before fix a real oversized native reply is classified transport_unavailable/retryable=true. Final native lifecycle/State receive limits are permanent; shared typed capacity and malformed details cases agree across Go/Python."
+  },
+  "environment_notes": [
+    "Go 1.26.10; locked Python environment; Node 24.20.0; pinned ffuf 2.3.0 used for conformance tests.",
+    "The first broad Runtime diagnostic run failed one outdated Skill cleanup expectation and 17 tests selecting the unsupported system ffuf. It is not passing coverage.",
+    "The next full Runtime run passed before the final malformed-Unicode normalization. A later run exposed the pre-existing bulk-status race, tracked separately as V492-006. The final full run supersedes both.",
+    "Optional disk-heavy I/O was never enabled. Runtime and wire skips are retained as skips."
+  ],
+  "cleanup": {
+    "disposable_database": "dropped after test pools and processes stopped",
+    "owned_postgres_server": "stopped; owned temporary data directory removed"
+  },
+  "scope": "No public API/protobuf schema, shipped config/model, live Gateway call or deployment change. Main is not merged; independent primary checkout work is preserved.",
+  "log_sha256": {
+    "runtime-complete.log": "cbb6f0c7a09562e76291e009cc742bf2df3e11388393be8fd983883b7ee75b8e",
+    "lint-complete.log": "7ac854a39279bf1db9bd8eac9047a8434f50fc7819813f53f2979641218dee43",
+    "wire-complete.log": "71674a0d686a172f3ac7a5f425014b2f5d50770f81eb23a96fcdc4825d668bf1",
+    "final-go.jsonl": "3fa3cc4e6a81903bcc01bb5e04084edb227a7e8582b229fe09e3750c86bc80cf",
+    "final-unit-go.jsonl": "808641a8931aa962489b3ec9cdc0d7bc60356a5daf4e8fca8b075f58e76945a6",
+    "build.log": "8f3959581cddf33d89b8bd2e0600b774e6b2138e3d9619c8f72056103b03a781"
+  }
+}
