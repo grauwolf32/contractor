@@ -6,7 +6,7 @@ epic: evals
 kind: defect
 introduced_by: V417-008
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, json, markdown]
 goal: Make a future context study distinguish invalid output, domain mistakes and continuation misses without rejecting valid unprohibited API representations.
@@ -66,3 +66,5 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+
+implementation_commit: f06251a6e8c6e3643ddbeaee19d7c477fb34debd

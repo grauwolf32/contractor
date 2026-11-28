@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 12 in progress, 46 pending, 13 deferred. 1769 finished: 1750 completed, 19 archived.
+70 open tasks: 11 in progress, 46 pending, 13 deferred. 1770 finished: 1751 completed, 19 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V500-006](v500-006-context-eval-output-contract.yml) | evals | defect | P1 | Align visible context-eval output contracts with independent domain checks |
 | [V500-007](v500-007-zero-model-token-report.yml) | operations | defect | P1 | Report explicit zero tokens when Runtime observed no direct model calls |
 | [V500-008](v500-008-bounded-parallel-context-consumer.yml) | evals | feature | P1 | Execute frozen context members with bounded parallel admission |
 
@@ -95,7 +94,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate HTTP investigation quality with frozen repeated comparisons |
-| [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V500-006 | Measure compaction and reasoning choices with repeated frozen live experiments |
+| [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | — | Measure compaction and reasoning choices with repeated frozen live experiments |
 
 ### Podman sandbox (`sandbox`)
 
@@ -180,7 +179,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 30 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 23 | 80 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
-| Evaluations (`evals`) | 6 | 25 | 52 | 27 | 59 |
+| Evaluations (`evals`) | 5 | 25 | 52 | 27 | 59 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
 | Web UI (`ui`) | 2 | 58 | 83 | 38 | 81 |
 | Operations, authentication, CLI and deployment (`operations`) | 2 | 23 | 56 | 16 | 35 |
