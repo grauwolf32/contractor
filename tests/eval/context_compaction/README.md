@@ -250,6 +250,10 @@ owner-only directory outside Runtime workspaces, with `traces/{runId}/*.json`
 bounded to 4096 spans and 16 MiB of trace evidence. Missing, foreign or truncated
 evidence fails collection instead of becoming zero activity. Successful tool
 spans must start after an observed checkpoint to count as useful continuation.
+Native compaction is identified by its emitted `model.phase=compaction`,
+independently of the configured alias. The terminal summarizer currently emits
+no phase, so its separately pinned study alias identifies that checkpoint;
+an explicit main/finalization phase never becomes a checkpoint through an alias.
 Source receipt observation and native archive retrieval are separate facts; no
 HTTP probe capability is available, so absence of repeated network probes is
 enforced by capabilities and does not demonstrate a model decision.

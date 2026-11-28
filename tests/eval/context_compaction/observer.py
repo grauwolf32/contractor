@@ -65,9 +65,14 @@ def observe(directory, run_id):
         values = attributes(span.get("attributes", []))
         if span.get("status", {}).get("code") != "STATUS_CODE_OK":
             continue
-        if span["name"] == "contractor.worker.model" and str(
-            values.get("model.alias", "")
-        ).endswith("/summarizer-model"):
+        phase = values.get("model.phase")
+        if span["name"] == "contractor.worker.model" and (
+            phase == "compaction"
+            or (
+                phase is None
+                and str(values.get("model.alias", "")).endswith("/summarizer-model")
+            )
+        ):
             checkpoints.append(int(span["endTimeUnixNano"]))
         if span["name"] != "contractor.worker.tool":
             continue

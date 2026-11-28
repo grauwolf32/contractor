@@ -81,7 +81,17 @@ class ObserverTests(unittest.TestCase):
                 server.server_close()
                 thread.join()
 
-    def fixture(self, folder, *, tool_start=10, failed=False, truncated=False, paginated=False):
+    def fixture(
+        self,
+        folder,
+        *,
+        tool_start=10,
+        failed=False,
+        truncated=False,
+        paginated=False,
+        phase=None,
+        alias="configured/summarizer-model",
+    ):
         request = ExportTraceServiceRequest()
         resource = request.resource_spans.add()
         label = resource.resource.attributes.add(key="contractor.run.id")
@@ -93,7 +103,7 @@ class ObserverTests(unittest.TestCase):
                     "contractor.worker.model",
                     20,
                     30,
-                    {"model.alias": "configured/summarizer-model"},
+                    {"model.alias": alias, **({"model.phase": phase} if phase else {})},
                 ),
                 (
                     "contractor.worker.tool",
@@ -154,6 +164,26 @@ class ObserverTests(unittest.TestCase):
                 + "\n"
             )
             self.assertEqual(observer.observe(folder, "run-test")["usefulAfterCheckpoint"], 1)
+
+    def test_native_compactor_phase_is_independent_of_the_configured_model_alias(self):
+        for start, failed, expected in [(10, False, 0), (31, False, 1), (31, True, 0)]:
+            with self.subTest(start=start, failed=failed), tempfile.TemporaryDirectory() as folder:
+                self.fixture(
+                    folder,
+                    tool_start=start,
+                    failed=failed,
+                    phase="compaction",
+                    alias="configured/another-model",
+                )
+                self.assertEqual(
+                    observer.observe(folder, "run-test")["usefulAfterCheckpoint"], expected
+                )
+
+    def test_explicit_other_model_phases_are_not_checkpoints_through_an_alias(self):
+        for phase in ["main", "finalization"]:
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as folder:
+                self.fixture(folder, tool_start=31, phase=phase)
+                self.assertEqual(observer.observe(folder, "run-test")["usefulAfterCheckpoint"], 0)
 
     def test_paginated_artifact_read_is_complete_telemetry_evidence(self):
         with tempfile.TemporaryDirectory() as folder:

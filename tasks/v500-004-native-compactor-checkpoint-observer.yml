@@ -1,0 +1,40 @@
+schema_version: '1.0'
+id: V500-004
+title: Recognize native compactor checkpoints by their emitted model phase
+milestone: eval-maintenance-2026-10
+epic: evals
+kind: defect
+introduced_by: V417-010
+priority: P1
+status: in_progress
+depends_on: []
+languages: [python, markdown]
+goal: Observe useful work after the real current compactor without depending on the configured auxiliary model alias.
+context:
+  authority: 'Bounded prerequisite discovered during user-authorized 2026-11-28 research. The external producer is suspended before any compact/masking/handoff member is submitted; its current terminal Run may settle normally.'
+  finding: 'tests/eval/context_compaction/observer.py:68-71 recognizes only a /summarizer-model suffix. Runtime worker/instrumentation.py:500 emits model.phase=compaction and the configured compactor alias, which may differ. This would turn real continuation into zero activity.'
+  siblings: 'Terminal summarizer currently emits no phase and keeps its separately pinned study alias; explicit non-compaction phases must not be misclassified through that alias. Controlled generation/masking projection evidence stays unchanged. No Go, public API or production Runtime change is needed.'
+  specification:
+    - docs/spec/platform/observability.md
+    - docs/spec/evals/format.md
+  design: tests/eval/context_compaction/README.md
+  boundary: 'Read current native OTLP phase evidence. Preserve cases, truth, gates, model selection, native frozen plans and their authoritative receipts. Recheck all earlier terminal observations read-only; resume the same members only if selected results and assessments stay identical. No completed model execution is repeated.'
+scope:
+  in:
+    - Recognize native compaction and exclude explicit main/finalization phases.
+    - Regression through the actual observer over native protobuf JSON captures.
+    - Corrected observer pin and read-only equivalence evidence before resume.
+  out:
+    - Production telemetry changes, scorer threshold tuning, new execution identities and any overwrite of selected assessments.
+acceptance_criteria:
+  - id: A1
+    text: Native compaction with an arbitrary configured alias counts successful later tools; earlier or failed tools do not count.
+  - id: A2
+    text: Explicit non-compaction phases do not become a checkpoint through an alias suffix; existing terminal and controlled-mask probes remain valid.
+  - id: A3
+    text: Both new regressions fail before the correction and pass afterward; full fixture and lint gates pass. Earlier selected terminal checks match under both observers before exact-receipt resume.
+tests:
+  - command: make test-context-compaction-eval-fixtures
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
