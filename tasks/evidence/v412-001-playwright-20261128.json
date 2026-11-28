@@ -1,0 +1,111 @@
+{
+  "task": "V412-001",
+  "date": "2026-11-28",
+  "implementation_commit": "c6f831750c92242302f06a6e1095d66982c2ff65",
+  "branch": "codex/playwright-frontend-20261128",
+  "merged_into_main": false,
+  "deployed": false,
+  "outcome": {
+    "toolset": "browser-tools@1",
+    "workflow": "frontend-route-map@1",
+    "map_schema": "contractor.frontend-route-map.v1",
+    "screenshots": "ordinary exact PNG Artifacts, selected as Finding material sources"
+  },
+  "verification": [
+    {
+      "command": "make test-pentest-browser-adapter-e2e",
+      "status": "passed",
+      "cases": 8,
+      "evidence": "/tmp/contractor-browser-final-e2e.log"
+    },
+    {
+      "command": "pytest tests/test_tool_version_surfaces.py tests/test_capabilities.py",
+      "status": "passed",
+      "cases": 26,
+      "note": "Fixed tool count removed; actual schemas and Server/Runtime descriptor parity remain checked."
+    },
+    {
+      "command": "pytest tests/test_tool_version_surfaces.py tests/test_ffuf_engagement.py",
+      "status": "passed",
+      "cases": 19,
+      "note": "Pinned ffuf 2.3.0 supplied through the existing cached executable."
+    },
+    {
+      "command": "go test -count=1 ./internal/config/... ./internal/controlplane/...",
+      "status": "passed"
+    },
+    {
+      "command": "go test -tags=integration -count=1 ./internal/auditservice -run '^TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion$'",
+      "status": "passed",
+      "note": "Real PostgreSQL retains exact PNG bytes in Project Finding evidence after source Run deletion."
+    },
+    {
+      "command": "go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock",
+      "status": "passed"
+    },
+    {
+      "command": "make lint",
+      "status": "passed",
+      "evidence": "/tmp/contractor-browser-make-lint.log"
+    },
+    {
+      "command": "make test-runtime",
+      "status": "passed",
+      "evidence": "/tmp/contractor-browser-runtime-final.log",
+      "passed": 6779,
+      "skipped": 139,
+      "note": "The full suite and mandatory report checks passed, including all 611 selected compaction cases. The final screenshot-admission change was subsequently covered by the complete focused browser suite (9 passing cases)."
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "status": "passed",
+      "evidence": "/tmp/contractor-browser-wire.log",
+      "note": "Standalone Go/Python contracts and the executed shared-reader gate passed. One declared optional disk-heavy test is skipped and is not passing coverage.",
+      "previous_attempt": {
+        "status": "failed",
+        "note": "After the Desktop update, this attempt began before the owned PostgreSQL recovered. Go PostgreSQL fixture tests failed. Standalone Go contracts passed; 451 Python contracts and 1642 selected Python shared tests passed. The overall gate is not passing coverage.",
+        "evidence": "/tmp/contractor-browser-wire-before-ready.log"
+      },
+      "fixtures": 442,
+      "go_shared_tests": 475,
+      "python_shared_tests": 309
+    },
+    {
+      "command": "cd runtime && uv run pytest -W error tests/test_browser_tools.py",
+      "status": "passed",
+      "cases": 9,
+      "evidence": "/tmp/contractor-browser-final-concurrency.log",
+      "note": "Latest browser code, including concurrent screenshot admission, actual Chromium and scripted ADK calls."
+    }
+  ],
+  "execution_notes": [
+    "Desktop update interrupted verification and stopped the owned PostgreSQL; incomplete attempts are not passes.",
+    "The user clarified that the agent may restart only runs started by this agent. The owned wire gate may be repeated after confirming the owned PostgreSQL is ready; other runs remain untouched.",
+    "V412-001 is complete. The owned PostgreSQL was stopped and its private data directory removed; the failed Podman attempt's owned anonymous volume was removed. No user/other-worker run was restarted."
+  ],
+  "limits": {
+    "contexts": 4,
+    "actions": 256,
+    "request_rows": 1024,
+    "screenshots": 64,
+    "viewport": [
+      1280,
+      720
+    ],
+    "png_max_bytes": 4194304,
+    "map_max_bytes": 1048576,
+    "screenshot_attempts": 64
+  },
+  "unsupported": [
+    "service-workers",
+    "websocket",
+    "webrtc",
+    "webtransport",
+    "streaming",
+    "frameless worker requests",
+    "popups",
+    "downloads"
+  ],
+  "live_models_used": false,
+  "owned_test_database_cleanup": "stopped and removed"
+}

@@ -6,11 +6,50 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.worker_state import WorkerState
+from google.adk.tools import FunctionTool
 from test_adk_runtime import create_runtime, stage_request
 from test_text_artifacts_toolset import MemoryArtifactClient, make_tools
 
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.versions import ModelArtifacts
+
+
+@pytest.mark.parametrize(
+    "conflict",
+    [
+        {"namespace": "inputs"},
+        {"name": "report"},
+        {"start_line": 2},
+        {"max_lines": 2},
+        {"line_offset": 1},
+    ],
+)
+def test_adk_cursor_conflict_is_repairable_without_reading_current(tmp_path, conflict):
+    async def scenario():
+        state, client = WorkerState(), MemoryArtifactClient()
+        original = client.seed("inputs", "report", "text/plain", b"old-head\nold-tail\n")
+        tools = await make_tools(tmp_path, client, state)
+        read = FunctionTool(tools["read_artifact"])
+        description = read._get_declaration().description
+        assert 'read_artifact(namespace="inputs", name="report", max_lines=1)' in description
+        assert "read_artifact(cursor=nextCursor)" in description
+        first = await read.run_async(
+            args=dict(namespace="inputs", name="report", max_lines=1), tool_context=None
+        )
+        client.seed("inputs", "report", "text/plain", b"new-head\nnew-tail\n")
+        before = client.read_calls
+        with pytest.raises(
+            ToolInputError, match="Omit namespace, name, start_line, max_lines and line_offset"
+        ):
+            await read.run_async(
+                args=dict(cursor=first["nextCursor"], **conflict), tool_context=None
+            )
+        assert client.read_calls == before
+        continued = await read.run_async(args=dict(cursor=first["nextCursor"]), tool_context=None)
+        assert continued["artifact"]["revision"] == original.revision
+        assert continued["text"] == "old-tail\n"
+
+    asyncio.run(scenario())
 
 
 def test_fresh_reads_observe_current_and_cursors_preserve_exact_windows(tmp_path):

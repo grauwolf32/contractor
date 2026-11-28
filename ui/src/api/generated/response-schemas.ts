@@ -203,6 +203,7 @@ export type PublicSchemaName =
   | "AuditResultStop"
   | "AuditTaskMaterial"
   | "AuditTaskStop"
+  | "FindingCheck"
   | "WorkflowMaterialDescriptor"
   | "AuditProfile"
   | "AuditProfilePage"

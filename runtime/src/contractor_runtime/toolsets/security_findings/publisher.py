@@ -124,6 +124,17 @@ class FindingPublisher:
             bound_error=_bounded_finding_error,
         ) as call:
             self._admit_fact_call(kwargs.get("_tool_name", "finding"), kwargs["context"])
+            if (
+                kwargs.get("_tool_name") == "fact"
+                and kwargs.get("memory_name") is None
+                and kwargs.get("source_selection") in (None, [])
+                and not kwargs.get("evidence_refs")
+            ):
+                raise ToolInputError(
+                    "fact requires memory_name or sources. Copy memory_name from the assigned "
+                    "memories snapshot, or select one to four exact objects in sources. "
+                    "Description text alone is not a source. Correct the arguments before retrying."
+                )
             kwargs = await self.prepare_source_selection(kwargs)
             return await self._submit(**kwargs, _call=call)
 

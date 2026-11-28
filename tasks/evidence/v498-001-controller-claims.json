@@ -1,0 +1,369 @@
+{
+  "task": "V498-001",
+  "date": "2026-11-28",
+  "status": "verified",
+  "base_revision": "d4b8c5112fef383a47ce3aae9abc1094e346c2e5",
+  "production_changed": false,
+  "local_artifacts": ".lean/controller-claims/",
+  "artifact_policy": "User requested ignored local model/tools/logs; no tracked TLA+ source or CI gate.",
+  "source_sha256": {
+    "internal/persistence/postgres/claims.go": "c1eea1a53d5f578670ea08c0b599d67e147197a11d4eb3b12ba47be1f2a80f95",
+    "internal/persistence/postgres/claims_pilot_postgres_test.go": "29d8474379383b104c824ca6dff5b4a7541194553a3cab64ce5b57d601b7a1c8",
+    "internal/persistence/postgres/receipts_postgres_test.go": "2071ae64654d6dad03ea95df8064af870a74f1117c26c76e6ad20b80aefef138",
+    "internal/auditstore/internal/pgstore/artifact_writes_postgres_test.go": "0cedd0725f7ee8339f17c7c1690b22e0560191711d1591435d0806a46e95e5f9",
+    "internal/evalstore/postgres_test.go": "4b87be382e3621d7ee1b90f6bc10fbafd43638972558f31bb44b2ec861ff280d"
+  },
+  "local_artifact_sha256": {
+    ".lean/controller-claims/ControllerClaims.tla": "8c07973f2d36c23837029f0656c74d2f4fc41021b75be620dba0609baffbf737",
+    ".lean/controller-claims/run.py": "644e0968768e3ae2d10ad6f45fe89ee3c3aaee660c492450438cf030012671cb",
+    ".lean/controller-claims/verify_postgres.py": "f5b23f585733cbf751271a77aab9ac38845c36f6e528c0472c3993f5674c10f0",
+    ".lean/controller-claims/README.md": "c1b39b57805a3bf75b351f81dbcc56cd11e1e6f78f19c9a924acad04762c0d53",
+    ".lean/controller-claims/results/summary.json": "22c88e7395f8488be974931edd8b848365480f0b5fcc682c3104f52b2ffb9219",
+    ".lean/controller-claims/results/postgres-summary.json": "50197c0cd6453abf8008fa19f0cdc80b29972005a84ea81ab71afbcfd3f6669d"
+  },
+  "model": {
+    "tool": "TLC v1.7.4 (TLC2 2.19, revision 5a47802)",
+    "tlc_sha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+    "holders": 2,
+    "subjects": 1,
+    "lease_ticks": 2,
+    "safety_invariants": [
+      "TypeOK",
+      "ClaimShape",
+      "EpochUnique",
+      "AdmissionAuthorized",
+      "RenewAuthorized",
+      "ReleaseAuthorized",
+      "CommitFenced"
+    ],
+    "cases": [
+      {
+        "name": "baseline",
+        "max_epoch": 3,
+        "exit_code": 0,
+        "expected_violation": null,
+        "observed_violation": null,
+        "passed": true,
+        "log": ".lean/controller-claims/results/baseline.log",
+        "generated": 3587,
+        "distinct": 451,
+        "remaining": 0
+      },
+      {
+        "name": "baseline-4-epochs",
+        "max_epoch": 4,
+        "exit_code": 0,
+        "expected_violation": null,
+        "observed_violation": null,
+        "passed": true,
+        "log": ".lean/controller-claims/results/baseline-4-epochs.log",
+        "generated": 10851,
+        "distinct": 1055,
+        "remaining": 0
+      },
+      {
+        "name": "renew_without_epoch",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "RenewAuthorized",
+        "observed_violation": "RenewAuthorized",
+        "passed": true,
+        "log": ".lean/controller-claims/results/renew_without_epoch.log",
+        "generated": 65,
+        "distinct": 41,
+        "remaining": 26
+      },
+      {
+        "name": "renew_expired",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "RenewAuthorized",
+        "observed_violation": "RenewAuthorized",
+        "passed": true,
+        "log": ".lean/controller-claims/results/renew_expired.log",
+        "generated": 58,
+        "distinct": 34,
+        "remaining": 21
+      },
+      {
+        "name": "release_without_epoch",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "ReleaseAuthorized",
+        "observed_violation": "ReleaseAuthorized",
+        "passed": true,
+        "log": ".lean/controller-claims/results/release_without_epoch.log",
+        "generated": 67,
+        "distinct": 42,
+        "remaining": 27
+      },
+      {
+        "name": "write_without_epoch",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "AdmissionAuthorized",
+        "observed_violation": "AdmissionAuthorized",
+        "passed": true,
+        "log": ".lean/controller-claims/results/write_without_epoch.log",
+        "generated": 67,
+        "distinct": 43,
+        "remaining": 28
+      },
+      {
+        "name": "no_tx_lock",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "CommitFenced",
+        "observed_violation": "CommitFenced",
+        "passed": true,
+        "log": ".lean/controller-claims/results/no_tx_lock.log",
+        "generated": 173,
+        "distinct": 62,
+        "remaining": 40
+      },
+      {
+        "name": "reachable-takeover",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "NotWitness",
+        "observed_violation": "NotWitness",
+        "passed": true,
+        "log": ".lean/controller-claims/results/reachable-takeover.log",
+        "generated": 50,
+        "distinct": 32,
+        "remaining": 19
+      },
+      {
+        "name": "reachable-renew",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "NotWitness",
+        "observed_violation": "NotWitness",
+        "passed": true,
+        "log": ".lean/controller-claims/results/reachable-renew.log",
+        "generated": 7,
+        "distinct": 5,
+        "remaining": 2
+      },
+      {
+        "name": "reachable-renew_released",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "NotWitness",
+        "observed_violation": "NotWitness",
+        "passed": true,
+        "log": ".lean/controller-claims/results/reachable-renew_released.log",
+        "generated": 26,
+        "distinct": 16,
+        "remaining": 9
+      },
+      {
+        "name": "reachable-renew_expired",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "NotWitness",
+        "observed_violation": "NotWitness",
+        "passed": true,
+        "log": ".lean/controller-claims/results/reachable-renew_expired.log",
+        "generated": 52,
+        "distinct": 34,
+        "remaining": 21
+      },
+      {
+        "name": "reachable-renew_aba",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "NotWitness",
+        "observed_violation": "NotWitness",
+        "passed": true,
+        "log": ".lean/controller-claims/results/reachable-renew_aba.log",
+        "generated": 59,
+        "distinct": 41,
+        "remaining": 26
+      },
+      {
+        "name": "reachable-renew_replaced",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "NotWitness",
+        "observed_violation": "NotWitness",
+        "passed": true,
+        "log": ".lean/controller-claims/results/reachable-renew_replaced.log",
+        "generated": 66,
+        "distinct": 48,
+        "remaining": 32
+      },
+      {
+        "name": "reachable-release_expired",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "NotWitness",
+        "observed_violation": "NotWitness",
+        "passed": true,
+        "log": ".lean/controller-claims/results/reachable-release_expired.log",
+        "generated": 53,
+        "distinct": 35,
+        "remaining": 22
+      },
+      {
+        "name": "reachable-release_aba",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "NotWitness",
+        "observed_violation": "NotWitness",
+        "passed": true,
+        "log": ".lean/controller-claims/results/reachable-release_aba.log",
+        "generated": 60,
+        "distinct": 42,
+        "remaining": 27
+      },
+      {
+        "name": "reachable-write_aba",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "NotWitness",
+        "observed_violation": "NotWitness",
+        "passed": true,
+        "log": ".lean/controller-claims/results/reachable-write_aba.log",
+        "generated": 61,
+        "distinct": 43,
+        "remaining": 28
+      },
+      {
+        "name": "reachable-write_expired",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "NotWitness",
+        "observed_violation": "NotWitness",
+        "passed": true,
+        "log": ".lean/controller-claims/results/reachable-write_expired.log",
+        "generated": 54,
+        "distinct": 36,
+        "remaining": 23
+      },
+      {
+        "name": "reachable-write_stale",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "NotWitness",
+        "observed_violation": "NotWitness",
+        "passed": true,
+        "log": ".lean/controller-claims/results/reachable-write_stale.log",
+        "generated": 28,
+        "distinct": 18,
+        "remaining": 11
+      },
+      {
+        "name": "reachable-commit_after_expiry",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "NotWitness",
+        "observed_violation": "NotWitness",
+        "passed": true,
+        "log": ".lean/controller-claims/results/reachable-commit_after_expiry.log",
+        "generated": 189,
+        "distinct": 76,
+        "remaining": 38
+      },
+      {
+        "name": "reachable-rollback",
+        "max_epoch": 3,
+        "exit_code": 12,
+        "expected_violation": "NotWitness",
+        "observed_violation": "NotWitness",
+        "passed": true,
+        "log": ".lean/controller-claims/results/reachable-rollback.log",
+        "generated": 31,
+        "distinct": 21,
+        "remaining": 13
+      }
+    ],
+    "all_expected_outcomes": true
+  },
+  "postgres": {
+    "required_new_leaf_scenarios": 20,
+    "reports": [
+      {
+        "file": "postgres-final.jsonl",
+        "sha256": "5f19151f59afdf3e1024dca24942a55afe0bcc551df9656f51a250ef008d74a9",
+        "top_level_passes": 75,
+        "required_cases": {
+          "github.com/grauwolf32/contractor/internal/persistence/postgres": [
+            "TestPostgresControllerClaimsRenewAndDelayedOperations/audit_controller_claims/live",
+            "TestPostgresControllerClaimsRenewAndDelayedOperations/audit_controller_claims/expired",
+            "TestPostgresControllerClaimsRenewAndDelayedOperations/audit_controller_claims/released",
+            "TestPostgresControllerClaimsRenewAndDelayedOperations/audit_controller_claims/takeover",
+            "TestPostgresControllerClaimsRenewAndDelayedOperations/audit_controller_claims/same-holder-new-epoch",
+            "TestPostgresControllerClaimsTransactionFencesTakeover/audit_controller_claims/commit",
+            "TestPostgresControllerClaimsTransactionFencesTakeover/audit_controller_claims/rollback",
+            "TestPostgresControllerClaimsWaitingOperationsRecheckEpoch/audit_controller_claims/renew",
+            "TestPostgresControllerClaimsWaitingOperationsRecheckEpoch/audit_controller_claims/release",
+            "TestPostgresControllerClaimsWaitingOperationsRecheckEpoch/audit_controller_claims/write",
+            "TestPostgresControllerClaimsRenewAndDelayedOperations/eval_controller_claims/live",
+            "TestPostgresControllerClaimsRenewAndDelayedOperations/eval_controller_claims/expired",
+            "TestPostgresControllerClaimsRenewAndDelayedOperations/eval_controller_claims/released",
+            "TestPostgresControllerClaimsRenewAndDelayedOperations/eval_controller_claims/takeover",
+            "TestPostgresControllerClaimsRenewAndDelayedOperations/eval_controller_claims/same-holder-new-epoch",
+            "TestPostgresControllerClaimsTransactionFencesTakeover/eval_controller_claims/commit",
+            "TestPostgresControllerClaimsTransactionFencesTakeover/eval_controller_claims/rollback",
+            "TestPostgresControllerClaimsWaitingOperationsRecheckEpoch/eval_controller_claims/renew",
+            "TestPostgresControllerClaimsWaitingOperationsRecheckEpoch/eval_controller_claims/release",
+            "TestPostgresControllerClaimsWaitingOperationsRecheckEpoch/eval_controller_claims/write",
+            "TestPostgresControllerClaimsLeaseProveAndRelease"
+          ]
+        },
+        "skips": []
+      },
+      {
+        "file": "domain-postgres.jsonl",
+        "sha256": "c9844e8785730888370e142d7115de9985998e194104b0adf4f62a9c23b56ae2",
+        "top_level_passes": 2,
+        "required_cases": {
+          "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore": [
+            "TestClaimedArtifactWritesFenceTakeoverAndPurge"
+          ],
+          "github.com/grauwolf32/contractor/internal/evalstore": [
+            "TestSharedPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery"
+          ]
+        },
+        "skips": []
+      }
+    ],
+    "passed": true,
+    "server_version": "17.11 (Homebrew, aarch64-apple-darwin27.0.0)"
+  },
+  "initial_failed_attempt": {
+    "report": ".lean/controller-claims/results/postgres.jsonl",
+    "test": "TestPostgresMigrationLeaderIsScopedToTargetSchema",
+    "observation": "Unix-socket run returned i/o timeout instead of context.DeadlineExceeded in an existing migration-lock test. All claim cases in that attempt passed.",
+    "resolution": "No code change to migrations. Final complete package rerun used TCP loopback on the same owned database and passed. This does not establish a root cause or a fix for the initial timeout classification."
+  },
+  "limitations": [
+    "Finite model with at most 3/4 acquisitions; not an arbitrary-size proof or proof of Go/SQL implementation.",
+    "Authority check/row-lock abstraction relies on same-transaction callers; only named domain paths exercised.",
+    "No liveness/fairness, clock rollback, epoch overflow, purge/recreation, multi-subject lock-order or external-effect proof.",
+    "Expiry predicate timing around a lock wait without a tuple update is outside this abstraction.",
+    "Renew duration monotonicity and the full controller runtime are not certified.",
+    "No production defect established by this pilot."
+  ],
+  "lint": {
+    "status": "passed",
+    "command": "make lint",
+    "exit_code": 0,
+    "log": ".lean/controller-claims/results/lint.log",
+    "sha256": "912e4c62a468448be207cbbcb74e0b817cc1db2ade73d27a9338244fa81e857c",
+    "auxiliary_python_discovery": {
+      "tests": 235,
+      "skips": 1,
+      "skip_reason": "not identified in nonverbose output; not claimed as passing execution coverage"
+    }
+  },
+  "cleanup": {
+    "status": "complete",
+    "active_database_clients_before_drop": 0,
+    "database_absent_after_drop": true,
+    "owned_server_stopped": true,
+    "owned_data_and_socket_directories_removed": true,
+    "heavy_io_opt_in": false
+  }
+}

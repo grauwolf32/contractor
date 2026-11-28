@@ -37,6 +37,20 @@ is built once in a task-owned temporary directory; each document is limited to
 is removed on exit. Go and the already downloaded module dependencies are required;
 validator builds disable module/toolchain downloads.
 
+The 2026-11-28 contract correction requires fresh evaluator registrations (for
+example `context@2`), case uploads, scorer pins and plans. The API case now explicitly
+requires `likec4` to be a JSON string with newline-separated dependency edges.
+Scoring accepts documented non-200 responses, inherited root security and path-item
+parameters. An explicit operation security override still wins, including an empty
+anonymous override, which fails the tenant requirement. Optional query fields are
+checked against their own route rather than a document-wide list.
+Independent checks survive malformed API fields; `dependency_model_text` identifies
+an incorrect dependency field type without retaining supplied or private values.
+Existing frozen studies retain their original scorer, case and plan digests. Do
+not replace their files, post revised scores to their registrations, or combine
+old and corrected quality rates. These changes are evaluator corrections and do
+not demonstrate an improvement in the configured model.
+
 ## Cases and variants
 
 `visible/*.json` are source payloads for a recorded provider or a JSON Artifact.

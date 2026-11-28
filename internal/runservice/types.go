@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -37,6 +38,13 @@ type PublicRunWriter interface {
 	CreateRunIdempotent(context.Context, runstore.CreateRunIdempotentParams) (runstore.WorkflowRun, bool, error)
 	SetRunSkillSelections(context.Context, string, []agentskills.RunSkillSnapshot) error
 	TransitionRun(context.Context, string, runstore.WorkflowRunState, runstore.WorkflowRunState, runstore.Reason) (runstore.WorkflowRun, error)
+}
+
+// FindingCheckWriter supplies the Finding owner's transaction-bound selection.
+// Ordinary Run callers need no Finding dependency until they select this mode.
+type FindingCheckWriter interface {
+	PrepareFindingCheck(context.Context, string, contracts.FindingCheck) (findingintake.Receipt, error)
+	SetAuditCompletion(context.Context, string, runstore.AuditCompletionSnapshot) error
 }
 
 type AuditRunWriter interface {
@@ -107,6 +115,7 @@ type Service struct {
 
 type PublicCreateParams struct {
 	requiredPlacementLabels []string
+	FindingCheck            *contracts.FindingCheck
 	// Trusted preparation expectations are not public request fields.
 	PinnedWorkflow         *resolved.ResolvedWorkflow
 	ExpectedWorkflowSHA256 string

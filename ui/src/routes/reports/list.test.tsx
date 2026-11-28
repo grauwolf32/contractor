@@ -25,10 +25,12 @@ function state(): ServerState {
     audits: [
       audit("project_crapi", "audit_trace", "completed", {
         profile: "openapi-operation-trace",
+        objective: "Trace public operations",
         updatedAt: "2026-10-04T09:00:00Z",
       }),
       audit("project_payment", "audit_ready", "completed", {
         profile: "owasp-asvs-5-0-l1-source-review",
+        objective: "Review authorization boundaries",
         updatedAt: "2026-10-03T09:00:00Z",
       }),
       audit("project_payment", "audit_finishing", "finalizing"),
@@ -52,8 +54,8 @@ function rowTitles() {
 }
 
 async function settled() {
-  // The All chip carries its count once every read has settled.
-  await screen.findByRole("button", { name: "All 2" });
+  // Counts appear once the availability reads have settled.
+  await screen.findByText("2 ready.");
 }
 
 describe("Reports list", () => {
@@ -77,7 +79,7 @@ describe("Reports list", () => {
       "/reports?project=project_reports",
       server,
     );
-    await screen.findByRole("button", { name: "All 20" });
+    await screen.findByText("20 ready in this page of checks.");
     expect(
       server.requests.filter((request) =>
         new URL(request.url).pathname.endsWith("/report"),
@@ -89,7 +91,7 @@ describe("Reports list", () => {
     ).toBeVisible();
     const paging = screen.getByRole("navigation", { name: "Report pages" });
     await user.click(within(paging).getByRole("button", { name: "Next" }));
-    await screen.findByRole("button", { name: "All 5" });
+    await screen.findByText("5 ready in this page of checks.");
     expect(location()).toBe("/reports?project=project_reports&page=1");
     expect(
       server.requests.filter((request) =>
@@ -153,7 +155,7 @@ describe("Reports list", () => {
         screen.getByRole("navigation", { name: "Report pages" }),
       ).getByRole("button", { name: "Next" }),
     );
-    await screen.findByRole("button", { name: "All 1" });
+    await screen.findByText("1 ready in this page of checks.");
     expect(rowTitles()).toHaveLength(1);
   });
 
@@ -161,23 +163,21 @@ describe("Reports list", () => {
     renderRoutes("/reports", reportsServer(state()));
     await settled();
     expect(rowTitles()).toEqual([
-      "OpenAPI · Operation trace · crapi-workshop",
-      "ASVS 5.0 · Level 1 source review · Payment service",
+      "Trace public operations",
+      "Review authorization boundaries",
     ]);
     expect(screen.getByRole("region", { name: "Ready" })).toBeVisible();
     expect(screen.queryByText("Waiting for acceptance")).toBeNull();
     expect(screen.getByText("Choose a report")).toBeVisible();
   });
 
-  it("keeps the status filter in the URL", async () => {
-    const user = userEvent.setup();
-    const { location } = renderRoutes("/reports", reportsServer(state()));
+  it("accepts old ready/all links with a single list and no duplicate status controls", async () => {
+    renderRoutes("/reports?status=ready", reportsServer(state()));
     await settled();
-    await user.click(screen.getByRole("button", { name: "Ready 2" }));
-    expect(location()).toBe("/reports?status=ready");
+    expect(
+      screen.queryByRole("group", { name: "Filter by status" }),
+    ).toBeNull();
     expect(rowTitles()).toHaveLength(2);
-    await user.click(screen.getByRole("button", { name: "All 2" }));
-    expect(location()).toBe("/reports");
   });
 
   it("opens with the filters a link carries and keeps them on selection", async () => {
@@ -186,21 +186,15 @@ describe("Reports list", () => {
       "/reports?status=ready&project=project_payment",
       reportsServer(state()),
     );
-    await screen.findByRole("button", { name: "Ready 1" });
-    expect(screen.getByRole("button", { name: "Ready 1" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    await screen.findByText("1 ready.");
     expect(screen.getByRole("combobox", { name: "Project" })).toHaveValue(
       "project_payment",
     );
-    expect(rowTitles()).toEqual([
-      "ASVS 5.0 · Level 1 source review · Payment service",
-    ]);
+    expect(rowTitles()).toEqual(["Review authorization boundaries"]);
 
     await user.click(
       screen.getByRole("link", {
-        name: "ASVS 5.0 · Level 1 source review · Payment service",
+        name: "Review authorization boundaries",
       }),
     );
     expect(location()).toBe(
@@ -208,22 +202,38 @@ describe("Reports list", () => {
     );
     expect(
       screen.getByRole("link", {
-        name: "ASVS 5.0 · Level 1 source review · Payment service",
+        name: "Review authorization boundaries",
       }),
     ).toHaveAttribute("aria-current", "true");
     // One-pane screens go back to the list as it was filtered.
     expect(
       screen.getByRole("link", { name: "Back to reports" }),
     ).toHaveAttribute("href", "/reports?status=ready&project=project_payment");
-    // Changing a filter keeps the selected report, and Back follows it.
+    // Changing the project scope closes the selected report before downloading.
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Project" }),
       "",
     );
-    expect(location()).toBe("/reports/audit_ready?status=ready");
+    expect(location()).toBe("/reports?status=ready");
+    expect(screen.getByText("Choose a report")).toBeVisible();
     expect(
-      screen.getByRole("link", { name: "Back to reports" }),
-    ).toHaveAttribute("href", "/reports?status=ready");
+      screen.queryByRole("button", { name: "Download summary" }),
+    ).toBeNull();
+  });
+
+  it("hides a direct report link that belongs to another project filter", async () => {
+    renderRoutes(
+      "/reports/audit_ready?project=project_crapi",
+      reportsServer(state()),
+    );
+    await screen.findByText("1 ready.");
+    await waitFor(() =>
+      expect(screen.queryByText("Loading the report…")).toBeNull(),
+    );
+    expect(screen.getByText("Choose a report")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Download summary" }),
+    ).toBeNull();
   });
 
   it("filters by project in the URL", async () => {
@@ -244,8 +254,8 @@ describe("Reports list", () => {
 
     await user.selectOptions(select, "project_crapi");
     expect(location()).toBe("/reports?project=project_crapi");
-    expect(rowTitles()).toEqual(["OpenAPI · Operation trace · crapi-workshop"]);
-    expect(screen.getByRole("button", { name: "All 1" })).toBeVisible();
+    expect(rowTitles()).toEqual(["Trace public operations"]);
+    expect(screen.getByText("1 ready.")).toBeVisible();
 
     await user.selectOptions(select, "project_empty");
     expect(location()).toBe("/reports?project=project_empty");
@@ -260,7 +270,7 @@ describe("Reports list", () => {
       "/reports?status=ready",
       reportsServer(state()),
     );
-    await screen.findByRole("button", { name: "Ready 2" });
+    await settled();
     await user.keyboard("j");
     expect(location()).toBe("/reports/audit_trace?status=ready");
     await user.keyboard("j");
@@ -293,15 +303,13 @@ describe("Reports list", () => {
       failingProjects: ["project_crapi"],
     });
     renderRoutes("/reports", server);
-    await screen.findByRole("button", { name: "All 1" });
+    await screen.findByText("1 ready.");
     expect(
       screen.getByText(
         "Some reports could not be loaded, so this list may be incomplete.",
       ),
     ).toBeVisible();
-    expect(rowTitles()).toEqual([
-      "ASVS 5.0 · Level 1 source review · Payment service",
-    ]);
+    expect(rowTitles()).toEqual(["Review authorization boundaries"]);
 
     server.state.failingProjects = [];
     await user.click(screen.getByRole("button", { name: "Try again" }));
@@ -322,13 +330,9 @@ describe("Reports list", () => {
     ).toBeVisible();
     expect(screen.getByText("Index failed")).toBeVisible();
     // Unknown is not zero: no counts, and nothing says there are no reports.
-    const filters = screen.getByRole("group", { name: "Filter by status" });
     expect(
-      within(filters)
-        .getAllByRole("button")
-        .map((chip) => chip.textContent),
-    ).toEqual(["Ready", "All"]);
-    expect(screen.queryByRole("button", { name: "All 0" })).toBeNull();
+      screen.queryByRole("group", { name: "Filter by status" }),
+    ).toBeNull();
     expect(screen.queryByText("No reports yet.")).toBeNull();
 
     server.state.indexFails = false;

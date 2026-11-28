@@ -387,6 +387,30 @@ describe("owner-wide lists", () => {
         ?.searchParams.get("state"),
     ).toBe("active,completed");
   });
+  it("shares the Project index while search also includes deletion in progress", async () => {
+    const state = base();
+    state.projects[1] = project("project_b", {
+      lifecycle: "deleting",
+      deletion: { phase: "draining", requestedAt: "2026-10-08T10:00:00Z" },
+    });
+    const server = setup(state);
+    const { result } = renderHook(
+      () => ({
+        ordinary: useProjectsIndex(),
+        search: useProjectsIndex({ includeDeleting: true }),
+      }),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() => expect(result.current.search.isPending).toBe(false));
+    expect(
+      result.current.ordinary.projects.map((project) => project.projectId),
+    ).toEqual(["project_a"]);
+    expect(
+      result.current.search.projects.map((project) => project.projectId),
+    ).toEqual(["project_a", "project_b"]);
+    expect(server.count("/v1/projects")).toBe(1);
+  });
+
   it("excludes deleting and evaluation Projects", async () => {
     const state = base();
     state.projects[1] = project("project_b", { kind: "evaluation" });

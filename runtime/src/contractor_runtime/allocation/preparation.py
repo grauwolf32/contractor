@@ -340,7 +340,11 @@ class AllocationPreparation:
                     if ref == "http-tools@1"
                     else {}
                 ),
-                **({"controlled_http": http_transport} if ref == "scan@1" else {}),
+                **(
+                    {"controlled_http": http_transport}
+                    if ref in {"scan@1", "browser-tools@1"}
+                    else {}
+                ),
                 **(
                     {
                         "deployment_marker": spec.agent_template.sitemap.deployment

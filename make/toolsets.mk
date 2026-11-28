@@ -179,3 +179,7 @@ test-worker-compaction-e2e: require-database runtime-venv test-release-reports
 test-semgrep-e2e: require-database runtime-venv
 	@go test -tags=e2e ./tests/e2e -list '^TestSemgrepFindingsAcrossProductionProcesses$$' | awk '$$0 == "TestSemgrepFindingsAcrossProductionProcesses" { found++ } END { exit found != 1 }'
 	go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestSemgrepFindingsAcrossProductionProcesses$$'
+
+.PHONY: test-pentest-browser-adapter-e2e
+test-pentest-browser-adapter-e2e: runtime-venv
+	$(call run-family-test,cd runtime && uv run pytest -W error tests/test_browser_tools.py)

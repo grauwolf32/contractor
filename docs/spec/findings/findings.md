@@ -2195,6 +2195,10 @@ reopening it. No title discriminator or semantic repair is implicit.
 ### Original memories as informational evidence
 
 **FND-R238.** Common `fact` additionally accepts optional `memory_name`.
+The tool declaration explains that `memory_name` or nonempty `sources` is required
+and shows a valid memory call. A source-free `fact` returns a bounded input error
+identifying these alternatives before source I/O, while still consuming its
+ordinary distinct-call quota slot (FND-R239). It never infers evidence from prose.
 The selected Worker task supplies an exact ordinary Artifact in its `memories`
 slot. Runtime resolves the name only inside that frozen Memory snapshot
 (MEM-R100/R101); it never reads mutable Memory or searches other artifacts.
@@ -2284,3 +2288,76 @@ report/conclusion. Existing receipt reconciliation, Worker budgets and common
 intake/source bounds remain authoritative; publication never authorizes extra
 traffic. Source interpretation remains with the investigating Worker and Runtime
 source adapters; Finding intake owns authority, correlation, receipts and retention.
+
+### Ordinary Finding check ownership
+
+**FND-R243.** One ordinary Project Run may carry an immutable Finding check
+binding: existing Finding ID/revision, one explicit retained source receipt and
+one bounded assertion (LIM-FND-61). The owner validates receipt membership; the
+completion context must match that binding, Project, Run and exact Workflow
+closure before pinning. No Audit, Task or hypothesis is fabricated. The shared
+completion collector and allocation-bound evidence/judgment RPCs admit the one
+assigned member. Sources, evidence, semantic results and execution state remain
+independent of canonical analyst assessment. Later analyst edits do not change
+accepted historical results or their launch revision.
+
+**FND-R244.** Ordinary check evidence and judgments use the common strict
+normalization, prospective bounds, corrections, exact Artifact CAS and natural
+receipt reconciliation. Their immutable Project finding-materials bindings and
+finding-history acknowledgements commit together before success is returned.
+Only the selected source receipt's indexed history is extended, using a bounded
+Run-specific prefix; admission never hydrates lifetime Finding history. The
+existing Project fence serializes publication with deletion and advances once
+per new acknowledgement. Replay changes neither materials nor the fence and
+remains available after allocation write fencing. No target or model execution
+repairs uncertain persistence. See FAIL-FND-10 and LIFE-FND-8.
+
+**FND-R245.** Ordinary check admission shares LIM-AWC-2 through LIM-AWC-6 and
+reserves one conclusion slot and LIM-AWC-13's execution byte reserve from early
+evidence. Audit alone owns its aggregate budgets, Task identities and lifecycle.
+Ordinary check receipts instead identify the existing Finding and carry no Task
+identity. A Run's failed/cancelled/interrupted outcome does not discard its
+acknowledged partial evidence or accepted judgments. Existing Project retention
+owns those bytes after permitted Run purge. Public source/history and ordinary
+Artifact reads remain the only history/evidence readers; a check gains no
+independently mutable lifecycle or store.
+
+
+**FND-R246.** Public Project Run creation may select `findingCheck` with exactly
+`findingId`, the current numeric `revision`, `receiptId` and an assertion bounded
+by LIM-FND-61. Missing/foreign selection is ownership-not-found; a stale Finding
+revision or changed target at admission conflicts. Explicit null, invalid shape,
+missing target, incompatible Workflow or user-supplied parameters/inputs is
+`400 invalid_request`. Ordinary Run idempotency includes the complete selection:
+identical replay returns its original Run before resolving mutable catalog,
+Finding, credential or target state; changed content conflicts. Admission and
+history capture share the Run-creation transaction and existing Project fence.
+
+**FND-R247.** The first HTTP caller uses one passthrough Worker, required JSON
+`context` and `finding` inputs, one required `target` parameter and the common
+completion target. Its required finding context binds `inputs/finding`; the
+selected tools include HTTP requests and common check results, and do not select
+Finding publication. Success ends the Run; failure/interruption fail it without
+repeating target work. Server forks the selected exact proposal/evidence into
+ordinary frozen inputs, verifies metadata and source membership, supplies the
+pinned safe target URL and preserves configured execution/model settings.
+The Worker treats source claims as untrusted, verifies control/probe content,
+and records uncertainty for unavailable identity, role, endpoint or deployment.
+Supported/refuted conclusions require evidence and tested conditions; unknown
+preconditions cannot become proof of remediation (ACT-R4). A generic Run repeat
+draft is blocked for this caller because another check needs explicit selection.
+
+**FND-R248.** Before admission returns, one ordinary `finding-history` Artifact
+retains `kind=validation`, the selection, Run ID, resolved Workflow/template
+closure, safe target/credential reference and exact proposal/evidence descriptors.
+Its canonical encoded payload is at most 1 MiB; selected source bytes obey the
+existing 256-reference/32 MiB collection bounds. This launch artifact and common
+acknowledged evidence/judgment records use the existing selected-receipt history
+reader. Terminal Run deletion retains `kind=execution`, Run ID, selection,
+terminal state, reason code and finish time in that same history transaction;
+Project purge skips this unnecessary write and releases all ordinary bindings.
+Run success and a semantic conclusion remain separate. These records survive
+source/check Run deletion and concurrent analyst edits without changing current
+Finding assessment. No check entity, controller or independent receipt store is
+introduced. Reopen this boundary for a concrete multi-Finding or new executor
+requirement rather than extending this first HTTP profile speculatively.

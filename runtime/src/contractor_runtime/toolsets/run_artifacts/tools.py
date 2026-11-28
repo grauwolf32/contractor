@@ -207,10 +207,17 @@ class ReadArtifactTool(ArtifactTool):
     Use the task input readCursor for its pinned version. Old/foreign cursors fail
     rather than selecting current. Long lines continue through the same cursor flow.
 
+    Fresh read example: read_artifact(namespace="inputs", name="report", max_lines=1).
+    Next page example: read_artifact(cursor=nextCursor), copying the returned token.
+    Pinned input example: read_artifact(cursor=readCursor), copying the task input token.
+    In cursor mode omit namespace, name, start_line, max_lines and line_offset;
+    the cursor already contains the exact artifact version and complete window.
+
     Args:
-        namespace: Artifact namespace.
-        name: Exact artifact binding name.
-        cursor: Returned readCursor/nextCursor or task input readCursor; use alone.
+        namespace: Required with name for a fresh read; omit when cursor is supplied.
+        name: Exact artifact binding name for a fresh read; omit with cursor.
+        cursor: Returned readCursor/nextCursor or task input readCursor. Supply this
+            alone, omitting every other argument, including window arguments.
         start_line: First line to read, 1-based and inclusive; defaults to 1.
         max_lines: Maximum lines to return, from 1 to 400; defaults to 200.
         line_offset: UTF-8 byte offset into start_line for a fresh window; defaults to 0.
@@ -254,7 +261,12 @@ class ReadArtifactTool(ArtifactTool):
                     )
                 )
             ):
-                raise ToolInputError("Use cursor alone, without namespace/name or window overrides")
+                raise ToolInputError(
+                    "Use read_artifact(cursor=returned_cursor) alone. "
+                    "Omit namespace, name, start_line, max_lines and line_offset; "
+                    "the cursor fixes the artifact version and window. "
+                    "To select current with a different window, omit cursor instead."
+                )
             return self._cursors.decode(cursor)
         return dict(arguments)
 

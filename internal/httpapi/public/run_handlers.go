@@ -273,7 +273,8 @@ func (h *runHandlers) createRunFromProject(
 	}
 	credentialUser := runtimeCredentialUser(r.Context())
 	params := runservice.PublicCreateParams{
-		OwnerID: credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
+		FindingCheck: request.FindingCheck,
+		OwnerID:      credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
 		ProjectID: projectID, Workflow: request.Workflow, RuntimeLabels: normalizedLabels,
 		MetadataLabels: metadataLabels, Parameters: request.Parameters, Inputs: request.Artifacts,
 		IdempotencyKey: idempotencyKey,

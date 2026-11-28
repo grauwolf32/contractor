@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V501-001
+title: "Make fact source errors directly repairable"
+milestone: project-facts-2026-11
+epic: findings
+kind: defect
+introduced_by: V471-003
+priority: P1
+status: completed
+depends_on: []
+languages: [python, go, yaml, markdown]
+goal: "A Worker can repair a missing fact source using memory_name or exact sources without guessing evidence."
+context:
+  authority: >-
+    User decision 2026-11-28 in side conversation: create tasks and implement the
+    proposed tool source/cursor guidance, Facts relevance candidate and scorer corrections.
+  finding: "facades.py FactTool advertises two optional source selectors; publisher.py returns a generic informational error after a source-free call. The study observed 24 such errors and two exhausted eight-call budgets."
+  boundary: >-
+    Runtime retains tool validation and telemetry; catalog content gets new immutable
+    identities; evaluation owns scoring. No new store, wire field, model selection or
+    semantic truth filter. Existing source, quota, cancellation and retention bounds apply.
+  siblings: >-
+    General/code/HTTP findings retain their validation; fresh/cursor/image artifact
+    reads share the current owner; original Facts recipes and frozen study worktrees
+    remain unchanged. Candidate quality requires fresh repeated live evidence.
+scope:
+  in:
+    - "Explain the required source alternatives in the actual provider declaration with a valid memory example."
+    - "Return a bounded fact-specific input error before source I/O; preserve the eight-call quota, exact source selection, error telemetry and receipt behavior."
+  out:
+    - Changing the active study, model, historical scores or deployed services.
+acceptance_criteria:
+  - id: A1
+    text: "ADK FunctionTool declaration names memory_name and sources as alternatives and shows a callable example."
+  - id: A2
+    text: "Missing or empty sources fail with a repair hint, no source writes or Finding admission; corrected memory and artifact calls succeed through the actual tool path."
+  - id: A3
+    text: "Invalid attempts still count toward the existing quota; generic finding validation is unchanged."
+tests:
+  - command: "cd runtime && uv run pytest -W error tests/test_memory_fact_sources.py tests/test_finding_facades.py tests/test_project_facts.py tests/test_security_findings_toolset.py tests/test_finding_tool_contracts.py"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: fa33f8664d63ba1cb0e34d600cac787fd893a908
+verification: >-
+  Required source/Facade/Project Facts/publisher and provider-contract suites pass. Before the fix the new ADK regressions failed; corrected memory and artifact calls pass without weakening the source or quota contract. Expanded affected tool-package suite: 825 passed, 13 Linux/Podman capability tests skipped on macOS; no failed or errored cases. make lint passes.

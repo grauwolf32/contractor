@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/png"
 	"sync"
 	"testing"
 	"time"
@@ -253,6 +255,11 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 		}
 		return findingintake.ExactArtifact{Ref: result.Ref, Digest: auditdomain.DigestBytes(data), MediaType: media, SizeBytes: int64(len(data))}
 	}
+	var screenshotPNG bytes.Buffer
+	if err := png.Encode(&screenshotPNG, image.NewRGBA(image.Rect(0, 0, 1280, 720))); err != nil {
+		t.Fatal(err)
+	}
+	screenshot := write("ui-screenshot", "image/png", screenshotPNG.Bytes())
 	source := write("source", "text/plain", []byte("α😀\r\nsink()"))
 	capture := write("capture", auditdomain.HTTPExchangeMediaType, []byte(`{"schema":"contractor.http.exchange.v1","capture":{"source":"http","request_id":"1","request_tag":"tag","observed_at":"2026-11-06T18:20:00Z","attempts":[{"request":{"method":"GET","url":"https://example.test/check?token=private-query","message":{"kind":"structured","headers":[{"name":"Authorization","value":"private-header"}],"body_base64":""}},"response":{"status":200,"message":{"kind":"structured","headers":[{"name":"Content-Type","value":"application/json; private=parameter"}],"body_base64":""},"complete":true}}]},"origin":{"run_id":"run","invocation_id":"invocation"}}`))
 	analysis := findinganalysis.Document{Schema: findinganalysis.Schema, ClientKey: "native", Sources: []findinganalysis.Source{{ID: "source", Kind: "file", ArtifactRef: source.Ref}}, Locations: []findinganalysis.Location{{ID: "sink", SourceID: "source", Path: "src/a.py", FileDigest: source.Digest, Region: &findinganalysis.Region{StartLine: 2}}}, Flows: []findinganalysis.Flow{}, HTTPExchanges: []findinganalysis.HTTPExchange{{ID: "exchange", EvidenceRef: capture.Ref, Decoder: "contractor-http-exchange/v1"}}, PrimaryLocationID: "sink", PrimaryHTTPExchangeID: "exchange"}
@@ -263,7 +270,7 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 	native := write("native-analysis", findinganalysis.MediaType, encoded)
 	seedCollectionRunReceiptDocument(t, ctx, pool, "owner", "source-run", "native", false, true, func(proposal *auditdomain.FindingProposal) {
 		proposal.StandardRefs = []auditdomain.StandardReference{{Scheme: "CWE", Version: "4.20", RequirementID: "CWE-89"}}
-	}, source, capture, native)
+	}, source, capture, native, screenshot)
 	intake, err := findingintake.New(pool, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
@@ -354,9 +361,24 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 	if _, exists := sarif.Runs[0].Tool.Driver["supportedTaxonomies"]; exists {
 		t.Fatal("result classification became a shared rule claim")
 	}
+	retainedScreenshot := false
+	project, err := service.Project("project")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, e := range r.Evidence {
+		if e.Original.Ref.Name == "ui-screenshot" {
+			read, err := project.Read(ctx, e.Retained.Ref)
+			if err != nil || read.Payload.MediaType != "image/png" || !bytes.Equal(read.Payload.Data, screenshotPNG.Bytes()) {
+				t.Fatalf("screenshot lost exact PNG bytes after source Run deletion: %v", err)
+			}
+			retainedScreenshot = true
+		}
 		if e.Original.Scope.Kind != "run" || e.Retained.Scope.Kind != "project" || e.Retained.Ref.Namespace != artifactpolicy.FindingMaterialsNamespace {
 			t.Fatal("exact original/retained evidence authority lost")
 		}
+	}
+	if !retainedScreenshot {
+		t.Fatal("screenshot absent from retained Finding evidence")
 	}
 }

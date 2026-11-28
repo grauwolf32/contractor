@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import os
+import shlex
 import shutil
 import stat
 import sys
@@ -19,7 +21,7 @@ from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.scan import semgrep
 from contractor_runtime.toolsets.scan.nuclei_package import PackageError
 from contractor_runtime.toolsets.scan.process import ProcessResult
-from contractor_runtime.toolsets.scan.tools import ScanToolsetFactory
+from contractor_runtime.toolsets.scan.tools import ScanToolsetFactory, SemgrepTool
 from contractor_runtime.workspace import AllocationWorkspace
 
 RULE = b"""rules:
@@ -31,6 +33,36 @@ RULE = b"""rules:
 """
 SOURCE = ArtifactRef(namespace="inputs", name="source", revision="rev-source")
 PACK = ArtifactRef(namespace="inputs", name="rulepack", revision="rev-rules")
+
+
+@pytest.mark.skipif(not shutil.which("semgrep"), reason="real Semgrep executable not installed")
+def test_real_semgrep_probe_does_not_load_python_scan_cli(tmp_path, monkeypatch):
+    # The ordinary --version command falls back to pysemgrep. Make that path
+    # fail deterministically instead of asserting how fast a loaded host runs.
+    marker = tmp_path / "python-cli-used"
+    fallback = tmp_path / "pysemgrep"
+    fallback.write_text(f"#!/bin/sh\nprintf invoked > {shlex.quote(str(marker))}\nexit 97\n")
+    fallback.chmod(0o700)
+    monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ["PATH"])
+    factory = ScanToolsetFactory(scanners=[SemgrepTool])
+
+    assert asyncio.run(factory.probe()) == {"scan_semgrep"}
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize(
+    ("version", "exit_code"),
+    [("1.186.0", 0), ("1.187.0-dev", 0), ("unknown", 0), ("", 0), ("1.187.0", 1)],
+)
+def test_semgrep_probe_rejects_unsupported_or_failed_engine(
+    tmp_path, monkeypatch, version, exit_code
+):
+    engine = tmp_path / "semgrep"
+    engine.write_text(f"#!/bin/sh\nprintf '%s\\n' {shlex.quote(version)}\nexit {exit_code}\n")
+    engine.chmod(0o700)
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    assert asyncio.run(ScanToolsetFactory(scanners=[SemgrepTool]).probe()) == frozenset()
 
 
 def archive(files):

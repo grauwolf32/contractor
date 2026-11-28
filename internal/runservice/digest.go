@@ -29,6 +29,9 @@ func PublicRequestDigest(params PublicCreateParams) (string, error) {
 	canonical := map[string]any{
 		"workflow": params.Workflow, "parameters": parameters, "artifacts": inputs,
 	}
+	if params.FindingCheck != nil {
+		canonical["findingCheck"] = params.FindingCheck
+	}
 	if len(labels) != 0 {
 		canonical["runtimeLabels"] = labels
 	}

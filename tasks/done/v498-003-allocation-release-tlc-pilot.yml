@@ -1,0 +1,112 @@
+schema_version: "1.0"
+id: V498-003
+title: "Verify two-phase Allocation release and slot reuse with TLC"
+milestone: workflow-scheduler-concurrency
+epic: execution-core
+kind: chore
+priority: P2
+status: completed
+implementation_commit: 09757ac0c7206c77f6a96a9b076d04f0ce614ec9
+depends_on: [V498-002]
+languages: [go, python]
+goal: >-
+  Establish checked evidence that cleanup, lost responses, delayed heartbeat
+  acknowledgements and restart cannot make a Runtime slot reusable too early
+  or release a replacement allocation, while healthy sibling slots remain usable.
+context:
+  authority:
+    - "User decision 2026-11-28: implement the recommended two-phase Allocation release and Runtime slot reuse pilot, following the completed StageExecution pilot."
+    - "User decision 2026-11-28: keep model, tools and full artifacts in /Users/ruslan/src/contractor/.lean."
+  specification:
+    - docs/spec/execution/control-plane.md#CTL-R124
+    - docs/spec/execution/control-plane.md#CTL-R125
+    - docs/spec/execution/control-plane.md#CTL-R126
+    - docs/spec/execution/runtime-agent.md#RTA-R90
+    - docs/spec/execution/runtime-agent.md#RTA-R91
+    - docs/spec/execution/runtime-agent.md#RTA-R92
+    - docs/spec/execution/scheduler.md#SCH-R69
+    - docs/spec/execution/scheduler.md#SCH-R71
+    - docs/spec/execution/scheduler.md#SCH-R182
+  finding: >-
+    V498-002 stopped at the terminal Stage transaction. Slot reuse spans the
+    Runtime cleanup owner, Control Plane grant removal, addressed heartbeat
+    release acknowledgements and separate PostgreSQL release markers.
+    Existing tests cover individual edges, without a finite model connecting
+    lost replies, stale observations, replacement identity and durable progress.
+  boundary: >-
+    Start with drained terminal allocations. Model one Runtime with bounded
+    capacity, unique allocation identities, local cleanup, Control Plane grant
+    retirement, addressed heartbeat confirmation, durable release markers and
+    bounded restart. A marker means authority is gone, not that a physical
+    slot is already reusable. Expired-owner retirement may remove authority
+    without a cleanup acknowledgement; it must not authorize reuse by the old
+    Runtime. Cleanup internals and physical resource destruction remain adapter
+    assumptions checked by Runtime tests, not a theorem about files or Podman.
+  decision: >-
+    Keep this a finite safety pilot with mutation controls and reachability
+    witnesses, mapped to real PostgreSQL and actual Go/Python protocol owners.
+    Do not change production behavior, invent new states or expand the separate
+    in-progress V425-034 prepare-rollback work. New defects require a separate
+    scoped task. Liveness, arbitrary message histories and complete lease-clock
+    correctness are outside this pilot.
+scope:
+  in:
+    - "Model cleanup failure, lost private release response, delayed/duplicate addressed actions and heartbeat evidence, replacement IDs and restart fencing."
+    - "Check no early slot reuse, identity-specific release, healthy sibling independence and durable-marker meaning."
+    - "Retain expected counterexamples for weakened cleanup/ack/identity gates and reachability witnesses for intended recovery paths."
+    - "Add useful Go Control Plane, PostgreSQL and Python Runtime regression cases and bind each modeled guarantee to executed test identities."
+    - "Run complete touched Go packages and relevant complete Runtime test modules, lint, source/evidence validators and owned-database cleanup."
+  out:
+    - "Production fixes, schema/API changes, prepare-rollback refactoring, live model calls, deployment or CI adoption."
+    - "Unbounded proofs, fairness/liveness, all Runtime adapters, Podman physical cleanup proof, the full Scheduler or all lease timings."
+acceptance_criteria:
+  - id: A1
+    text: "Finite baseline configurations exhaust without safety violations; explicit bounds and mappings distinguish grant retirement, durable marker and slot availability."
+  - id: A2
+    text: "Negative controls fail named invariants and witnesses reach lost-response replay, delayed acknowledgement, reuse, failed-neighbor isolation and restart cases."
+  - id: A3
+    text: "Real Go owners and Python Runtime services reject premature/replacement release and preserve healthy sibling capacity; cleanup failure and reply loss remain retry-safe."
+  - id: A4
+    text: "PostgreSQL tests bind durable attempt/completion markers and recovery to actual live-grant outcomes, including replay without duplicate mutation or terminal-fact changes."
+  - id: A5
+    text: "All declared checks pass with exact executed-test validation and honest skip reporting; artifacts stay in the primary .lean directory and owned database resources are removed."
+tests:
+  - command: "python3 /Users/ruslan/src/contractor/.lean/allocation-release/run.py"
+    covers: [A1, A2]
+  - command: "go test -json -race -tags=integration -count=1 -timeout 20m ./internal/controlplane ./internal/scheduler ./internal/runstore"
+    covers: [A3, A4, A5]
+  - command: "cd runtime && uv run pytest tests/test_runtime_slots.py tests/test_allocation.py tests/test_allocation_stop.py tests/test_slot_manager.py tests/test_lease_watchdog.py tests/test_control_client.py --junitxml=/Users/ruslan/src/contractor/.lean/allocation-release/results/runtime.xml"
+    covers: [A3, A5]
+  - command: "python3 /Users/ruslan/src/contractor/.lean/allocation-release/verify_tests.py"
+    covers: [A3, A4, A5]
+  - command: make lint
+    covers: [A5]
+verification:
+  evidence: tasks/evidence/v498-003-allocation-release.json
+  local_report: /Users/ruslan/src/contractor/.lean/allocation-release/README.md
+  result: >-
+    Five finite baseline graphs exhaust without violations: 1781, 592321,
+    11949, 170929 and 10748033 distinct states. The widest configuration
+    combines two slots, two allocation identities per slot and two Server
+    generations. All seven mutation controls fail the expected invariant;
+    all 22 reachability witnesses are found. Five new leaf scenarios execute
+    through actual Go Control Plane owners, real PostgreSQL release markers
+    and Python Runtime services. Three complete Go packages pass under
+    race/integration: 491 top-level tests, no skips. Six complete Runtime
+    modules pass: 131 tests, no skips. Exact executed-test validation and
+    make lint pass; one auxiliary Python unittest skip is not passing
+    coverage. The owned PostgreSQL database, server, data and socket
+    directory are removed. Heavy-I/O opt-in was not enabled.
+  limits: >-
+    Finite protocol safety and real-store regressions, not implementation
+    refinement, arbitrary histories or liveness. Start at drained terminal
+    allocations; heartbeat sequence/history and lease clocks are abstracted
+    and checked separately in existing owner tests. Server restart includes
+    the subsequent fencing barrier; clean Runtime replacement after bootstrap
+    is an assumption, not proof of physical Podman/filesystem cleanup.
+    Protocol owners are tested separately with external adapters/test RPC
+    peers, not a full distributed process deployment. No production defect
+    was established or production behavior/schema/API changed. V425-034
+    remains untouched. Local ignored artifacts are not a CI gate. Reopen
+    with execution-core and Runtime owners when identity/ack matching,
+    cleanup ownership, release markers or lease/restart meaning changes.

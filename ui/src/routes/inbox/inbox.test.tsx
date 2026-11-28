@@ -22,6 +22,7 @@ import { deferred } from "../../test/deferred";
 import { fakeServer, type Route, type Routes } from "../../test/fake-server";
 import { emptyPageOrNotFound, failure, json, page } from "../../test/responses";
 import { ownerListRoutes } from "../../test/owner-lists";
+import { createApplicationQueryClient } from "../../app/query-client";
 import { testSession } from "../../test/render";
 
 const NOW = Date.now();
@@ -518,6 +519,48 @@ const FIRST_DECIDED =
   "Decision recorded on “Any user can read any report”: Not an issue.";
 
 describe("Inbox", () => {
+  it("opens a loaded decision while reports wait and reuses availability on Reports", async () => {
+    const state = busyServer();
+    const gate = deferred<void>();
+    state.delay = (url) =>
+      url.pathname.endsWith("/report") ? gate.promise : undefined;
+    const server = inboxServer(state);
+    const queryClient = createApplicationQueryClient();
+    const { router } = renderApplication("/", { server, queryClient });
+    try {
+      await waitFor(() =>
+        expect(router.state.location.search).toContain("item=issue:"),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("heading", { name: "Loading your Inbox" }),
+        ).toBeNull(),
+      );
+    } finally {
+      gate.resolve();
+    }
+    await waitFor(() => {
+      const statuses = queryClient.getQueriesData({
+        queryKey: ["cross-project", "report"],
+      });
+      expect(statuses.length).toBeGreaterThan(0);
+      expect(statuses.every(([, data]) => data !== undefined)).toBe(true);
+    });
+    const reportPaths = () =>
+      server.requests
+        .map((request) => new URL(request.url).pathname)
+        .filter((path) => path.endsWith("/report"));
+    const alreadyRead = reportPaths();
+    expect(alreadyRead.length).toBeGreaterThan(0);
+    await act(() => router.navigate("/reports"));
+    await screen.findByText(/ready\./);
+    // Reports may include older checks. Every status that Inbox already read is reused.
+    for (const path of alreadyRead)
+      expect(
+        reportPaths().filter((candidate) => candidate === path),
+      ).toHaveLength(1);
+  });
+
   it("labels a partial decision count as a lower bound and opens its loaded issue directly", async () => {
     const server = emptyServer();
     server.projects = [build.project("project_shop")];

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/configload"
@@ -111,19 +112,79 @@ func TestOptionalMemoryEvalConfigurationUsesOrdinaryAuditExecution(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := catalog.AuditProfile("project-facts-eval@1")
+	baseline, err := catalog.AuditProfile("project-facts-eval@1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(profile.Program.InitialWork) != 1 {
-		t.Fatal("Eval must use one ordinary Audit task")
-	}
-	workflow, err := catalog.Workflow("fact-extraction-audit-eval@1")
+	baselineWorkflow, err := catalog.Workflow("fact-extraction-audit-eval@1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	stage := workflow.Stages["extract"]
-	if stage.Planner.PlannerID != "passthrough" || stage.ExecutionConfig.Planner != nil || len(stage.Agents) != 1 || stage.ExecutionConfig.Agents["extractor"].ModelPolicy.Ref.PolicyID != "worker" {
-		t.Fatal("Eval changed model/execution owners")
+	for _, version := range []string{"1", "2"} {
+		profile, err := catalog.AuditProfile("project-facts-eval@" + version)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(profile.Program.InitialWork) != 1 {
+			t.Fatal("Eval must use one ordinary Audit task")
+		}
+		if !reflect.DeepEqual(profile.Program.Limits, baseline.Program.Limits) || !reflect.DeepEqual(profile.Program.Policy, baseline.Program.Policy) {
+			t.Fatal("candidate changed extraction budgets or authority")
+		}
+		workflow, err := catalog.Workflow("fact-extraction-audit-eval@" + version)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stage := workflow.Stages["extract"]
+		if !reflect.DeepEqual(stage.ExecutionConfig, baselineWorkflow.Stages["extract"].ExecutionConfig) || !reflect.DeepEqual(stage.Agents["extractor"].Template.Toolsets, baselineWorkflow.Stages["extract"].Agents["extractor"].Template.Toolsets) {
+			t.Fatal("candidate changed configured model or tools")
+		}
+		if stage.Planner.PlannerID != "passthrough" || stage.ExecutionConfig.Planner != nil || len(stage.Agents) != 1 || stage.ExecutionConfig.Agents["extractor"].ModelPolicy.Ref.PolicyID != "worker" {
+			t.Fatal("Eval changed model/execution owners")
+		}
+	}
+}
+
+func TestFactsCandidateRecipePreservesBaselineAndPinsNewSelection(t *testing.T) {
+	output := filepath.Join(t.TempDir(), "experiment.json")
+	data, err := exec.Command("python3", "prepare_recipe.py", "experiment", "--candidate", "--dataset-revision", "r1", "--output", output).CombinedOutput()
+	if err != nil {
+		t.Fatalf("candidate recipe: %s: %v", data, err)
+	}
+	payload, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := evaldomain.Freeze("CreateExperiment", payload); err != nil {
+		t.Fatal(err)
+	}
+	var experiment struct {
+		Draft evaldomain.Draft `json:"draft"`
+	}
+	if err := json.Unmarshal(payload, &experiment); err != nil {
+		t.Fatal(err)
+	}
+	d := experiment.Draft
+	if len(d.Variants) != 2 || d.Variants[0].Selector != "project-facts-eval@1" || d.Variants[1].Selector != "project-facts-eval@2" || d.Repetitions != 3 || d.Budgets.MaxMembers != 36 {
+		t.Fatal("candidate selection or repeated matrix drift")
+	}
+	if len(d.Comparison.AllowedDifferences) != 2 || d.Comparison.AllowedDifferences[0] != "instructions" || d.Comparison.AllowedDifferences[1] != "audit-execution" {
+		t.Fatal("unexpected candidate differences")
+	}
+	// Validate the shipped production selector as well as the opt-in Audit profiles.
+	repository := filepath.Join("..", "..", "..")
+	catalog, _, err := configload.LoadUnionReadOnly(filepath.Join(repository, "configs"), filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, version := range []string{"1", "2"} {
+		workflow, err := catalog.Workflow("project-facts-extract@" + version)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stage := workflow.Stages["extract"]
+		if stage.ExecutionConfig.Agents["extractor"].ModelPolicy.Ref.PolicyID != "worker" || len(stage.Agents) != 1 || stage.Planner.PlannerID != "passthrough" {
+			t.Fatal("production extraction execution drift")
+		}
 	}
 }

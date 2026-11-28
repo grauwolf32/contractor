@@ -260,6 +260,10 @@ operator's private configuration outside the role's diagnostic boundary.
 
 Semgrep is included in the default scanner set. It uses its own locked Python
 environment at `tools/semgrep-1.187.0`, separate from Runtime dependencies.
+The role compiles its Python bytecode during locked installation, including an
+existing environment that lacks the bytecode completion marker. Capability
+preflight uses the Runtime's native OSS version command; it does not load the
+Python scan CLI or depend on previously warmed bytecode caches.
 `contractor_runtime_semgrep_rules_dir` overrides the checksum-pinned upstream
 rules directory; the effective path is exported as `SEMGREP_RULES_DIR` only to
 instances selecting Semgrep. Upstream rules are fetched at provisioning time

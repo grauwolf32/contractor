@@ -140,7 +140,7 @@ def setup(pair):
         "checks": [
             {
                 "id": "artifact-quality",
-                "evaluator": "context@1",
+                "evaluator": "context@2",
                 "implementationSha256": h.scorer_digest(),
                 "required": True,
             }
@@ -316,6 +316,66 @@ class HarnessTests(unittest.TestCase):
         cls.addClassCleanup(cls.validator.__exit__, None, None, None)
         cls.variants, cls.cases, cls.truth = h.fixtures()
         cls.answers = h.load(h.ROOT / "private/recorded-results.json")
+
+    def test_api_contract_accepts_valid_response_security_and_parameter_encodings(self):
+        for variant in ("created", "global-security", "path-parameters", "reordered"):
+            with self.subTest(variant=variant):
+                answer = copy.deepcopy(self.answers["api-dependency"])
+                document = answer["openapi"]
+                for route in self.cases["api-dependency"]["inputs"]["routes"]:
+                    path = document["paths"][route["path"]]
+                    operation = path[route["method"]]
+                    if variant == "created" and route["method"] == "post":
+                        operation["responses"]["201"] = operation["responses"].pop("200")
+                    elif variant == "global-security":
+                        document["security"] = operation.pop("security")
+                    elif variant == "path-parameters":
+                        path["parameters"] = [
+                            p for p in operation["parameters"] if p["in"] == "path"
+                        ]
+                        operation["parameters"] = [
+                            p for p in operation["parameters"] if p["in"] != "path"
+                        ]
+                    elif variant == "reordered":
+                        operation["parameters"].reverse()
+                verdict = h.score(
+                    self.cases["api-dependency"],
+                    answer,
+                    oracle(),
+                    self.truth["api-dependency"],
+                )
+                self.assertTrue(verdict["pass"], verdict)
+
+    def test_api_contract_does_not_inherit_over_explicit_anonymous_security(self):
+        answer = copy.deepcopy(self.answers["api-dependency"])
+        document = answer["openapi"]
+        document["security"] = [{"tenant": []}]
+        document["paths"]["/tenants/{tenant}/items"]["get"]["security"] = []
+        verdict = h.score(
+            self.cases["api-dependency"], answer, oracle(), self.truth["api-dependency"]
+        )
+        self.assertFalse(verdict["checks"]["api_contract"])
+
+    def test_malformed_api_fields_preserve_independent_checks_and_name_failure(self):
+        for field, value, failed in (
+            ("likec4", [], "dependency_model_text"),
+            ("openapi", {}, "openapi_valid"),
+        ):
+            with self.subTest(field=field):
+                answer = copy.deepcopy(self.answers["api-dependency"])
+                answer[field] = value
+                verdict = h.score(
+                    self.cases["api-dependency"],
+                    answer,
+                    oracle(),
+                    self.truth["api-dependency"],
+                )
+                self.assertFalse(verdict["pass"])
+                self.assertTrue(verdict["checks"]["constraints"])
+                self.assertTrue(verdict["checks"]["read_only"])
+                self.assertFalse(verdict["checks"][failed])
+                self.assertNotIn("well_formed_evidence", verdict["checks"])
+                self.assertTrue(all(type(v) is bool for v in verdict["checks"].values()))
 
     def test_every_declared_variant_scores_five_samples_of_every_class(self):
         n = 0

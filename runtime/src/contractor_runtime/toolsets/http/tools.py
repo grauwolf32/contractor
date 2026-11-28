@@ -80,13 +80,13 @@ from contractor_runtime.toolsets.common.http_capture import (
     allocation_http_captures,
 )
 from contractor_runtime.toolsets.common.http_evidence import HTTPAttempt
+from contractor_runtime.toolsets.common.http_exchange import CapturedAttempt, CapturedExchange
 from contractor_runtime.toolsets.common.http_observations import (
     HTTPObservationSink,
     notify_http_observations,
 )
 from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.http.arguments import request_containers
-from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
 from contractor_runtime.toolsets.http.cookies import (
     CookieCheckpoint,
 )

@@ -41,6 +41,7 @@ from contractor_runtime.sandbox.contracts import PODMAN_NETWORK_PROFILE
 from contractor_runtime.sandbox.lifecycle import ExecutionLifecycle
 from contractor_runtime.toolsets.audit_results.proposals import AuditProposalsToolsetFactory
 from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFactory
+from contractor_runtime.toolsets.browser.tools import BrowserToolsetFactory
 from contractor_runtime.toolsets.caido.tools import CaidoToolsetFactory
 from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisToolsetFactory
 from contractor_runtime.toolsets.code_execution.tools import CodeExecutionToolsetFactory
@@ -316,6 +317,7 @@ def built_in_factories(
                 if execution_lifecycle
                 else {}
             ),
+            BrowserToolsetFactory.ref: BrowserToolsetFactory(artifact_client_factory),
             artifact_toolset.ref: artifact_toolset,
             sitemap_toolset.ref: sitemap_toolset,
             audit_results_toolset.ref: audit_results_toolset,

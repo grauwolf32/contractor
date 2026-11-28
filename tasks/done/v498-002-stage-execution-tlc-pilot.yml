@@ -1,0 +1,101 @@
+schema_version: "1.0"
+id: V498-002
+title: "Verify StageExecution completion cancellation and recovery races with TLC"
+milestone: workflow-scheduler-concurrency
+epic: execution-core
+kind: chore
+priority: P2
+status: completed
+implementation_commit: b9ce06d4f94c5e22e168666ff6cc9fdadcf27c6b
+depends_on: [V498-001]
+languages: [go]
+goal: >-
+  Check that competing completion, cancellation and recovery preserve one
+  StageExecution outcome and suppress Workflow publication after cancellation,
+  with executable evidence on real PostgreSQL.
+context:
+  authority:
+    - "User request 2026-11-28: run the next TLA+/TLC pilot for StageExecution completion/cancellation/recovery, create a task, and bind results to PostgreSQL tests."
+    - "User request 2026-11-28: all pilot artifacts live in /Users/ruslan/src/contractor/.lean, independently of the code worktree."
+  specification:
+    - docs/spec/execution/scheduler.md#SCH-R44
+    - docs/spec/execution/scheduler.md#SCH-R45
+    - docs/spec/execution/scheduler.md#SCH-R50
+    - docs/spec/execution/scheduler.md#SCH-R53
+    - docs/spec/execution/scheduler.md#SCH-R64
+    - docs/spec/execution/scheduler.md#SCH-R99
+    - docs/spec/execution/scheduler.md#SCH-R100
+    - docs/spec/execution/scheduler.md#SCH-R120
+    - docs/spec/execution/scheduler.md#SCH-R183
+  finding: >-
+    internal/scheduler/postgres.go:74-332 owns the claimed Run-then-Stage
+    transaction boundaries. Existing tests cover cancellation versus success,
+    stale claims and fake-store deadline recovery, but there is no bounded
+    protocol model or explicit real-store matrix for both race orderings,
+    competing terminal-phase writers and fresh-Scheduler replay of durable facts.
+  boundary: >-
+    Model one already-running StageExecution and its Run, two candidate values,
+    bounded Scheduler ownership generations and persistent terminal operation
+    identity/deadline. Distinguish the Stage CAS winner from Run cancellation
+    versus output/progression commit. Recovery of running Planner work without
+    a completed summary interrupts; running Server operations may replay.
+    PostgreSQL owns atomicity and lock serialization; Runtime drain is an
+    abstract acknowledgement/timeout, not a newly proved external protocol.
+    No production behavior changes, new state or store mechanism are intended.
+  decision: >-
+    Keep TLA+, tools, logs, counterexamples and the local report in the primary
+    checkout's ignored .lean/stage-execution directory. Track only this task,
+    compact evidence and useful PostgreSQL regression tests. Model safety with
+    explicit finite bounds; do not claim unbounded proof or liveness. Preparation,
+    completed-summary recovery, multi-Stage retry policy and full allocation
+    release are outside this focused pilot and are named limitations.
+scope:
+  in:
+    - "Check completion/abort CAS, durable result versus cancellation, exact candidate acceptance, immutable terminal facts, replay identity/deadline and stale-owner fencing."
+    - "Explore crash/recovery before and after durable terminal-phase and terminal commits, including running Server-operation replay."
+    - "Add mutation controls and reachability witnesses so model success is not vacuous."
+    - "Bind both serial orders and actual concurrent requests to real PostgreSQL tests, plus fresh-Scheduler recovery from durable state."
+    - "Run complete touched package checks, existing RunStore constraints, lint and exact evidence validation; clean up the owned database/server."
+  out:
+    - "Production fixes, schema/API changes, new runtime infrastructure, deployment and live model calls."
+    - "Arbitrary-size theorem proofs, liveness/fairness, complete Runtime drain correctness, multi-Run scheduling and automatic CI adoption."
+acceptance_criteria:
+  - id: A1
+    text: "Baseline TLC configurations exhaust their reachable states without safety violations; assumptions, bounds and transaction mappings are explicit."
+  - id: A2
+    text: "Expected violations detect weakened CAS, cancellation publication gating, candidate equality, recovery identity/deadline and claim fencing; witnesses cover intended orders and recovery points."
+  - id: A3
+    text: "Real PostgreSQL regressions cover completion/abort competition, both cancellation/publication orders, late or changed results, and immutable terminal facts."
+  - id: A4
+    text: "A fresh Scheduler resumes durable finalizing/aborting state with the saved operation ID/deadline and no repeated semantic invocation; existing running recovery and claim-fence tests are mapped and executed."
+  - id: A5
+    text: "Required model/report validators, complete Go packages and make lint pass; skips are distinguished from passes, artifact location is correct and owned database/server are removed."
+tests:
+  - command: "python3 /Users/ruslan/src/contractor/.lean/stage-execution/run.py"
+    covers: [A1, A2]
+  - command: "go test -json -race -tags=integration -count=1 -timeout 20m ./internal/scheduler ./internal/runstore"
+    covers: [A3, A4, A5]
+  - command: "python3 /Users/ruslan/src/contractor/.lean/stage-execution/verify_postgres.py"
+    covers: [A3, A4, A5]
+  - command: make lint
+    covers: [A5]
+verification:
+  evidence: tasks/evidence/v498-002-stage-execution.json
+  local_report: /Users/ruslan/src/contractor/.lean/stage-execution/README.md
+  result: >-
+    Four finite baseline graphs exhaust without violations: Planner 5693/11769
+    distinct states and Server operation 7059/17656 for two/three ownership
+    generations. All seven mutation controls fail the expected invariant;
+    all 22 reachability witnesses are found. Four new PostgreSQL tests execute
+    14 leaf scenarios. Both complete Go packages pass under race/integration:
+    333 top-level tests, no skips. Exact test identity validator and make lint
+    pass; one auxiliary Python unittest skip is not passing coverage. The
+    owned PostgreSQL database, server, data and socket directory are removed.
+  limits: >-
+    Finite protocol safety plus real-store regressions, not Go/SQL refinement,
+    arbitrary-size proof or liveness. Fresh Scheduler objects are tested with
+    real PostgreSQL and test Worker/Control Plane adapters; this does not prove
+    Runtime process restart or complete allocation release. No production
+    defect was established; behavior, schema and API remain unchanged. Local
+    ignored artifacts are not a CI gate. See the report for source mappings,
+    clock/claim assumptions and excluded summary/multi-Stage behavior.

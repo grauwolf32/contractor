@@ -7993,6 +7993,9 @@ type CreateRunRequest struct {
 	// Artifacts Bind the Workflow's declared inputs. A single engagement-only typed input selects an exact network policy for this Run (RUN-R112 to RUN-R115), with credential authorization and immutable original-input pinning. The input name is defined by the Workflow.
 	Artifacts nullable.Nullable[map[string]ArtifactRef] `json:"artifacts,omitempty"`
 
+	// FindingCheck Project Run only. Select one existing Finding revision and retained source receipt for HTTP validation. Server prepares finding/context inputs and the target parameter from this selection and the current Project target. The selected Workflow must have one compatible HTTP completion Worker and fail on failed/interrupted execution. Parameters and artifacts must be empty; missing target or incompatible Workflow is 400 invalid_request, foreign/missing selection is 404 not_found and stale revision is 409 conflict. Same-key replay returns the original Run before mutable resolution.
+	FindingCheck *FindingCheck `json:"findingCheck,omitempty"`
+
 	// Labels Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.
 	Labels     *RunMetadataLabels                   `json:"labels,omitempty"`
 	Parameters nullable.Nullable[map[string]string] `json:"parameters,omitempty"`
@@ -9420,6 +9423,14 @@ type FindingCandidatesPagePolicyVersion string
 
 // FindingCandidatesPageTargetBasis defines model for FindingCandidatesPage.TargetBasis.
 type FindingCandidatesPageTargetBasis string
+
+// FindingCheck defines model for FindingCheck.
+type FindingCheck struct {
+	Assertion string                `json:"assertion"`
+	FindingId AuditCommonResourceId `json:"findingId"`
+	ReceiptId AuditCommonResourceId `json:"receiptId"`
+	Revision  int                   `json:"revision"`
+}
 
 // FindingClaim defines model for FindingClaim.
 type FindingClaim struct {

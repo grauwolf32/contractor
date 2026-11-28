@@ -175,6 +175,69 @@ class Diagnostics(unittest.TestCase):
         path.write_text(f"#!{sys.executable}\n" + text)
         path.chmod(0o755)
 
+    def semgrep_install_tasks(self):
+        tasks = yaml.safe_load((ROLE / "tasks/semgrep.yml").read_text())
+        # Exercise the actual production modules and templates in an owned
+        # directory. Only Linux root ownership is adapted to the local user.
+        def local_ownership(values):
+            for task in values:
+                for module in ["ansible.builtin.file", "ansible.builtin.copy"]:
+                    if module in task:
+                        args = task[module]
+                        args["owner"] = getpass.getuser()
+                        args["group"] = grp.getgrgid(os.getgid()).gr_name
+                        if "src" in args:
+                            args["src"] = str(ROLE / "files") + "/" + args["src"]
+                for key in ["block", "rescue"]:
+                    local_ownership(task.get(key, []))
+        local_ownership(tasks)
+        return tasks
+
+    def semgrep_install_fixture(self, exit_code=0):
+        destination = self.tools / "semgrep-1.187.0"
+        self.variables.update({
+            "__contractor_runtime_semgrep_dir": str(destination),
+            "__contractor_runtime_tools": {
+                "uv": {"version": "fixture", "path": "uv"},
+                "semgrep": {"version": "1.187.0"},
+            },
+            "contractor_runtime_python_version": "3.13",
+            "contractor_runtime_uv_environment": {"SYN_HOST": HOST_VALUE},
+        })
+        receipt = self.root / "semgrep-builds"
+        self.script(self.tools / "uv-fixture/uv",
+            "import sys\nfrom pathlib import Path\n"
+            + "assert '--locked' in sys.argv and '--compile-bytecode' in sys.argv\n"
+            + "root=Path(sys.argv[sys.argv.index('--project')+1])\n"
+            + "assert (root/'pyproject.toml').is_file() and (root/'uv.lock').is_file()\n"
+            + f"with Path({str(receipt)!r}).open('a') as out: out.write('compiled\\n')\n"
+            + f"print({HOST_VALUE!r})\nsys.exit({exit_code})\n")
+        return destination, receipt
+
+    def test_semgrep_installer_preserves_lockfiles_and_builds_once(self):
+        destination, receipt = self.semgrep_install_fixture()
+        destination.mkdir()
+        (destination / ".complete").write_text("old installation\n")
+        tasks = self.semgrep_install_tasks()
+        for _ in range(2):
+            code, output = self.run_play(tasks, verbose=True)
+            self.assertEqual(code, 0, output)
+            self.assert_private(output)
+            for name in ["pyproject.toml", "uv.lock"]:
+                self.assertEqual((destination / name).read_bytes(),
+                                 (ROLE / "files/semgrep" / name).read_bytes())
+            self.assertEqual((destination / ".bytecode-complete").read_text(), "1.187.0\n")
+        self.assertEqual(receipt.read_text(), "compiled\n")
+
+    def test_semgrep_failed_build_does_not_mark_completion(self):
+        destination, receipt = self.semgrep_install_fixture(exit_code=7)
+        code, output = self.run_play(self.semgrep_install_tasks(), verbose=True)
+        self.assertNotEqual(code, 0)
+        self.assert_private(output)
+        self.assertIn("Semgrep environment build failed", output)
+        self.assertEqual(receipt.read_text(), "compiled\n")
+        self.assertFalse((destination / ".bytecode-complete").exists())
+
     def test_invalid_environment_value_is_classified_without_value(self):
         self.variables["contractor_runtime_extra_environment"]["SYN_HOST"] = (
             HOST_VALUE + " invalid space"

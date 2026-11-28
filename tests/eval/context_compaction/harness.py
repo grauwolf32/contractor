@@ -166,8 +166,84 @@ def fixtures():
     return variants, cases, load(ROOT / "private/truth.json")
 
 
+def score_api(case, answer, expected):
+    """Score independent visible requirements; failures expose check names, never truth values."""
+    checks = {}
+
+    def check(name, evaluate):
+        try:
+            checks[name] = bool(evaluate())
+        except (KeyError, TypeError, AttributeError, IndexError, ValueError):
+            checks[name] = False
+
+    document = answer.get("openapi")
+    routes = case["inputs"]["routes"]
+
+    def operation(route):
+        return document["paths"][route["path"]][route["method"]]
+
+    def parameters(route):
+        # OpenAPI operation parameters override path-item parameters by (name, in).
+        selected = {}
+        path = document["paths"][route["path"]]
+        for parameter in [
+            *path.get("parameters", []),
+            *operation(route).get("parameters", []),
+        ]:
+            selected[(parameter["name"], parameter["in"])] = parameter
+        return list(selected.values())
+
+    check("openapi_valid", lambda: isinstance(document, dict) and valid_openapi(document))
+    check(
+        "api_contract",
+        lambda: (
+            document["openapi"].startswith("3.1.")
+            and [operation(r)["operationId"] for r in routes] == expected["operations"]
+            and all(
+                operation(r).get("security", document.get("security")) == [{"tenant": []}]
+                for r in routes
+            )
+        ),
+    )
+    check(
+        "side_constraint",
+        lambda: all(
+            sorted(p["name"] for p in parameters(r) if p.get("required") is False)
+            == sorted(r.get("optional", []))
+            and all(p["in"] == "query" for p in parameters(r) if p.get("required") is False)
+            for r in routes
+        ),
+    )
+    check(
+        "document_structure",
+        lambda: (
+            bool(document["info"]["title"])
+            and bool(document["info"]["version"])
+            and document["components"]["securitySchemes"]["tenant"]["type"] == "apiKey"
+            and all(
+                operation(r)["responses"]
+                and any(
+                    p["name"] == "tenant" and p["in"] == "path" and p["required"] is True
+                    for p in parameters(r)
+                )
+                for r in routes
+            )
+        ),
+    )
+    check("dependency_model_text", lambda: isinstance(answer.get("likec4"), str))
+    check(
+        "dependency_model",
+        lambda: (
+            sorted(line.split(" -> ") for line in answer["likec4"].splitlines())
+            == sorted(expected["edges"])
+        ),
+    )
+    return checks
+
+
 def score(case, answer, oracle, truth, *, continuation_required=True, future_required=False):
     """Judge artifacts against source/route facts and evaluator-owned observations."""
+    checks = {}
     try:
         checks = {
             "constraints": set(answer["constraints"]) == set(truth["constraints"]),
@@ -204,37 +280,7 @@ def score(case, answer, oracle, truth, *, continuation_required=True, future_req
                 expected["observed"]
             ) and set(answer["uncertain"]) == set(expected["uncertain"])
         elif case["id"] == "api-dependency":
-            document = answer["openapi"]
-            checks["openapi_valid"] = valid_openapi(document)
-            routes = case["inputs"]["routes"]
-            operations = [document["paths"][r["path"]][r["method"]] for r in routes]
-            checks["api_contract"] = (
-                document["openapi"] == "3.1.0"
-                and [o["operationId"] for o in operations] == expected["operations"]
-                and all(o["security"] == [{"tenant": []}] for o in operations)
-            )
-            optional = [
-                p["name"]
-                for o in operations
-                for p in o.get("parameters", [])
-                if p["required"] is False
-            ]
-            checks["side_constraint"] = optional == expected["optional"]
-            checks["document_structure"] = (
-                bool(document["info"]["title"])
-                and bool(document["info"]["version"])
-                and document["components"]["securitySchemes"]["tenant"]["type"] == "apiKey"
-                and all(
-                    bool(o["responses"]["200"]["description"])
-                    and any(
-                        p["name"] == "tenant" and p["in"] == "path" and p["required"] is True
-                        for p in o["parameters"]
-                    )
-                    for o in operations
-                )
-            )
-            edges = [line.split(" -> ") for line in answer["likec4"].splitlines()]
-            checks["dependency_model"] = sorted(edges) == sorted(expected["edges"])
+            checks.update(score_api(case, answer, expected))
         else:
             checks["negative_memory"] = all(
                 set(answer[k]) == set(expected[k]) for k in ("negative", "observed", "uncertain")
@@ -245,7 +291,8 @@ def score(case, answer, oracle, truth, *, continuation_required=True, future_req
             )
         return {"pass": all(checks.values()), "checks": checks}
     except (KeyError, TypeError, AttributeError, IndexError, SyntaxError, ValueError):
-        return {"pass": False, "checks": {"well_formed_evidence": False}}
+        checks["well_formed_evidence"] = False
+        return {"pass": False, "checks": checks}
 
 
 def locked_adk_version():

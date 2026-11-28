@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "contractor.fact-extraction-candidate-lock/v1",
+  "files": {
+    "experiment-candidate-v2.json": "sha256:91ba985a4c3cb913d4634126719be12dd1df8ab38eca277fe6022171c74b2f26",
+    "corpus-v5.lock.json": "sha256:46254596e8eed2631ed25d2c09f91ac5e81e58b73bf8a12434a5d0b0a5054017",
+    "../../../configs/evals/project-facts/instructions/fact-extractor-audit-eval-v2.md": "sha256:ada0b86b2c4cf0173155ffd97168dfecf927f32ff7b2de0eca3563594728f12e",
+    "../../../configs/evals/project-facts/workflows/extract-v2.yaml": "sha256:10e1cdcd7c3715ac4dbdf2288bb8efb9f4d739508c8afdabbbbef381468d71ac",
+    "../../../configs/evals/project-facts/audit-profiles/facts-v2.yaml": "sha256:6c767df385076d06cb00ca5e9407db90ceb6634f7295790c096ad37d62a194f0",
+    "../../../configs/evals/project-facts/agent-templates/extractor-v2.yaml": "sha256:cb5333044058a4b95fe97abd877a267d151b8fbba4c200787c5795ae4575b664"
+  }
+}

@@ -15,9 +15,8 @@ from contractor_runtime.core.http_limits import MAX_HISTORY
 from contractor_runtime.core.tool_errors import ToolResultDiagnostic
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.argument_diagnostics import json_type
-from contractor_runtime.toolsets.common.credentials import RUNTIME_CREDENTIAL
 from contractor_runtime.toolsets.common.http_capture import HTTPObservation, RecentHTTPCaptures
-from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
+from contractor_runtime.toolsets.common.http_exchange import TransportExchangeCapture
 from contractor_runtime.toolsets.http.errors import (
     HTTPArgumentError,
     HTTPToolError,
@@ -71,7 +70,7 @@ class ControlledHTTPSession(_HTTPSession):
         self._default_headers = {}
         self._nonce = secrets.token_hex(8)
         self._closed = False
-        transport.attach_response_buffer(self._erase_response_buffer)
+        transport.attach_consumer_cleanup(self._erase_response_buffer)
 
     @property
     def request_body_limit(self) -> int:
@@ -176,7 +175,7 @@ class ControlledHTTPSession(_HTTPSession):
             started = time.monotonic()
             tag = f"r{self._nonce}-h{request_id:06d}"
             selected_headers = merge_headers(selected_headers, {"X-Request-Id": tag})
-            capture = _ExchangeCapture(request_id, tag)
+            capture = TransportExchangeCapture(request_id, tag)
             completed = False
             try:
                 outcome, response = await self._transport.request(
@@ -333,43 +332,3 @@ class ControlledHTTPSession(_HTTPSession):
         self._captures.clear("http")
         self._cached_body = None
         self._default_headers.clear()
-
-
-class _ExchangeCapture:
-    """Receive actual transport attempts; no storage or authority of its own."""
-
-    def __init__(self, request_id, tag):
-        self.exchange = CapturedExchange(request_id, tag)
-
-    def request(self, method, url, headers, body, injected_headers):
-        safe = [
-            {
-                "name": name.decode("ascii"),
-                "value": (
-                    RUNTIME_CREDENTIAL
-                    if name.lower() in injected_headers
-                    else value.decode("latin-1")
-                ),
-            }
-            for name, value in headers
-        ]
-        self.exchange.attempts.append(CapturedAttempt(method, url, safe, body))
-        self.exchange.complete = False
-        self.exchange.response_body = b""
-        self.exchange.error = None
-
-    def finish(self, response, error):
-        attempt = self.exchange.attempts[-1]
-        if response is not None:
-            attempt.status = response.status
-            attempt.response_headers = [
-                {"name": k.decode("ascii"), "value": v.decode("latin-1")}
-                for k, v in response.headers
-            ]
-            self.exchange.response_body = response.body
-            self.exchange.complete = error is None and not response.truncated
-            if response.truncated and error is None:
-                error = "response_too_large"
-        self.exchange.error = error
-        if error is not None and response is None:
-            attempt.error = error

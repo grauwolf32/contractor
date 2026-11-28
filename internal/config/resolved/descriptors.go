@@ -219,6 +219,20 @@ func builtInDescriptors() descriptorTable {
 				Tools:                     []string{"glob", "grep", "ls", "read_file"},
 				WorkspaceObservationTools: []string{"glob", "grep", "ls", "read_file"},
 			},
+			"browser-tools@1": {
+				Tools: []string{"browser_click", "browser_export_map", "browser_fill", "browser_navigate", "browser_open", "browser_requests", "browser_screenshot", "browser_snapshot"},
+				InfrastructureChannels: map[string][]infrastructureChannel{
+					"browser_click":      {channelRuntimeHTTPClient},
+					"browser_export_map": {channelRuntimeHTTPClient},
+					"browser_fill":       {channelRuntimeHTTPClient},
+					"browser_navigate":   {channelRuntimeHTTPClient},
+					"browser_open":       {channelRuntimeHTTPClient},
+					"browser_requests":   {channelRuntimeHTTPClient},
+					"browser_screenshot": {channelRuntimeHTTPClient},
+					"browser_snapshot":   {channelRuntimeHTTPClient},
+				},
+				ActiveCheckTools: []string{"browser_click", "browser_fill", "browser_navigate"},
+			},
 			"http-tools@1": {
 				Tools: []string{
 					"http_history", "http_read_body", "http_request", "http_session_clear",

@@ -1,0 +1,69 @@
+schema_version: "1.0"
+id: V499-001
+title: Probe Semgrep through its fast native version command
+milestone: scan-tools-followups
+epic: scan-tools
+kind: defect
+introduced_by: V493-001
+priority: P1
+status: completed
+depends_on: []
+languages: [python]
+goal: A correctly installed Semgrep registers reliably without loading the Python scan CLI during its bounded version check.
+context:
+  authority: User 2026-11-28 requests a faster and more robust Semgrep check after demo deployment measured Python CLI version startup at 2.7 to 2.9 seconds against the two-second scanner probe budget.
+  specification: docs/spec/tools/scanners.md#SCN-R271
+  verification_evidence: tasks/evidence/v499-001-semgrep-native-probe.json
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/scan/tools.py:1736 invokes --version
+    without --experimental. Semgrep 1.187.0 routes that command through
+    pysemgrep, whose cold imports exceed the independent two-second probe.
+    deploy/ansible/roles/contractor_runtime/tasks/semgrep.yml:25 installs the
+    locked environment without precompiling Python bytecode.
+  siblings: >-
+    The same Semgrep version_arguments are reused by startup capability discovery,
+    Ansible probe_tools.py and the per-scan preparation check. All must select
+    the same native command. Other scanner probes retain independent budgets,
+    exact existing version acceptance and cancellation/process-group cleanup.
+  decision: >-
+    Use semgrep --experimental --version --disable-version-check through the
+    installed entry point, which dispatches directly to its packaged OSS native
+    engine. Measured on both demo cloud hosts at 139 and 146 ms while pysemgrep
+    was deliberately unavailable. Increasing all timeouts leaves the import cost;
+    reading metadata or returning a cached constant does not execute the engine.
+    Keep the two-second independent probe and strict 1.187.0 acceptance, without
+    retries or a Python fallback. Revisit the command on an engine version change
+    using real-engine tests. Compile locked installation bytecode for scan CLI
+    startup as well; this is an optimization, not a capability requirement.
+scope:
+  in:
+    - Change the shared Semgrep version command for startup and per-scan verification.
+    - Compile Python bytecode when provisioning the isolated locked Semgrep environment.
+    - Add real-engine regression with a deliberately failing pysemgrep fallback, strict version rejection and hung Semgrep cleanup coverage.
+    - Update the owning scanner specification and installation documentation.
+  out:
+    - Scanner version changes, global timeout changes, metadata-only or cached version assertions, scan engine selection changes, models, demo data, deployment and main integration.
+acceptance_criteria:
+  - id: A1
+    text: The real pinned Semgrep capability probe succeeds even with a failing pysemgrep on PATH; the regression fails on the original version command without relying on wall-clock assertions.
+  - id: A2
+    text: Startup, Ansible and per-scan version checks share the native command; malformed, unsupported and failed version responses are rejected and a hung Semgrep is killed and joined independently of healthy peers.
+  - id: A3
+    text: Provisioning requests bytecode compilation in the existing locked isolated environment; Ansible checks, the full Runtime suite and lint pass.
+tests:
+  - command: cd runtime && uv run pytest tests/test_semgrep_scan.py tests/test_scan_toolset.py
+    covers: [A1, A2]
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  results:
+    - The new real-engine regression fails on baseline when the Python CLI fallback exits 97 and passes with the native command. Focused scanner suites pass 183 tests with zero skips.
+    - Read-only native version measurements on the actual two demo cloud hosts were 139 and 146 ms, compared with the original Python CLI measurements of 2690 and 2895 ms. These are observations, not wall-clock assertions.
+    - make test-runtime passes 6781 cases with 136 declared optional/platform skips, zero failures/errors, and 611 selected compaction cases. The required real native-engine regression ran and passed.
+    - make lint passes, including full Ansible, source/task/specification gates, Ruff and import boundaries. make test-ansible passes again after simplifying the final bytecode completion marker.
+    - The existing dependency graph was regenerated through make docs-dependencies after the specification change; only its fingerprint changed.
+    - Semgrep startup, Ansible preflight and per-scan verification reuse one native version command. Unsupported/malformed versions, failed probes and hung Semgrep cleanup remain covered without changing other scanner deadlines or scan-engine invocation.
+    - No database, live model, demo data, main merge or deployment change was made. Implementation remains on codex/semgrep-probe-stability.
+implementation_commit: 6515fa95e6923a2f78c1c0c3138f055c72430731

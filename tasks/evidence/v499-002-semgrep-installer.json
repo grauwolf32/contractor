@@ -1,0 +1,26 @@
+{
+  "task": "V499-002",
+  "baseline": "56279448c5e624ac8654af515bd93e638f043bb1",
+  "cause": "A context-free edit swapped the lockfile copy and completion-marker destinations; the marker was published before the build and item was undefined outside the loop.",
+  "regression": {
+    "before": "Real Ansible installer execution fails with undefined item on the original task sequence.",
+    "after": "All 19 diagnostics tests pass, including real copy/command tasks, exact input bytes, legacy marker upgrade, build-once rerun, failed compilation and private output."
+  },
+  "checks": [
+    {
+      "command": "python -I deploy/ansible/tests/test_diagnostics.py",
+      "result": "passed; 19 tests"
+    },
+    {
+      "command": "make lint",
+      "result": "passed, including complete Ansible gate and both installer regressions"
+    }
+  ],
+  "log_sha256": {
+    "installer-before.log": "148bd544b30a7ee31b6d81644c0c907cf99eda8a3b22d52b4ce9c3a4ef2d7d9f",
+    "diagnostics.log": "445edc54a60e04fb13ac1634fac5b55449c182d7c2bf6ed3446215feda81ffc7",
+    "lint.log": "1f6ce2850a3c4d80de5559770264356389ad3aef3e821fa4f59df9de3a5766e7"
+  },
+  "runtime_changed": false,
+  "business_data_changed": false
+}

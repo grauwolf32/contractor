@@ -24,16 +24,14 @@ import {
   type FindingState,
   type AuditReport,
   type AuditState,
-  getAuditReport,
   listOwnerFindings,
   listOwnerAudits,
 } from "./audits";
-import type { PublicAPI } from "./client";
 import { usePublicAPI } from "./context";
-import { PublicAPIError } from "./error";
 import type { components, operations } from "./generated/public";
 import { listProjects, type Project } from "./projects";
 import { queryKeys } from "./query-keys";
+import { loadReportAvailability } from "./report-availability";
 import { REPORT_AUDIT_STATES } from "./states";
 import { loadAllPages, type LoadedPages } from "./pages";
 import { pollInterval } from "../app/polling";
@@ -212,8 +210,9 @@ export async function invalidateCrossProject(
  * `error`: the index failed and there is no earlier page to list.
  */
 export interface ProjectsIndex extends CrossProjectStatus {
-  /** Every ordinary Project, newest first, without those in deletion. */
+  /** Ordinary Projects, newest first; deletion is hidden unless requested. */
   projects: Project[];
+  isFetching: boolean;
 }
 
 const NO_PROJECTS: Project[] = [];
@@ -221,11 +220,11 @@ const NO_ERRORS: CrossProjectError[] = [];
 
 /** Every ordinary Project, polled while visible. */
 export function useProjectsIndex(
-  options: { enabled?: boolean } = {},
+  options: { enabled?: boolean; includeDeleting?: boolean } = {},
 ): ProjectsIndex {
   const api = usePublicAPI();
   const refetch = useCrossProjectRefetch();
-  const { data, error, isPending } = useQuery({
+  const { data, error, isPending, isFetching } = useQuery({
     queryKey: queryKeys.crossProject.projects,
     queryFn: ({ signal }) =>
       loadAllPages(
@@ -242,6 +241,16 @@ export function useProjectsIndex(
       ),
     enabled: options.enabled ?? true,
     ...POLLED,
+    refetchInterval:
+      options.includeDeleting === true
+        ? pollInterval<LoadedPages<Project>>({
+            interval: 1_000,
+            settled: (page) =>
+              !page.items.some((project) => project.lifecycle === "deleting"),
+            settledInterval: CROSS_PROJECT_LIMITS.pollMs,
+            readError: (page) => page.error,
+          })
+        : POLLED.refetchInterval,
   });
   return useMemo(() => {
     const failure = error ?? data?.error ?? null;
@@ -249,7 +258,9 @@ export function useProjectsIndex(
       projects:
         data?.items.filter(
           (project) =>
-            project.kind === "project" && project.lifecycle !== "deleting",
+            project.kind === "project" &&
+            (options.includeDeleting === true ||
+              project.lifecycle !== "deleting"),
         ) ?? NO_PROJECTS,
       truncated: data?.truncated ?? false,
       partial: failure !== null,
@@ -259,9 +270,10 @@ export function useProjectsIndex(
           : [{ scope: "index" as const, error: failure }],
       error: data === undefined ? error : null,
       isPending,
+      isFetching,
       refetch,
     };
-  }, [data, error, isPending, refetch]);
+  }, [data, error, isPending, isFetching, refetch, options.includeDeleting]);
 }
 
 interface AllChecksOptions {
@@ -639,22 +651,6 @@ interface AllReports extends CrossProjectStatus {
 
 const REPORT_WINDOW_SIZE = 20;
 
-async function loadReport(
-  api: PublicAPI,
-  auditId: string,
-  signal: AbortSignal,
-): Promise<Pick<AuditReport, "status"> | null> {
-  try {
-    const report = await getAuditReport(api, auditId, signal);
-    // List rows never retain report bodies. The selected detail owns content.
-    return { status: report.status };
-  } catch (error) {
-    // A check deleted since its project's page was read has no report.
-    if (error instanceof PublicAPIError && error.status === 404) return null;
-    throw error;
-  }
-}
-
 function reportMerger(statusKey: string) {
   const statuses = statusKey === "" ? undefined : new Set(statusKey.split(","));
   return (settled: SettledRead<Pick<AuditReport, "status"> | null>[]) => ({
@@ -700,7 +696,8 @@ export function useAllReports(options: AllReportsOptions = {}): AllReports {
         .map((check): CheckRead<Pick<AuditReport, "status"> | null> => ({
           check,
           key: queryKeys.crossProject.reportOf(check.audit.auditId),
-          load: (signal) => loadReport(api, check.audit.auditId, signal),
+          load: (signal) =>
+            loadReportAvailability(api, check.audit.auditId, signal),
         })),
     [api, scoped, pageIndex],
   );

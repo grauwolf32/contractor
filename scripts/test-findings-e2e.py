@@ -33,10 +33,14 @@ PROCESS_TESTS = (
     "TestProjectDocumentOutputLimitRecoveryAcrossProcesses",
     "TestIndependentFindingsServersAcrossProcesses",
     "TestProcessDatabaseIsolation",
+    "TestFindingTargetValidationAcrossProcesses",
+    "TestFindingValidationUncertainAndCancelledAcrossProcesses",
 )
 REQUIRED_TESTS = frozenset(
     (
         *PROCESS_TESTS,
+        "TestFindingValidationUncertainAndCancelledAcrossProcesses/inconclusive",
+        "TestFindingValidationUncertainAndCancelledAcrossProcesses/cancelled",
         *(
             PROCESS_TESTS[2] + "/" + name
             for name in (

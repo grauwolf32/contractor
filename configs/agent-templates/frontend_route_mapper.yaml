@@ -1,0 +1,13 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: frontend_route_mapper, version: '1'}
+spec:
+  description: Maps authorized frontend routes and observed UI action to API requests with screenshot evidence
+  runtime: adk@1
+  instructions: {ref: instructions/frontend-route-mapper-v1.md}
+  toolsets:
+    - ref: browser-tools@1
+      tools: [browser_open, browser_navigate, browser_snapshot, browser_click, browser_fill, browser_requests, browser_screenshot, browser_export_map]
+    - ref: run-artifacts@1
+      tools: [read_artifact]
+  sandboxProfile: local-workdir@1
