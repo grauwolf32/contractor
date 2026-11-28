@@ -1,0 +1,597 @@
+{
+  "task": "V498-002",
+  "date": "2026-11-28",
+  "status": "verified",
+  "base_revision": "ec3d31588d0aec2dd86adce997ec1622c6c56ffc",
+  "production_changed": false,
+  "local_artifacts": "/Users/ruslan/src/contractor/.lean/stage-execution",
+  "artifact_policy": "User-requested ignored local models, tools, logs and report; tracked tests and compact task evidence only. No CI gate.",
+  "source_sha256": {
+    "internal/scheduler/stage_races_postgres_test.go": "9a6fc41aebefa1d5cf49d30d7441da7b15401aad94235ca976b72cc944147294",
+    "internal/scheduler/postgres.go": "f61f29814c417da7185866e1e18b0d0b4b5528068ce6bef31de669d75cc0fb05",
+    "internal/scheduler/claim_context.go": "5aacc4c5120881c5c9dee2f8b4cfd2b1064b2a158c2cab587b6d7d793a2aa27d",
+    "internal/scheduler/run_execution.go": "db5bd94bedb7ca39498b0c0a2cfb6adcbdecc7c59c4178cc27fcbeab2c6cf267",
+    "internal/scheduler/stage_finalization.go": "c1307723cf5c140230ae531fbe2bd520cab04e0659d0ccbca57f006df1d1dc71",
+    "internal/scheduler/stage_termination.go": "c805dcb8a7c25435a638c1534cbee0d3d713488b943dbd454a95f23187d6f86e",
+    "internal/scheduler/stage_preparation.go": "73d1a912dac7abfe1cbb38763e2b05b44c85be0b095b05959d4d046e2016b519",
+    "internal/scheduler/allocation_reservations.go": "13d646c625ccbffb6944813831bf2f6e7d125a700270b8e8f7cf3c7f20631855",
+    "internal/scheduler/server_operation.go": "be4c72dd74cbb3d64e090c58605236e2fb6ba3f11acbbea8148cb03c8fe76f4d",
+    "internal/scheduler/summary.go": "a8df5dd7a591509a845186a3be65d1ca0a4895c81c0792fa0249dfaad1519ee8",
+    "internal/runstore/stage_store.go": "9c22a8c85bb74a7cc99ca1ba3d79d61d042c3d799d19c26a17aae33bb4a64e32",
+    "internal/runstore/stage_store_sql.go": "a7a0dd3ead23990027b7806587501546552c5de58cfa9d3cc1596c6276a1de9d",
+    "internal/runstore/store.go": "156925801f8a81ea8d81827b7f5a1b1e3cf8102bdb5273cef3e6edac70ab384c",
+    "internal/runstore/store_sql.go": "4db9ad68e8430ba68cb58da39386fb09ce1295c5f1ddaf487ce1c493a4176a51",
+    "internal/runstore/lock_store.go": "c64c354593e4094e8ac887960685a4a591b76c5b548ab9764b7352501a93eee4",
+    "docs/spec/execution/scheduler.md": "e194ff890faefbd407e44c06b094c0601ee6e8519fb8a2cbb3368d1553ff0d77",
+    "internal/scheduler/postgres_integration_test.go": "6b17f999bd04ab487652e719c8258d1ea4374f4742edb8d15b105751f6a8438a",
+    "internal/scheduler/server_operation_postgres_test.go": "0c568acd3b262bda85c430048cea87ed928eaa069dff3f5b1c3bdfdbe728acdd",
+    "internal/scheduler/claim_fencing_postgres_test.go": "7e38e6c4116548a7dead016d8e2bde2008705478234ab4c796cc000b4e93c08e",
+    "internal/scheduler/claim_loss_postgres_test.go": "8f00731372de441fdb10626c72052ae905a40c4123a148d89facb007a9c2c345",
+    "internal/scheduler/planner_reentry_postgres_test.go": "522f16b48ac3b81a5dbe58547f16adf34371b108606449518f2178f524871159",
+    "internal/scheduler/terminal_outputs_postgres_test.go": "a27b71ba18fb5ac2acea5000db32ba8faa1ae35930c90aaed77bab94672475ee",
+    "internal/runstore/postgres_integration_test.go": "00dfede27733a9126619173bb6027760b8b91fa6b955184a1eddce0a649262dc"
+  },
+  "local_artifact_sha256": {
+    ".lean/stage-execution/StageExecution.tla": "e8bdabb81362fb08c3a7d9a7fa0436865af7bddf728febb4cac5d5488c98b872",
+    ".lean/stage-execution/run.py": "9068136a1f3f5ca39a411fa8b6bab1e555393fdca8f84330b2c0e967ef90fea8",
+    ".lean/stage-execution/verify_postgres.py": "c4d9d2c78b2f8b801f3bfb2b5812788076d07e8a3768a2c862c80c2145e30edc",
+    ".lean/stage-execution/README.md": "94c026da537ee299fc1940a853646afd27712de616e394f94e0e6c181304bb4e",
+    ".lean/stage-execution/collect_evidence.py": "b5cf98824e3797e94547f3c4796789fc78a21a40e1137df1958b6a5004b6883c",
+    ".lean/stage-execution/results/tlc-summary.json": "5188e4412655ad78b425878c700ffddd736100372da29057a51e07cb131dec4e",
+    ".lean/stage-execution/results/postgres-summary.json": "9a3e96083ddd55f97133416fe714158291f9b2810c95e7e0f52f409197538dd1",
+    ".lean/stage-execution/results/checks.json": "46b3e9feee64284461c3b495edc3f3a6cd16296e0c55c1e5c4b32fe6a965effc",
+    ".lean/stage-execution/results/cleanup.json": "7531a1ca24c6f6667ef742bf89ba2368607a1ac1bfb6f7b3e3eef72d7efa07e5"
+  },
+  "model": {
+    "model_sha256": "e8bdabb81362fb08c3a7d9a7fa0436865af7bddf728febb4cac5d5488c98b872",
+    "tlc_sha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+    "scope": "one already-running Stage and Run; finite safety, not liveness or implementation proof",
+    "passed": true
+  },
+  "model_cases": [
+    {
+      "name": "baseline-planner-2",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 0,
+      "expected_violation": null,
+      "observed_violation": null,
+      "passed": true,
+      "generated": 30158,
+      "distinct": 5693,
+      "remaining": 0
+    },
+    {
+      "name": "baseline-planner-3",
+      "executor": "planner",
+      "max_owners": 3,
+      "exit_code": 0,
+      "expected_violation": null,
+      "observed_violation": null,
+      "passed": true,
+      "generated": 67494,
+      "distinct": 11769,
+      "remaining": 0
+    },
+    {
+      "name": "baseline-server-2",
+      "executor": "server",
+      "max_owners": 2,
+      "exit_code": 0,
+      "expected_violation": null,
+      "observed_violation": null,
+      "passed": true,
+      "generated": 36934,
+      "distinct": 7059,
+      "remaining": 0
+    },
+    {
+      "name": "baseline-server-3",
+      "executor": "server",
+      "max_owners": 3,
+      "exit_code": 0,
+      "expected_violation": null,
+      "observed_violation": null,
+      "passed": true,
+      "generated": 99012,
+      "distinct": 17656,
+      "remaining": 0
+    },
+    {
+      "name": "abort_overwrites_candidate",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "ExclusiveFacts",
+      "observed_violation": "ExclusiveFacts",
+      "passed": true,
+      "generated": 9,
+      "distinct": 9,
+      "remaining": 6
+    },
+    {
+      "name": "publish_after_cancel",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NoPublicationAfterCancel",
+      "observed_violation": "NoPublicationAfterCancel",
+      "passed": true,
+      "generated": 261,
+      "distinct": 167,
+      "remaining": 122
+    },
+    {
+      "name": "changed_candidate",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "ExactCandidate",
+      "observed_violation": "ExactCandidate",
+      "passed": true,
+      "generated": 57,
+      "distinct": 47,
+      "remaining": 36
+    },
+    {
+      "name": "new_recovery_id",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "StableRecoveryIdentity",
+      "observed_violation": "StableRecoveryIdentity",
+      "passed": true,
+      "generated": 73,
+      "distinct": 64,
+      "remaining": 51
+    },
+    {
+      "name": "new_recovery_deadline",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "StableRecoveryIdentity",
+      "observed_violation": "StableRecoveryIdentity",
+      "passed": true,
+      "generated": 73,
+      "distinct": 64,
+      "remaining": 51
+    },
+    {
+      "name": "stale_owner",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "ClaimFence",
+      "observed_violation": "ClaimFence",
+      "passed": true,
+      "generated": 51,
+      "distinct": 39,
+      "remaining": 31
+    },
+    {
+      "name": "repeat_terminal_commit",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "AtMostOnce",
+      "observed_violation": "AtMostOnce",
+      "passed": true,
+      "generated": 290,
+      "distinct": 185,
+      "remaining": 135
+    },
+    {
+      "name": "reachable-candidate",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 2,
+      "distinct": 2,
+      "remaining": 0
+    },
+    {
+      "name": "reachable-cancel_before_candidate",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 5,
+      "distinct": 5,
+      "remaining": 3
+    },
+    {
+      "name": "reachable-cancel_after_candidate",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 9,
+      "distinct": 9,
+      "remaining": 6
+    },
+    {
+      "name": "reachable-cancel_after_abort",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 21,
+      "distinct": 21,
+      "remaining": 16
+    },
+    {
+      "name": "reachable-abort",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 4,
+      "distinct": 4,
+      "remaining": 2
+    },
+    {
+      "name": "reachable-result_commit",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 58,
+      "distinct": 49,
+      "remaining": 38
+    },
+    {
+      "name": "reachable-audit_only_result",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 261,
+      "distinct": 167,
+      "remaining": 122
+    },
+    {
+      "name": "reachable-abort_commit",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 130,
+      "distinct": 97,
+      "remaining": 74
+    },
+    {
+      "name": "reachable-result_timeout",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 333,
+      "distinct": 199,
+      "remaining": 141
+    },
+    {
+      "name": "reachable-abort_timeout",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 629,
+      "distinct": 304,
+      "remaining": 198
+    },
+    {
+      "name": "reachable-cancel_preserves_interruption",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 551,
+      "distinct": 271,
+      "remaining": 178
+    },
+    {
+      "name": "reachable-recover_finalizing",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 73,
+      "distinct": 64,
+      "remaining": 51
+    },
+    {
+      "name": "reachable-recover_aborting",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 146,
+      "distinct": 112,
+      "remaining": 87
+    },
+    {
+      "name": "reachable-recover_running_planner",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 43,
+      "distinct": 41,
+      "remaining": 33
+    },
+    {
+      "name": "reachable-recover_running_cancel",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 179,
+      "distinct": 126,
+      "remaining": 95
+    },
+    {
+      "name": "reachable-restart_after_terminal",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 289,
+      "distinct": 184,
+      "remaining": 134
+    },
+    {
+      "name": "reachable-stale_owner_rejected",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 44,
+      "distinct": 42,
+      "remaining": 34
+    },
+    {
+      "name": "reachable-late_candidate_rejected",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 25,
+      "distinct": 25,
+      "remaining": 20
+    },
+    {
+      "name": "reachable-changed_candidate_rejected",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 13,
+      "distinct": 13,
+      "remaining": 10
+    },
+    {
+      "name": "reachable-terminal_replay",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 290,
+      "distinct": 185,
+      "remaining": 135
+    },
+    {
+      "name": "reachable-transaction_rollback",
+      "executor": "planner",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 8,
+      "distinct": 8,
+      "remaining": 6
+    },
+    {
+      "name": "reachable-server-replay",
+      "executor": "server",
+      "max_owners": 2,
+      "exit_code": 12,
+      "expected_violation": "NotWitness",
+      "observed_violation": "NotWitness",
+      "passed": true,
+      "generated": 43,
+      "distinct": 41,
+      "remaining": 33
+    }
+  ],
+  "bounds": {
+    "runs": 1,
+    "stages": 1,
+    "candidate_classes": 2,
+    "owner_generations": [
+      2,
+      3
+    ],
+    "time_ticks": [
+      0,
+      4
+    ],
+    "terminal_budget_ticks": 2
+  },
+  "postgres": {
+    "passed": true,
+    "input_sha256": "a80820420a8103f42385fe97f4934ecfefcd83186a6d4858b1e2f24205b9279d",
+    "new_leaf_scenarios": 14,
+    "required_cases": {
+      "github.com/grauwolf32/contractor/internal/scheduler": [
+        "TestPostgresCancelAndSuccessRaceSerializesOnRunRow",
+        "TestPostgresClaimLossDuringFinalizationPreventsReportAndProgression",
+        "TestPostgresEveryFailedOrCancelledCommitFreezesOutputs",
+        "TestPostgresLifecycleCommitsRequireExactClaim",
+        "TestPostgresLivePlannerSurvivesExpiredClaimBeforeRenewal",
+        "TestPostgresOutputCommitUsesCandidateRevisionAfterBindingAdvances",
+        "TestPostgresProjectOutputPublicationRollsBackWithTerminalTransactionAndRetries",
+        "TestPostgresReplacedClaimCannotCommitBeforeRenewal",
+        "TestPostgresSchedulerReplaysTerminalCommitAfterTransientPublicationFailure",
+        "TestPostgresServerOperationClaimFenceRejectsOldOwner",
+        "TestPostgresServerOperationRecoveryReplaysReceipt",
+        "TestPostgresStagePilotCancellationOrder",
+        "TestPostgresStagePilotCancellationOrder/cancel-before-candidate",
+        "TestPostgresStagePilotCancellationOrder/candidate-then-cancel",
+        "TestPostgresStagePilotCancellationOrder/commit-then-cancel",
+        "TestPostgresStagePilotCompetingTerminalPhases",
+        "TestPostgresStagePilotCompetingTerminalPhases/abort-first",
+        "TestPostgresStagePilotCompetingTerminalPhases/concurrent",
+        "TestPostgresStagePilotCompetingTerminalPhases/result-first",
+        "TestPostgresStagePilotFreshSchedulerRecovery",
+        "TestPostgresStagePilotFreshSchedulerRecovery/aborting/before-deadline",
+        "TestPostgresStagePilotFreshSchedulerRecovery/aborting/cancelled",
+        "TestPostgresStagePilotFreshSchedulerRecovery/aborting/expired",
+        "TestPostgresStagePilotFreshSchedulerRecovery/finalizing/before-deadline",
+        "TestPostgresStagePilotFreshSchedulerRecovery/finalizing/cancelled",
+        "TestPostgresStagePilotFreshSchedulerRecovery/finalizing/expired",
+        "TestPostgresStagePilotRunningPlannerRecovery",
+        "TestPostgresStagePilotRunningPlannerRecovery/cancelled",
+        "TestPostgresStagePilotRunningPlannerRecovery/interrupted"
+      ],
+      "github.com/grauwolf32/contractor/internal/runstore": [
+        "TestPostgresIntegrationStageLifecycleAndSessions"
+      ]
+    },
+    "mapping": {
+      "ExclusiveFacts, WinnerPreserved, TerminalFact, TerminalStable": [
+        "TestPostgresStagePilotCompetingTerminalPhases",
+        "TestPostgresStagePilotCancellationOrder",
+        "TestPostgresStagePilotFreshSchedulerRecovery"
+      ],
+      "ExactCandidate": [
+        "TestPostgresStagePilotCompetingTerminalPhases",
+        "TestPostgresStagePilotCancellationOrder",
+        "TestPostgresOutputCommitUsesCandidateRevisionAfterBindingAdvances"
+      ],
+      "NoPublicationAfterCancel": [
+        "TestPostgresStagePilotCancellationOrder",
+        "TestPostgresCancelAndSuccessRaceSerializesOnRunRow",
+        "TestPostgresEveryFailedOrCancelledCommitFreezesOutputs"
+      ],
+      "StableRecoveryIdentity, drain timeout": [
+        "TestPostgresStagePilotFreshSchedulerRecovery"
+      ],
+      "ClaimFence": [
+        "TestPostgresLifecycleCommitsRequireExactClaim",
+        "TestPostgresReplacedClaimCannotCommitBeforeRenewal",
+        "TestPostgresClaimLossDuringFinalizationPreventsReportAndProgression",
+        "TestPostgresServerOperationClaimFenceRejectsOldOwner"
+      ],
+      "AtMostOnce, rollback, retry": [
+        "TestPostgresStagePilotCompetingTerminalPhases",
+        "TestPostgresProjectOutputPublicationRollsBackWithTerminalTransactionAndRetries",
+        "TestPostgresSchedulerReplaysTerminalCommitAfterTransientPublicationFailure"
+      ],
+      "RecoverPlanner / RecoverServer": [
+        "TestPostgresStagePilotRunningPlannerRecovery",
+        "TestPostgresServerOperationRecoveryReplaysReceipt"
+      ],
+      "Run claim expiry does not alone revoke live owner": [
+        "TestPostgresLivePlannerSurvivesExpiredClaimBeforeRenewal"
+      ]
+    },
+    "top_level_passes": 333,
+    "package_results": [
+      {
+        "Package": "github.com/grauwolf32/contractor/internal/runstore",
+        "Action": "pass",
+        "Elapsed": 79.109
+      },
+      {
+        "Package": "github.com/grauwolf32/contractor/internal/scheduler",
+        "Action": "pass",
+        "Elapsed": 100.738
+      }
+    ],
+    "skips": []
+  },
+  "checks": {
+    "lint_exit_code": 0,
+    "lint_sha256": "5afac661136b6d27817fcae4ad8c03d5ee2293ba2f97b535f52c6f9c36a7a457",
+    "lint_final_summaries": [
+      "Ran 235 tests in 76.648s",
+      "OK (skipped=1)",
+      "Ran 4 tests in 0.005s",
+      "Ran 17 tests in 6.656s",
+      "Ran 17 tests in 31.515s",
+      "Ran 52 tests in 30.640s"
+    ],
+    "postgres_exit_code": 0,
+    "model_exit_code": 0,
+    "heavy_io_enabled": false,
+    "commands": [
+      "python3 /Users/ruslan/src/contractor/.lean/stage-execution/run.py",
+      "go test -json -race -tags=integration -count=1 -timeout 20m ./internal/scheduler ./internal/runstore",
+      "python3 /Users/ruslan/src/contractor/.lean/stage-execution/verify_postgres.py",
+      "make lint"
+    ],
+    "implementation_commit": "b9ce06d4f94c5e22e168666ff6cc9fdadcf27c6b"
+  },
+  "cleanup": {
+    "passed": true,
+    "database": "contractor_v498_stage",
+    "active_connections_before_drop": 0,
+    "database_absent_before_server_stop": true,
+    "server_stopped": true,
+    "owned_data_removed": true,
+    "owned_socket_directory_removed": true
+  },
+  "limits": [
+    "Finite protocol safety only; no Go/SQL refinement proof, arbitrary bounds, fairness or liveness.",
+    "One already-running Stage/Run with no earlier outputs; preparing, resumable completed summary, retry/escalation and multiple Stages excluded.",
+    "Drain acknowledgement or timeout abstracted; test external Worker/Control Plane adapters are in-memory, persistence/claims/publication are real PostgreSQL.",
+    "Fresh Scheduler object is tested, not a separate Runtime process restart.",
+    "Server-operation receipt idempotency and transaction rollback are assumptions in the model, checked by named PostgreSQL tests.",
+    "Run claims use exact ID, not controller-claim epoch; lease expiry alone does not revoke a live owner.",
+    "No production defect established; no production code, schema or API changes. No full release-verify or live checks claimed."
+  ],
+  "reopen_when": "Execution-core owner revisits model/mapping when terminal CAS, cancellation publication, recovery identity/deadline, Run claims or transaction boundary changes."
+}
