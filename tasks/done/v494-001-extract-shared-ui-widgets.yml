@@ -5,7 +5,7 @@ milestone: ui-consolidation-2026-10
 epic: ui
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript, javascript, css]
 goal: Shared presentation has explicit owners outside route modules while retaining the current design and data lifecycle.
@@ -49,3 +49,4 @@ verification:
     - CSS declaration comparison found no removed property/value declarations. The only added declarations give the scanner title its independently owned equivalent style. Report list/header styling stays with the route; preview, report and cost styles load with their widgets.
     - make ui-browser-mocked passed all 266 browser cases across 37 specs with no failures or skipped cases, covering report/Inbox readers, all preview formats and LLM cost at desktop/mobile widths in the three themes. The final Project and mobile Materials captures were also visually inspected.
     - UI release is 0.11.48. No API, Server, schema or OpenDesign archive changes, deployment or main merge are included. Finding review and Check workspace remain separate later extractions.
+implementation_commit: 3dffed35cbb40d54463bd601c7c5efe40a8d576d
