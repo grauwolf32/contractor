@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: defect
 introduced_by: V490-005
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - python
@@ -70,3 +70,10 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: eec333fdab397a0ee6a15459fe3637b5051aa680
+verification:
+  status: passed
+  evidence: tasks/evidence/v492-grpc-review-fixes-20261128.json
+  observed: All listed commands passed against the combined fixes. Native regression probes fail before the
+    respective fix. PostgreSQL was enabled for Go and wire checks. Runtime skips remain explicitly reported;
+    optional heavy I/O was not enabled.
