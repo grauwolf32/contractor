@@ -413,3 +413,30 @@ def test_browser_timeout_retains_incomplete_action_without_replay():
                 await session.close()
 
     asyncio.run(scenario())
+
+
+def test_parallel_screenshots_reserve_limit_before_browser_and_storage_work(monkeypatch):
+    import contractor_runtime.toolsets.browser.tools as browser_module
+
+    monkeypatch.setattr(browser_module, "MAX_SCREENSHOTS", 2)
+
+    async def scenario():
+        async with SocketTarget(frontend) as target, preflight(target) as (owner, _):
+            owner.configure(authority_deadline=lambda: time.monotonic() + 60)
+            tools, client, _ = await browser_tools(owner)
+            try:
+                context = (await tools["browser_open"]())["context_id"]
+                await tools["browser_navigate"](context, target.origin + "/allowed")
+                results = await asyncio.gather(
+                    *[tools["browser_screenshot"](context, f"shot-{i}.png") for i in range(5)],
+                    return_exceptions=True,
+                )
+                successful = [r for r in results if isinstance(r, dict)]
+                rejected = [r for r in results if isinstance(r, ToolInputError)]
+                assert len(successful) == 2 and len(rejected) == 3
+                assert client.write_calls == 2
+                assert len(tools["browser_open"]._session.screenshots) == 2
+            finally:
+                await tools["browser_open"].close()
+
+    asyncio.run(scenario())

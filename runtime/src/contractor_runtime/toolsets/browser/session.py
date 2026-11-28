@@ -90,6 +90,7 @@ class BrowserSession:
         self.actions = []
         self.requests = []
         self.screenshots = []
+        self.screenshot_attempts = 0
         self.gaps = []
         self._pw = None
         self._browser = None
@@ -407,6 +408,7 @@ class BrowserSession:
             "actions": self.actions,
             "requests": self.requests,
             "screenshots": self.screenshots,
+            "screenshot_attempts": self.screenshot_attempts,
             "gaps": self.gaps,
         }
         data = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()

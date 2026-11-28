@@ -59,7 +59,10 @@ as a map gap. A failed or incomplete UI operation must not be automatically
 replayed: it may already have changed the target. Actual HTTP captures reuse
 the ordinary allocation evidence buffer; exporting a map does not retain bodies.
 
-**BRW-R5.** `browser_screenshot` must save a real fixed-viewport PNG, mask password
+**BRW-R5.** Screenshot admission must reserve a capture attempt before awaiting
+browser or storage work, including for concurrent calls. A failed/ambiguous
+publication does not release that attempt or authorize another capture.
+`browser_screenshot` must save a real fixed-viewport PNG, mask password
 inputs, and write into the Worker's fixed namespace using ordinary exact Artifact
 writes and selection. Browser action maps and fill tool metrics omit input values.
 Screenshots can still contain target data. A finding may select the screenshot

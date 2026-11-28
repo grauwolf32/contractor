@@ -1089,7 +1089,7 @@ its owning requirement.
 | ID | Value | Scope | Enforcement | Owner |
 | --- | --- | --- | --- | --- |
 | `LIM-BRW-1` | 1 Chromium process, 4 contexts | One allocation; context proxy lifetime at most 1800 s | Browser session admission and controlled proxy | [BRW-R6](../tools/browser.md) |
-| `LIM-BRW-2` | 256 actions, 1024 requests, 64 screenshots, 32 distinct gaps | One allocation; excess requests aborted before transport | Browser session and screenshot admission | [BRW-R4](../tools/browser.md) |
+| `LIM-BRW-2` | 256 actions, 1024 requests, 64 screenshot attempts, 32 distinct gaps | One allocation; excess requests aborted before transport | Browser session and screenshot admission | [BRW-R4](../tools/browser.md) |
 | `LIM-BRW-3` | 1280×720 pixels; 4 MiB PNG | One viewport screenshot | Playwright viewport and byte validation | [BRW-R5](../tools/browser.md) |
 | `LIM-BRW-4` | 1 MiB UTF-8 JSON | Exported map | Browser map export | [BRW-R4](../tools/browser.md) |
 | `LIM-BRW-5` | 512 selector characters, 4096 input/URL characters | Model action input | Browser tools/session | [BRW-R6](../tools/browser.md) |

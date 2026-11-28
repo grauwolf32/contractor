@@ -291,8 +291,11 @@ class BrowserScreenshot(BrowserTool):
 
     async def __call__(self, context_id: str, name: str) -> dict:
         async def capture():
-            if len(self._session.screenshots) >= MAX_SCREENSHOTS:
-                raise ToolInputError("Screenshot count limit reached")
+            if self._session.screenshot_attempts >= MAX_SCREENSHOTS:
+                raise ToolInputError("Screenshot capture limit reached")
+            # Reserve before the first await: parallel calls cannot over-admit.
+            # An ambiguous/failed publication never authorizes another capture.
+            self._session.screenshot_attempts += 1
             data, url = await self._session.screenshot(context_id)
             result = await self.save(name, data, "image/png", MAX_SCREENSHOT_BYTES)
             last = next(
