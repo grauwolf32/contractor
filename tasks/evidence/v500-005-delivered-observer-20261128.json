@@ -13,7 +13,8 @@
   },
   "limits": "Planner trace presence is observed; complete Server exporter drop/flush counters are not supplied by the executor allocation report. Historical usage remains partial.",
   "verification": {
-    "observerCases": 11,
-    "fixtureGate": "passed; final shared lint remains before acceptance"
+    "observerCases": 12,
+    "fixtureGate": "passed57 tests,105 scored samples and both Go packages",
+    "lint": "passed"
   }
 }

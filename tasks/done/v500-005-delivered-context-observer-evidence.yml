@@ -6,7 +6,7 @@ epic: evals
 kind: defect
 introduced_by: V500-004
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V500-004]
 languages: [python, markdown]
 goal: Make a future context study measure real continuation and validate handoff trace coverage through the actual export boundary.
@@ -61,3 +61,5 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+
+implementation_commit: e73b21254cda02aa24bf1bc96b2b837170c4028d
