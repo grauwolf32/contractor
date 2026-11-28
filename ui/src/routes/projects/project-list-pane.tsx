@@ -4,7 +4,10 @@ import { useNavigate } from "react-router";
 
 import type { Audit, AuditState } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
-import { invalidateCrossProject } from "../../api/cross-project";
+import {
+  invalidateCrossProject,
+  useProjectsIndex,
+} from "../../api/cross-project";
 import { listProjects, type Project } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import { CursorControls } from "../../app/cursor-controls";
@@ -176,7 +179,10 @@ export function ProjectListPane({
   const cursor = pages.cursor;
   const filterId = useId();
   const [filter, setFilter] = useState("");
-  const query = useQuery({
+  const searching = filter.trim() !== "";
+  const [searchPage, setSearchPage] = useState(0);
+  const index = useProjectsIndex({ enabled: searching, includeDeleting: true });
+  const pageQuery = useQuery({
     queryKey: queryKeys.projects.list("project", cursor),
     queryFn: () =>
       listProjects(api, {
@@ -186,8 +192,25 @@ export function ProjectListPane({
     refetchInterval: pollWhileAnyDeleting,
   });
   const activity = useProjectActivity();
+  const query = searching
+    ? {
+        data:
+          (index.isPending || index.error !== null) &&
+          index.projects.length === 0
+            ? undefined
+            : { items: index.projects },
+        error: index.error,
+        isFetching: index.isFetching,
+        refetch: index.refetch,
+      }
+    : pageQuery;
   const items = query.data?.items ?? [];
-  const visible = items.filter((project) => matches(project, filter));
+  const matchesFilter = items.filter((project) => matches(project, filter));
+  const searchPageCount = Math.max(1, Math.ceil(matchesFilter.length / 50));
+  const currentSearchPage = Math.min(searchPage, searchPageCount - 1);
+  const visible = searching
+    ? matchesFilter.slice(currentSearchPage * 50, (currentSearchPage + 1) * 50)
+    : matchesFilter;
   const { containerProps } = useListNavigation({
     count: visible.length,
     index: visible.findIndex((project) => project.projectId === selectedId),
@@ -197,8 +220,9 @@ export function ProjectListPane({
     },
     enabled: keyboard,
   });
-  const controls = pages.controls(query.data?.page);
-  const paged = controls.canGoBack || controls.nextCursor !== undefined;
+  const controls = pages.controls(pageQuery.data?.page);
+  const paged =
+    !searching && (controls.canGoBack || controls.nextCursor !== undefined);
   // Beside a selected project the list is secondary: its loading and
   // failures are shown quietly, without live regions that would compete
   // with the project's own announcements.
@@ -207,7 +231,7 @@ export function ProjectListPane({
     query.data === undefined
       ? undefined
       : filter.trim() !== ""
-        ? `${visible.length} of ${plural(items.length, "project", "projects")}`
+        ? `${matchesFilter.length} of ${plural(items.length, "project", "projects")}${index.partial || index.truncated ? " loaded" : ""}`
         : items.length === 0
           ? undefined
           : `${plural(items.length, "project", "projects")}${paged ? " on this page" : ""}${items.length > 1 ? ", newest first" : ""}`;
@@ -254,7 +278,10 @@ export function ProjectListPane({
               placeholder="Filter projects"
               autoComplete="off"
               value={filter}
-              onChange={(event) => setFilter(event.target.value)}
+              onChange={(event) => {
+                setFilter(event.target.value);
+                setSearchPage(0);
+              }}
             />
           </div>
         )
@@ -305,7 +332,23 @@ export function ProjectListPane({
                 retryPending={query.isFetching}
               />
             )}
-            {items.length === 0 ? (
+            {searching && (index.partial || index.truncated) ? (
+              <div
+                className="projects-list-error"
+                role={secondary ? undefined : "status"}
+              >
+                <p>
+                  Search covers {items.length} loaded projects.{" "}
+                  {index.partial
+                    ? "Some projects could not be loaded."
+                    : "More projects are available than can be searched at once."}
+                </p>
+                <Button size="xs" onClick={() => void index.refetch()}>
+                  Retry search
+                </Button>
+              </div>
+            ) : null}
+            {items.length === 0 && !searching ? (
               <EmptyState
                 title="No projects yet"
                 action={
@@ -318,9 +361,15 @@ export function ProjectListPane({
                 their results together.
               </EmptyState>
             ) : visible.length === 0 ? (
-              <EmptyState title="No project matches the filter">
-                {paged
-                  ? "The filter searches the projects on this page."
+              <EmptyState
+                title={
+                  index.partial || index.truncated
+                    ? "No match in loaded projects"
+                    : "No project matches the filter"
+                }
+              >
+                {index.partial || index.truncated
+                  ? "Try another name or retry loading projects."
                   : "Try another name."}
               </EmptyState>
             ) : (
@@ -353,7 +402,29 @@ export function ProjectListPane({
         )}
       </div>
       <div className="projects-list-pages">
-        <CursorControls label="Projects pages" {...controls} />
+        {searching ? (
+          searchPageCount > 1 ? (
+            <nav className="pagination" aria-label="Project search pages">
+              <Button
+                disabled={currentSearchPage === 0}
+                onClick={() => setSearchPage(currentSearchPage - 1)}
+              >
+                Previous
+              </Button>
+              <span className="ui-caption">
+                Page {currentSearchPage + 1} of {searchPageCount}
+              </span>
+              <Button
+                disabled={currentSearchPage + 1 >= searchPageCount}
+                onClick={() => setSearchPage(currentSearchPage + 1)}
+              >
+                Next
+              </Button>
+            </nav>
+          ) : null
+        ) : (
+          <CursorControls label="Projects pages" {...controls} />
+        )}
       </div>
     </ListPane>
   );

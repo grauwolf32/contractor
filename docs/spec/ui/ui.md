@@ -351,10 +351,11 @@ canonical unassessed Project Findings through the owner-scoped Finding list.
 Annotations do not block execution or completion. There are no item approval or
 report acceptance requests (ACT-R9).
 
-Once initial reads settle, desktop entry selects the first loaded item once,
-including when other sources are incomplete. Partial-read notices remain in the
-queue. Explicit item links and returning to the queue keep the user's selection;
-mobile entry starts with the queue. Unselected content is a loading, partial-read,
+Desktop entry selects the first loaded item once its section and any
+higher-priority sections settle, including when lower-priority sources are still
+loading or incomplete. Partial-read notices remain in the queue. Explicit item
+links and returning to the queue keep the user's selection. Mobile entry starts
+with the queue. Unselected content is a loading, partial-read,
 selection prompt or empty state; it does not repeat an item's title behind an
 extra Continue action. Selected Findings reuse the complete Issues reader and
 Project annotation owner; selected reports reuse the complete Reports reader,
@@ -365,12 +366,18 @@ and return context, without a duplicate Run/capacity summary.
 **UI-R238.** Reports resolves availability for at most twenty report-capable
 checks on the selected page (LIM-UI-24), after applying the Project filter.
 Previous and Next reach other pages of the loaded check inventory. Page and
-filter context survive report selection and return; counts describe only the
-selected page, and a page without a ready report does not claim that other pages
-are empty. Availability reads use the existing shared two-slot report transfer
-queue. Leaving a page cancels its active reads and removes its queued reads.
-Reports and Inbox availability caches retain status only; selected detail owns
-the complete report. Inbox keeps its existing seven-day eligibility window.
+filter context survive report selection and return. Changing the Project filter
+or report page closes the previous report. A direct report link scoped to another
+Project shows the selection prompt. Rows use the check objective when present,
+otherwise its type and short ID, with the Project, type and finish time as context.
+The single ready-report list has no duplicate Ready/All controls; existing
+status query links remain valid. Counts describe only the selected page, and a
+page without a ready report does not claim that other pages are empty.
+Availability reads use the existing shared two-slot report transfer queue. Leaving a page cancels its active reads and removes its queued reads.
+Reports and Inbox share status-only availability reads keyed by check ID and
+revision. Moving between the lists reuses settled statuses, and a new revision
+loads its status again. Selected detail owns the complete report. Inbox keeps
+its existing seven-day eligibility window.
 The existing report API still transmits content with availability, so page
 bounds limit that work without adding a separate endpoint.
 
@@ -859,6 +866,13 @@ of every workspace collection. It reads:
 
 **UI-R114.** The Projects list counts each Project's possible issues to review
 from the same per-Audit reads, so the list and the Overview agree.
+
+Project name, description and ID filtering searches the shared bounded Project
+inventory across API pages before paging the matching results in groups of 50.
+Clearing the filter restores the ordinary Project list page. Pending search,
+failed continuations and the inventory cap remain visible; partial searches
+report their loaded scope. Projects in deletion remain discoverable and poll
+while deletion progresses.
 
 **UI-R115.** Recent results resolve exact successful Run outputs and published
 Workflow output roles; missing or unavailable primary outputs are not replaced

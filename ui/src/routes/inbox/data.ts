@@ -23,12 +23,7 @@ import {
 } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import {
-  getAuditReport,
-  getAuditWorkspace,
-  type AuditReport,
-  type AuditWorkspace,
-} from "../../api/audits";
+import { getAuditWorkspace, type AuditWorkspace } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import {
   CROSS_PROJECT_LIMITS,
@@ -42,7 +37,10 @@ import {
   type CrossProjectReport,
   type InboxSummary,
 } from "../../api/cross-project";
-import { PublicAPIError } from "../../api/error";
+import {
+  loadReportAvailability,
+  reportAvailabilityKey,
+} from "../../api/report-availability";
 
 import { queryKeys } from "../../api/query-keys";
 import { getOwnerQueueControl, type OwnerQueueControl } from "../../api/queue";
@@ -300,25 +298,13 @@ export function useInboxData(): InboxData {
     [checks.checks, now],
   );
   const loadReport = useCallback(
-    async (
-      auditId: string,
-      signal: AbortSignal,
-    ): Promise<Pick<AuditReport, "status"> | null> => {
-      try {
-        const report = await getAuditReport(api, auditId, signal);
-        return { status: report.status };
-      } catch (error) {
-        // A check deleted since its project's page was read has no report.
-        if (error instanceof PublicAPIError && error.status === 404)
-          return null;
-        throw error;
-      }
-    },
+    (auditId: string, signal: AbortSignal) =>
+      loadReportAvailability(api, auditId, signal),
     [api],
   );
   const reportReads = usePerCheckReads(
     finished,
-    queryKeys.inbox.report,
+    reportAvailabilityKey,
     loadReport,
   );
   const readyReports = useMemo(

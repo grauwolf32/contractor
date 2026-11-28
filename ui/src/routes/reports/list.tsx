@@ -11,13 +11,12 @@ import { reportStatusLabel } from "../../app/vocabulary";
 import {
   Button,
   EmptyState,
-  FilterChips,
   Kbd,
   ListPane,
   ListRow,
   ListSection,
-  StatusChip,
   StatusGlyph,
+  shortenId,
   useListNavigation,
 } from "../../ui";
 import { auditProfileLabel } from "../../modules/checks/labels";
@@ -25,44 +24,14 @@ import {
   PROJECT_PARAM,
   PAGE_PARAM,
   reportPath,
-  STATUS_PARAM,
-  type ReportFilter,
   type ReportFilters,
 } from "./filters";
 
 import "./reports.css";
 
-type ListedStatus = Exclude<ReportFilter, "all">;
-
-// Sections in display order: what needs the user first.
-const SECTIONS: readonly { status: ListedStatus }[] = [{ status: "ready" }];
-
-function countOf(reports: readonly CrossProjectReport[], status: string) {
-  return reports.filter((entry) => entry.report.status === status).length;
-}
-
-function subtitle(counts: { ready: number }, loading: boolean): string {
-  if (counts.ready === 0)
-    return loading ? "Loading reports…" : "No reports yet.";
-  const parts: string[] = [];
-  if (counts.ready > 0) parts.push(`${counts.ready} ready`);
-  return `${parts.join(", ")}.`;
-}
-
-function emptyCopy(filters: ReportFilters): { title: string; body: string } {
-  const where = filters.project === null ? "" : " in this project";
-  switch (filters.status) {
-    case "ready":
-      return {
-        title: `No ready reports${where}`,
-        body: "Saved reports appear here.",
-      };
-    case "all":
-      return {
-        title: `No reports${where} yet`,
-        body: "A check writes its report when it finishes.",
-      };
-  }
+function subtitle(count: number, loading: boolean): string {
+  if (loading) return "Loading reports…";
+  return count === 0 ? "No reports yet." : `${count} ready.`;
 }
 
 function byName(left: Project, right: Project): number {
@@ -111,32 +80,35 @@ function ReportRow({
   filters: ReportFilters;
   selected: boolean;
 }) {
-  const { label, tone } = reportStatusLabel(entry.report.status);
+  const { tone } = reportStatusLabel(entry.report.status);
+  const objective = entry.audit.scope.objective?.trim();
   return (
     <ListRow
       to={reportPath(entry.audit.auditId, filters)}
       selected={selected}
       glyph={<StatusGlyph tone={tone} />}
       title={
-        <>
-          {auditProfileLabel(entry.audit)}{" "}
-          <span className="reports-row-project">· {entry.project.name}</span>
-        </>
+        objective ||
+        `${auditProfileLabel(entry.audit)} · ${shortenId(entry.audit.auditId)}`
       }
       meta={[
-        <StatusChip key="status" tone={tone} size="sm" glyph={false}>
-          {label}
-        </StatusChip>,
-        // The check's last update; the exact time is the hover title.
-        <RecordedTime key="updated" value={entry.audit.updatedAt} />,
+        <span key="project" className="reports-row-project">
+          {entry.project.name}
+        </span>,
+        ...(objective
+          ? [<span key="type">{auditProfileLabel(entry.audit)}</span>]
+          : []),
+        <RecordedTime
+          key="finished"
+          value={entry.audit.finishedAt ?? entry.audit.updatedAt}
+        />,
       ]}
     />
   );
 }
 
 /**
- * The Reports list pane: reports of every listed project, filtered by status
- * and project in the URL (`?status=ready|all&project=<projectId>`).
+ * The Reports list pane: reports of every listed project, filtered by project and page in the URL.
  */
 export function ReportsList({
   selectedId,
@@ -146,25 +118,13 @@ export function ReportsList({
   filters: ReportFilters;
 }) {
   const navigate = useNavigate();
-  const [, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const reports = useAllReports({
     projectId: filters.project,
     page: filters.page,
   });
   const index = useProjectsIndex();
-  const scoped = reports.reports;
-  const counts = {
-    ready: countOf(scoped, "ready"),
-  };
-  const sections = SECTIONS.filter(
-    (section) => filters.status === "all" || filters.status === section.status,
-  )
-    .map((section) => ({
-      ...section,
-      rows: scoped.filter((entry) => entry.report.status === section.status),
-    }))
-    .filter((section) => section.rows.length > 0);
-  const rows = sections.flatMap((section) => section.rows);
+  const rows = reports.reports;
   const { containerProps } = useListNavigation({
     count: rows.length,
     index: rows.findIndex((entry) => entry.audit.auditId === selectedId),
@@ -176,28 +136,21 @@ export function ReportsList({
   });
 
   function setFilter(key: string, value: string) {
-    setParams(
-      (previous) => {
-        const next = new URLSearchParams(previous);
-        if (key !== PAGE_PARAM) next.delete(PAGE_PARAM);
-        if (
-          value === "" ||
-          value === "all" ||
-          (key === PAGE_PARAM && value === "0")
-        )
-          next.delete(key);
-        else next.set(key, value);
-        return next;
-      },
-      { replace: true, preventScrollReset: true },
+    const next = new URLSearchParams(params);
+    if (key !== PAGE_PARAM) next.delete(PAGE_PARAM);
+    if (value === "" || (key === PAGE_PARAM && value === "0")) next.delete(key);
+    else next.set(key, value);
+    // Scope and page changes leave the old report before another can be downloaded.
+    void navigate(
+      { pathname: "/reports", search: next.toString() },
+      { preventScrollReset: true },
     );
   }
 
   // Counts only once every read has settled; until then they would grow. A
   // list that could not be read has no counts: unknown is not zero.
   const indexError = reports.error;
-  const settled = !reports.isPending && indexError === null;
-  const empty = emptyCopy(filters);
+
   const paged = reports.page.count > 1;
   const pageStart = reports.page.index * reports.page.size + 1;
   const pageEnd = Math.min(
@@ -210,29 +163,12 @@ export function ReportsList({
       subtitle={
         indexError === null
           ? paged && !reports.isPending
-            ? `${counts.ready} ready in this page of checks.`
-            : subtitle(counts, reports.isPending)
+            ? `${rows.length} ready in this page of checks.`
+            : subtitle(rows.length, reports.isPending)
           : undefined
       }
       toolbar={
         <div className="reports-filters">
-          <FilterChips<ReportFilter>
-            label="Filter by status"
-            value={filters.status}
-            onChange={(value) => setFilter(STATUS_PARAM, value)}
-            options={[
-              {
-                value: "ready",
-                label: reportStatusLabel("ready").label,
-                count: settled ? counts.ready : undefined,
-              },
-              {
-                value: "all",
-                label: "All",
-                count: settled ? counts.ready : undefined,
-              },
-            ]}
-          />
           <ProjectFilter
             projects={index.projects}
             value={filters.project}
@@ -323,9 +259,15 @@ export function ReportsList({
               </p>
             ) : (
               <EmptyState
-                title={paged ? "No ready reports in these checks" : empty.title}
+                title={
+                  paged
+                    ? "No ready reports in these checks"
+                    : filters.project === null
+                      ? "No reports yet"
+                      : "No reports in this project yet"
+                }
                 action={
-                  filters.status === "all" && filters.project === null ? (
+                  filters.project === null ? (
                     <Link to="/checks">Go to checks</Link>
                   ) : undefined
                 }
@@ -333,31 +275,22 @@ export function ReportsList({
                 <p>
                   {paged
                     ? "Use Previous or Next to inspect reports from another page of checks."
-                    : empty.body}
+                    : "A check writes its report when it finishes."}
                 </p>
               </EmptyState>
             )
           ) : (
             <div {...containerProps}>
-              {sections.map((section) => {
-                const { label } = reportStatusLabel(section.status);
-                return (
-                  <ListSection
-                    key={section.status}
-                    title={label}
-                    count={section.rows.length}
-                  >
-                    {section.rows.map((entry) => (
-                      <ReportRow
-                        key={entry.audit.auditId}
-                        entry={entry}
-                        filters={filters}
-                        selected={entry.audit.auditId === selectedId}
-                      />
-                    ))}
-                  </ListSection>
-                );
-              })}
+              <ListSection title="Ready" count={rows.length}>
+                {rows.map((entry) => (
+                  <ReportRow
+                    key={entry.audit.auditId}
+                    entry={entry}
+                    filters={filters}
+                    selected={entry.audit.auditId === selectedId}
+                  />
+                ))}
+              </ListSection>
               {reports.isPending ? (
                 <p className="ui-caption reports-list-loading" role="status">
                   Loading more reports…
