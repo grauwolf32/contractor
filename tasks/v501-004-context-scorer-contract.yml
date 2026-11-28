@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: V501-004
+title: "Align context evaluation scoring with the visible API contract"
+milestone: worker-context-compaction-quality-2026-10
+epic: evals
+kind: defect
+introduced_by: V417-008
+priority: P1
+status: in_progress
+depends_on: []
+languages: [python, go, yaml, markdown]
+goal: "Valid API outputs receive the same score under permitted OpenAPI encodings, while malformed output identifies the failing check."
+context:
+  authority: >-
+    User decision 2026-11-28 in side conversation: create tasks and implement the
+    proposed tool source/cursor guidance, Facts relevance candidate and scorer corrections.
+  finding: "context_compaction/harness.py:217 assumes operation-only security and HTTP 200; visible/api-dependency.json promises neither. A non-string likec4 also discards all prior checks into well_formed_evidence=false."
+  boundary: >-
+    Runtime retains tool validation and telemetry; catalog content gets new immutable
+    identities; evaluation owns scoring. No new store, wire field, model selection or
+    semantic truth filter. Existing source, quota, cancellation and retention bounds apply.
+  siblings: >-
+    General/code/HTTP findings retain their validation; fresh/cursor/image artifact
+    reads share the current owner; original Facts recipes and frozen study worktrees
+    remain unchanged. Candidate quality requires fresh repeated live evidence.
+scope:
+  in:
+    - "Accept valid documented responses including POST 201, inherited security and inherited required path parameters using the pinned OpenAPI validator."
+    - "Make the visible multiline-string dependency output requirement explicit, preserve independent checks and emit bounded check-specific failure identifiers without private values."
+    - "Refresh scorer and visible-case pins for new registrations; document that old frozen studies are not comparable or rescored by these changes."
+  out:
+    - Changing the active study, model, historical scores or deployed services.
+acceptance_criteria:
+  - id: A1
+    text: "Valid 201 responses, root security and path-item parameters pass; explicit anonymous security, missing tenant parameters and malformed OpenAPI fail."
+  - id: A2
+    text: "Wrong dependency output types and malformed fields fail with specific check identifiers while preserving unrelated check results; diagnostics do not include hidden expected values."
+  - id: A3
+    text: "The complete offline suite and catalog/validator Go packages pass; fixture hashes match new bytes and original running-study worktree is untouched."
+tests:
+  - command: "python3 tests/eval/context_compaction/gate.py && go test -count=1 ./tests/eval/context_compaction/..."
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

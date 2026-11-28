@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-64 open tasks: 10 in progress, 41 pending, 13 deferred. 1754 finished: 1735 completed, 19 archived.
+68 open tasks: 14 in progress, 41 pending, 13 deferred. 1754 finished: 1735 completed, 19 archived.
 
 ## In progress
 
@@ -21,6 +21,10 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V501-001](v501-001-fact-source-repair.yml) | findings | defect | P1 | Make fact source errors directly repairable |
+| [V501-002](v501-002-artifact-cursor-repair.yml) | planner-worker | defect | P1 | Make artifact cursor continuation errors directly repairable |
+| [V501-003](v501-003-facts-candidate.yml) | evals | defect | P1 | Publish a bounded relevant Facts extraction candidate |
+| [V501-004](v501-004-context-scorer-contract.yml) | evals | defect | P1 | Align context evaluation scoring with the visible API contract |
 
 ## Pending
 
@@ -156,7 +160,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 54 | 80 | 48 | 116 |
-| Planners and the Worker model boundary (`planner-worker`) | 5 | 51 | 63 | 54 | 106 |
+| Planners and the Worker model boundary (`planner-worker`) | 6 | 51 | 64 | 54 | 107 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 14 | 4 | 2 | 6 |
@@ -164,11 +168,11 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 4 | 27 | 38 | 18 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 22 | 15 | 13 | 32 |
-| Findings tools and collections (`findings`) | 0 | 23 | 16 | 14 | 30 |
-| Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
+| Findings tools and collections (`findings`) | 1 | 23 | 17 | 14 | 30 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 30 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 21 | 79 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
-| Evaluations (`evals`) | 4 | 24 | 47 | 24 | 55 |
+| Evaluations (`evals`) | 6 | 24 | 49 | 24 | 56 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
 | Web UI (`ui`) | 1 | 57 | 83 | 38 | 81 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
