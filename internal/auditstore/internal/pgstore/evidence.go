@@ -2,7 +2,6 @@ package pgstore
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
