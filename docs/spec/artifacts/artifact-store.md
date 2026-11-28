@@ -1754,6 +1754,9 @@ checks a new write before its effect, reserving up to 1 KiB for its returned ref
 **ART-R148.** Model read arguments contain no `revision`. A fresh
 `read_artifact(namespace, name, ...)` selects current at that call; cursor mode
 accepts only a Runtime-issued `cursor` and default window arguments. A result
+is described with separate fresh-read and cursor-only examples in the tool
+declaration. Conflicting cursor/selectors return a bounded input error listing
+the arguments to omit before any Artifact I/O. A result
 retains its exact `artifact.revision`, a `readCursor` for its selected window,
 and `nextCursor` (null at end). Continuation fixes version, line, byte offset
 and page size, including partial UTF-8 lines. It never mixes a later binding

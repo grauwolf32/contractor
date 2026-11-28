@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V501-002
+title: "Make artifact cursor continuation errors directly repairable"
+milestone: runtime-owned-tool-versions-2026-11
+epic: planner-worker
+kind: defect
+introduced_by: V479-004
+priority: P1
+status: completed
+depends_on: []
+languages: [python, go, yaml, markdown]
+goal: "A Worker can select an artifact and continue its exact pages using a clearly described cursor-only call."
+context:
+  authority: >-
+    User decision 2026-11-28 in side conversation: create tasks and implement the
+    proposed tool source/cursor guidance, Facts relevance candidate and scorer corrections.
+  finding: "run_artifacts/tools.py:257 rejects combined cursor/selectors but the tool description provides no complete call examples; 16 repeated tool failures were observed."
+  boundary: >-
+    Runtime retains tool validation and telemetry; catalog content gets new immutable
+    identities; evaluation owns scoring. No new store, wire field, model selection or
+    semantic truth filter. Existing source, quota, cancellation and retention bounds apply.
+  siblings: >-
+    General/code/HTTP findings retain their validation; fresh/cursor/image artifact
+    reads share the current owner; original Facts recipes and frozen study worktrees
+    remain unchanged. Candidate quality requires fresh repeated live evidence.
+scope:
+  in:
+    - "Describe fresh and exact cursor reads with separate valid call examples in the actual model-facing tool."
+    - "Provide a value-free error listing arguments to omit; retain strict rejection and signed cursor validation."
+  out:
+    - Changing the active study, model, historical scores or deployed services.
+acceptance_criteria:
+  - id: A1
+    text: "Actual provider declaration describes namespace/name selection and cursor-only continuation."
+  - id: A2
+    text: "Each selector/window conflict is rejected before Artifact I/O and a corrected call reads the pinned page after the mutable binding changes."
+  - id: A3
+    text: "Foreign, tampered and expired cursors remain rejected; image, repeat guard and read limits remain unchanged."
+tests:
+  - command: "cd runtime && uv run pytest -W error tests/test_artifact_cursors.py tests/test_run_artifacts_toolset.py tests/test_artifact_images.py tests/test_text_artifacts_toolset.py"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: 3e4933c8d9b88f0039db384c682fec211ebccf6c
+verification: >-
+  Required cursor, Artifact reader, image and text tool suites pass. Before the fix the new provider-declaration regressions failed. ADK selector/window conflicts now give a repair hint without I/O; corrected continuation retains the selected original version after a binding change. Expanded affected package suite: 825 passed, 13 Linux/Podman-only skips on macOS. make lint passes.

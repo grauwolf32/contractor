@@ -117,6 +117,13 @@ class FactTool(_FindingFacade):
     name = "fact"
     description = """Save one informational Project observation with exact evidence.
 
+    Supply memory_name or sources: at least one exact source is required.
+    For an assigned memory named technology, call
+    fact(title="Reported technology", description="Reported, not independently verified",
+    memory_name="technology"). Copy the exact name from the assigned snapshot.
+    For other materials, select one to four exact objects through sources instead.
+    Both selectors may be combined within that same total source limit.
+
     An active Project and selected exact evidence are required. Describe what the
     source actually reports, including uncertainty; a note is a reported claim.
     The record has no automatic analyst verdict or severity assessment.
@@ -124,7 +131,8 @@ class FactTool(_FindingFacade):
     Args:
         title: Short non-empty observation title.
         description: Observation, source quality, conditions and limitations.
-        sources: Selected code, HTTP or artifact objects, native array or serialized once.
+        sources: Required when memory_name is omitted. Selected code, HTTP or artifact
+            objects, native array or serialized once.
             Artifact selectors use kind=artifact and namespace/name; Runtime supplies
             the selected revision. Code selects file/start_line/end_line in the opened
             pinned archive; workspace=true verifies current workspace coordinates.
@@ -132,7 +140,8 @@ class FactTool(_FindingFacade):
             exchanges may be selected within the total source limit. Retained sources
             preserve their original observation context.
             A fact statement or Memory note does not independently verify its claim.
-        memory_name: Optional exact memory name from the assigned memories snapshot.
+        memory_name: Required when sources is omitted. Exact memory name from the
+            assigned memories snapshot.
             Attaches its complete original content, description and tags; no quotation
             is required. Describe uncertainty and inference in your own words.
         item_key: Optional assigned Audit member key to retain Task origin.

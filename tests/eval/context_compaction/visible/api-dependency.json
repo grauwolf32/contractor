@@ -119,6 +119,6 @@
       "read-only",
       "tenant-isolation"
     ],
-    "objective": "Produce the API document and service dependency model from the supplied routes. Preserve exact operation identifiers, optional fields and tenant authorization. Return JSON with openapi (a complete OpenAPI 3.1 document), likec4 (one source -> destination dependency per line), and constraints copied by ID. Keep exact operation IDs, tenant security and optional field semantics. Use the tenant security scheme with type apiKey, declare a required tenant path parameter on every operation, and represent each route optional field as a query parameter with required=false."
+    "objective": "Produce the API document and service dependency model from the supplied routes. Preserve exact operation identifiers, optional fields and tenant authorization. Return JSON with openapi (a complete OpenAPI 3.1 document), likec4 (a JSON string containing one source -> destination dependency per line, separated by newline characters; not an array), and constraints copied by ID. Keep exact operation IDs, tenant security and optional field semantics. Use the tenant security scheme with type apiKey, declare a required tenant path parameter on every operation, and represent each route optional field as a query parameter with required=false."
   }
 }

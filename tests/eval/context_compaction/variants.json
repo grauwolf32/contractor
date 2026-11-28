@@ -1,6 +1,6 @@
 {
   "cases": {
-    "api-dependency": "sha256:3cc8529a0b1e4725423238df98437fa45fadf1a8e04d23fd3d764abe55b08c29",
+    "api-dependency": "sha256:a2ef123f7c369667e2f877b2583f4c12950bf7001cf55b9cdda4c84488425bf5",
     "negative-memory": "sha256:60ea8a9c18280167ca66798269d9cb6cfbb7a7dba210e37b066911126f457963",
     "source-review": "sha256:fd34e2cfe7b920874b8bbf64fd770ee0cda19d2ad0b202895d985380e0f1ae1e"
   },
@@ -44,7 +44,7 @@
   },
   "repetitions": 5,
   "schemaVersion": "context-compaction-variants/v1",
-  "scorerSha256": "sha256:a4c56a6305547e7735c1d8bcc8bd20de4d6a6eba990ca0e5561503835f91ed72",
+  "scorerSha256": "sha256:a379acf30f65ac4b71d24cec482a58ec1ba8f7c59fa5eb7cf390e7af9f51547f",
   "thresholds": {
     "maxQualityDrop": 0,
     "maxTokenRatio": 1.0,

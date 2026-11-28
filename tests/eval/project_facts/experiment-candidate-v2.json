@@ -1,0 +1,70 @@
+{
+  "name": "Facts extraction relevance candidate v2",
+  "controlMode": "server",
+  "draft": {
+    "dataset": {
+      "id": "project-facts-v1",
+      "revision": "REPLACE_WITH_IMPORTED_DATASET_REVISION"
+    },
+    "caseIds": [
+      "technology",
+      "repetition",
+      "speculation",
+      "negative-probe",
+      "injection",
+      "distractors"
+    ],
+    "variants": [
+      {
+        "id": "a",
+        "kind": "audit",
+        "selector": "project-facts-eval@1"
+      },
+      {
+        "id": "b",
+        "kind": "audit",
+        "selector": "project-facts-eval@2"
+      }
+    ],
+    "repetitions": 3,
+    "order": {
+      "kind": "alternating"
+    },
+    "checks": [
+      {
+        "id": "memory-quality",
+        "evaluator": "human-review@1",
+        "rubricRevision": "v1",
+        "required": true
+      }
+    ],
+    "comparison": {
+      "baseline": "a",
+      "candidate": "b",
+      "gates": {
+        "minCandidateEndToEndPass": 1,
+        "maxQualityDrop": 0
+      },
+      "requiredEqual": [
+        "source",
+        "tasks",
+        "scorers",
+        "models",
+        "tools",
+        "sampling",
+        "execution",
+        "audit-interaction"
+      ],
+      "allowedDifferences": [
+        "instructions",
+        "audit-execution"
+      ]
+    },
+    "budgets": {
+      "maxMembers": 36,
+      "maxInFlight": 1,
+      "wallMs": 3600000,
+      "maxObservedTotalTokens": null
+    }
+  }
+}

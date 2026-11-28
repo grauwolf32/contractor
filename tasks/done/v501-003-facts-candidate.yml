@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V501-003
+title: "Publish a bounded relevant Facts extraction candidate"
+milestone: project-facts-2026-11
+epic: evals
+kind: defect
+introduced_by: V471-003
+priority: P1
+status: completed
+depends_on: []
+languages: [python, go, yaml, markdown]
+goal: "An operator can prepare a baseline @1 versus candidate @2 Facts Eval that skips processing chatter and attaches exact sources."
+context:
+  authority: >-
+    User decision 2026-11-28 in side conversation: create tasks and implement the
+    proposed tool source/cursor guidance, Facts relevance candidate and scorer corrections.
+  finding: "The Facts pilot retained a processing-only observation about scratch notes; configs/evals/project-facts/instructions/fact-extractor-audit-eval.md has no explicit distinction between target knowledge and extraction-process metadata."
+  boundary: >-
+    Runtime retains tool validation and telemetry; catalog content gets new immutable
+    identities; evaluation owns scoring. No new store, wire field, model selection or
+    semantic truth filter. Existing source, quota, cancellation and retention bounds apply.
+  siblings: >-
+    General/code/HTTP findings retain their validation; fresh/cursor/image artifact
+    reads share the current owner; original Facts recipes and frozen study worktrees
+    remain unchanged. Candidate quality requires fresh repeated live evidence.
+scope:
+  in:
+    - "Add new immutable shipped extraction instruction/template/Workflow @2 and opt-in Eval instruction/template/Workflow/AuditProfile @2 identities using the configured worker model; extend the catalog lock without rewriting old identities."
+    - "Prepare an opt-in candidate experiment with a pinned candidate template; retain all original corpus locks, private truth, baseline configurations and default baseline recipe."
+    - "Teach general source selection, cursor usage, relevance and bounded repair methodology without corpus-specific labels or answers."
+  out:
+    - Changing the active study, model, historical scores or deployed services.
+acceptance_criteria:
+  - id: A1
+    text: "Both profiles resolve through the real catalog with the same configured model, budgets and ordinary Audit execution."
+  - id: A2
+    text: "A candidate recipe produces a valid native CreateExperiment with @1 baseline and @2 candidate and permits only declared configuration differences."
+  - id: A3
+    text: "Candidate instructions exclude extraction bookkeeping from reusable facts, keep useful scoped negative observations, exact attribution and zero-fact completion; frozen baseline checks still pass."
+tests:
+  - command: "go test -count=1 ./tests/eval/project_facts"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: a260a007fbf0d7341efb0e2e9b64f7e2e893bdf4
+verification: >-
+  go test -count=1 ./tests/eval/project_facts passes. prepare_recipe.py verify --candidate passes for all six frozen cases. Both Eval profiles resolve through the actual catalog; model execution configuration, selected tools, limits and authority compare equal. Strict shipped catalog validation and lock extension/validation of a separate temporary operator catalog pass. make lint passes. No live semantic improvement claim: the @1/@2 repeated comparison is prepared, not executed in this side lane.
