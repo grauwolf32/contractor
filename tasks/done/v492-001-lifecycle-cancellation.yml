@@ -4,9 +4,9 @@ title: Keep admitted Finalize and Abort alive through RPC cancellation
 milestone: server-runtime-grpc-2026-11
 epic: execution-core
 kind: defect
-introduced_by: V490-003
+introduced_by: V490-002
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - python
@@ -26,6 +26,10 @@ context:
   - docs/spec/execution/runtime-agent.md#RTA-R88
   - docs/spec/platform/failure-model.md
   - api/v1alpha1/README.md
+  boundary_decision: Allocation owns and joins terminal cleanup under its existing lock, operation ID, deadline
+    and cached report. A transport-only shield would leave non-gRPC callers and process cleanup with different
+    ownership. Four-slot native cancellation/replay and ADK Skill close-failure tests pin the guarantee. Reopen
+    only when the allocation lifecycle owner is redesigned; no new receipt or detached cleanup is introduced.
 scope:
   in:
   - Cancelling a lifecycle RPC does not terminate healthy sibling allocations; the original terminal operation
@@ -55,3 +59,10 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: f5586c7ca73bd558e30b0110ef774bd3b8d4ece5
+verification:
+  status: passed
+  evidence: tasks/evidence/v492-grpc-review-fixes-20261128.json
+  observed: All listed commands passed against the combined fixes. Native regression probes fail before the
+    respective fix. PostgreSQL was enabled for Go and wire checks. Runtime skips remain explicitly reported;
+    optional heavy I/O was not enabled.
