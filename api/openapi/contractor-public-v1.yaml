@@ -14052,6 +14052,27 @@ components:
       - reason
       - evidence
       type: object
+    FindingCheck:
+      additionalProperties: false
+      properties:
+        assertion:
+          $ref: '#/components/schemas/AuditCommonText'
+          maxLength: 32768
+          x-max-utf8-bytes: 32768
+        findingId:
+          $ref: '#/components/schemas/AuditCommonResourceId'
+        receiptId:
+          $ref: '#/components/schemas/AuditCommonResourceId'
+        revision:
+          maximum: 9007199254740991
+          minimum: 1
+          type: integer
+      required:
+      - findingId
+      - revision
+      - receiptId
+      - assertion
+      type: object
     WorkflowMaterialDescriptor:
       additionalProperties: false
       properties:
@@ -17263,6 +17284,16 @@ components:
       additionalProperties: false
       required: [workflow]
       properties:
+        findingCheck:
+          description: >-
+            Project Run only. Select one existing Finding revision and retained source receipt
+            for HTTP validation. Server prepares finding/context inputs and the target parameter
+            from this selection and the current Project target. The selected Workflow must have
+            one compatible HTTP completion Worker and fail on failed/interrupted execution.
+            Parameters and artifacts must be empty; missing target or incompatible Workflow is
+            400 invalid_request, foreign/missing selection is 404 not_found and stale revision is
+            409 conflict. Same-key replay returns the original Run before mutable resolution.
+          $ref: '#/components/schemas/FindingCheck'
         workflow: {$ref: '#/components/schemas/Selector'}
         runtimeLabels:
           description: >-

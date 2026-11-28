@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 10 in progress, 47 pending, 13 deferred. 1751 finished: 1732 completed, 19 archived.
+70 open tasks: 11 in progress, 46 pending, 13 deferred. 1751 finished: 1732 completed, 19 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V497-001](v497-001-finding-target-validation.yml) | findings | feature | P1 | Validate a source Finding against the Project target through an ordinary Run |
 
 ## Pending
 
@@ -60,7 +61,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V497-001](v497-001-finding-target-validation.yml) | feature | P1 | — | Validate a source Finding against the Project target through an ordinary Run |
 | [V497-002](v497-002-finding-http-retest.yml) | feature | P1 | V497-001 | Retest an accepted HTTP validation after an application fix |
 | [V497-004](v497-004-finding-check-release.yml) | chore | P1 | V497-001, V497-002, V497-003 | Accept the source-to-target validation and post-fix retest release |
 | [V497-005](v497-005-finding-source-validation.yml) | feature | P2 | V497-004 | Validate a target Finding in exact sources and retest a supported source check |

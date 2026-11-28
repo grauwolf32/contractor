@@ -1,0 +1,18 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: finding_http_validator
+  version: '1'
+spec:
+  description: Checks one selected Finding assertion on the Project HTTP target and records evidence and a bounded conclusion
+  runtime: adk@1
+  instructions:
+    ref: instructions/finding-http-validator-v1.md
+  toolsets:
+    - ref: audit-results@2
+      tools: [read_audit_task, evidence, submit_result, submit_results]
+    - ref: http-tools@1
+      tools: [http_request, http_read_body, http_history, http_session_set, http_session_get, http_session_clear]
+    - ref: run-artifacts@1
+      tools: [read_artifact]
+  sandboxProfile: local-workdir@1

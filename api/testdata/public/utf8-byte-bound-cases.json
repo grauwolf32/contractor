@@ -431,6 +431,15 @@
       ],
       "maxBytes": 4096,
       "rule": "LIM-ACT-3"
+    },
+    {
+      "schema": "FindingCheck",
+      "path": [
+        "properties",
+        "assertion"
+      ],
+      "maxBytes": 32768,
+      "rule": "LIM-FND-61"
     }
   ]
 }
