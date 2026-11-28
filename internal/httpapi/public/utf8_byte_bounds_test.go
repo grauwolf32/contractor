@@ -37,6 +37,7 @@ import (
 // (TestSharedAuditTextBoundsCountUTF8Bytes), and LIM-RCF-23
 // carries two bounds (credential tests).
 var utf8ByteBoundOwners = map[string]int{
+	"LIM-FND-61": contracts.MaxFindingCheckAssertionBytes,
 	"LIM-ACT-3":  -1, // Common schema conformance and TestSharedPublicAuditTaskSchemasMatchCommonContract.
 	"LIM-SMT-2":  projectsitemap.MaxMemberKeyBytes,
 	"LIM-SMT-6":  projectsitemap.MaxNoteBytes,

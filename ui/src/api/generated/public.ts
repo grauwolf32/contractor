@@ -4162,6 +4162,12 @@ export interface components {
             /** @constant */
             verdict?: "inconclusive";
         };
+        FindingCheck: {
+            assertion: string;
+            findingId: components["schemas"]["AuditCommonResourceId"];
+            receiptId: components["schemas"]["AuditCommonResourceId"];
+            revision: number;
+        };
         WorkflowMaterialDescriptor: {
             digest: components["schemas"]["AuditCommonDigest"];
             media_type: components["schemas"]["MediaType"];
@@ -5949,6 +5955,8 @@ export interface components {
             cancellation?: components["schemas"]["Cancellation"];
         };
         CreateRunRequest: {
+            /** @description Project Run only. Select one existing Finding revision and retained source receipt for HTTP validation. Server prepares finding/context inputs and the target parameter from this selection and the current Project target. The selected Workflow must have one compatible HTTP completion Worker and fail on failed/interrupted execution. Parameters and artifacts must be empty; missing target or incompatible Workflow is 400 invalid_request, foreign/missing selection is 404 not_found and stale revision is 409 conflict. Same-key replay returns the original Run before mutable resolution. */
+            findingCheck?: components["schemas"]["FindingCheck"];
             workflow: components["schemas"]["Selector"];
             /** @description Runtime labels in any order: at most 32 labels of the label grammar, unique, never the reserved default label (RCF-R117 to RCF-R120). The Server stores and answers them in lexical order. */
             runtimeLabels?: components["schemas"]["ConfigId"][];

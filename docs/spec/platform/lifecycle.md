@@ -336,3 +336,5 @@ Owner column links each entry to its owning requirement.
 | ID | Entity | Deletion owner | Blockers | Cascade | Retention | Owner |
 | --- | --- | --- | --- | --- | --- | --- |
 | `LIFE-BRW-1` | Allocation browser process, contexts, private proxy and transient observations | Allocation cancellation, lease loss, release or failed preparation | Active calls and dependent browser cleanup must join before private HTTP credentials are erased and the slot is reused | Close all contexts, proxies, Chromium and the Playwright driver; clear in-memory maps and shared HTTP captures | Only explicitly published ordinary artifacts and selected Finding sources use existing Run/Project retention | [BRW-R5](../tools/browser.md), [BRW-R6](../tools/browser.md) |
+
+| `LIFE-FND-9` | Finding validation launch/execution provenance | Ordinary terminal released Run purge and Project drain | Existing Run release gates | Run purge freezes terminal outcome; Project purge skips the extra write and deletes normal history/material bindings | Selected exact source, executor, safe target and accepted partial results survive Run deletion | [FND-R248](../findings/findings.md) |

@@ -1098,3 +1098,5 @@ its owning requirement.
 | `LIM-BRW-6` | 100 links and controls, 12000 text characters, 256 title characters | DOM snapshot; link URL at most 4096 characters | Fixed Runtime DOM projection | [BRW-R6](../tools/browser.md) |
 | `LIM-BRW-7` | 100 request rows per page; offset 0..1024 | Model request observations | browser_requests | [BRW-R4](../tools/browser.md) |
 | `LIM-BRW-8` | min(request timeout, 30 s), 5 s wrapper overhead; 20 s probe; 200 ms settle window | Browser operation/observation | Runtime bounded calls and allocation authority | [BRW-R6](../tools/browser.md) |
+
+| `LIM-FND-62` | 1 MiB canonical launch metadata; at most 256 selected evidence refs and 32 MiB selected proposal/evidence | Ordinary Finding validation launch | Finding owner transaction and existing exact Artifact metadata/fork validation | [FND-R248](../findings/findings.md) |

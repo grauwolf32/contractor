@@ -105,6 +105,9 @@ func deleteReleasedTerminalRun(ctx context.Context, tx pgx.Tx, ownerID, runID st
 	if err := findingintake.MarkSourceRunDeleted(ctx, tx, runID); err != nil {
 		return fmt.Errorf("dispose WorkflowRun %q finding proposals: %w", runID, err)
 	}
+	if err := findingintake.RetainCheckRunOutcome(ctx, tx, storage, runID); err != nil {
+		return err
+	}
 	// The Project output publication receipts name the Run's output
 	// revisions, so they go before the purge; the published outputs stay.
 	if err := runs.DeleteLockedRunOutputPublications(ctx, runID); err != nil {

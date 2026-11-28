@@ -5548,6 +5548,32 @@
       "required": ["author", "meaning", "reason", "evidence"],
       "type": "object"
     },
+    "FindingCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "assertion": {
+          "maxLength": 32768,
+          "minLength": 1,
+          "pattern": "[^\t\n\u000b\f\r                  　]",
+          "type": "string",
+          "x-max-utf8-bytes": 32768,
+          "x-maxUtf8Bytes": 32768
+        },
+        "findingId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonResourceId"
+        },
+        "receiptId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonResourceId"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": ["findingId", "revision", "receiptId", "assertion"],
+      "type": "object"
+    },
     "WorkflowMaterialDescriptor": {
       "additionalProperties": false,
       "properties": {
@@ -11104,6 +11130,9 @@
       "additionalProperties": false,
       "required": ["workflow"],
       "properties": {
+        "findingCheck": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCheck"
+        },
         "workflow": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
         },

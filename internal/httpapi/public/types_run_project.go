@@ -23,11 +23,26 @@ import (
 )
 
 type createRunRequest struct {
+	FindingCheck  *contracts.FindingCheck          `json:"findingCheck,omitempty"`
 	Workflow      string                           `json:"workflow"`
 	RuntimeLabels runRuntimeLabels                 `json:"runtimeLabels,omitempty"`
 	Labels        runMetadataLabels                `json:"labels,omitempty"`
 	Parameters    map[string]string                `json:"parameters"`
 	Artifacts     map[string]contracts.ArtifactRef `json:"artifacts"`
+}
+
+func (r *createRunRequest) UnmarshalJSON(data []byte) error {
+	type wire createRunRequest
+	var value wire
+	fields, err := decodeStrictWithPresence(data, &value)
+	if err != nil {
+		return err
+	}
+	if fields.null("findingCheck") || value.FindingCheck != nil && value.FindingCheck.Validate() != nil {
+		return errors.New("findingCheck must be a valid non-null selection")
+	}
+	*r = createRunRequest(value)
+	return nil
 }
 
 type runRuntimeLabels []string

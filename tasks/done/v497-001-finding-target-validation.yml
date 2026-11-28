@@ -5,7 +5,8 @@ milestone: finding-validation-retest-2026-11
 epic: findings
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 8306e94fcb5000d5aac626b7d3fec84473b73df4
 depends_on: [V497-006]
 languages: [go, python, typescript, yaml, json, markdown]
 goal: >-
@@ -24,6 +25,8 @@ context:
     after a fix the first scenario. This task decomposition and narrow common
     completion extension are agent proposals implementing that direction;
     planning does not claim implementation or authorize live checks.
+    User continuation 2026-11-28 resumes implementation after the V497-006
+    prerequisite is completed and merged.
     Later user instruction on the same date: keep changes maximally compact,
     reuse existing mechanisms or generalize them, and add code only when necessary.
   reassessment:
@@ -40,11 +43,13 @@ context:
       and multiple HTTP evidence. Audit task orchestration/budgets remain with Audit.
   implementation_investigation_2026_11_28:
     authority: User assigns implementation with compact reuse and real-component checks; AGENTS.md 4.1 requires a separate unforeseen prerequisite.
-    outcome: Common completion ownership is not yet a reusable ordinary-Run capability. V497-006 now owns that prerequisite; this task returns/remains pending until it completes.
+    outcome: V497-006 is completed and merged into main; this task is resumed in_progress on the shared owner.
     scope_split: V497-006 generalizes common acceptance/receipts/retention and strict authority. V497-001 then delivers ordinary public launch, exact source selection, configured target/profile and the source-to-HTTP demonstration.
-    code_status: A small exploratory launch/pin draft compiled but was withdrawn from the implementation worktree; it did not preserve the full acceptance path and is not an implementation or test pass.
+    code_status: Public launch, exact input preparation and the shipped HTTP caller are being implemented and verified through real components.
   proposal: docs/proposals/0059-finding-validation-and-retest.md
   specification:
+    - docs/spec/findings/findings.md#FND-R246
+    - docs/spec/findings/findings.md#FND-R248
     - docs/spec/findings/findings.md#FND-R209
     - docs/spec/findings/findings.md#FND-R213
     - docs/spec/findings/findings.md#FND-R226
@@ -53,13 +58,13 @@ context:
     - docs/spec/artifacts/projects.md#PRJ-R80
     - docs/spec/platform/persistence.md#PER-R24
     - docs/spec/execution/scheduler.md
-  current_gap: >-
-    internal/runservice/audit_completion.go resolves a completion target through
-    an Audit binding; internal/runstore/audit_completion.go only writes it for
-    audit-managed Runs; Runtime audit_results collector persists through Audit
-    judgments. Merely adding audit-results tools to an ordinary Workflow cannot
-    deliver this feature. Direct historical verification retention is also
-    currently reached through Audit collection.
+  delivered_boundary: >-
+    The existing public Run command accepts a closed Finding selection and
+    reuses replay-first admission. The Finding owner verifies current revision,
+    exact source membership and target under the existing transaction/fence;
+    RunService prepares ordinary frozen inputs and the shared completion pin.
+    Existing Artifact history owns launch, acknowledged evidence/judgment and
+    purge-time execution provenance. No new controller, store or endpoint.
   boundary: >-
     Finding service owns exact selection and association with an existing
     Finding/source. RunService and Scheduler own the ordinary Run, immutable
@@ -201,7 +206,7 @@ acceptance_criteria:
 tests:
   - command: make require-database
     covers: [A1, A2, A3, A4, A5, A6]
-  - command: go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditstore/... ./internal/auditservice/... ./internal/runservice/... ./internal/runstore/... ./internal/scheduler/... ./internal/controlplane/... ./internal/httpapi/... ./internal/artifacts/... ./internal/config/...
+  - command: go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditstore/... ./internal/auditservice/... ./internal/runservice/... ./internal/runstore/... ./internal/scheduler/... ./internal/controlplane/... ./internal/httpapi/... ./internal/artifacts/... ./internal/config/... ./internal/contracts/... ./internal/rundeletion/... ./internal/app/...
     covers: [A1, A2, A3, A4, A5, A6]
   - command: make test-runtime test-wire-cross-language
     covers: [A1, A2, A3, A4, A6]
@@ -216,3 +221,15 @@ test_prerequisites:
   - Use one disposable PostgreSQL database with the required URL; unreachable configured database or mandatory fixture skips fail. Remove owned database/processes after pools stop.
   - Tests use testdata and pseudo-Skills; only shipped catalog validation reads configs. Run every whole touched package, including additional owners discovered during implementation.
   - Save test output to logs and inspect completion/required skip summaries only unless a failure occurs. Optional heavy I/O stays disabled unless explicitly requested; report those skips separately.
+
+verification:
+  date: '2026-11-28'
+  outcome: Public source-to-HTTP validation, replay, unavailable-login uncertainty, cancellation after acknowledged evidence, Run purge and populated Project deletion passed through real components. Canonical Finding assessment remains independent.
+  evidence: tasks/evidence/v497-001-target-validation.json
+  go: 5935 passed; nine named optional heavy I/O fixtures skipped.
+  runtime: 6788 passed; 140 declared optional/platform cases skipped.
+  findings_gate: 30 required process cases and Runtime contracts passed.
+  shared_audit_gates: 239 Go completion cases, 490 Runtime completion cases and eight common Audit processes passed with no selected skips.
+  contracts: Lint, cross-language wire, public API, public API/PostgreSQL and shipped catalog validation passed.
+  inventory: '+330 production lines excluding generated code, tests, docs and configuration; no new tables, controllers or endpoints. The trusted Run process fixture is replaced by the actual public launch path.'
+  resources: Owned disposable database dropped, PostgreSQL stopped; configured models preserved and no live-model or demo calls.

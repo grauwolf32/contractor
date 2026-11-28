@@ -154,7 +154,7 @@ func (u postgresPublicUnitOfWork) do(ctx context.Context, fn func(pgx.Tx, runser
 			return err
 		}
 		return fn(tx,
-			runstore.NewRunCreationPostgresStore(tx, txLookup, credentials.NewRuntimeCredentialRepository(tx), u.storage),
+			findingRunWriter{PostgresTxStore: runstore.NewRunCreationPostgresStore(tx, txLookup, credentials.NewRuntimeCredentialRepository(tx), u.storage), tx: tx, storage: u.storage},
 			artifacts.NewService(u.storage.Repository(tx)),
 		)
 	})

@@ -606,7 +606,7 @@ func validContext(v map[string]any) bool {
 	seen := map[string]bool{}
 	tasks := map[string]bool{}
 	finding, ordinary := v["finding"].(map[string]any)
-	if ordinary && (len(v["items"].([]any)) != 1 || len(finding["assertion"].(string)) > 32768) {
+	if ordinary && (len(v["items"].([]any)) != 1 || len(finding["assertion"].(string)) > contracts.MaxFindingCheckAssertionBytes) {
 		return false
 	}
 	for _, raw := range v["items"].([]any) {

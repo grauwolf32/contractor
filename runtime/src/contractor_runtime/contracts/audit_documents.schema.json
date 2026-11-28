@@ -290,8 +290,12 @@
       "additionalProperties": false,
       "properties": {
         "assertion": {
-          "$ref": "#/$defs/text",
-          "maxLength": 32768
+          "maxLength": 32768,
+          "minLength": 1,
+          "pattern": "[^\t\n\u000b\f\r                  　]",
+          "type": "string",
+          "x-max-utf8-bytes": 32768,
+          "x-maxUtf8Bytes": 32768
         },
         "findingId": {
           "$ref": "#/$defs/resource_id"

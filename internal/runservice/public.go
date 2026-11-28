@@ -67,8 +67,14 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 			if err := contentdigest.CheckPinnedSelection(normalized.ExpectedWorkflowSHA256, workflow); err != nil {
 				return err
 			}
-			if validationErr := validateWorkflowInputs(workflow, normalized.Parameters, normalized.Inputs); validationErr != nil {
+			target, validationErr := findingCompletionTarget(workflow, normalized)
+			if validationErr != nil {
 				return validationErr
+			}
+			if target == nil {
+				if err := validateWorkflowInputs(workflow, normalized.Parameters, normalized.Inputs); err != nil {
+					return err
+				}
 			}
 			engagementSlot, slotErr := engagement.InputSlot(workflow.Inputs)
 			if slotErr != nil {
@@ -118,6 +124,20 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 					}
 				}
 			}
+			parameters := clone.Map(normalized.Parameters)
+			if target != nil {
+				if projectTarget == nil {
+					return fmt.Errorf("%w: Finding validation requires a Project HTTP target", ErrInvalid)
+				}
+				parameters["target"] = projectTarget.URL
+				inputs := contracts.CloneArtifactRefs(normalized.Inputs)
+				for _, slot := range []string{target.ContextSlot, "finding"} {
+					inputs[slot] = contracts.ArtifactRef{Namespace: "inputs", Name: slot}
+				}
+				if err := validateWorkflowInputs(workflow, parameters, inputs); err != nil {
+					return err
+				}
+			}
 
 			return s.publicTransaction(ctx, func(runs PublicRunWriter, artifactService *artifacts.Service, credentialValidator RuntimeCredentialValidator) error {
 				// The PostgreSQL unit of work may replay this entire database-only
@@ -163,7 +183,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						RunID:                   runID, OwnerID: normalized.OwnerID, ProjectID: normalized.ProjectID,
 						WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 						WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
-						Parameters: clone.Map(normalized.Parameters), MetadataLabels: normalized.MetadataLabels,
+						Parameters: clone.Map(parameters), MetadataLabels: normalized.MetadataLabels,
 						RuntimeConfig: runtimeSnapshot, ProjectHTTPTarget: projectTarget,
 						EngagementCredentialIDs: credentialIDs,
 						LaneClass:               resolved.EntryLaneClass(workflow),
@@ -206,6 +226,11 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				prepared, err := artifactService.MaterializeInputs(ctx, runID, checked)
 				if err != nil {
 					return err
+				}
+				if target != nil {
+					if err := materializeFindingCheck(ctx, runs, artifactService, stored, workflow, *normalized.FindingCheck, *target); err != nil {
+						return err
+					}
 				}
 				for slot, input := range prepared.Inputs {
 					if input.MediaType == engagementcontract.MediaType && slot != engagementSlot {
@@ -275,6 +300,13 @@ func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error
 	params.MetadataLabels = metadata
 	params.Parameters = clone.Map(params.Parameters)
 	params.Inputs = contracts.CloneArtifactRefs(params.Inputs)
+	if params.FindingCheck != nil {
+		if params.ProjectID == nil || params.FindingCheck.Validate() != nil {
+			return PublicCreateParams{}, fmt.Errorf("%w: Finding validation requires a valid Project selection", ErrInvalid)
+		}
+		check := *params.FindingCheck
+		params.FindingCheck = &check
+	}
 	if params.ProjectID != nil {
 		projectID := *params.ProjectID
 		if projectID == "" {

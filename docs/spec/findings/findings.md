@@ -2321,3 +2321,43 @@ acknowledged partial evidence or accepted judgments. Existing Project retention
 owns those bytes after permitted Run purge. Public source/history and ordinary
 Artifact reads remain the only history/evidence readers; a check gains no
 independently mutable lifecycle or store.
+
+
+**FND-R246.** Public Project Run creation may select `findingCheck` with exactly
+`findingId`, the current numeric `revision`, `receiptId` and an assertion bounded
+by LIM-FND-61. Missing/foreign selection is ownership-not-found; a stale Finding
+revision or changed target at admission conflicts. Explicit null, invalid shape,
+missing target, incompatible Workflow or user-supplied parameters/inputs is
+`400 invalid_request`. Ordinary Run idempotency includes the complete selection:
+identical replay returns its original Run before resolving mutable catalog,
+Finding, credential or target state; changed content conflicts. Admission and
+history capture share the Run-creation transaction and existing Project fence.
+
+**FND-R247.** The first HTTP caller uses one passthrough Worker, required JSON
+`context` and `finding` inputs, one required `target` parameter and the common
+completion target. Its required finding context binds `inputs/finding`; the
+selected tools include HTTP requests and common check results, and do not select
+Finding publication. Success ends the Run; failure/interruption fail it without
+repeating target work. Server forks the selected exact proposal/evidence into
+ordinary frozen inputs, verifies metadata and source membership, supplies the
+pinned safe target URL and preserves configured execution/model settings.
+The Worker treats source claims as untrusted, verifies control/probe content,
+and records uncertainty for unavailable identity, role, endpoint or deployment.
+Supported/refuted conclusions require evidence and tested conditions; unknown
+preconditions cannot become proof of remediation (ACT-R4). A generic Run repeat
+draft is blocked for this caller because another check needs explicit selection.
+
+**FND-R248.** Before admission returns, one ordinary `finding-history` Artifact
+retains `kind=validation`, the selection, Run ID, resolved Workflow/template
+closure, safe target/credential reference and exact proposal/evidence descriptors.
+Its canonical encoded payload is at most 1 MiB; selected source bytes obey the
+existing 256-reference/32 MiB collection bounds. This launch artifact and common
+acknowledged evidence/judgment records use the existing selected-receipt history
+reader. Terminal Run deletion retains `kind=execution`, Run ID, selection,
+terminal state, reason code and finish time in that same history transaction;
+Project purge skips this unnecessary write and releases all ordinary bindings.
+Run success and a semantic conclusion remain separate. These records survive
+source/check Run deletion and concurrent analyst edits without changing current
+Finding assessment. No check entity, controller or independent receipt store is
+introduced. Reopen this boundary for a concrete multi-Finding or new executor
+requirement rather than extending this first HTTP profile speculatively.
