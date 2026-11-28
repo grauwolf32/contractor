@@ -5,7 +5,7 @@ milestone: ui-consolidation-2026-10
 epic: ui
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V495-001]
 languages: [typescript, javascript]
 goal: Checks, Project, Inbox and Reports consume one route-independent owner of shared check queries and rules.
@@ -51,3 +51,4 @@ verification:
     - VITEST_MAX_WORKERS=4 make ui-verify passed generation checks, lint/format, both TypeScript projects, 231 test files with 2619 passing tests and one existing expected failure, all 17 static-server tests and the production build.
     - make ui-browser-mocked passed all 266 cases across 37 specs with no failures or skips, including query-count/selection preservation in Reports, check lifecycle flows, exact hypothesis/task context, URL pagination and mobile/light/dark/black presentation.
     - No Server/API/schema or OpenDesign archive changes, deployment or main merge are included. UI release is 0.11.49; other domain modules and lazy Project tab entries remain separate later changes.
+implementation_commit: 914d556cc8b6a4d3d178cf96834ce3738fa8a0a6
