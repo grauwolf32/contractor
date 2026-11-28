@@ -5,7 +5,8 @@ milestone: workflow-scheduler-concurrency
 epic: execution-core
 kind: chore
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 09757ac0c7206c77f6a96a9b076d04f0ce614ec9
 depends_on: [V498-002]
 languages: [go, python]
 goal: >-
@@ -80,3 +81,32 @@ tests:
     covers: [A3, A4, A5]
   - command: make lint
     covers: [A5]
+verification:
+  evidence: tasks/evidence/v498-003-allocation-release.json
+  local_report: /Users/ruslan/src/contractor/.lean/allocation-release/README.md
+  result: >-
+    Five finite baseline graphs exhaust without violations: 1781, 592321,
+    11949, 170929 and 10748033 distinct states. The widest configuration
+    combines two slots, two allocation identities per slot and two Server
+    generations. All seven mutation controls fail the expected invariant;
+    all 22 reachability witnesses are found. Five new leaf scenarios execute
+    through actual Go Control Plane owners, real PostgreSQL release markers
+    and Python Runtime services. Three complete Go packages pass under
+    race/integration: 491 top-level tests, no skips. Six complete Runtime
+    modules pass: 131 tests, no skips. Exact executed-test validation and
+    make lint pass; one auxiliary Python unittest skip is not passing
+    coverage. The owned PostgreSQL database, server, data and socket
+    directory are removed. Heavy-I/O opt-in was not enabled.
+  limits: >-
+    Finite protocol safety and real-store regressions, not implementation
+    refinement, arbitrary histories or liveness. Start at drained terminal
+    allocations; heartbeat sequence/history and lease clocks are abstracted
+    and checked separately in existing owner tests. Server restart includes
+    the subsequent fencing barrier; clean Runtime replacement after bootstrap
+    is an assumption, not proof of physical Podman/filesystem cleanup.
+    Protocol owners are tested separately with external adapters/test RPC
+    peers, not a full distributed process deployment. No production defect
+    was established or production behavior/schema/API changed. V425-034
+    remains untouched. Local ignored artifacts are not a CI gate. Reopen
+    with execution-core and Runtime owners when identity/ack matching,
+    cleanup ownership, release markers or lease/restart meaning changes.
