@@ -1,0 +1,40 @@
+schema_version: '1.0'
+id: V500-003
+title: Align controlled compaction probes with the common Artifact reader
+milestone: eval-maintenance-2026-10
+epic: evals
+kind: chore
+introduced_by: V474-002
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python]
+goal: The existing controlled Runtime and independent observer recognize the current read_artifact tool selected by all authored context Eval templates.
+context:
+  authority: 'Necessary preparation discovered during the user-authorized 2026-11-28 compaction study. This is a separate bounded prerequisite; model, visible cases, hidden truth and thresholds stay unchanged.'
+  finding: 'tests/eval/context_compaction/controlled_runtime.py:122,154,223 and observer.py:76,95 still require removed read_text_artifact, while the authored templates select read_artifact after V474-002/V475-002.'
+  specification:
+    - docs/spec/tools/toolsets.md
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/evals/format.md
+  design: tests/eval/context_compaction/README.md
+  boundary: Source interpretation and native tool execution remain in the existing Runtime reader. The test-only callback observes that tool's normal text result, and the observer reads captured OTLP evidence. No legacy name fallback is added.
+scope:
+  in:
+    - Controlled callback source detection, masking and capability check.
+    - Independent observer capability and receipt parsing.
+    - Every sibling offline fixture and regression for the selected common reader.
+  out:
+    - Production reader, model prompt changes, new observation strategies and old result rewriting.
+acceptance_criteria:
+  - id: A1
+    text: Actual ADK controlled Runtime tests use read_artifact and observe continuation or masking with the unchanged text response contract.
+  - id: A2
+    text: The independent observer recognizes real current-reader captures and still rejects truncation, foreign evidence and unsupported tools.
+  - id: A3
+    text: Full fixture gate and lint pass; new live manifests pin the changed observer and controlled launcher bytes.
+tests:
+  - command: make test-context-compaction-eval-fixtures
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]
