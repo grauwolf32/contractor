@@ -52,6 +52,25 @@ For every member report:
 A scripted Gateway proves execution, publication, isolation and collection only.
 It cannot establish semantic model quality. No live experiment is run by tests.
 
+The opt-in relevance candidate uses `project-facts-eval@2`, with a new instruction
+path, template and Workflow. The shipped standalone extraction is also available
+as `project-facts-extract@2`. Existing `@1` identities remain pinned. Candidate
+instructions distinguish reusable target observations from extraction bookkeeping,
+retain scoped negative probes, and explain exact source selection, cursor-only
+reads and repair attempts under the existing eight-call budget. They contain no
+corpus answers. Model policy and execution limits remain the configured baseline.
+
+Verify with `prepare_recipe.py verify --candidate`, then prepare the comparison
+with `prepare_recipe.py experiment --candidate --dataset-revision <revision>
+--output <private-experiment.json>`. `candidate-v2.lock.json` pins the candidate
+configuration and template alongside the unchanged corpus lock. This explicitly
+selects `@1` versus `@2`; the default command still prepares the original baseline.
+Only instructions and the Audit program's versioned Workflow reference may differ;
+models, tools, sampling, execution, source, tasks and scorers must match.
+Use debug and verify trace capture in any fresh live comparison. Report repeated
+useful-fact recall, spam, tool input failures and tokens per retained useful fact.
+No improvement is established until that separate live comparison is reviewed.
+
 The existing native Audit output role findings expects an optional report/machine
 Artifact. This recipe does not create that global report or declare it as output.
 Reopen portable findings-output collection in the Eval adapter when a concrete

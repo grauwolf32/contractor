@@ -25,7 +25,7 @@ context:
     remain unchanged. Candidate quality requires fresh repeated live evidence.
 scope:
   in:
-    - "Add new immutable instruction, template, Workflow and AuditProfile @2 identities using the configured worker model."
+    - "Add new immutable shipped extraction instruction/template/Workflow @2 and opt-in Eval instruction/template/Workflow/AuditProfile @2 identities using the configured worker model; extend the catalog lock without rewriting old identities."
     - "Prepare an opt-in candidate experiment with a pinned candidate template; retain all original corpus locks, private truth, baseline configurations and default baseline recipe."
     - "Teach general source selection, cursor usage, relevance and bounded repair methodology without corpus-specific labels or answers."
   out:

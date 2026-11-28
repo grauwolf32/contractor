@@ -27,9 +27,7 @@ def dataset(project, revisions, case_ids):
     corpus = load_corpus()
     selected = [case for case in corpus["cases"] if case["id"] in case_ids]
     if len(selected) != len(case_ids) or set(revisions) != set(case_ids):
-        raise ValueError(
-            "Supply one exact uploaded revision for each selected corpus case"
-        )
+        raise ValueError("Supply one exact uploaded revision for each selected corpus case")
     cases = []
     for case in selected:
         data = (ROOT / case["snapshot"]).read_bytes()
@@ -68,17 +66,27 @@ def dataset(project, revisions, case_ids):
                 "id": "memory-quality",
                 "revision": "v1",
                 "rubric": RUBRIC,
-                "expected": {
-                    "cases": json.dumps(selected, ensure_ascii=False, sort_keys=True)
-                },
+                "expected": {"cases": json.dumps(selected, ensure_ascii=False, sort_keys=True)},
             }
         ],
     }
 
 
-def experiment(revision, case_ids, repetitions):
+def load_candidate():
+    lock = json.loads((ROOT / "candidate-v2.lock.json").read_text())
+    for name, digest in lock["files"].items():
+        if "sha256:" + hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != digest:
+            raise RuntimeError("Frozen candidate drift: " + name)
+    return json.loads((ROOT / "experiment-candidate-v2.json").read_text())
+
+
+def experiment(revision, case_ids, repetitions, *, candidate=False):
     load_corpus()
-    result = json.loads((ROOT / "experiment-template.json").read_text())
+    result = (
+        load_candidate()
+        if candidate
+        else json.loads((ROOT / "experiment-template.json").read_text())
+    )
     result["draft"]["dataset"]["revision"] = revision
     result["draft"]["caseIds"] = case_ids
     result["draft"]["repetitions"] = repetitions
@@ -95,22 +103,27 @@ def main():
     parser.add_argument("--case", action="append", dest="cases")
     parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--candidate",
+        action="store_true",
+        help="Compare frozen @1 baseline with @2 relevance candidate",
+    )
     args = parser.parse_args()
+    if args.candidate and args.kind == "dataset":
+        parser.error("--candidate applies only to experiment or verify")
     corpus = load_corpus()
     ids = args.cases or [case["id"] for case in corpus["cases"]]
-    if len(ids) != len(set(ids)) or not set(ids) <= {
-        case["id"] for case in corpus["cases"]
-    }:
+    if len(ids) != len(set(ids)) or not set(ids) <= {case["id"] for case in corpus["cases"]}:
         parser.error("Select distinct known corpus cases")
     if not 1 <= args.repetitions <= 100:
         parser.error("repetitions must be from 1 to 100")
     if args.kind == "verify":
+        if args.candidate:
+            load_candidate()
         print(f"Frozen extraction corpus verified: {len(corpus['cases'])} cases")
         return
     if args.output is None:
-        parser.error(
-            "--output is required; authoring files may contain private ground truth"
-        )
+        parser.error("--output is required; authoring files may contain private ground truth")
     if args.kind == "dataset":
         if not args.project or args.revisions is None:
             parser.error("dataset requires --project and --revisions")
@@ -118,7 +131,7 @@ def main():
     else:
         if not args.dataset_revision:
             parser.error("experiment requires --dataset-revision")
-        result = experiment(args.dataset_revision, ids, args.repetitions)
+        result = experiment(args.dataset_revision, ids, args.repetitions, candidate=args.candidate)
     args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
 
 

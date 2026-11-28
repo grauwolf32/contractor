@@ -1,0 +1,15 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: fact_extractor, version: '2'}
+spec:
+  description: Selects bounded source-grounded Project facts from an exact memory snapshot
+  runtime: adk@1
+  instructions: {ref: instructions/fact-extractor-v2.md}
+  toolsets:
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
+    - ref: run-artifacts@1
+      tools: [read_artifact]
+    - ref: security-findings@1
+      tools: [fact]
+  sandboxProfile: local-workdir@1
