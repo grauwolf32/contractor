@@ -41,7 +41,7 @@
       "lockSha256": "sha256:e644f2f9bac0d9eac615deb2a425da4214781795253bc20af05e847efa3197ee",
       "build": "sha256:01d5753d7daf3184358a0ef393114ec292c2f6f6f9845894376499c972c9c88a"
     },
-    "serverSourceCommit": "d4b8c5112fef",
+    "serverSourceCommit": "d4b8c5112fef383a47ce3aae9abc1094e346c2e5",
     "serverBinarySha256": "sha256:a1038255ee949a3460786316144c47cdecb58f049761619139322e4461f54d94",
     "runtimeSourceCommit": "2f4147445ff9806de1172005af49e089f7a152cb",
     "runtimeTree": "e01b7a2c7c64faf75fae047b72210a202b08c035",
@@ -449,7 +449,8 @@
       "runtimeAllocationSlots": 2
     },
     "identityOwner": "Playground formats.member_id and experiments.freeze_plan; frozen seeded_shuffle permutation with seed 417",
-    "sourceDirty": "Only task/research bookkeeping; production Runtime tree matches its attested closure. Server binary retains the deployed baseline."
+    "sourceDirty": true,
+    "dirtyScope": "Task/research bookkeeping only; production Runtime tree matches its attested closure. Server binary retains the deployed baseline."
   },
   "manifest": {
     "schemaVersion": "context-compaction-live/v1",

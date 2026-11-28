@@ -14,6 +14,7 @@ depends_on:
 - V466-021
 - V500-001
 - V500-003
+- V500-004
 languages:
 - python
 - yaml
@@ -191,6 +192,7 @@ context:
     Exact operational results are retained in the ignored owner-only local
     runbook; no profile keys or concrete deployment addresses are published.
   current_freeze: tasks/evidence/v417-010-freeze-r5-20261128.json
+  current_observer_attestation: tasks/evidence/v417-010-observer-phase-r5-20261128.json
   current_debug_correction: tasks/evidence/v417-010-protocol-attempt4-20261128.json
   development_evidence:
   - tasks/evidence/v417-010-development-20261115.json

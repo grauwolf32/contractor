@@ -1,0 +1,874 @@
+{
+  "schemaVersion": 1,
+  "task": "V417-010",
+  "prerequisite": "V500-004",
+  "reason": "Current compactor emits explicit model.phase=compaction; evaluator previously recognized only the study summarizer alias. Corrected before any compact/handoff/masking execution.",
+  "originalFreeze": "tasks/evidence/v417-010-freeze-r5-20261128.json",
+  "equivalenceEvidence": "tasks/evidence/v500-004-observer-phase-20261128.json",
+  "originalManifestSha256": "sha256:24332af6eef55f7e1aca4e4e9a441321637b6630f62985615243285fec64add8",
+  "correctedManifestSha256": "sha256:52513cde1f26e6b5a89079f79de0a52f94e6fe7a88c6a7f11a74afd925e080e2",
+  "changes": [
+    "local manifest id",
+    "observerSha256"
+  ],
+  "nativePlansAndMembers": "unchanged",
+  "completedRunsRetained": 30,
+  "completedExecutionsRepeated": 0,
+  "previousSelectedRecordsChanged": 0,
+  "manifest": {
+    "schemaVersion": "context-compaction-live/v1",
+    "id": "current-sdk-r5-observer-phase-20261128",
+    "repetitions": 5,
+    "seed": 417,
+    "thresholds": {
+      "maxQualityDrop": 0,
+      "maxTokenRatio": 1.0,
+      "minEndToEndPass": 1
+    },
+    "runtime": {
+      "adk": "2.15.0",
+      "lockSha256": "sha256:e644f2f9bac0d9eac615deb2a425da4214781795253bc20af05e847efa3197ee",
+      "build": "sha256:01d5753d7daf3184358a0ef393114ec292c2f6f6f9845894376499c972c9c88a"
+    },
+    "fixtureSha256": "sha256:61c339ecb288367eb422621f6bef0ac2626673fdd5d752b27c4bdd83153959d5",
+    "observerSha256": "sha256:9734365fc42941026f7fd9c5eaa3d9c5fe401fa7aad5fb5272f60d8f1e52c05e",
+    "budgets": {
+      "wallMs": 86400000,
+      "memberMs": 1200000,
+      "maxCalls": 26400000,
+      "maxTokens": 3600000000000,
+      "maxToolCalls": 24000000,
+      "memberCalls": 220000,
+      "memberTokens": 30000000000,
+      "memberToolCalls": 200000
+    },
+    "variants": {
+      "terminal-off": {
+        "workflow": "context-eval-terminal-off@1",
+        "closureSha256": "sha256:67211bbaa42c368357eda427289ad234fbdc46904952f0ed738db5d99b43cabd",
+        "models": [
+          {
+            "policyRef": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/audit-completion-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ac02f08fb8989540fb05bb1d763eabdcb54297a54821930f6d7f30fad0458379",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:6178c2c3bf049a2a8a316e70b9d4be02b696f521cdcd5bf807e4007963fc0b25",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:c6faf574160c2663e17b2149d8ba2340e4e4c91be70aa945c16e48dfd236a6ca",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summary_continuation_planner@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ba243fbcad7e0a036e90b311600fdc1851a7a3cdcdd77c8a628b39b529b1a324",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "terminal_summarizer@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:f62fd38c59c32f1c4b1b87465f4453b98f53e8400c2142ee09548b703ada571f",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:adff280c1a10f90f5868af7e5c7a5068493072b71c599c7ffae28230387c75d0",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:d4436b70dd32093f437d582c7742dcac3952818d165fd3d21c92ce3a1a6fbb43",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:7025f43e7d7aa3fa179b09be118b2d04c26248a0cb8b1a9cc77e7360c4e03c27",
+            "weightsRevision": null
+          }
+        ],
+        "capabilitiesSha256": "sha256:c6fc8bba670471932b90569318f86eae3b7862262da88bca485d214299e38dc3",
+        "instructionsSha256": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+        "skillsSha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasoningAvailable": true,
+        "runtime": {
+          "adk": "2.15.0",
+          "lockSha256": "sha256:e644f2f9bac0d9eac615deb2a425da4214781795253bc20af05e847efa3197ee",
+          "build": "sha256:01d5753d7daf3184358a0ef393114ec292c2f6f6f9845894376499c972c9c88a"
+        }
+      },
+      "terminal-on": {
+        "workflow": "context-eval-terminal-on@1",
+        "closureSha256": "sha256:83ef3b055e1dd7e505ea4f14e3917bad3f34095b90c6519b62e35f538d034d9b",
+        "models": [
+          {
+            "policyRef": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/audit-completion-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ac02f08fb8989540fb05bb1d763eabdcb54297a54821930f6d7f30fad0458379",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:6178c2c3bf049a2a8a316e70b9d4be02b696f521cdcd5bf807e4007963fc0b25",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:c6faf574160c2663e17b2149d8ba2340e4e4c91be70aa945c16e48dfd236a6ca",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summary_continuation_planner@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ba243fbcad7e0a036e90b311600fdc1851a7a3cdcdd77c8a628b39b529b1a324",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "terminal_summarizer@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:f62fd38c59c32f1c4b1b87465f4453b98f53e8400c2142ee09548b703ada571f",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:adff280c1a10f90f5868af7e5c7a5068493072b71c599c7ffae28230387c75d0",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:d4436b70dd32093f437d582c7742dcac3952818d165fd3d21c92ce3a1a6fbb43",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:7025f43e7d7aa3fa179b09be118b2d04c26248a0cb8b1a9cc77e7360c4e03c27",
+            "weightsRevision": null
+          }
+        ],
+        "capabilitiesSha256": "sha256:c6fc8bba670471932b90569318f86eae3b7862262da88bca485d214299e38dc3",
+        "instructionsSha256": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+        "skillsSha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasoningAvailable": true,
+        "runtime": {
+          "adk": "2.15.0",
+          "lockSha256": "sha256:e644f2f9bac0d9eac615deb2a425da4214781795253bc20af05e847efa3197ee",
+          "build": "sha256:01d5753d7daf3184358a0ef393114ec292c2f6f6f9845894376499c972c9c88a"
+        }
+      },
+      "compact-off": {
+        "workflow": "context-eval-compact-off@1",
+        "closureSha256": "sha256:2f9ed68815d16a044281e63910cdf08cf7fe4d2376782ccd3796bf08371bd65e",
+        "models": [
+          {
+            "policyRef": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/audit-completion-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ac02f08fb8989540fb05bb1d763eabdcb54297a54821930f6d7f30fad0458379",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:6178c2c3bf049a2a8a316e70b9d4be02b696f521cdcd5bf807e4007963fc0b25",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:c6faf574160c2663e17b2149d8ba2340e4e4c91be70aa945c16e48dfd236a6ca",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summary_continuation_planner@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ba243fbcad7e0a036e90b311600fdc1851a7a3cdcdd77c8a628b39b529b1a324",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "terminal_summarizer@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:f62fd38c59c32f1c4b1b87465f4453b98f53e8400c2142ee09548b703ada571f",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:adff280c1a10f90f5868af7e5c7a5068493072b71c599c7ffae28230387c75d0",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:d4436b70dd32093f437d582c7742dcac3952818d165fd3d21c92ce3a1a6fbb43",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:7025f43e7d7aa3fa179b09be118b2d04c26248a0cb8b1a9cc77e7360c4e03c27",
+            "weightsRevision": null
+          }
+        ],
+        "capabilitiesSha256": "sha256:c6fc8bba670471932b90569318f86eae3b7862262da88bca485d214299e38dc3",
+        "instructionsSha256": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+        "skillsSha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasoningAvailable": true,
+        "runtime": {
+          "adk": "2.15.0",
+          "lockSha256": "sha256:e644f2f9bac0d9eac615deb2a425da4214781795253bc20af05e847efa3197ee",
+          "build": "sha256:01d5753d7daf3184358a0ef393114ec292c2f6f6f9845894376499c972c9c88a"
+        }
+      },
+      "compact-on": {
+        "workflow": "context-eval-compact-on@1",
+        "closureSha256": "sha256:48ab426adeb0f09b5e643f719db32e142ff46f328f808d8ddd5b21650d8f90a0",
+        "models": [
+          {
+            "policyRef": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/audit-completion-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ac02f08fb8989540fb05bb1d763eabdcb54297a54821930f6d7f30fad0458379",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:6178c2c3bf049a2a8a316e70b9d4be02b696f521cdcd5bf807e4007963fc0b25",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:c6faf574160c2663e17b2149d8ba2340e4e4c91be70aa945c16e48dfd236a6ca",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summary_continuation_planner@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ba243fbcad7e0a036e90b311600fdc1851a7a3cdcdd77c8a628b39b529b1a324",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "terminal_summarizer@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:f62fd38c59c32f1c4b1b87465f4453b98f53e8400c2142ee09548b703ada571f",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:adff280c1a10f90f5868af7e5c7a5068493072b71c599c7ffae28230387c75d0",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:d4436b70dd32093f437d582c7742dcac3952818d165fd3d21c92ce3a1a6fbb43",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:7025f43e7d7aa3fa179b09be118b2d04c26248a0cb8b1a9cc77e7360c4e03c27",
+            "weightsRevision": null
+          }
+        ],
+        "capabilitiesSha256": "sha256:c6fc8bba670471932b90569318f86eae3b7862262da88bca485d214299e38dc3",
+        "instructionsSha256": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+        "skillsSha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasoningAvailable": true,
+        "runtime": {
+          "adk": "2.15.0",
+          "lockSha256": "sha256:e644f2f9bac0d9eac615deb2a425da4214781795253bc20af05e847efa3197ee",
+          "build": "sha256:01d5753d7daf3184358a0ef393114ec292c2f6f6f9845894376499c972c9c88a"
+        }
+      },
+      "terminal-handoff": {
+        "workflow": "context-eval-terminal-handoff@1",
+        "closureSha256": "sha256:6aa1b290d699110150752f0c5f6760ea03b5e790e2b937e987ae19330afb31ba",
+        "models": [
+          {
+            "policyRef": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/audit-completion-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ac02f08fb8989540fb05bb1d763eabdcb54297a54821930f6d7f30fad0458379",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:6178c2c3bf049a2a8a316e70b9d4be02b696f521cdcd5bf807e4007963fc0b25",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:c6faf574160c2663e17b2149d8ba2340e4e4c91be70aa945c16e48dfd236a6ca",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summary_continuation_planner@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ba243fbcad7e0a036e90b311600fdc1851a7a3cdcdd77c8a628b39b529b1a324",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "terminal_summarizer@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:f62fd38c59c32f1c4b1b87465f4453b98f53e8400c2142ee09548b703ada571f",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:adff280c1a10f90f5868af7e5c7a5068493072b71c599c7ffae28230387c75d0",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:d4436b70dd32093f437d582c7742dcac3952818d165fd3d21c92ce3a1a6fbb43",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:7025f43e7d7aa3fa179b09be118b2d04c26248a0cb8b1a9cc77e7360c4e03c27",
+            "weightsRevision": null
+          }
+        ],
+        "capabilitiesSha256": "sha256:c6fc8bba670471932b90569318f86eae3b7862262da88bca485d214299e38dc3",
+        "instructionsSha256": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+        "skillsSha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasoningAvailable": true,
+        "runtime": {
+          "adk": "2.15.0",
+          "lockSha256": "sha256:e644f2f9bac0d9eac615deb2a425da4214781795253bc20af05e847efa3197ee",
+          "build": "sha256:01d5753d7daf3184358a0ef393114ec292c2f6f6f9845894376499c972c9c88a"
+        }
+      },
+      "controlled-compact": {
+        "workflow": "context-eval-controlled-compact@1",
+        "closureSha256": "sha256:e53f0f3c2dc593c6d66e30774c5d8c0729cefb7ea243f69a453b405ac2050537",
+        "models": [
+          {
+            "policyRef": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/audit-completion-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ac02f08fb8989540fb05bb1d763eabdcb54297a54821930f6d7f30fad0458379",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:6178c2c3bf049a2a8a316e70b9d4be02b696f521cdcd5bf807e4007963fc0b25",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:c6faf574160c2663e17b2149d8ba2340e4e4c91be70aa945c16e48dfd236a6ca",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summary_continuation_planner@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ba243fbcad7e0a036e90b311600fdc1851a7a3cdcdd77c8a628b39b529b1a324",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "terminal_summarizer@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:f62fd38c59c32f1c4b1b87465f4453b98f53e8400c2142ee09548b703ada571f",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:adff280c1a10f90f5868af7e5c7a5068493072b71c599c7ffae28230387c75d0",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:d4436b70dd32093f437d582c7742dcac3952818d165fd3d21c92ce3a1a6fbb43",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:7025f43e7d7aa3fa179b09be118b2d04c26248a0cb8b1a9cc77e7360c4e03c27",
+            "weightsRevision": null
+          }
+        ],
+        "capabilitiesSha256": "sha256:c6fc8bba670471932b90569318f86eae3b7862262da88bca485d214299e38dc3",
+        "instructionsSha256": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+        "skillsSha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasoningAvailable": true,
+        "runtime": {
+          "adk": "2.15.0",
+          "lockSha256": "sha256:e644f2f9bac0d9eac615deb2a425da4214781795253bc20af05e847efa3197ee",
+          "build": "sha256:01d5753d7daf3184358a0ef393114ec292c2f6f6f9845894376499c972c9c88a"
+        }
+      },
+      "masking": {
+        "workflow": "context-eval-masking@1",
+        "closureSha256": "sha256:0cda4543808820cf8d99970190b7faab4c2aa859ad76428f4a9d77f2c7a0aafe",
+        "models": [
+          {
+            "policyRef": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/audit-completion-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ac02f08fb8989540fb05bb1d763eabdcb54297a54821930f6d7f30fad0458379",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:6178c2c3bf049a2a8a316e70b9d4be02b696f521cdcd5bf807e4007963fc0b25",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:c6faf574160c2663e17b2149d8ba2340e4e4c91be70aa945c16e48dfd236a6ca",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summary_continuation_planner@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ba243fbcad7e0a036e90b311600fdc1851a7a3cdcdd77c8a628b39b529b1a324",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "terminal_summarizer@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:f62fd38c59c32f1c4b1b87465f4453b98f53e8400c2142ee09548b703ada571f",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:adff280c1a10f90f5868af7e5c7a5068493072b71c599c7ffae28230387c75d0",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:d4436b70dd32093f437d582c7742dcac3952818d165fd3d21c92ce3a1a6fbb43",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:7025f43e7d7aa3fa179b09be118b2d04c26248a0cb8b1a9cc77e7360c4e03c27",
+            "weightsRevision": null
+          }
+        ],
+        "capabilitiesSha256": "sha256:c6fc8bba670471932b90569318f86eae3b7862262da88bca485d214299e38dc3",
+        "instructionsSha256": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+        "skillsSha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasoningAvailable": true,
+        "runtime": {
+          "adk": "2.15.0",
+          "lockSha256": "sha256:e644f2f9bac0d9eac615deb2a425da4214781795253bc20af05e847efa3197ee",
+          "build": "sha256:01d5753d7daf3184358a0ef393114ec292c2f6f6f9845894376499c972c9c88a"
+        }
+      }
+    },
+    "experiments": [
+      {
+        "id": "experiment-7ee8f1ec43a12c11706813fe9e3dbfce",
+        "portableId": "context-r5-20261128-1",
+        "planSha256": "sha256:104694c6b3c42ac0556c40a1d034c32ad51ce09215389df887368c9881ca510e",
+        "setupSha256": "sha256:0af4ff6fa2a22cbdaf8c3b239b402620426389fd1957fe0050b1c9ee760d6b7f",
+        "variants": [
+          "terminal-off",
+          "terminal-on"
+        ],
+        "memberOrder": [
+          "747155da458575708f917df665e387c327e9e91799ea2ef9d447dc64077b2391",
+          "6663e78c95937ce379264afc7f3d04c7a2a0253151ec5bbd1f484f0c77536555",
+          "cd0b4e9cc03522a57c9f18ca35ac896e30eeb7bfb2784c2c707dc90d85c729a1",
+          "379518246d8f0f1c560aae968b90648c3c4e201940078fb9f0c2ce1aa6e80520",
+          "7a3b38772a65daaa20a2e729cb1f4c9f9242d0401adf9a5ae4f84a233cb27106",
+          "1215b06c151acc2fadb692d3fa6f808968914b976b7e0974af260463dc7cc5d8",
+          "11868477037bc4f13e123fa5c8a8732031666b1fef388cfdc0f65b404eecd8c9",
+          "94f9e61aac5b880d272409a03eb573d4fbd221936008de3eb304d8ae956d8d2a",
+          "c2e218e29522cc9f2789a5c38ffc6fc26f5d1d943970915e2e45e29ad4a6dd87",
+          "4b9f3f9f83421f95f1e29356aa76c543b48cedbb1142f6791555cd5d0b45d9cb",
+          "68bd6c43424c20208ccd14286c518b30e6819ed870f6937a8adf582f6426b4c9",
+          "65fcf0ad0f8a9d47c40603caf961fe6196cc21c23923f04988bee815c13d6a44",
+          "8ecea2858b3e375dd5b3d0b952b369811d8b836e79af99921a67091472996708",
+          "f72cc26e6b5fb3dcdc739e0adef101bdefcf596e7257de70573bba0d19f44e98",
+          "6dc97b5a100f67c74f37df4b0de1796f694348b9dcb5d5f5ea23ec6ce8d3b122",
+          "3291039368eb63a0e83100077e8cf8931bf4bf8a3d42be19f99239d37d9e7f60",
+          "676d1eb74b268ee9baea9a9f0e4e128feba9321be9803c875fa77497363eaa72",
+          "979f6f9cd7b52d85ad4dca9d50252267e6b170387da2695377b8d615bd15cbe6",
+          "5390ab314da6e7924b7e3acc5ac9e794df5ca1354fd8dd638d3167c277847b5a",
+          "61932e7f713d190bf4205ce8b3258c1f2bd19d90f5f0f3606d0fba536fd3f5a6",
+          "348f64f16f8298bb37e59a4c547a1a9c7051e0893fc13d2aa1621f9574f0b5c6",
+          "4e054ab15c91de2ec6cb121764610a477486c22da8e9cf38f468b36c65c1705b",
+          "3e7b42cc2c06e357eb91d42839f021f8b935687f17b40bc4afe5ce976cf44425",
+          "2ff8814a7a411a7079e43d4ee0c3460a4ee030cb77dc2c94bff23c04504447a9",
+          "ca7eb32515986f642502a2dcaaf7a945549c57abded1cd41b916d37a5385d775",
+          "868d9f9a192d603d769d45708f413f980149ff1faa686fec4d228e155ceadd1a",
+          "51505c16089e8cef7cc4a28689069cf29428ea40a348f8be8b45e37172dc0b6e",
+          "e8cd894513cfdc9d1b26035dce98a0a61b8e13e13431260cb061727cdc4c48cb",
+          "6380ae964572bb5560745e8a4f410769eb79a79f47539a9fbb0a4491b5b03c29",
+          "a3a8ffdf28c1210e7a04000a643c1ee985d128afe86338655e40ce094c3626b7"
+        ],
+        "casePins": {
+          "api-dependency": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+          "negative-memory": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+          "source-review": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9"
+        }
+      },
+      {
+        "id": "experiment-75a17462ee67a1d5e837899419a768ee",
+        "portableId": "context-r5-20261128-2",
+        "planSha256": "sha256:d008e7cae1ca52178b3ee365a7767d16d5b263005aabc192d58b63428e821a53",
+        "setupSha256": "sha256:0895eee3ea129b0c4c5a60db3c528308497229efbbe8d8cc08c7b70225763687",
+        "variants": [
+          "compact-off",
+          "compact-on"
+        ],
+        "memberOrder": [
+          "efc32caffa247f9bad038700bde6a8f2535858fb278e899a2b6044f096e5738e",
+          "e7539013061ad400059b29e66b9375bb9ffa8357fa3dc93224b44533f2181955",
+          "77418087e35905dc225de970b3bb05e95ea13b1213ae847f44b365197d4f4f16",
+          "5645bd993dbc53cece960bf207ced0322d666925a0a3d126541e67adc5a1447e",
+          "8b333f402d394448f54f6801a629fe514cfaa75e07162aa4f38ecbcab296b138",
+          "f58ecfee48a9bfb9ffb18a4b09e9ef20651f7a143a864e169dabced6c0eeeda7",
+          "c18130558ca31036e3cec6357f93813728467b775262bcce9485b2e1dd6d0db6",
+          "fcf1e8728268ea5e4593888afad496bba0c4b80d8c8b797877f2a7924fa29b35",
+          "a0d603c50c279fd5ac6ef2244fbbe6d32ee90a1eecd9fc747f5cc437d56384e5",
+          "10eb679c27f74c502a512d539cb7bd0994474f05449524381e10dc3a75d6f6ef",
+          "28b816976cbda5192058bb3ed81c81e40657deb5b082d9d67c6e68f9d1c1a32a",
+          "ea833c8a45e2f515e31ec23763f19db3ffe5910f304a5f29d6631d56900fadee",
+          "15c226e6271bf5b7b76c2a0001121cf344c49a86b0c358ce13d93907a213e2b8",
+          "d1f9e10f5c2855d56376592184c75e07b5077ae7af538c718bf8301be74b3b07",
+          "a821b66bb79d4ae8b95f39c17fef28c7deeddce3a5afd8e80e9e809fab608b97",
+          "f1cd36ee584bc84480509b70e401594b114af294ae88c5653d7e5b5b278292c6",
+          "7b934fbde7a2bbcd523080cb08bcebdf026f9ec40e34c7f4e2118d655503bf5e",
+          "23cdd81281d48ecb07342ea5ab944b2e13e0d08e9f4a213aa509815a5ede5332",
+          "184efa6fc70370b5a66266433c6651d836214a4d99509cab51434851db1267f2",
+          "a23e2309021a59aaf77ae47053a136f84122c99a8e89884b8f92a878e8c7c3fd",
+          "0b1fc322cafad056c4d41c98311375e36e4b10e83703c9a062fa8354201159ef",
+          "281f033df280002385596791e8c6efa788f1b8078a5ac43bd947a4cc1a073f7e",
+          "01036dbd10a7e8ffcd88655734c0ab8f2135a2598751c42a4a27d34f1b0b5849",
+          "4a71573fdf33136c76197b26f52731563e1a1f7dadbd19f262720106af0824ed",
+          "3413bdbc8361dfcf20d48047e05fa082a87190da868f0f0dc6d867c70f6e78bd",
+          "eb1ddfdb775a6cddf26cc5965e9b91544fd240b15a7f817210d15af889240f14",
+          "c3eca3c0c227de4bc08abdd507a91671481e3d2320c3b95f100ae7e23aa002cd",
+          "84f7a2cfc7c4923512bbcdf3d723b2fd09162003fe46c7c450bab08b3f772a1b",
+          "1579c91741383e780af57276065ba8744cd820ae1e303236e3d34d7579ade4d7",
+          "cf683b8db31755fd72e66febc511f3b21aa8bfd59504b24883e5c0cb0df43a94"
+        ],
+        "casePins": {
+          "api-dependency": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+          "negative-memory": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+          "source-review": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9"
+        }
+      },
+      {
+        "id": "experiment-21ed9180a50396f0f98e8960018eadff",
+        "portableId": "context-r5-20261128-3",
+        "planSha256": "sha256:02be675ffa19f08f440e0bc474ecb5bf4d0c0595314b1a3710789a5f01cd82fa",
+        "setupSha256": "sha256:b07fed85d7826de08f545e3a6a88e0c1aca7973a9208505c766150862a3d657a",
+        "variants": [
+          "terminal-off",
+          "terminal-handoff"
+        ],
+        "memberOrder": [
+          "0c67a1cab2b98543335891a35ec61e307a7d69b81316711aae498e98a8381580",
+          "67d383c77be5dadbe47e0bdb1edc47d3b5d664823ad2b99d46191939ddf04426",
+          "0091d5ba58d1b8c271cdbf922390e99cffd94d3c0c82d0a9edaddfbd34b2188c",
+          "ba5274535351892bd54d802a29034c14f2920b3137a3f132136c14a88dc46874",
+          "4cb2bae370851035e7c83af5ad11d846717d86174c002393a2e20ea75c758ece",
+          "b11ab6cc465cd51e89ae3b65bbd51889516ef1cfbfbb4548b8213a78d5a921bf",
+          "b0cf6817c96c3781de03e6dc04b419a22b846dc8176d38ece2498dcbe48aed14",
+          "65b18af1fd3bf4bd6f255c2c8a84ea2c1725d380819732c67e0ffb3bce9fe91e",
+          "ef582d547e2b8892f4089da9909648ea38cc7de7776d4c955ca98f7228f59554",
+          "f1b742709827bd582434fd0df08027299a31ee7dc8b81598ebf58be7dbd55f01",
+          "a2143a9bf2f0f3776683c65cff62c1a863f92908f8d27568fe41834d3631dc11",
+          "39bc590b87afb646a8f7065e1b3e8f34af0f049eb345486843a71998cfc10e20",
+          "839c93fc1322fd655dae2218f963820dd6d7c74fede9268e3d03a10d395cead1",
+          "6a36095fcf845fd6c4031f815eaf9025813d7d72e0af80eaedcfba842993268a",
+          "49259bdc38d60f09c412933833a1d5c332142c1f9f0eada3e4a7ecda9774fa6d",
+          "a29ac677ffd926b2239031df728ee8fa132cf119d755dc0460e4c9dd3203d2af",
+          "e8d6d4cf60b4aff5683737b3a7e556e67bcafd0a0151b6a486537cdfc48102c0",
+          "a4870b2576c8a59be847861dbaa3399ae55d6a18f59e6fb261ec1d536c795de8",
+          "9d6626f6c0f05124a28ce64f86dd6c21803804ce2491951ebcadbf4d300ee292",
+          "0fc79cc264035f066dc49a4f895b4fd6fb9b505155400cd0c7ff8afe9ef36685",
+          "a2f18091b3e16a55b2d0730a1e57bd3a6d72d9f2c04b311cdc48aee08db70d44",
+          "ff3ddb0bf94f339c2670ae07af029e827689a72f1b3d3a534760cbcf63c54e94",
+          "cb0e507d0457f6a43e44da371b55aaf0dd3e182d0c215538b45a4d60729ac253",
+          "445a2029181d2d7697a6c80a0600fd5a9dde2f2619b76066fa72464d48dabdfe",
+          "e61d942db32841440243210bddf8985a27a0600c93f5342ef0501f6e5146986c",
+          "2a6e6cbfa9c905f1cd788e628aecc760ce1dcfd09f79dc1fd645d9699266b933",
+          "0938ce44244fad96a04501b065c32613d10e8c2c880d2a90eef43683290e40dd",
+          "01892c9ea17c4b64ac3a7f3d26bde5d69ec6a195e3316adb4be86d2c0eb33570",
+          "4a9592432cf1075d1266071c97f2469a78933d5b7780474468c4a40242dd9276",
+          "8bd48db752cb12628ea1a2e4ee177a4c8957ac17a6108d51a5b9702694067cb3"
+        ],
+        "casePins": {
+          "api-dependency": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+          "negative-memory": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+          "source-review": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9"
+        }
+      },
+      {
+        "id": "experiment-62ee5c2fedcd8b2e4b409d3bdc5b280d",
+        "portableId": "context-r5-20261128-4",
+        "planSha256": "sha256:d79024d6bd9569341bd3fbb1761674518c3b2bf18914c79e31f40965fc1b1e09",
+        "setupSha256": "sha256:94be777b15196765e195b0827da1a24d49f862bc5aab9b5bc125b35a9edb8597",
+        "variants": [
+          "controlled-compact",
+          "masking"
+        ],
+        "memberOrder": [
+          "b50f3c0c55ee9186f57f232c68720c6c990fcc78d7d40b4c858ac809dbf839aa",
+          "16d6afdfafdf16b177d887d3b784ed9be844a9dcdee8fc9eb37e1a704aedbd4f",
+          "cad80e6d53141fafe8ab006b442b7db2e0a9f9eeca71330a0bd20e77651553cc",
+          "1e9b9b7be7596d15d4f23bc67887d9c20c6aedbb47df8221c8fe1786e66bced5",
+          "64499282bb934d25539de55d67cb9145b7dd116f233f723e60cc6f62d76500fd",
+          "78bb1b9b62483f1b52ad0cccce6dd8d22008a54454210a33d975996fef32f5e3",
+          "6bfa859ee4d8de6763f1c92efbf0f5626a49b6a1b7111195de05727788509c8e",
+          "d83860d1b4e7511d149c6daa2f6ab953bb52dbd9ed90044900c9e7d78951c0f4",
+          "89eaf35d82ed157aee155dca88879848f2c6e8bb508e325277aa4d2af48fc10e",
+          "a0d3bfc289312e1c84c5abc266959d93c46d59b3a81ec34f214ed6cab492d399",
+          "966e2a462f946dbe49a419b87828642d13cc958b8d5d3856563f2afaff23dd54",
+          "f3dfe803b19fe4080b3fe6515f7ea508522daa4b132170262786a66d9169d751",
+          "e50513a359db34bb22891c1cf10ebc8b77c82da8a154020ee9edb946ba84a730",
+          "47daca65309ebe7f9434c26c6490228673656b93d1c6aaf2f71de041a653860e",
+          "b40d9b2728ab162b13e32e40993c779603e42f485de35f8952202188ea9a4aa0",
+          "c57b5e9265c8e6622a2f52ff73cad7c0b7b39d1507180b407e0ea6d716ea92a3",
+          "995e689c6f52044f33ea5e69f9ec61b0aa6124d7bb3f155857747276e932c6bc",
+          "0a97821862b7cab4b5057e95e1d2a7bbefea32274896daea87982455af85f961",
+          "9ceed1ee90934f2419e8c97f2a8dcf403e762e68d6f464415ae19e784679d1ba",
+          "472a5312d095f01f21d50540763cdeabaebb3e979d51bfd8c0e312ce292779f8",
+          "713ed0fcf390812ba070a6730821c0a0d3290664fb8876df9dd592dad181b3a8",
+          "20057105a750cdf40c543e9c4629176f1238dc8ed0e8cb2b4928bae3db3fa5a4",
+          "1b146422a095fa5a96b512c08f1075ab99dc3fa74c261193c0174a6780fde4bb",
+          "5967b559ff862828b63ce170f23c199cc163ee9ae585123fec22a5970c4e12b8",
+          "ca0aa019dbd5bab5eebda555e6cb30664ca3decee192af7a70f808970e9c7e44",
+          "edddfb9a6324ebaa362054e1cbc210b70e31cabc08c1b4764eb5b0f83d6c5ac2",
+          "4c97199fcc34dd4baa9c041cef3f0c45904d67a6d1c75d84ac395ba4377d1658",
+          "9b24622206a1f7c1b35b1013277b960c1de660452d671a89dcc2e27e3ed3d475",
+          "70888138661770510bf9328777c0c6ee5cc637ddb46aff422ec74f60d437623e",
+          "df76fadf873d060048eec5a90dcd3f52efac6a15153497247d35461add8d68c8"
+        ],
+        "casePins": {
+          "api-dependency": "sha256:36a925839f8b4237606b079a6c7f9b6ef49af1353e721c3723fabb7c54e757fc",
+          "negative-memory": "sha256:b693d84408d788e96113605c468ba7ad1ec5ac29b984f779d4664dffb2f6a457",
+          "source-review": "sha256:4d031f8f4e6f8452399a9ca92613fdcbcd9281c6dcddcaaf2f15aca6d8a135c9"
+        }
+      }
+    ],
+    "resources": [
+      {
+        "path": "/v1/configurations/agent-templates/context-eval-controlled-compact/versions/4",
+        "sha256": "sha256:983c675580c24ef783f698587350517ad4c2309a8bd6de452a571326536ce94d"
+      },
+      {
+        "path": "/v1/configurations/agent-templates/context-eval-masking/versions/4",
+        "sha256": "sha256:2acb1a85b7d0f676b7be8802d16da75b412a8a7b4e7a90fc8d94fccc7a423597"
+      },
+      {
+        "path": "/v1/configurations/agent-templates/context-eval-terminal-off/versions/4",
+        "sha256": "sha256:2396be138fc8e5c9997b5a93802b4a4a5841af3b09423f7cb1531c3d686160ec"
+      },
+      {
+        "path": "/v1/configurations/agent-templates/context-eval-terminal-on/versions/4",
+        "sha256": "sha256:9646ecec14deb3095e15e015a833a5212742bd9c5be86c2f21575315d4b9e421"
+      },
+      {
+        "path": "/v1/configurations/agent-templates/context-eval-worker/versions/4",
+        "sha256": "sha256:b698ae7a1f43731a2797c9055ea47683d3b6750af552fd64b6da165dce68dbd0"
+      },
+      {
+        "path": "/v1/configurations/llm-gateways/local-litellm/versions/1",
+        "sha256": "sha256:0e008ba9eac78840a51012615ee29906e4ced6fc69c64e67fb9fd6558f0552aa"
+      },
+      {
+        "path": "/v1/configurations/model-policies/audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7/versions/1",
+        "sha256": "sha256:aeba88d4e87aace327cb962556392dfff36e349ed366221d937c1dd388aafa08"
+      },
+      {
+        "path": "/v1/configurations/model-policies/compactor/versions/1",
+        "sha256": "sha256:5dfc5e7352f70db2ba47b36313021265db807678e3074c2532a492c8a8aa3174"
+      },
+      {
+        "path": "/v1/configurations/model-policies/planner_glm_5_3_flash_cc78cc13596ab7d7/versions/1",
+        "sha256": "sha256:7d41f7352b3b78a06e34e7490664037e58b7eac5bc9e4b813945c6abb41c79e5"
+      },
+      {
+        "path": "/v1/configurations/model-policies/summarizer_glm_5_3_flash_cc78cc13596ab7d7/versions/1",
+        "sha256": "sha256:fbd13ecaa95042201e9adae377213444d503f627f256728d756f4452b5ccdf19"
+      },
+      {
+        "path": "/v1/configurations/model-policies/summary_continuation_planner/versions/1",
+        "sha256": "sha256:fe60a9ea7fe4a0521a2f721119799fc2f558d18ff718db1ffa54ccc9d30da293"
+      },
+      {
+        "path": "/v1/configurations/model-policies/terminal_summarizer/versions/1",
+        "sha256": "sha256:3efbd88058c36df793c39605ec0a5088881cac0ed844705ef918f121d48a2d5e"
+      },
+      {
+        "path": "/v1/configurations/model-policies/worker/versions/1",
+        "sha256": "sha256:81d9c524886a167001185b57dc4e7bb13b553c4435af42c55b5091aeeff85682"
+      },
+      {
+        "path": "/v1/configurations/model-policies/worker_compactor/versions/1",
+        "sha256": "sha256:2634032b256ba77568edc16f66a866bbc5b1bc47855dfd2bf00f975b00b0a203"
+      },
+      {
+        "path": "/v1/configurations/model-policies/worker_glm_5_3_flash_cc78cc13596ab7d7/versions/1",
+        "sha256": "sha256:929ca69e005ce335bf5c4c4bfc33355910ea9c1877bd88d45798c22bc8158908"
+      },
+      {
+        "path": "/v1/workflows/context-eval-compact-off/versions/1",
+        "sha256": "sha256:348b8273443cd43f6f5b2dcf416014a9336eb5653a279368dec86ef5bb37ec3b"
+      },
+      {
+        "path": "/v1/workflows/context-eval-compact-on/versions/1",
+        "sha256": "sha256:5b266f8110a6d1a932763469824b45d6ca3caabb758854f414e06588da92f6eb"
+      },
+      {
+        "path": "/v1/workflows/context-eval-controlled-compact/versions/1",
+        "sha256": "sha256:89f0a56550ce19dc2006913c254845a315a6de7e614c38ede4308327f2529c07"
+      },
+      {
+        "path": "/v1/workflows/context-eval-masking/versions/1",
+        "sha256": "sha256:faa943a0224367be64749ee2789ff3f4fef0896785146e01c8dde34959f2a663"
+      },
+      {
+        "path": "/v1/workflows/context-eval-terminal-handoff/versions/1",
+        "sha256": "sha256:89a3055c96323cca0c4d3e6da6e731fe1b8a8b542d554411e33566443d927871"
+      },
+      {
+        "path": "/v1/workflows/context-eval-terminal-off/versions/1",
+        "sha256": "sha256:23395a756ed47d4010d79c33eaa2ecbfc6e988b3340f1bbe7d5191519d5cb34d"
+      },
+      {
+        "path": "/v1/workflows/context-eval-terminal-on/versions/1",
+        "sha256": "sha256:9534d5f5a0635e95330683547fa26dc877c6a3a8821fbeedf9a5ccaff82e87fb"
+      }
+    ]
+  }
+}
