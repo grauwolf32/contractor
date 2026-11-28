@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 12 in progress, 42 pending, 13 deferred. 1738 finished: 1719 completed, 19 archived.
+66 open tasks: 11 in progress, 42 pending, 13 deferred. 1739 finished: 1720 completed, 19 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V492-004](v492-004-grpc-utf8-size.yml) | api-contracts | defect | P2 | Count private protobuf domain projections as compact UTF-8 |
 | [V492-005](v492-005-grpc-receive-error.yml) | execution-core | defect | P2 | Classify oversized lifecycle replies as permanent protocol failures |
 
 ## Pending
@@ -175,6 +174,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
 | Web UI (`ui`) | 1 | 56 | 83 | 35 | 80 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
-| Public API and wire contracts (`api-contracts`) | 2 | 3 | 44 | 30 | 22 |
+| Public API and wire contracts (`api-contracts`) | 1 | 3 | 44 | 30 | 22 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 51 | 20 |
 | Quality, CI and process (`quality`) | 11 | 1 | 38 | 157 | 32 |

@@ -4,9 +4,9 @@ title: Count private protobuf domain projections as compact UTF-8
 milestone: server-runtime-grpc-2026-11
 epic: api-contracts
 kind: defect
-introduced_by: V490-001
+introduced_by: V490-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -28,6 +28,11 @@ context:
   - docs/spec/execution/runtime-agent.md#RTA-R88
   - docs/spec/platform/failure-model.md
   - api/v1alpha1/README.md
+  boundary_decision: Use the existing compact UTF-8 Go encoder and one Python protobuf JSON projection with
+    normalized serialization errors. Counting ASCII-escaped JSON produces language-dependent bounds; changing
+    canonical digest encoding would change identities outside this fix. Shared exact-boundary cases and native
+    valid/malformed Unicode tests pin the accounting. Reopen only with an explicit redesign of the JSON document
+    boundary.
 scope:
   in:
   - Go and Python accept the same valid Unicode lifecycle/control documents within the existing UTF-8 and protobuf
@@ -67,3 +72,10 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 5ae638213052003f44fc7f4a1e42177776e9ac25
+verification:
+  status: passed
+  evidence: tasks/evidence/v492-grpc-review-fixes-20261128.json
+  observed: All listed commands passed against the combined fixes. Native regression probes fail before the
+    respective fix. PostgreSQL was enabled for Go and wire checks. Runtime skips remain explicitly reported;
+    optional heavy I/O was not enabled.
