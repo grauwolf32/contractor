@@ -105,9 +105,21 @@ def _decode(data: str):
                 raise ValueError("source seed bytes")
     if value["schema"] == "contractor.audit.context.v1":
         for field in ("item_key", "task_id"):
-            values = [item[field] for item in value["items"]]
+            values = [item.get(field, item.get("finding_id")) for item in value["items"]]
             if len(values) != len(set(values)):
                 raise ValueError("duplicate context membership")
+        if "finding" in value:
+            finding = value["finding"]
+            if len(finding["assertion"].encode()) > 32768 or len(value["items"]) != 1:
+                raise ValueError("Finding assignment bound")
+            member = value["items"][0]
+            if (
+                member.get("finding_id") != finding["findingId"]
+                or member["objective"] != finding["assertion"]
+            ):
+                raise ValueError("Finding membership")
+        elif any("finding_id" in item for item in value["items"]):
+            raise ValueError("Audit finding member")
     if value["schema"] == "contractor.audit.mutation.v1":
         for record in value["records"]:
             _decode(jcs.canonicalize(record).decode())
@@ -323,7 +335,7 @@ def _validate_case(case):
             raise ValueError("membership")
         seen.add(key)
         member = members[key]
-        if ("hypothesis" in member) != ("verdict" in item):
+        if ("hypothesis" in member or "finding_id" in member) != ("verdict" in item):
             raise ValueError("checking context")
         if item.get("verdict") in {"supported", "refuted"} and (
             not item["evidence"] or not item["tested_conditions"]
@@ -333,8 +345,12 @@ def _validate_case(case):
             raise ValueError("missing gap")
         if any(evidence not in member["evidence"] for evidence in item["evidence"]):
             raise ValueError("foreign evidence")
-        expected = dict(
-            audit_id=context["audit_id"], run_id=context["run_id"], task_id=member["task_id"]
+        expected = (
+            {"finding": context["finding"], "run_id": context["run_id"]}
+            if "finding" in context
+            else dict(
+                audit_id=context["audit_id"], run_id=context["run_id"], task_id=member["task_id"]
+            )
         )
         if "hypothesis" in member:
             expected["hypothesis"] = {key: member["hypothesis"][key] for key in ("id", "revision")}

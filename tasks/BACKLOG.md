@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-64 open tasks: 10 in progress, 41 pending, 13 deferred. 1755 finished: 1736 completed, 19 archived.
+69 open tasks: 11 in progress, 45 pending, 13 deferred. 1757 finished: 1738 completed, 19 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V497-001](v497-001-finding-target-validation.yml) | findings | feature | P1 | Validate a source Finding against the Project target through an ordinary Run |
 
 ## Pending
 
@@ -54,6 +55,14 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V410-026](v410-026-sitemap-source-comparison.yml) | chore | P2 | — | Compare transport observations and scanner report projections for sitemap |
+
+### Findings tools and collections (`findings`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V497-002](v497-002-finding-http-retest.yml) | feature | P1 | V497-001 | Retest an accepted HTTP validation after an application fix |
+| [V497-004](v497-004-finding-check-release.yml) | chore | P1 | V497-001, V497-002, V497-003 | Accept the source-to-target validation and post-fix retest release |
+| [V497-005](v497-005-finding-source-validation.yml) | feature | P2 | V497-004 | Validate a target Finding in exact sources and retest a supported source check |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -98,6 +107,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the ordinary HTTP Audit setup and evidence UI journey |
+| [V497-003](v497-003-finding-check-ui.yml) | feature | P1 | V497-002 | Launch validation and retest from the Finding and show independent check history |
 
 ### Operations, authentication, CLI and deployment (`operations`)
 
@@ -164,14 +174,14 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 4 | 27 | 38 | 18 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 22 | 15 | 13 | 32 |
-| Findings tools and collections (`findings`) | 0 | 23 | 16 | 14 | 30 |
+| Findings tools and collections (`findings`) | 4 | 27 | 16 | 15 | 30 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 21 | 79 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 24 | 47 | 24 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
-| Web UI (`ui`) | 1 | 57 | 83 | 38 | 81 |
+| Web UI (`ui`) | 2 | 58 | 83 | 38 | 81 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 3 | 44 | 30 | 22 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 53 | 20 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 29 | 53 | 21 |
 | Quality, CI and process (`quality`) | 11 | 1 | 38 | 157 | 32 |

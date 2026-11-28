@@ -374,6 +374,22 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: finding-validation-retest-2026-11
+    exit_task: V497-004
+    outcome: >-
+      An owner validates a source Finding against the Project HTTP target,
+      retests the selected HTTP check after an application fix, and reads both
+      exact results and evidence in the same Finding history through API and UI.
+      Ordinary Runs and shared result/Artifact mechanisms preserve analyst
+      authority, bounded work, replay, cancellation and retention, proven by a
+      real-component release gate. Source validation is a separate later slice.
+  - id: finding-source-validation-2026-11
+    exit_task: V497-005
+    outcome: >-
+      After the first HTTP slice, an owner validates a target Finding against
+      exact sources and retests a supported source check against a new source
+      revision, retaining independent results without inferring deployed-code
+      identity or changing the analyst assessment.
   - id: server-runtime-grpc-2026-11
     exit_task: V490-006
     outcome: >-

@@ -957,14 +957,16 @@ class AuditJudgmentsRequest(_message.Message):
     def __init__(self, api_version: _Optional[str] = ..., invocation_id: _Optional[str] = ..., submission_id: _Optional[str] = ..., mode: _Optional[str] = ..., items: _Optional[_Union[ListOfAuditJudgmentUpdate, _Mapping]] = ...) -> None: ...
 
 class AuditGeneration(_message.Message):
-    __slots__ = ("item_key", "generation", "task_id")
+    __slots__ = ("item_key", "generation", "task_id", "finding_id")
     ITEM_KEY_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
     TASK_ID_FIELD_NUMBER: _ClassVar[int]
+    FINDING_ID_FIELD_NUMBER: _ClassVar[int]
     item_key: str
     generation: int
     task_id: str
-    def __init__(self, item_key: _Optional[str] = ..., generation: _Optional[int] = ..., task_id: _Optional[str] = ...) -> None: ...
+    finding_id: str
+    def __init__(self, item_key: _Optional[str] = ..., generation: _Optional[int] = ..., task_id: _Optional[str] = ..., finding_id: _Optional[str] = ...) -> None: ...
 
 class ListOfAuditGeneration(_message.Message):
     __slots__ = ("values",)

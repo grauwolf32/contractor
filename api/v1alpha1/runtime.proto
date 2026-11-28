@@ -480,6 +480,7 @@ message AuditGeneration {
   optional string item_key = 1;
   optional uint64 generation = 2;
   optional string task_id = 3;
+  optional string finding_id = 4;
 }
 message ListOfAuditGeneration { repeated AuditGeneration values = 1; }
 message AuditJudgmentReceipt {

@@ -5833,6 +5833,7 @@ type AuditGeneration struct {
 	ItemKey       *string                `protobuf:"bytes,1,opt,name=item_key,json=itemKey,proto3,oneof" json:"item_key,omitempty"`
 	Generation    *uint64                `protobuf:"varint,2,opt,name=generation,proto3,oneof" json:"generation,omitempty"`
 	TaskId        *string                `protobuf:"bytes,3,opt,name=task_id,json=taskId,proto3,oneof" json:"task_id,omitempty"`
+	FindingId     *string                `protobuf:"bytes,4,opt,name=finding_id,json=findingId,proto3,oneof" json:"finding_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5884,6 +5885,13 @@ func (x *AuditGeneration) GetGeneration() uint64 {
 func (x *AuditGeneration) GetTaskId() string {
 	if x != nil && x.TaskId != nil {
 		return *x.TaskId
+	}
+	return ""
+}
+
+func (x *AuditGeneration) GetFindingId() string {
+	if x != nil && x.FindingId != nil {
+		return *x.FindingId
 	}
 	return ""
 }
@@ -9900,17 +9908,20 @@ const file_runtime_proto_rawDesc = "" +
 	"\f_api_versionB\x10\n" +
 	"\x0e_invocation_idB\x10\n" +
 	"\x0e_submission_idB\a\n" +
-	"\x05_mode\"\x9c\x01\n" +
+	"\x05_mode\"\xcf\x01\n" +
 	"\x0fAuditGeneration\x12\x1e\n" +
 	"\bitem_key\x18\x01 \x01(\tH\x00R\aitemKey\x88\x01\x01\x12#\n" +
 	"\n" +
 	"generation\x18\x02 \x01(\x04H\x01R\n" +
 	"generation\x88\x01\x01\x12\x1c\n" +
-	"\atask_id\x18\x03 \x01(\tH\x02R\x06taskId\x88\x01\x01B\v\n" +
+	"\atask_id\x18\x03 \x01(\tH\x02R\x06taskId\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"finding_id\x18\x04 \x01(\tH\x03R\tfindingId\x88\x01\x01B\v\n" +
 	"\t_item_keyB\r\n" +
 	"\v_generationB\n" +
 	"\n" +
-	"\b_task_id\"]\n" +
+	"\b_task_idB\r\n" +
+	"\v_finding_id\"]\n" +
 	"\x15ListOfAuditGeneration\x12D\n" +
 	"\x06values\x18\x01 \x03(\v2,.contractor.runtime.v1alpha1.AuditGenerationR\x06values\"\x93\x02\n" +
 	"\x14AuditJudgmentReceipt\x12$\n" +

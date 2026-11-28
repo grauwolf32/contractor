@@ -26,6 +26,9 @@ revises the superseded research-only [proposal 0045](proposals/0045-audit-hypoth
 The [Runtime Planner and recovery proposal](proposals/0058-runtime-planner-and-recovery.md)
 builds on the completed multi-allocation Runtime and separates Planner relocation
 from checkpoint recovery, with proposed boundaries, diagrams and open decisions.
+The [Finding validation and retest proposal](proposals/0059-finding-validation-and-retest.md)
+plans source findings checked against a live target and retested after a fix,
+with independent evidence and ordinary Run execution.
 
 Accepted contracts belong in the specification; implementation status belongs
 in [task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml).

@@ -23,7 +23,8 @@ from contractor_runtime.strict_json import strict_json_loads
 class JudgmentGeneration(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     itemKey: str
-    taskId: str
+    taskId: str | None = None
+    findingId: str | None = None
     generation: int = Field(ge=0, le=MAX_EXACT_INTEGER)
 
 
@@ -60,7 +61,9 @@ class JudgmentPersistenceUnknown(ArtifactTransportError, ToolResultDiagnostic):
 class AuditJudgmentClient:
     def __init__(self, client, encoder, inputs):
         self.client, self.encoder, self.inputs = client, encoder, inputs
-        self.audit_id = encoder.trusted_inputs(inputs).audit_id
+        records = encoder.trusted_inputs(inputs)
+        self.scope_kind, self.scope_id = records.scope_kind, records.scope_id
+        self.members = records.items
 
     async def __call__(self, snapshot, bases, mode):
         def prepare():
@@ -130,8 +133,8 @@ class AuditJudgmentClient:
                 validate_audit_material, receipt.material, name="audit-judgment-receipt"
             )
             if (
-                receipt.material["scope_kind"] != "audit"
-                or receipt.material["scope_id"] != self.audit_id
+                receipt.material["scope_kind"] != self.scope_kind
+                or receipt.material["scope_id"] != self.scope_id
                 or receipt.material["media_type"] != "application/json"
             ):
                 raise ValueError("Another Audit or media type")
@@ -142,11 +145,15 @@ class AuditJudgmentClient:
             "material": json.loads(receipt.model_dump_json())["material"],
         }
 
-    @staticmethod
-    def _generations(values, keys):
+    def _generations(self, values, keys):
         generations = {value.itemKey: value.generation for value in values}
         if len(values) != len(generations) or set(generations) != set(keys):
             raise ValueError("Another judgment membership")
-        if any(RESOURCE_ID_PATTERN.fullmatch(value.taskId) is None for value in values):
+        if any(
+            (value.taskId != self.members[value.itemKey].get("task_id"))
+            or (value.findingId != self.members[value.itemKey].get("finding_id"))
+            or RESOURCE_ID_PATTERN.fullmatch(value.taskId or value.findingId or "") is None
+            for value in values
+        ):
             raise ValueError("Invalid Task identity")
         return generations

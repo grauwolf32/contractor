@@ -1153,3 +1153,15 @@ source (or unknown), and means no conclusion was accepted. It cannot satisfy the
 normal Worker gate, assert tested steps, imply evidence insufficiency, classify
 an ordinary HTTP failure as global target unavailability, or synthesize semantic
 coverage. Unassigned work receives no fabricated invocation or judgment.
+
+**AWC-R139.** The same completion strategy, collector, deterministic publisher,
+source preparation and evidence/judgment acceptance support an ordinary
+Finding-bound Run under FND-R243 through FND-R245. The exact common context is
+a closed union: Audit ID and Task members, or Project ID, Finding binding and
+one matching Finding member. Mixing the two kinds is invalid. A Finding member
+requires a scoped verdict by ACT-R4 without a synthetic hypothesis. Server
+assigns result provenance from the pinned Run; model arguments supply neither
+owner nor Finding/Task identity. Private receipt generations identify exactly
+one Task or Finding. Runtime validates returned material scope and member
+identity against that exact prepared context, including during lost-reply
+reconciliation and corrections.

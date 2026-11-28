@@ -329,6 +329,8 @@ Owner column links each entry to its owning requirement.
 
 | `LIFE-PLN-5` | Active Runtime Planner host and its last operation/reply | Planner.Run removes it after joining admitted operations; Runtime releases its loop/session and model handles before allocation cleanup | The invocation must settle before allocation release | Ordinary Run/Project deletion and Stage abort cancel the owner; process loss interrupts it | Invocation memory only, bounded by LIM-PLN-23; no raw conversation is persisted | [PLN-R137](../execution/planners.md) |
 
+| `LIFE-FND-8` | Ordinary Finding check Run, retained evidence/results and source-history acknowledgements | Existing owner-authorized terminal Run deletion after release; owning Project drain/purge | No independent check hold or lifecycle; deleting Project denies new admission/publication | Ordinary Run bindings are purged; Project cleanup releases finding-materials and finding-history bindings with the existing owner cleanup | Acknowledged partial evidence and results survive permitted producing Run purge and later analyst edits until Project deletion | [FND-R244](../findings/findings.md), [FND-R245](../findings/findings.md) |
+
 ## Browser exploration
 
 | ID | Entity | Deletion owner | Blockers | Cascade | Retention | Owner |

@@ -17,7 +17,7 @@ func auditBindingRequirements(run runstore.WorkflowRun, workflow executableWorkf
 	}
 	completion := run.AuditCompletion
 	if completion != nil {
-		if run.PublicationMode != runstore.PublicationAuditManaged || run.AuditExecutionID == nil || run.AuditSubmissionKey == nil || completion.Validate() != nil {
+		if completion.Validate() != nil || (completion.Finding == nil && (run.PublicationMode != runstore.PublicationAuditManaged || run.AuditExecutionID == nil || run.AuditSubmissionKey == nil)) || (completion.Finding != nil && (run.PublicationMode != runstore.PublicationOrdinary || run.ProjectID == nil || run.AuditExecutionID != nil || run.AuditSubmissionKey != nil)) {
 			return nil, fmt.Errorf("invalid Run Audit completion authority")
 		}
 		if completion.Stage == workflow.stageName {

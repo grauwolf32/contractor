@@ -39,8 +39,17 @@ class AuditContextRecords:
 
     data: bytes = field(repr=False)
     items: dict[str, dict] = field(repr=False)
-    audit_id: str
+    audit_id: str | None
     run_id: str
+    project_id: str | None = None
+
+    @property
+    def scope_kind(self):
+        return "project" if self.project_id is not None else "audit"
+
+    @property
+    def scope_id(self):
+        return self.project_id if self.project_id is not None else self.audit_id
 
     @property
     def item_keys(self):
@@ -67,8 +76,9 @@ class CanonicalAuditResultEncoder:
                     self._records = AuditContextRecords(
                         context,
                         {item["item_key"]: item for item in value["items"]},
-                        value["audit_id"],
+                        value.get("audit_id"),
                         value["run_id"],
+                        value.get("project_id"),
                     )
                 except (ValueError, TypeError, RecursionError, UnicodeError, ValidationError):
                     raise AuditResultError("audit_result_invalid") from None
@@ -90,7 +100,7 @@ class CanonicalAuditResultEncoder:
         for record in snapshot.items:
             value = record.value
             member = context.items[value.item_key]
-            checking = "hypothesis" in member
+            checking = "hypothesis" in member or "finding_id" in member
             if checking != (value.verdict is not None):
                 raise AuditResultError("audit_result_invalid")
             if value.verdict in {"supported", "refuted"} and (

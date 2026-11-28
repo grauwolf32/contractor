@@ -65,9 +65,21 @@ def decode_audit_document(data: bytes, *, schema: str) -> dict:
     if schema == "contractor.audit.context.v1":
         _require_selector("workflow_ref", value["workflow_ref"])
         for field in ("item_key", "task_id"):
-            values = [item[field] for item in value["items"]]
+            values = [item.get(field, item.get("finding_id")) for item in value["items"]]
             if len(values) != len(set(values)):
                 raise ValueError("Audit context membership")
+        if "finding" in value:
+            finding = value["finding"]
+            if len(finding["assertion"].encode()) > 32768 or len(value["items"]) != 1:
+                raise ValueError("Finding check bound")
+            member = value["items"][0]
+            if (
+                member.get("finding_id") != finding["findingId"]
+                or member["objective"] != finding["assertion"]
+            ):
+                raise ValueError("Finding check membership")
+        elif any("finding_id" in item for item in value["items"]):
+            raise ValueError("Audit context with Finding member")
     if schema in {"contractor.audit.program.v1", "contractor.audit.proposals.v1"} and any(
         len(jcs.canonicalize(seed)) > 32768 for seed in value["hypotheses"].values()
     ):
