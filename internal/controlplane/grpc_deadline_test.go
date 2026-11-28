@@ -28,10 +28,13 @@ func (w *controlDeadlineWriter) Unwrap() http.ResponseWriter { return w.Response
 func (w *controlDeadlineWriter) Flush()                      { _ = http.NewResponseController(w.ResponseWriter).Flush() }
 func (w *controlDeadlineWriter) SetReadDeadline(deadline time.Time) error {
 	controller := http.NewResponseController(w.ResponseWriter)
+	if err := controller.SetReadDeadline(deadline); err != nil {
+		return err
+	}
 	if !deadline.IsZero() {
 		w.once.Do(func() { w.readDeadlines <- controller })
 	}
-	return controller.SetReadDeadline(deadline)
+	return nil
 }
 
 func TestControlRPCStalledHTTP2BodiesReleaseAdmission(t *testing.T) {
