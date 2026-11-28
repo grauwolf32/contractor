@@ -1,0 +1,162 @@
+schema_version: "1.0"
+id: V497-002
+title: Retest an accepted HTTP validation after an application fix
+milestone: finding-validation-retest-2026-11
+epic: findings
+kind: feature
+priority: P1
+status: pending
+depends_on: [V497-001]
+languages: [go, python, yaml, json, markdown]
+goal: >-
+  Let the owner repeat a selected HTTP validation after changing the application
+  and compare the new evidence and conditions in the same Finding history.
+demonstration: >-
+  A real source Workflow creates a Finding, HTTP validation reproduces it on a
+  controlled vulnerable target, the fixture switches to its fixed deployment,
+  and the public retest command launches a fresh ordinary Run whose accepted
+  result and evidence explain the change without automatically closing the Finding.
+context:
+  authority: >-
+    User decision 2026-11-28: retest uses the same kind of agent with analogous
+    tools and changed instructions/inputs; the first scenario is sources Finding
+    -> target validation -> retest after a fix. This task implements HTTP retest
+    of the selected validation, not a switch from the original source agent.
+    Exact profile linkage and bounded comparison are agent design proposals.
+    Later user instruction on the same date requires maximally compact changes,
+    reuse/generalization of existing mechanisms, and only necessary new code.
+  reassessment:
+    baseline: d4b8c5112fef383a47ce3aae9abc1094e346c2e5
+    verdict: Still needed; add baseline selection and changed instructions to the V497-001 path.
+    reuse: Run admission/replay, exact Artifact readers, retained source history, configured HTTP tools and profile snapshots.
+    delta: No independent retest executor, comparison endpoint/store or generic profile-matching registry is required for the one supported pair.
+  proposal: docs/proposals/0059-finding-validation-and-retest.md
+  specification:
+    - docs/spec/findings/findings.md#FND-R209
+    - docs/spec/findings/findings.md#FND-R213
+    - docs/spec/findings/findings.md#FND-R214
+    - docs/spec/audits/common-contract.md#ACT-R4
+    - docs/spec/configuration/agent-templates.md#TPL-R10
+    - docs/spec/artifacts/projects.md#PRJ-R80
+  boundary: >-
+    Finding service selects an exact accepted baseline result and supplies
+    trusted parent provenance to the V497-001 ordinary Run path. Versioned
+    Workflow/AgentTemplate instructions own retest behavior; HTTP adapters and
+    the shared collector retain new evidence. Reuse existing configuration
+    snapshots, Run receipts and Artifact history. A generic template-cloning
+    framework or choosing another agent by similarity is unnecessary. Reopen
+    only for a concrete unsupported executor needing its own separately scoped task.
+scope:
+  in:
+    - Explicit baseline selection by retained HTTP validation/retest result in the same Finding and Project.
+    - Shipped retest instructions/profile paired with the supported HTTP validation executor, preserving its effective tools/skills and sandbox constraints.
+    - Current target/credential selection, deployment/role condition comparison and fresh-session execution through the existing launch path.
+    - Immutable parent result linkage, comparison through two existing exact result/Artifact reads and the full real-component first scenario.
+  out:
+    - Applying a fix or deploying the target, resuming an old model session, copying old credentials/cookies or changing the configured model.
+    - Source/scanner retest, automated scheduled retests, aggregate confidence scores and automatic fixed/false-positive assessment.
+    - UI interactions owned by V497-003 or a second execution/result mechanism.
+requirements:
+  - id: R1
+    text: >-
+      Require one exact accepted HTTP baseline with its assertion, tested
+      conditions, evidence and executor provenance. Verify same-Finding/Project
+      ownership and pin it before dispatch. A failed Run without an accepted
+      check result is an ordinary rerun candidate, not a fabricated retest baseline.
+  - id: R2
+    text: >-
+      Resolve an explicit compatible versioned retest profile for the baseline
+      executor; preserve tools, skills, policy and sandbox bounds. Use a fresh
+      session and the Project's configured model. No silent latest-template,
+      fallback agent or broader capability selection. Missing exact required
+      configuration is a documented permanent unsupported outcome before traffic.
+  - id: R3
+    text: >-
+      Pin the selected current Project target and authorized credential through
+      ordinary Run creation. Retain old/current safe target and deployment/role
+      facts, exact selected source refs when supplied, and their stated or
+      unknown mapping. Changed conditions remain visible; deployment identity
+      is not inferred from matching URL or repository branch.
+  - id: R4
+    text: >-
+      Compare a pair of exact results only. Reproduced behavior, demonstrated
+      refutation of the bounded claim and inability to check remain distinct;
+      unavailable target/auth, WAF interference or incomplete probes cannot
+      imply a fix. Evidence and tested conditions justify either conclusive
+      outcome. No negative result erases history or edits analyst assessment.
+  - id: R5
+    text: >-
+      Preserve V497-001 receipt replay, accepted partial-result retention,
+      cancellation fencing and no automatic active-Stage retry. Retest launch
+      remains possible after baseline Run purge using retained exact materials
+      and configuration; report unavailable prerequisites without reconstructing
+      them from mutable aliases or querying the old live session.
+  - id: R6
+    text: >-
+      Retest reuses the V497-001 admission/execution/result path with one explicit
+      baseline and changed instructions. Compare two exact artifacts using
+      existing readers; do not introduce a comparison API, persisted projection
+      or profile registry for this one supported pair. A source receipt's
+      Workflow ref/digest is not executable closure: retain the actually needed
+      exact configuration through ordinary Artifact bindings before Run purge.
+failure_outcomes:
+  - operation: Resolve baseline/profile and launch retest
+    permanent: Foreign/missing parent is ownership-not-found 404; stale revision/key conflicts use existing 409/412; unsupported profile or missing required retained content is a documented permanent 4xx with no dispatch.
+    retryable: Existing bounded storage conflicts and 503 storage_transaction_conflict; no target re-execution for storage failure.
+    ambiguous: The original launch key and exact parent/payload replay one Run; replay does not reselect a newer baseline or target.
+    cancelled: Existing Run owner settles launch/cancel, joins active work and preserves accepted results without changing the parent.
+    timeout: Independent baseline-read, admission, HTTP/Run and publication deadlines; recovery does not extend them.
+  - operation: Execute the repeated probe and compare results
+    permanent: Invalid evidence/result fails admission; unavailable auth/target or incomparable conditions is explicit limitation/technical failure, not an inferred fix.
+    retryable: Same bounded evidence/result storage policy as V497-001; active HTTP is not automatically replayed.
+    ambiguous: Reconcile accepted bytes/receipts only; uncertain HTTP effects remain uncertain.
+    cancelled: Accepted evidence survives with attempt state; no late result changes canonical assessment.
+    timeout: Normal target/Worker deadlines end work with truthful gaps or failure; comparison uses only retained exact results.
+cardinality:
+  - collection: Retest selection and comparison
+    expected: One parent and one new result
+    maximum: One Finding and one explicit baseline per Run; two exact result descriptors per comparison
+    bound: 1 MiB launch/comparison metadata; full evidence read separately under existing limits, no ancestry recursion or whole-history loading.
+  - collection: Run evidence and Finding history
+    expected: Control and test exchanges for the selected assertion
+    maximum: Existing shared result/evidence budget, including LIM-AWC-6 at 8 MiB; history fixture has 10000 entries
+    bound: Reuse V497-001 admission and 64-row/1 MiB history pages; indexed direct parent lookup.
+lifecycle:
+  - entity: Retest Run, baseline link and exact comparison materials
+    delete: Normal terminal Run deletion after release/retention; Project deletion denies new retests.
+    cascade: Existing bounded Project Artifact/history cleanup owns both results; parent links introduce no independent lifecycle or orphan deletion hold.
+    retention: Baseline and retest results/evidence/conditions remain readable after either Run is purged and after subsequent analyst edits.
+acceptance_criteria:
+  - id: A1
+    given: A source Finding with an HTTP validation that reproduces the controlled flaw
+    when: The application is changed to the fixed fixture and the owner selects that validation for retest
+    then: A fresh Run uses the compatible HTTP executor, retains the new control/probe evidence, compares exact conditions and leaves the Finding assessment unchanged.
+  - id: A2
+    given: The flaw remains, login is broken, target is unreachable, or deployment/source mapping is unknown
+    when: Retest executes
+    then: Retained evidence distinguishes supported, scoped refuted and inconclusive/technical failure; no infrastructure failure or unknown mapping becomes a fix claim.
+  - id: A3
+    given: Foreign/stale/oversized baselines, a removed executor version, or a lost launch/result response
+    when: Admission or replay runs against real PostgreSQL
+    then: Rejections dispatch nothing, identical replay creates one Run/result, and no newer parent or incompatible executor is silently substituted.
+  - id: A4
+    given: Baseline Run purge, concurrent analyst edits and a large history
+    when: The owner launches and reads a retest or cancels it after acknowledged evidence
+    then: Retained exact inputs permit the operation within bounded work, latest analyst state survives, and accepted evidence remains with truthful attempt state; the implementation explains any necessary new surface and reuses existing comparison reads.
+tests:
+  - command: make require-database
+    covers: [A1, A2, A3, A4]
+  - command: go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditstore/... ./internal/auditservice/... ./internal/runservice/... ./internal/runstore/... ./internal/httpapi/... ./internal/config/...
+    covers: [A1, A2, A3, A4]
+  - command: make test-runtime test-wire-cross-language test-config
+    covers: [A1, A2, A3]
+  - command: make verify-public-api verify-public-api-postgres
+    covers: [A1, A2, A3, A4]
+  - command: make test-findings-e2e test-audit-completion-e2e
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+test_prerequisites:
+  - Extend the existing findings gate and completion matrix with the complete vulnerable-to-fixed scenario; zero selected tests or mandatory database/process skips fail. Do not add a separate retest gate runner.
+  - Use testdata catalogs and a scripted Gateway with the configured model; the controlled application, Server, Runtime, public API and PostgreSQL are real.
+  - Run full touched packages, save test logs, report completion/skip summaries, and remove the one owned disposable database and processes after pools stop. Never enable optional heavy I/O implicitly.

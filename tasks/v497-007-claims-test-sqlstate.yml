@@ -1,0 +1,32 @@
+schema_version: "1.0"
+id: V497-007
+title: Reuse the SQLSTATE classifier constant in the controller claim pilot
+milestone: persistence-api-cleanup-2026-10
+epic: persistence
+kind: defect
+introduced_by: V498-001
+priority: P2
+status: in_progress
+depends_on: [V498-001]
+languages: [go]
+goal: Keep the real PostgreSQL claim-lock regression compatible with the shared SQLSTATE guard.
+context:
+  authority: Agent-discovered prerequisite while executing the user-authorized V497 validation implementation and required full-package checks.
+  finding: internal/persistence/postgres/claims_pilot_postgres_test.go:104 compares the literal 55P03, failing TestSQLStateLiteralsLiveOnlyInTheClassifier on current main ec3d31588.
+  siblings: The existing classifier already declares SQLStateLockNotAvailable; the other pilot checks do not duplicate SQLSTATE literals.
+scope:
+  in:
+    - Replace the duplicate literal with the existing classifier constant.
+    - Run the real PostgreSQL package and the source guard.
+  out:
+    - Claim behavior, classifier behavior and TLA models.
+acceptance_criteria:
+  - id: A1
+    text: The existing guard accepts the pilot and the real PostgreSQL NOWAIT test still proves the held row lock.
+  - id: A2
+    text: Whole touched-package checks pass without a new SQLSTATE definition or runtime behavior change.
+tests:
+  - command: go test -count=1 ./internal/persistence ./internal/persistence/postgres
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
