@@ -5,7 +5,7 @@ milestone: eval-maintenance-2026-10
 epic: evals
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, markdown, json]
 goal: Measure supported useful observations, unsupported assertions, duplicates, token usage and latency on the existing Project Facts corpus using the configured model.
@@ -49,3 +49,16 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+
+implementation_commit: a75ba8b516960b05db90219d1fd2d62692c81867
+verification:
+  - command: python3 tests/eval/project_facts/prepare_recipe.py verify
+    result: 'Passed final 2026-11-28 verification of all six frozen cases.'
+  - command: go test -count=1 ./tests/eval/project_facts
+    result: 'Passed the full package on 2026-11-28.'
+  - command: make lint
+    result: 'Passed complete repository lint on 2026-11-28 after research and task updates.'
+  - command: Native Managed Eval execution and retained evidence review
+    result: 'All36 outcomes retained; all22 source receipts checked against original memories; evaluator-assisted semantic authority and missing usage/native human review explicitly reported.'
+  - command: Restore owned PostgreSQL archive and compare retained data
+    result: 'All61 table row counts/sorted row digests and sequence states match; own processes joined, databases/cluster/credentials removed, private evidence retained.'
