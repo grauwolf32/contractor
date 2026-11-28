@@ -30,6 +30,12 @@
     "before": "four zero-call producer assertions failed on the original code",
     "fullRuntime": "Passed final make test-runtime with pinned demo ffuf2.3.0; previous pinned run hit an isolated gRPC TLS context deadline, its38-case metrics/TLS recheck passed and the whole Runtime suite was repeated. See final exact summary recorded with study evidence.",
     "realPostgresRefreshedMain": "Both full touched Go packages passed again after cfe6a7217 refresh, with the owned disposable database",
-    "lint": "Full lint passed before acceptance; refreshed-main gate repeats separately"
+    "lint": "Full lint passed before acceptance; refreshed-main gate repeats separately",
+    "fullRuntimeFinal": {
+      "passed": 6807,
+      "skipped": 136,
+      "compactionCasesPassed": 616,
+      "optionalSkipsAreCoverage": false
+    }
   }
 }
