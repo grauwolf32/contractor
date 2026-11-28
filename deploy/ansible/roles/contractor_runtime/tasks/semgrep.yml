@@ -12,7 +12,7 @@
 - name: Copy the locked Semgrep environment
   ansible.builtin.copy:
     src: semgrep/{{ item }}
-    dest: "{{ __contractor_runtime_semgrep_dir }}/.bytecode-complete"
+    dest: "{{ __contractor_runtime_semgrep_dir }}/{{ item }}"
     owner: root
     group: root
     mode: "0644"
@@ -39,7 +39,7 @@
 
 - name: Mark the Semgrep environment complete
   ansible.builtin.copy:
-    dest: "{{ __contractor_runtime_semgrep_dir }}/{{ item }}"
+    dest: "{{ __contractor_runtime_semgrep_dir }}/.bytecode-complete"
     content: "{{ __contractor_runtime_tools.semgrep.version }}\n"
     owner: root
     group: root
