@@ -6,7 +6,7 @@ epic: evals
 kind: defect
 introduced_by: V471-003
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, go, yaml, markdown]
 goal: "An operator can prepare a baseline @1 versus candidate @2 Facts Eval that skips processing chatter and attaches exact sources."
@@ -42,3 +42,6 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: a260a007fbf0d7341efb0e2e9b64f7e2e893bdf4
+verification: >-
+  go test -count=1 ./tests/eval/project_facts passes. prepare_recipe.py verify --candidate passes for all six frozen cases. Both Eval profiles resolve through the actual catalog; model execution configuration, selected tools, limits and authority compare equal. Strict shipped catalog validation and lock extension/validation of a separate temporary operator catalog pass. make lint passes. No live semantic improvement claim: the @1/@2 repeated comparison is prepared, not executed in this side lane.
