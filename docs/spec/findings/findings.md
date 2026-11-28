@@ -2284,3 +2284,36 @@ report/conclusion. Existing receipt reconciliation, Worker budgets and common
 intake/source bounds remain authoritative; publication never authorizes extra
 traffic. Source interpretation remains with the investigating Worker and Runtime
 source adapters; Finding intake owns authority, correlation, receipts and retention.
+
+### Ordinary Finding check ownership
+
+**FND-R243.** One ordinary Project Run may carry an immutable Finding check
+binding: existing Finding ID/revision, one explicit retained source receipt and
+one bounded assertion (LIM-FND-61). The owner validates receipt membership; the
+completion context must match that binding, Project, Run and exact Workflow
+closure before pinning. No Audit, Task or hypothesis is fabricated. The shared
+completion collector and allocation-bound evidence/judgment RPCs admit the one
+assigned member. Sources, evidence, semantic results and execution state remain
+independent of canonical analyst assessment. Later analyst edits do not change
+accepted historical results or their launch revision.
+
+**FND-R244.** Ordinary check evidence and judgments use the common strict
+normalization, prospective bounds, corrections, exact Artifact CAS and natural
+receipt reconciliation. Their immutable Project finding-materials bindings and
+finding-history acknowledgements commit together before success is returned.
+Only the selected source receipt's indexed history is extended, using a bounded
+Run-specific prefix; admission never hydrates lifetime Finding history. The
+existing Project fence serializes publication with deletion and advances once
+per new acknowledgement. Replay changes neither materials nor the fence and
+remains available after allocation write fencing. No target or model execution
+repairs uncertain persistence. See FAIL-FND-10 and LIFE-FND-8.
+
+**FND-R245.** Ordinary check admission shares LIM-AWC-2 through LIM-AWC-6 and
+reserves one conclusion slot and LIM-AWC-13's execution byte reserve from early
+evidence. Audit alone owns its aggregate budgets, Task identities and lifecycle.
+Ordinary check receipts instead identify the existing Finding and carry no Task
+identity. A Run's failed/cancelled/interrupted outcome does not discard its
+acknowledged partial evidence or accepted judgments. Existing Project retention
+owns those bytes after permitted Run purge. Public source/history and ordinary
+Artifact reads remain the only history/evidence readers; a check gains no
+independently mutable lifecycle or store.

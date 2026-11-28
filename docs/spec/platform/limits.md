@@ -1084,6 +1084,8 @@ its owning requirement.
 | `LIM-PLN-23` | 4 MiB compact UTF-8 JSON per operation or reply; 64 unique tool declarations; 5,001 ordered operations | One live Runtime Planner host | Go/Python DTOs, strict private handler, ordered host and bounded transport | [PLN-R136](../execution/planners.md), [PLN-R137](../execution/planners.md) |
 | `LIM-PLN-24` | 512 KiB compact UTF-8 JSON for a Planner execution envelope; 4 MiB for the surrounding official A2A protobuf request | Runtime Planner A2A ingress; Worker content retains LIM-WRK-9 | Server StageContentRequest validation, Runtime Planner DTO, A2A body admission | [PLN-R136](../execution/planners.md) |
 
+| `LIM-FND-61` | One Finding, one retained source receipt and one assertion of at most 32 KiB UTF-8 per ordinary check Run; exact revision within the shared safe integer bound | Immutable ordinary Finding check binding and common context | Server pin/schema/Runtime context validation; shared result/evidence limits and existing paged history bounds also apply | [FND-R243](../findings/findings.md) |
+
 ## Browser exploration
 
 | ID | Value | Scope | Enforcement | Owner |

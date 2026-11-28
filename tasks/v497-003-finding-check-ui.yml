@@ -1,0 +1,170 @@
+schema_version: "1.0"
+id: V497-003
+title: Launch validation and retest from the Finding and show independent check history
+milestone: finding-validation-retest-2026-11
+epic: ui
+kind: feature
+priority: P1
+status: pending
+depends_on: [V497-002]
+languages: [typescript, css, markdown]
+goal: >-
+  Let a researcher launch target validation and a selected HTTP retest from the
+  Finding card, then understand the evidence, tested conditions and execution
+  outcome without confusing them with the analyst's decision.
+demonstration: >-
+  In the browser, open an evidenced source Finding, choose its source and Project
+  target, launch validation, inspect retained control/probe exchanges, then select
+  that result for retest after the controlled target is fixed. Both checks appear
+  in the same history while the analyst assessment remains unchanged.
+context:
+  authority: >-
+    User decision 2026-11-28 accepts planning Finding retest and validation with
+    sources -> target validation -> retest after a fix as the first scenario.
+    These UI details are agent proposals within that direction, using the API
+    delivered by V497-001/002; implementation is not started by planning.
+    Later user instruction on the same date requires maximally compact changes,
+    existing mechanisms or small generalizations, and only necessary new code.
+  reassessment:
+    baseline: d4b8c5112fef383a47ce3aae9abc1094e346c2e5
+    verdict: Still needed; Finding actions do not yet exist, but history and evidence UI already do.
+    reuse: >-
+      ui/src/modules/checks owns shared queries/refresh/presentation rules;
+      routes keep lifecycle commands. Existing finding-card SourceHistory,
+      SourceEvidence/CapturedExchange and widgets/artifact-preview cover history,
+      multiple HTTP captures and source snippets. Extend their inputs/rendering
+      without a second cache/poller or broad Findings module extraction.
+  proposal: docs/proposals/0059-finding-validation-and-retest.md
+  specification:
+    - docs/spec/findings/findings.md#FND-R213
+    - docs/spec/findings/findings.md#FND-R216
+    - docs/spec/ui/ui.md
+    - docs/spec/ui/journeys.md
+    - docs/spec/artifacts/projects.md#PRJ-R80
+  design:
+    - docs/design/ui/README.md
+    - ui/src/ui/README.md
+    - ui/src/modules/checks/README.md
+  boundary: >-
+    UI selects explicit source/result and current target context and consumes
+    Server-returned eligibility, Run state and accepted history via generated
+    clients. It does not assemble result JSON, choose an executor from prose,
+    infer an assessment or write private state. Use existing Run/evidence/shared
+    UI components. A raw Run link is a simpler interim presentation but does
+    not satisfy the complete Finding journey; keep it as navigation, not a
+    second check status source. Reopen layout if real history evidence is unwieldy.
+scope:
+  in:
+    - Finding actions for HTTP validation and retest of an explicitly selected accepted result.
+    - A launch view with source/claim, safe target/role, selected profile, budget and version/mapping limitations.
+    - Paged check history, exact pair comparison, retained HTTP evidence and links to ordinary Runs.
+    - Stale revision, missing profile/materials, empty progress pages, cancellation and read-failure behavior.
+    - Shared UI/check modules, required UI version increment, journey documentation and cases in the existing mocked/browser-stack gates.
+  out:
+    - Source validation/retest selectors before V497-005, bulk actions, schedules and new status/assessment editors.
+    - Browser-side result aggregation or automatic Finding closure/rejection/severity changes.
+    - Changes to backend execution, credentials or configured models.
+requirements:
+  - id: R1
+    text: >-
+      Source validation selects one explicit source receipt; retest selects
+      one accepted HTTP result with its baseline visible. Follow every picker
+      page, including empty progress pages. Explain Server-provided unsupported
+      or unavailable prerequisites and offer existing Project configuration
+      navigation where appropriate; never silently select another source/method.
+  - id: R2
+    text: >-
+      Before launch show safe target, executor/profile, role reference, budget,
+      exact material versions and known/unknown deployment linkage. Retest
+      shows baseline/current conditions. Use ordinary credential selection;
+      do not expose secret values or copy old session state into form data.
+  - id: R3
+    text: >-
+      Preserve launch idempotency key and identical payload for a lost reply,
+      clearing it only for a deliberately new action. A stale revision is shown
+      as a conflict requiring refreshed selection, without silent overwrite or
+      automatic target execution. Navigate to the returned Run and history entry.
+  - id: R4
+    text: >-
+      Display execution state, accepted check conclusion and analyst assessment
+      separately. Render scoped refutation as not reproduced under tested
+      conditions, never fixed. Unknown mapping, changed role and inconclusive
+      reasons stay visible. A failed Run can retain an earlier accepted judgment
+      or evidence; an unaccepted model statement is not a displayed result.
+  - id: R5
+    text: >-
+      Refetch history and Finding when a Run becomes terminal, stop settled
+      polling and back off failed reads. Cancellation remains requested/active
+      until Server reports termination. Open full materials on demand, retain
+      both control and probe exchanges, and use bounded list pages rather than
+      fetching lifetime history. Show stale pair data and retryable read errors.
+  - id: R6
+    text: >-
+      Reuse common UI primitives and theme tokens; technical IDs stay behind
+      Technical details. Verify keyboard access and 390px layout in light,
+      dark and black themes. Update generated API clients only via generators.
+  - id: R7
+    text: >-
+      Add only launch/baseline interactions and necessary semantic labels to
+      existing Finding/history/evidence views. Reuse modules/checks where its
+      existing contract fits; keep ordinary Run-specific facts with their Run
+      owner rather than adapting them to Audit types. Compare two selected exact
+      results locally from existing reads; do not add a new cache, polling owner,
+      global cross-source timeline or server comparison endpoint.
+failure_outcomes:
+  - operation: Launch or cancel a check from the browser
+    permanent: Render server 4xx/unsupported/stale errors with no optimistic semantic result and no implicit retry that changes selection.
+    retryable: Render retryable storage/service failures and preserve original launch identity; use existing bounded request retry/backoff behavior.
+    ambiguous: Reconcile the same key/payload and returned ordinary Run; duplicate clicks/lost responses do not create a second launch.
+    cancelled: UI reports cancellation only from Server state; closing the dialog does not pretend to cancel an admitted Run.
+    timeout: Request timeout is displayed independently from Run/HTTP deadline; resolve status through the existing API.
+  - operation: Read paged history, comparison and evidence
+    permanent: Show inaccessible/missing content or revision conflict explicitly; never substitute latest evidence or empty success.
+    retryable: Existing read backoff; no target/model activity on a history retry.
+    ambiguous: Read-only retry with the same exact selectors/cursor; restart conflicted traversals explicitly.
+    cancelled: Abort browser reads on navigation without affecting the Run or retained materials.
+    timeout: Existing UI request deadlines; avoid overlapping unbounded polls.
+cardinality:
+  - collection: Finding sources, checks and their containing Project lists
+    expected: A few sources and checks
+    maximum: Follow all server pages; functional fixture places the desired entry beyond the first page
+    bound: At most one bounded page per request, 64 history rows/1 MiB metadata; use normal incremental list rendering and load full evidence on demand.
+  - collection: Compared results
+    expected: Baseline and selected retest
+    maximum: Two exact results
+    bound: No recursive ancestry traversal, auto-expansion of all sources or fetching all response bodies with a list.
+lifecycle:
+  - entity: UI selections and ordinary Run views
+    delete: Existing owner deletion controls only; this task adds no destructive check endpoint.
+    cascade: Unmount cancels local reads/polls, not backend Runs; Project deletion follows backend state.
+    retention: Retained history remains readable when a source Run link is tombstoned, with original provenance shown truthfully.
+acceptance_criteria:
+  - id: A1
+    given: An evidenced source Finding and a configured controlled target
+    when: A user completes validation and retest from the browser
+    then: The same Finding shows both exact results and evidence, selected baseline and changed conditions, with no automatic analyst edit.
+  - id: A2
+    given: A desired source/baseline after an empty progress page or beyond the first page
+    when: The user selects it and opens comparison/evidence
+    then: Every relevant page is reachable and each request stays bounded without loading lifetime history or unrelated evidence.
+  - id: A3
+    given: Lost launch reply, stale revision, missing profile, failed auth, cancelled Run and a failed history read
+    when: UI recovery and terminal updates occur
+    then: One launch is reconciled, errors/limitations remain explicit, polling settles correctly and no unreported cancelled/fixed state is claimed.
+  - id: A4
+    given: Keyboard navigation and a 390px viewport in light, dark and black themes
+    when: The user launches a check and reads history/comparison
+    then: Shared components remain accessible and usable without overflow, hidden actions or unreadable evidence, the full affected UI suites pass, and the change reuses existing query/evidence owners without a parallel cache or poller.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4]
+  - command: make ui-browser-mocked test-ui-stack
+    covers: [A1, A2, A3, A4]
+  - command: make test-findings-e2e
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+test_prerequisites:
+  - Extend existing mocked browser and tests/ui-stack scenarios and their release required-case checks; preserve zero-match failure and do not create a feature-specific browser runner.
+  - The complete user journey uses the real Server/Runtime/PostgreSQL/controlled-target stack; focused UI error/large-page cases may use contract-faithful fixtures.
+  - Use one disposable database for the real-stack lane, remove owned processes/database after use, save logs and consume final summaries only. Report optional heavy-I/O/platform skips separately.

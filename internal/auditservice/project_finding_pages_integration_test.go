@@ -479,16 +479,3 @@ const projectFindingForeignScaleFindingsSQL = `INSERT INTO project_findings
  'updated_at',timestamptz '2027-01-01 00:00:00+00'+n*interval '1 microsecond'))).*
  FROM project_findings AS seed CROSS JOIN generate_series(1,10000) AS n
  WHERE seed.finding_id=$1`
-
-const projectFindingScaleHistorySQL = `WITH copied AS (
- INSERT INTO artifact_bindings
- SELECT (jsonb_populate_record(NULL::artifact_bindings,to_jsonb(seed)||jsonb_build_object(
- 'name',$3::text||'scale.'||lpad(n::text,6,'0')))).*
- FROM artifact_bindings AS seed CROSS JOIN generate_series(1,10000) AS n
- WHERE scope_kind='project' AND scope_id=$1 AND namespace='finding-history' AND name=$2
- RETURNING name
-)
- INSERT INTO artifact_binding_revisions
- SELECT (jsonb_populate_record(NULL::artifact_binding_revisions,to_jsonb(seed)||jsonb_build_object('name',copied.name))).*
- FROM artifact_binding_revisions AS seed CROSS JOIN copied
- WHERE seed.scope_kind='project' AND seed.scope_id=$1 AND seed.namespace='finding-history' AND seed.name=$2`

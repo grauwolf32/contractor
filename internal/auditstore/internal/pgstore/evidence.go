@@ -2,7 +2,6 @@ package pgstore
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
@@ -89,19 +88,6 @@ func (s *OwnerTxStore) admitRecordedCollection(ctx context.Context, auditID, exe
 	prospectiveBytes := retainedBytes + newBytes
 	if prospectiveRecords > recordLimit || prospectiveBytes > byteLimit {
 		return auditstore.ErrEvidenceBudgetExhausted
-	}
-	return nil
-}
-
-// ValidateEvidenceReplay requires an already linked receipt, preventing an
-// unlinked preparatory binding from being mistaken for accepted evidence.
-func (s *OwnerTxStore) ValidateEvidenceReplay(ctx context.Context, auditID, key string, ref []byte) error {
-	var found bool
-	if err := s.tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM audit_artifact_links WHERE audit_id=$1 AND logical_key=$2 AND artifact_ref=$3::jsonb)`, auditID, key, json.RawMessage(ref)).Scan(&found); err != nil {
-		return err
-	}
-	if !found {
-		return auditstore.ErrInvalid
 	}
 	return nil
 }

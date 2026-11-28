@@ -1,0 +1,147 @@
+schema_version: "1.0"
+id: V497-006
+title: Generalize acknowledged check result ownership before ordinary Finding validation
+milestone: finding-validation-retest-2026-11
+epic: findings
+kind: feature
+priority: P1
+status: completed
+implementation_commit: 86cb9b5d0f6cf2f57621acf9ba658dc2f2258a0e
+depends_on: [V497-007]
+languages: [go, python, json, markdown]
+goal: >-
+  Make the existing deterministic check collector, evidence and judgment
+  acceptance usable by an explicitly finding-bound ordinary Run while
+  preserving the Audit caller and acknowledged partial-result guarantees.
+demonstration: >-
+  Existing production evidence/judgment handlers accept and replay bounded
+  evidence and a conclusion from a trusted ordinary finding-bound Run fixture
+  through real Server, Runtime and PostgreSQL. The same handlers continue to
+  serve real Audit checks. Public launch and shipped HTTP validation are
+  delivered by V497-001 after this prerequisite, not invented in this task.
+context:
+  authority: >-
+    User request 2026-11-28 assigns V497-001 with compact implementation,
+    maximum reuse/generalization and real-component verification. AGENTS.md
+    4.1 requires a newly discovered prerequisite to have its own task instead
+    of growing the assigned task. This decomposition is an agent proposal;
+    no implementation or completion is claimed by creating the task.
+  proposal: docs/proposals/0059-finding-validation-and-retest.md
+  specification:
+    - docs/spec/audits/worker-completion.md#AWC-R127
+    - docs/spec/audits/common-contract.md#ACT-R4
+    - docs/spec/execution/worker.md
+    - docs/spec/execution/scheduler.md
+    - docs/spec/platform/persistence.md
+    - docs/spec/findings/findings.md#FND-R213
+    - docs/spec/findings/findings.md#FND-R214
+  investigation:
+    baseline: d4b8c5112fef383a47ce3aae9abc1094e346c2e5
+    evidence:
+      - internal/runstore/audit_completion.go and scan.go admit only audit-managed completion; PostgreSQL workflow_runs_check independently enforces that restriction.
+      - internal/scheduler/audit_completion.go requires AuditExecutionID and AuditSubmissionKey before placement.
+      - internal/auditservice/evidence.go requires execution Task origin, AuditScope and Audit retention/budget admission.
+      - internal/auditservice/judgments.go requires Audit Task membership, generations, budgets and Audit artifact links.
+      - Runtime audit_judgments.py and audit_evidence.py verify Audit-owned receipts; common context/schema/encoding require Audit and Task identities.
+    real_postgres_check: >-
+      On 2026-11-28 four selected current-main tests passed against an owned
+      disposable PostgreSQL database: ordinary completion omission/spoofed
+      authority, exact common completion membership, judgment correction/
+      replay/fences, and batch/evidence membership. These establish the current
+      boundary only, not readiness of the new ordinary path.
+    finding: >-
+      The initial V497-001 plan underestimated the common ownership prerequisite.
+      A complete implementation cannot be limited to a launch field, template
+      and completion setter while retaining accepted partial evidence/results.
+  boundary: >-
+    Extract only operations genuinely shared by the existing Audit caller and
+    concrete V497-001 ordinary caller: bounded normalization, deterministic
+    assembly, exact evidence retention, receipt reconciliation and fencing.
+    Audit remains owner of Tasks, generations tied to Tasks, aggregate budgets
+    and orchestration. Finding-bound authority derives from the immutable Run
+    pin and selected existing receipt; it is not a fake Audit or Task. Reuse
+    Artifact bindings as natural receipts and the existing source-history owner.
+    No independent result store, controller, owner registry or new model finalizer.
+    If this cannot be done locally without broad Audit redesign, report concrete
+    options before implementation expands again.
+scope:
+  in:
+    - Trace and generalize the existing completion/evidence/judgment authority through the shared production paths.
+    - Strict Run pin, common context/receipt origin and database constraint changes needed by the two actual owners.
+    - Partial acceptance, bounded per-Run admission, exact Artifact/source-history retention and replay under the same allocation fences.
+    - Required specs, shared Go/Python fixtures, migration/ownership/ERD changes and existing completion/findings release selectors.
+  out:
+    - Public launch, current target selection and shipped validation configuration owned by V497-001.
+    - Retest, UI, source validation, synthetic Audit/Task, new generic validator framework or broad cosmetic renaming.
+requirements:
+  - id: R1
+    text: Introduce only the owner distinction required by actual Audit and finding-bound Runs. All shared production entry points validate the same closed shapes and trusted allocation/Run membership; no model field selects authority or creates a Task.
+  - id: R2
+    text: Reuse the existing collector, deterministic publisher, selected-source preparation and Artifact CAS/receipt mechanisms. Preserve Audit-specific lifecycle and budgets in its owner instead of transplanting them into Runs or duplicating their code.
+  - id: R3
+    text: Acknowledged evidence and conclusions are retained in the correct owning scope before replying, survive later technical Run failure/purge, and reconcile identical bytes after response loss without target/model execution. Canonical Finding assessment never changes.
+  - id: R4
+    text: Keep shared count/byte/deadline bounds, correction/replay semantics and joined cancellation. Strictly reject unsupported owners, foreign evidence, incompatible pin/context and missing authority on read and write.
+  - id: R5
+    text: Keep new exports and abstractions used by production handlers; do not add a separate public API or test-only production hooks. Explain every new mechanism, removed duplication and production LOC delta. Extend existing tests/gates without creating another harness.
+failure_outcomes:
+  - operation: Prepare and authorize common completion/evidence/judgment acceptance
+    permanent: Invalid/foreign/missing owner, pin, context, evidence or mutation base fails through documented existing invalid/not-found/precondition/conflict semantics, with no partial authoritative write.
+    retryable: Existing bounded transaction conflict policy; no unbounded retry or replay of external probes.
+    ambiguous: Reconcile the same natural receipt and exact request/Artifact bytes before consulting mutable sources; changed content conflicts.
+    cancelled: Existing allocation/Run fence denies late mutation; all owned preparation/publication work joins before release, and acknowledged material remains retained.
+    timeout: Existing operation, Run and publication owners retain independent deadlines; timeout never synthesizes a semantic conclusion.
+cardinality:
+  - collection: Ordinary finding-bound assignment
+    expected: One selected receipt and one conclusion
+    maximum: One item; existing 8 MiB combined collected-data and 256-record ceilings
+    bound: Prospective admission before write; per-Run work cannot depend on lifetime Finding history.
+  - collection: Existing Audit assignments and retained history
+    expected: Existing bounded Audit member sets and paged source history
+    maximum: Existing Audit ceilings; realistic history regression contains 10000 records
+    bound: Keep existing row/byte limits and indexed source pages; never hydrate an entire Project/Finding history for admission or replay.
+lifecycle:
+  - entity: Existing completion pins, accepted result/evidence and Artifact history
+    delete: Existing owner Run/Project/Audit lifecycle; no independent check entity or delete API.
+    cascade: Existing bounded owner cleanup releases its exact bindings and retained sources without orphan holds.
+    retention: Acknowledged material survives permitted producer Run purge and later technical failure; owner deletion releases it by the existing rules.
+acceptance_criteria:
+  - id: A1
+    given: An actual Audit check and a trusted ordinary finding-bound Run fixture
+    when: Both use the production completion/evidence/judgment handlers with real Server/Runtime/PostgreSQL
+    then: One shared implementation accepts exact results with correct owner provenance, without artificial Audit/Task records for the ordinary Run.
+  - id: A2
+    given: Lost replies, changed bytes, foreign evidence, stale corrections and fenced allocations
+    when: Production acceptance and reconciliation run
+    then: Real PostgreSQL enforces atomicity and identity, invalid writes fail, and no accepted operation is repeated through target/model execution.
+  - id: A3
+    given: Accepted partial evidence/conclusions followed by cancellation, timeout, technical failure or producer purge
+    when: Existing release and deletion paths settle
+    then: The accepted material stays readable with truthful attempt status, late writes are denied, cleanup joins, and owner deletion releases all owned bindings.
+  - id: A4
+    given: Boundary-size collections, 10000-record history and existing Audit fixtures
+    when: Whole touched-package, wire and process gates run
+    then: Counts, bytes and work stay bounded; both owners share validation and publication; code/spec/fixtures/ownership agree without a second result mechanism.
+tests:
+  - command: make require-database
+    covers: [A1, A2, A3, A4]
+  - command: go test -tags=integration -count=1 ./internal/contracts/... ./internal/runstore/... ./internal/runservice/... ./internal/scheduler/... ./internal/controlplane/... ./internal/auditservice/... ./internal/auditstore/... ./internal/findingintake/... ./internal/httpapi/... ./internal/artifacts/... ./internal/persistence/...
+    covers: [A1, A2, A3, A4]
+  - command: make test-runtime test-wire-cross-language
+    covers: [A1, A2, A3, A4]
+  - command: make test-findings-e2e test-audit-completion-e2e test-audit-common-programs-e2e
+    covers: [A1, A2, A3, A4]
+  - command: make verify-public-api verify-public-api-postgres
+    covers: [A1, A2, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+test_prerequisites:
+  - Use existing real process fixtures and an owned disposable PostgreSQL database; configured unreachable database, mandatory skips and zero selected cases fail. Drop it after pools/processes stop.
+  - Tests use testdata and pseudo-Skills; retain configured model selections. Optional heavy I/O remains caller opt-in and its disabled skips are not passing coverage.
+  - Save output to logs, consume final status/skip summaries and investigate detailed logs only on failure or timeout.
+verification:
+  date: '2026-11-28'
+  outcome: Shared ordinary and Audit evidence/judgment acceptance, correction, replay and retention passed real PostgreSQL, real Server/Runtime and required completion/findings gates. Public launch remains V497-001.
+  evidence: tasks/evidence/v497-006-common-result-owner.json
+  production_loc_delta: '+420 excluding generated code, tests and documentation; no new tables, controllers, RPC operations or public endpoints.'
+  optional_skips: Nine named heavy I/O Go fixtures, 139 declared Runtime optional/platform cases and one wire heavy fixture remain disabled and are not counted as passing coverage.

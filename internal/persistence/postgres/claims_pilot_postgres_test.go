@@ -101,7 +101,7 @@ func TestPostgresControllerClaimsTransactionFencesTakeover(t *testing.T) {
 					// sleeps or elapsed-time assertions. NOWAIT must reject it.
 					_, err = f.second.Exec(f.ctx, "SELECT 1 FROM "+table.name+" WHERE "+table.subject+"=$1 FOR UPDATE NOWAIT", table.id)
 					var pgErr *pgconn.PgError
-					if !errors.As(err, &pgErr) || pgErr.Code != "55P03" {
+					if !errors.As(err, &pgErr) || pgErr.Code != SQLStateLockNotAvailable {
 						t.Fatalf("claim lock not retained until transaction end: %v", err)
 					}
 					// Move the lease into the past deterministically while retaining

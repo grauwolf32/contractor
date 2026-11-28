@@ -99,3 +99,11 @@ func (s *FindingEventsTx) CommitDirectFindingAssessment(ctx context.Context, ass
 	_, err = s.tx.Exec(ctx, "SELECT contractor_advance_finding_correlation(ARRAY[$1::text])", assessment.ProjectID)
 	return err
 }
+
+// AdvanceFindingHistory invalidates Project source/history pages after one
+// acknowledged ordinary check. The caller holds LockFindingCorrelationFence;
+// replay is resolved before this method, so it never advances twice.
+func (s *FindingEventsTx) AdvanceFindingHistory(ctx context.Context, projectID string) error {
+	_, err := s.tx.Exec(ctx, "SELECT contractor_advance_finding_correlation(ARRAY[$1::text])", projectID)
+	return err
+}

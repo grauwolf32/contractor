@@ -40,7 +40,7 @@ that ID and no second Project hypothesis registry.
 | `program` | Authored selected Workflow aliases, input contracts, initial work and named hypothesis seeds, continuation and limits/policy |
 | `hypothesis` | System identity/revision and immutable statement, scope and grounds |
 | `task` | Accepted Audit/task identity, selected Workflow alias, exact input descriptors/parameters and optional hypothesis pin |
-| `context` | Trusted Audit/Run, exact Workflow identity/digest, bounded item-key/task membership and objective, optional exact readable hypothesis snapshot and admitted evidence descriptors |
+| `context` | Trusted Audit/task/Run or Project/Finding/Run binding, exact Workflow identity/digest, bounded item membership and objective, optional exact readable hypothesis snapshot and admitted evidence descriptors |
 | `proposal-context` | Server-local pinned program and exact selected material handles used to validate producer choices; not a model-authored program or second execution state |
 | `proposals` | [Local hypotheses, exact grounds and optional work](hypotheses.md#HG-R6); no persisted IDs or automatic admission |
 | `proposal_context` | Frozen Run-local research handles, original input identities, allowed Program and explicitly selected observations |
@@ -107,7 +107,8 @@ Exploratory work requires neither a dummy hypothesis nor verdict. Technical Run
 success/failure is separate and never proves or refutes a claim. A negative probe
 cannot globally refute an existential bug claim beyond the stated conditions.
 
-**ACT-R5.** The assembler derives Audit/task/Run and exact hypothesis provenance
+**ACT-R5.** The assembler derives Audit/task/Run and exact hypothesis provenance,
+or the immutable Project/Finding/Run binding under FND-R243,
 from caller-supplied trusted context. It requires complete, unique per-item
 membership and selected evidence membership. For Runtime-selected HTTP evidence,
 the accepting owner validates and retains the exact frozen capture under HTP-R150
@@ -125,6 +126,12 @@ context before allocation. Runtime refuses those tools without the contract.
 PostgreSQL protects immutable Run completion and exact allocation-to-Run
 identity. It does not interpret Audit roles or duplicate Workflow selection
 rules to infer a required completion target.
+
+Finding-bound context is a closed alternative: one Project, immutable Finding
+check binding and one matching Finding member, without Audit, Task or hypothesis
+identities. Its result origin and acknowledgement generations retain that same
+binding. Both owners use the same condition/evidence rules, strict schema and
+deterministic assembler; the binding never grants authority by itself.
 
 **ACT-R6.** Neither verdict polarity nor a completed Run creates a finding.
 Supporting a bug claim or refuting a positive property may justify a problem only

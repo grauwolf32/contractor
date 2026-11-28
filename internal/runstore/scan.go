@@ -60,7 +60,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		if err := strictjson.Decode(auditCompletion, &result.AuditCompletion); err != nil {
 			return WorkflowRun{}, fmt.Errorf("decode Audit completion: %w", err)
 		}
-		if result.AuditCompletion == nil || result.AuditCompletion.Validate() != nil || result.PublicationMode != PublicationAuditManaged {
+		if result.AuditCompletion == nil || result.AuditCompletion.Validate() != nil || (result.AuditCompletion.Finding == nil) != (result.PublicationMode == PublicationAuditManaged) || (result.AuditCompletion.Finding != nil && result.ProjectID == nil) {
 			return WorkflowRun{}, fmt.Errorf("invalid stored Audit completion authority")
 		}
 	}

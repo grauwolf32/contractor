@@ -1,0 +1,126 @@
+{
+  "task": "V497-006",
+  "date": "2026-11-28",
+  "status": "verified",
+  "base_revision": "ec3d31588d0aec2dd86adce997ec1622c6c56ffc",
+  "implementation_commit": "86cb9b5d0f6cf2f57621acf9ba658dc2f2258a0e",
+  "outcome": "One shared production path accepts Audit and one immutable Finding-bound ordinary Run; real process evidence/result retention survives producer purge. Public launch remains V497-001.",
+  "verification": {
+    "go_integration": {
+      "passed": 5138,
+      "optional_heavy_io_skips": 9,
+      "packages": "Task-listed full Go packages; later whole Audit owner packages rerun after cleanup and shared-fixture registration fixes."
+    },
+    "runtime": {
+      "passed": 6771,
+      "declared_optional_or_platform_skips": 139
+    },
+    "wire": {
+      "fixtures": 442,
+      "go_shared_tests": 476,
+      "python_shared_tests": 309,
+      "python_selected_cases": 1642,
+      "optional_heavy_io_skips": 1
+    },
+    "findings_process": {
+      "required_cases": 27,
+      "status": "passed"
+    },
+    "completion_gate": {
+      "go_cases": 238,
+      "runtime_cases": 490,
+      "selected_skips": 0
+    },
+    "common_audit_process": {
+      "cases": 8,
+      "selected_skips": 0
+    },
+    "public_api": "make verify-public-api verify-public-api-postgres passed",
+    "lint": "make lint passed",
+    "real_regressions": [
+      "Ordinary Run without synthetic Audit/Task",
+      "Mismatched pin/context rejection",
+      "Evidence and supported judgment, changed-byte conflict, stale and successful correction",
+      "Identical acknowledgement replay after write fencing; late write denial",
+      "Accepted evidence/result survive failed Run purge; analyst assessment unchanged",
+      "10000-record source history does not enter per-Run admission scans",
+      "Actual Server/Runtime/PostgreSQL ordinary completion and public history read after producer purge"
+    ]
+  },
+  "inventory": {
+    "production_loc": {
+      "added": 814,
+      "removed": 394,
+      "net": 420,
+      "excludes": "generated wire/schema code, tests, docs, task records"
+    },
+    "reused": [
+      "Run audit_completion JSON pin and existing allocation contract",
+      "Existing Runtime collector, deterministic publisher and source preparation",
+      "Artifact CAS/natural receipts and finding source history",
+      "Existing Project fence/cleanup and Audit-specific Task/budget owner"
+    ],
+    "new_mechanisms": [
+      "Concrete resultOwner adapter for the two real owners",
+      "Strict Finding binding and closed common context/origin alternative",
+      "Run-specific Artifact history acknowledgements in existing Project namespaces"
+    ],
+    "new_tables": 0,
+    "new_controllers": 0,
+    "new_public_endpoints": 0,
+    "new_rpc_operations": 0,
+    "removed": "Superseded Audit replay helper; evidence/judgment handlers reduced by 98 production lines."
+  },
+  "environment": {
+    "database": "Owned disposable PostgreSQL, port 55497, max_locks_per_transaction=1024",
+    "tmpdir": "Physical macOS path",
+    "ffuf": "Existing pinned 2.3.0 binary; system 2.1.0 is incompatible with optional conformance tests",
+    "heavy_io": false,
+    "live_model_calls": false,
+    "demo_changes": false
+  },
+  "initial_failures_resolved": [
+    "Physical TMPDIR and PostgreSQL lock capacity corrected in test environment",
+    "V497-007 fixes pre-existing shared SQLSTATE guard failure from V498-001",
+    "Fixture template normalized before digesting; effective context/model settings made coherent",
+    "Shared regression retains TestShared identity and shares the existing SQL scale fixture without an integration-only dependency"
+  ],
+  "logs": {
+    "go-full2.jsonl": {
+      "path": "/tmp/contractor-v497-run/go-full2.jsonl",
+      "sha256": "e305860b7d0a484e0057c6a6198d894c426c0297d02f0f9afb3fb139718f9657"
+    },
+    "owner-packages2.jsonl": {
+      "path": "/tmp/contractor-v497-run/owner-packages2.jsonl",
+      "sha256": "4687c47ecf2c0cfe54f16ec4e1ef44adca59996de880475776b464e1e4fd1984"
+    },
+    "auditservice-final.jsonl": {
+      "path": "/tmp/contractor-v497-run/auditservice-final.jsonl",
+      "sha256": "4592d1190db2142ef331ed867d5f19e31ea586efee0f4f8aaaba3de4994f1104"
+    },
+    "owner-process.jsonl": {
+      "path": "/tmp/contractor-v497-run/owner-process.jsonl",
+      "sha256": "1b1b8929f09b7b4bdc34a58ac496bd5704aaf7b6965cbcd850db9b6b17387134"
+    },
+    "runtime-wire2.log": {
+      "path": "/tmp/contractor-v497-run/runtime-wire2.log",
+      "sha256": "3a848a8acdca3deed6ad2983c91a93630856edf697184594a1733da28b72700e"
+    },
+    "lint-wire5.log": {
+      "path": "/tmp/contractor-v497-run/lint-wire5.log",
+      "sha256": "f8b21512184b6534d53495a51d50cd576c78751786cfd8c5bb75365fea79f7f8"
+    },
+    "features4.log": {
+      "path": "/tmp/contractor-v497-run/features4.log",
+      "sha256": "e1cc93709f9343300edcc349290928729f28edc29c2691e25b0a179191613bc5"
+    },
+    "audit-api5.log": {
+      "path": "/tmp/contractor-v497-run/audit-api5.log",
+      "sha256": "519d838c07106566e52e687cd0af489ec31489b6ffeb5f62539e5de97fdfb79c"
+    },
+    "claims-test-gate.log": {
+      "path": "/tmp/contractor-v497-run/claims-test-gate.log",
+      "sha256": "14dee2550dad8d25b6ea0ff708740f008bb670d8ba4ca5a9e0aa01f42d5bf41f"
+    }
+  }
+}

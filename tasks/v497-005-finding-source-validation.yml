@@ -1,0 +1,175 @@
+schema_version: "1.0"
+id: V497-005
+title: Validate a target Finding in exact sources and retest a supported source check
+milestone: finding-source-validation-2026-11
+epic: findings
+kind: feature
+priority: P2
+status: pending
+depends_on: [V497-004]
+languages: [go, python, typescript, yaml, json, markdown]
+goal: >-
+  After the HTTP release, explain an observed target problem with exact source
+  evidence and repeat that supported source check against a selected new source
+  revision using the same type of agent and tools.
+demonstration: >-
+  Select a retained HTTP Finding, validate it against a source archive that
+  contains the responsible handler and missing authorization check, then retest
+  the source check against a fixed archive. The same Finding shows HTTP and
+  source evidence plus independent source-retest results without changing its
+  analyst assessment or claiming the archive identifies the live deployment.
+context:
+  authority: >-
+    User discussion and planning decision 2026-11-28 include validation across
+    sources and live target and retest with analogous agent tools. The user
+    explicitly prioritizes sources -> target -> post-fix retest. This P2 follow-up
+    and its source-only scope are agent proposals; it does not block V497-004 or
+    claim that inverse validation has identical proof strength to HTTP reproduction.
+    Later user instruction on the same date requires maximally compact changes,
+    reuse/generalization of existing mechanisms and only necessary new code.
+  reassessment:
+    baseline: d4b8c5112fef383a47ce3aae9abc1094e346c2e5
+    verdict: Still a P2 follow-up, using one concrete existing source reviewer family.
+    reuse: >-
+      Start with source_findings_reviewer and source-analysis tools
+      open_source_archive/list_source_files/read_source/search_source; source
+      evidence, code previews and exact Artifact history already exist. Add a
+      versioned validation/retest variant to the V497-001/002 common path.
+    delta: No new source engine, universal executor registry, general code-review pipeline or separate result owner.
+  proposal: docs/proposals/0059-finding-validation-and-retest.md
+  specification:
+    - docs/spec/findings/findings.md#FND-R209
+    - docs/spec/findings/findings.md#FND-R213
+    - docs/spec/findings/findings.md#FND-R226
+    - docs/spec/audits/common-contract.md#ACT-R4
+    - docs/spec/configuration/agent-templates.md#TPL-R10
+    - docs/spec/tools/workspace.md
+    - docs/spec/tools/code-analysis.md
+  boundary: >-
+    Add one explicit supported source-analysis profile and its paired retest to
+    the V497 shared launch/result/history path. Runtime source tools own archive
+    and code interpretation; Server pins exact artifacts and enforces Finding
+    authority. Evidence supports a path/cause in selected code, not identity of
+    the deployed application. Reusing the HTTP Worker with extra broad tools is
+    simpler configuration but violates focused method/tool ownership; use the
+    existing shipped source reviewer family. Reopen for other executor families.
+scope:
+  in:
+    - Explicit source-validation selection for one existing HTTP Finding, preserving its original HTTP evidence and claim.
+    - The existing source_findings_reviewer family, a versioned source-validation variant and paired source-retest instructions using its source-analysis tools plus the necessary shared result/evidence operations.
+    - Exact source archive selection, bounded route/handler/path evidence, stated deployment mapping and independent result retention.
+    - Source retest of a retained source check and supported original source-discovery receipt when its exact executor/method is reproducible.
+    - API/UI method eligibility, version selection, comparison and full real-component acceptance for this later slice.
+  out:
+    - Arbitrary scanner/provider retest, automatic repository/service matching, exhaustive whole-repository re-audit or new code-analysis framework.
+    - Building or deploying the application, patch generation, automatic HTTP execution during source validation or automatic analyst state changes.
+    - New Run/controller/receipt/history implementations or an upfront registry of hypothetical validators.
+requirements:
+  - id: R1
+    text: >-
+      Add source method to strict shared/public contracts only with its working
+      caller. Pin one existing Finding/source or accepted baseline, one selected
+      exact source archive and a bounded assertion. Preserve original HTTP
+      evidence and annotate confirmed/stated/unknown deployment correspondence
+      without inferring it from Project membership or current branch.
+  - id: R2
+    text: >-
+      Source validation examines the responsible entry point, relevant path,
+      protection and root cause using existing source/workspace tools. Retain
+      exact file/range/archive evidence and limitations. Failure to find a path,
+      mismatched code or unsupported language yields a scoped limitation or
+      technical error, never invalidation of retained HTTP reproduction.
+  - id: R3
+    text: >-
+      Source retest uses an explicit compatible versioned source profile and
+      fresh session with analogous tools/skills, changed instructions and a new
+      exact archive. For original discovery receipts admit only the supported
+      source family with sufficient retained executor/method provenance; missing
+      provenance is explicit unsupported, not guessed from prose or latest config.
+  - id: R4
+    text: >-
+      Reuse the common supported/refuted/inconclusive semantics, deterministic
+      result assembly, trusted finding association, idempotency and partial
+      evidence retention. Code-level refutation after a patch does not prove a
+      live target was redeployed and does not change analyst state. All siblings
+      in the HTTP path and ordinary/Audit completion remain valid.
+  - id: R5
+    text: >-
+      Extend UI launch/history/comparison using existing components and exact
+      version pickers that follow every page. Display code and HTTP observations
+      as distinct results; no automatic aggregate verification badge. Update
+      configs with new immutable identities/paths and valid lock, owning specs,
+      OpenAPI/generated clients and shared fixtures together.
+  - id: R6
+    text: >-
+      Extend the same launch, completion, retention and UI path with the one
+      source family; reuse source parsing and code preview components. Add no
+      new method registry, parser or independent result state. Preserve origin
+      configuration/evidence through existing exact bindings; a Workflow ref
+      and digest alone cannot reconstruct a deleted Run's executor. Explain
+      any additional abstraction and remove directly replaced duplicates.
+failure_outcomes:
+  - operation: Select source inputs/profile and launch validation or retest
+    permanent: Missing/foreign archive or baseline returns ownership-not-found 404; stale/key mismatch uses existing 409/412; incompatible profile/language or oversized/corrupt archive fails with documented permanent input/capability errors before execution.
+    retryable: Existing bounded Artifact/storage retries ending in classified errors; no hidden latest-revision fallback.
+    ambiguous: Replay the existing launch key and exact pinned content; never capture a newer source archive for an already accepted request.
+    cancelled: Existing preparation/Worker owners join source decoding and reads before release; acknowledged evidence remains retained.
+    timeout: Separate bounded archive preparation, Worker/Run and publication deadlines with explicit gaps or technical failure.
+  - operation: Resolve code evidence and retain a source result
+    permanent: Invalid coordinates/foreign refs fail admission; unavailable paths or ambiguous deployment linkage cannot refute the historical HTTP finding.
+    retryable: Shared bounded judgment/result publication retries.
+    ambiguous: Exact receipt/CAS reconciliation, no repeated source execution to repair accepted publication.
+    cancelled: Existing write fences and joined parsing; partial evidence and accepted results keep their real attempt state.
+    timeout: Normal source-tool and Run deadlines; incomplete analysis cannot synthesize successful coverage.
+cardinality:
+  - collection: Selected source/archive and baseline
+    expected: One archive, one Finding and one explicit receipt/result
+    maximum: One item/Worker per Run; existing archive/workspace limits, 1 MiB launch metadata
+    bound: No implicit all-source expansion; use existing bounded filesystem windows and code-analysis budgets.
+  - collection: Result, evidence and history
+    expected: A bounded route/path explanation and a pair of compared results
+    maximum: Shared result/evidence budget including 8 MiB collected bytes; no lifetime history load
+    bound: Existing exact source evidence bounds and 64-row/1 MiB history metadata pages; full code/HTTP evidence fetched separately.
+lifecycle:
+  - entity: Source check Run and retained exact evidence
+    delete: Ordinary terminal Run purge and Project deletion; no separate source-check entity.
+    cascade: Existing Project material/history cleanup; no hold on the original Run once exact required material is retained.
+    retention: Source version, code evidence, baseline and independent results survive source/verification Run purge and remain distinguishable from live deployment evidence.
+acceptance_criteria:
+  - id: A1
+    given: A retained HTTP Finding and a matching source archive with a missing ownership check
+    when: Source validation runs through real Server/Runtime/PostgreSQL and the source tools
+    then: The same Finding retains exact code-path evidence and conditions alongside HTTP reproduction, with no new Finding or analyst mutation.
+  - id: A2
+    given: A supported original source-discovery receipt or accepted source check and an explicitly selected fixed archive
+    when: Source retest runs through the compatible profile
+    then: The new source result compares exact versions and evidence with the baseline without claiming the target was redeployed or globally fixed.
+  - id: A3
+    given: Mismatched/missing sources, unsupported executor, stale/foreign selection, or missing deployment mapping
+    when: Launch or analysis occurs
+    then: Explicit rejection or scoped uncertainty preserves the original HTTP result; no code absence or unsupported check becomes false positive.
+  - id: A4
+    given: Lost acknowledgements, cancellation, baseline Run purge, concurrent analyst edits and paged history
+    when: Shared launch/result/read/cleanup paths execute
+    then: Identity, bounded work and retention hold for both source and HTTP siblings; late writes do not alter assessment or resurrect cancelled work.
+  - id: A5
+    given: Source actions in the UI and the integrated production catalog
+    when: Browser, public API, wire, source-tool and release gates run
+    then: Both methods have real callers, exact version pickers and truthful outcomes; all required suites select tests and pass with declared skips, code/spec/config agree, and a reuse/new-code inventory proves the extension stays within one source family and the shared V497 path.
+tests:
+  - command: make require-database
+    covers: [A1, A2, A3, A4, A5]
+  - command: go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditstore/... ./internal/auditservice/... ./internal/runservice/... ./internal/httpapi/... ./internal/config/...
+    covers: [A1, A2, A3, A4]
+  - command: make test-runtime test-wire-cross-language test-config
+    covers: [A1, A2, A3, A4, A5]
+  - command: make verify-public-api verify-public-api-postgres ui-verify
+    covers: [A1, A2, A3, A5]
+  - command: make test-findings-e2e test-audit-completion-e2e ui-browser-mocked test-ui-stack
+    covers: [A1, A2, A3, A4, A5]
+  - command: make release-verify
+    covers: [A1, A2, A3, A4, A5]
+test_prerequisites:
+  - Extend the existing findings/completion/browser-stack gates for source cases and affected source-language suites; no new feature-specific runner, fake storage or zero-test selectors.
+  - Run all touched packages with one disposable database, use testdata catalogs/pseudo-Skills and keep configured models. Scripted Gateway acceptance is not live-model quality evidence.
+  - Verify 390px/light/dark/black UI, keep optional heavy I/O opt-in, save logs and report actual final coverage/skips. Drop owned database and remove owned test resources after pools/processes stop.

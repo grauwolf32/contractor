@@ -1,0 +1,131 @@
+{
+  "date": "2026-11-28",
+  "source_branch": "codex/v497-validation",
+  "source_head": "74446bea5ff0d76c548db0e119c8dbb09b4821de",
+  "main_baseline": "cce7c0b9f4bee6d852fb4c57da948242c2fde0bd",
+  "merge_resolution": "Keep both independent registry additions; regenerate dependency graph and task backlog. No production source conflicts.",
+  "task_statuses": {
+    "V497-001": "in_progress",
+    "V497-002": "pending",
+    "V497-003": "pending",
+    "V497-004": "pending",
+    "V497-005": "pending",
+    "V497-006": "completed",
+    "V497-007": "completed"
+  },
+  "verification": {
+    "go_integration": {
+      "counts": {
+        "pass": 5160,
+        "skip": 9,
+        "fail": 0
+      },
+      "optional_heavy_io_skips": [
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore / TestPostgresAuditClaimReadsOnlyTheReconcilableAudits",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore / TestPostgresAuditReadsAtFindingScale",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore / TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes",
+        "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore / TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling",
+        "github.com/grauwolf32/contractor/internal/artifacts/postgres / TestPostgresIntegration64MiBPayloadBoundary",
+        "github.com/grauwolf32/contractor/internal/artifacts/postgres / TestPostgresArtifactSelectiveQueryPlans",
+        "github.com/grauwolf32/contractor/internal/artifacts/postgres / TestPostgresRunRevisionLimitAndBoundedPurge",
+        "github.com/grauwolf32/contractor/internal/artifacts/postgres / TestPostgresRunRevisionLimitIsNotRefundedByHistoryRetention",
+        "github.com/grauwolf32/contractor/internal/findingintake / TestPostgresHydratesNineMaximumSizeProposalsAcrossBatches"
+      ],
+      "log_sha256": "08c4d4eb11b98ba3faa7795124dbf6738ac68f0fb2c2e47ec32b58f7da227bd9"
+    },
+    "runtime": {
+      "command": "make test-runtime",
+      "passed": 6788,
+      "declared_optional_or_platform_skips": 140,
+      "log_sha256": "e2902bac2adff15aad55a19c63dcd4f5b12ac991b495a747cafb6ecea8b7d137"
+    },
+    "commands": [
+      "go test -json -tags=integration -count=1 ./internal/contracts/... ./internal/runstore/... ./internal/runservice/... ./internal/scheduler/... ./internal/controlplane/... ./internal/auditservice/... ./internal/auditstore/... ./internal/findingintake/... ./internal/httpapi/... ./internal/artifacts/... ./internal/persistence/...",
+      "make test-runtime",
+      "make lint test-wire-cross-language verify-public-api verify-public-api-postgres test-findings-e2e test-audit-completion-e2e test-audit-common-programs-e2e",
+      "go test -json -count=1 ./internal/persistence ./internal/persistence/postgres ./internal/runtimeconfig",
+      "make tasks-backlog",
+      "python scripts/check_tasks.py",
+      "git diff --check"
+    ],
+    "lint": "passed",
+    "public_api": "Both public API gates passed.",
+    "wire": {
+      "fixtures": 442,
+      "go_shared_tests": 476,
+      "python_shared_tests": 309,
+      "selected_python_cases": 1642,
+      "optional_heavy_io_skips": 1
+    },
+    "findings_process": {
+      "required_cases": 27,
+      "status": "passed"
+    },
+    "audit_completion": {
+      "go_cases": 238,
+      "runtime_cases": 490,
+      "selected_skips": 0,
+      "status": "passed"
+    },
+    "audit_common_process": {
+      "cases": 8,
+      "selected_skips": 0,
+      "status": "passed"
+    },
+    "final_persistence": {
+      "packages": 3,
+      "passed": 537,
+      "skipped": 0,
+      "failed": 0
+    },
+    "primary_task_records": 1827
+  },
+  "verified_integration_commit": "edb9e9656f718dcfd92b5f75354477eb69d1009a",
+  "merge_commit": "7447aa4625eba5431a7a91467c32305d0e7793aa",
+  "status": "merged_and_verified",
+  "authority": "User request 2026-11-28 merges codex/v497-validation into main; follow-up explicitly orders merging before waiting for the remaining tests.",
+  "verification_equivalence": "The final merge differs from the fully checked integration revision only by the concurrently merged V498-004 tests and task records. Production code and contracts are identical. The two affected test packages plus persistence were verified again on the final merge.",
+  "preservation": {
+    "main": {
+      "preserved_files": 19,
+      "staged_diff_preserved": true
+    },
+    "source": {
+      "preserved_files": 28,
+      "staged_diff_preserved": true
+    },
+    "authorized_task_changes": "Synchronize V497-001 as in_progress; move completed V497-006 to done; add completed V497-007, its evidence and the related proposal link; regenerate backlog while preserving the existing partial-status policy and other tasks."
+  },
+  "unfinished_work": "V497-001 code remains unchanged and uncommitted in /Users/ruslan/src/contractor-v497; it is not included in this merge.",
+  "resources": {
+    "database_dropped": "contractor_v497",
+    "owned_postgresql_stopped": true,
+    "port": 55497,
+    "heavy_io_enabled": false,
+    "live_model_calls": false,
+    "demo_changes": false
+  },
+  "logs": {
+    "main-go.jsonl": {
+      "path": "/tmp/contractor-v497-run/main-go.jsonl",
+      "sha256": "08c4d4eb11b98ba3faa7795124dbf6738ac68f0fb2c2e47ec32b58f7da227bd9"
+    },
+    "main-runtime.log": {
+      "path": "/tmp/contractor-v497-run/main-runtime.log",
+      "sha256": "e2902bac2adff15aad55a19c63dcd4f5b12ac991b495a747cafb6ecea8b7d137"
+    },
+    "main-gates.log": {
+      "path": "/tmp/contractor-v497-run/main-gates.log",
+      "sha256": "5a36601bcd78bb97108170db8cf831bb156c3e80976a8893525d03ce14996a40"
+    },
+    "main-final-persistence.jsonl": {
+      "path": "/tmp/contractor-v497-run/main-final-persistence.jsonl",
+      "sha256": "495fdf47dc3951692bebd543adde034956c24417baac3754aba2b2fd723bc42d"
+    },
+    "main-final-backlog.log": {
+      "path": "/tmp/contractor-v497-run/main-final-backlog.log",
+      "sha256": "ae71ccc62e8d0cc37c95139a34c75f69ec92c512f0e1a7c76646213d51d03932"
+    }
+  },
+  "optional_skips": "Nine named Go heavy I/O tests, 140 Runtime optional/platform cases and one wire heavy fixture are excluded from passing coverage."
+}

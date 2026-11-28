@@ -1,0 +1,109 @@
+schema_version: "1.0"
+id: V497-004
+title: Accept the source-to-target validation and post-fix retest release
+milestone: finding-validation-retest-2026-11
+epic: findings
+kind: chore
+priority: P1
+status: pending
+depends_on: [V497-001, V497-002, V497-003]
+languages: [go, python, typescript, markdown]
+goal: >-
+  Establish that the integrated API and UI deliver the requested source Finding
+  -> target validation -> retest after a fix scenario with truthful independent
+  results, recoverable writes, bounded work and retained evidence.
+context:
+  authority: >-
+    User decision 2026-11-28 asks for proposal/task planning and names the first
+    scenario. This is the agent-proposed release gate, not a claim of readiness,
+    deployment or live-model quality and not authorization to execute live checks.
+    Later user instruction on the same date requires maximally compact changes,
+    reuse/generalization and only necessary new code; this gate checks that boundary.
+  reassessment:
+    baseline: d4b8c5112fef383a47ce3aae9abc1094e346c2e5
+    verdict: Retain the release gate; extend current fixtures/runners rather than introduce another harness.
+    reuse: Existing findings/completion matrices, mocked browser, real UI-stack and release report validators.
+  proposal: docs/proposals/0059-finding-validation-and-retest.md
+  specification:
+    - docs/spec/findings/findings.md#FND-R213
+    - docs/spec/findings/findings.md#FND-R214
+    - docs/spec/audits/common-contract.md#ACT-R4
+    - docs/spec/platform/failure-model.md
+    - docs/spec/platform/lifecycle.md
+    - docs/spec/ui/journeys.md
+  boundary: >-
+    Verify the already delivered common Run/result/Artifact path and its Audit
+    caller using existing release/process/browser infrastructure. No new
+    product behavior or independent check execution system belongs here.
+    Implementation defects found by the gate get traced tasks with introduced_by;
+    do not weaken the gates or broaden this chore to hide prerequisites.
+scope:
+  in:
+    - Integrated real-component browser/API journey with vulnerable, fixed and still-vulnerable target variants.
+    - Authorization, stale selection, ambiguous write, partial evidence, cancellation, purge and large-history conformance.
+    - Regression of existing Audit completion and Finding/Artifact mechanisms after common-path extension.
+    - Release-graph registration, actual gate/skip evidence and outcome-based readiness report.
+  out:
+    - Source validation/source retest V497-005, live-model quality claims, user target traffic, deployment, target patching and auto-resolution.
+    - New controllers, schemas, stores or performance frameworks without a separately scoped caller task.
+acceptance_criteria:
+  - id: A1
+    text: >-
+      The real Server/PostgreSQL/Runtime/HTTP fixture and browser demonstrate
+      source publication, target validation, owner-applied fixture fix and HTTP
+      retest. One Finding retains both exact results, evidence, profiles and
+      conditions; its analyst assessment stays unchanged. A negative control
+      with the flaw still present remains reproduced.
+  - id: A2
+    text: >-
+      Real persistence/process fault cases prove one Run per replayed launch,
+      one accepted result publication after lost acknowledgement, no target
+      replay for storage recovery, strict foreign/stale/invalid denial, preserved
+      concurrent analyst edits, joined cancel/deadline cleanup and retained
+      acknowledged evidence on later technical failure. Auth/network failure
+      and unknown deployment mapping never imply fixed/false positive.
+  - id: A3
+    text: >-
+      Source and verification Run purge preserve accepted history/evidence and
+      usable retest inputs, or explicitly report unavailable required exact
+      configuration. Fully populated Project deletion releases all owned
+      bindings. A 10000-entry multi-source history proves indexed, bounded
+      reads and cleanup with injected clocks/work counters, not timing assertions.
+  - id: A4
+    text: >-
+      UI follows all source/history pages, distinguishes technical state,
+      semantic conclusion and analyst decision, reconciles duplicate clicks,
+      handles stale reads and settles terminal polling; 390px and all three
+      themes pass. Supported Audit callers and their partial-result gates pass
+      through the same shared implementation.
+  - id: A5
+    text: >-
+      Every changed owning spec, OpenAPI/client, shared fixture, limit, failure
+      and lifecycle agrees with code. The real process/browser gates are in
+      release verification, all required tests select nonzero cases and the
+      integrated release gate passes. Evidence lists actual commands, tested
+      revision, mandatory coverage, optional skips and cleanup, without treating
+      skipped fixtures or scripted Gateway behavior as live quality validation.
+      A concise reuse/deletion inventory explains each added mechanism and
+      production LOC before/after; unnecessary duplicate owners are removed.
+      This is a scale check, not a required negative LOC target or a reason to
+      weaken correctness tests or retain unreadable compressed code.
+tests:
+  - command: make require-database
+    covers: [A1, A2, A3, A4, A5]
+  - command: make test-findings-e2e ui-browser-mocked test-ui-stack
+    covers: [A1, A2, A3, A4]
+  - command: make test-audit-completion-e2e test-audit-common-programs-e2e
+    covers: [A2, A3, A4]
+  - command: make verify-public-api verify-public-api-postgres test-wire-cross-language
+    covers: [A2, A4, A5]
+  - command: make ui-verify
+    covers: [A4, A5]
+  - command: make release-verify
+    covers: [A1, A2, A3, A4, A5]
+verification_requirements:
+  - Read docs/testing/README.md and the current release graph; family targets skipped in consolidated mode do not prove that their focused suite ran. Map required cases to actual selected process roots/reports.
+  - Reuse one disposable test database in the lane, then drop it after pools/processes stop; remove only owned containers/volumes/networks. Configured unavailable PostgreSQL and zero-selected gates fail.
+  - Keep heavy I/O optional unless explicitly enabled by the caller; document disabled skips separately. Deterministic tests use testdata and scripted Gateway with unchanged configured model selection.
+  - Save logs and inspect completion/required skip summaries; investigate details only on failure/timeout. Do not narrate healthy per-test progress.
+  - Create the evidence report only during actual verification and report whether the branch has been merged; planning provides no implementation_commit or completed status.
