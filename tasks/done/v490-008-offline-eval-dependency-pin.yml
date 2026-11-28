@@ -6,7 +6,7 @@ epic: evals
 kind: chore
 introduced_by: V489-001
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V490-005
 languages:
@@ -52,3 +52,15 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
+
+implementation_commit: fb7e10af95dfe67b7ce98f0935fac1a176a878ef
+verification:
+  status: passed
+  observed: >-
+    make test-context-compaction-eval-fixtures passed all 43 offline Python
+    tests and the Go catalog/validator suite. The existing dependency-drift,
+    invalid-document, stale-manifest and private-data regressions remain active.
+    make lint passed. Only scorerSha256 changes in variants.json; the four-file
+    hash definition, algorithms, catalog/truth/case hashes, model selections,
+    recorded answers and existing experiment registrations remain unchanged.
+    No live Eval or deployment occurred.

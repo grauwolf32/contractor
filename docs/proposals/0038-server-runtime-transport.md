@@ -458,3 +458,10 @@ Owner: `execution-core` (Control Plane), with `planner-worker` for A2A and
 3. **A third language** implements the private boundary.
 4. **Both A2A SDKs in use make the gRPC binding their primary transport**, so
    that staying on JSON-RPC becomes the costly path.
+
+
+При итоговой проверке обнаружен существовавший на baseline `main` drift
+offline scorer dependency pin после V489-001. Он исправлен отдельно в
+[V490-008](../../tasks/done/v490-008-offline-eval-dependency-pin.yml): обновлён
+pin текущего Go dependency closure, без изменения scorer, моделей, truth или
+существующих Eval-регистраций. Полная release-приёмка остаётся V490-006.
