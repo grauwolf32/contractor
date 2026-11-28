@@ -6,7 +6,7 @@ epic: evals
 kind: defect
 introduced_by: V417-010
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, markdown]
 goal: Observe useful work after the real current compactor without depending on the configured auxiliary model alias.
@@ -38,3 +38,12 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+
+implementation_commit: 2ac368584d691a716aa93846a652317ca3d795e7
+verification:
+  - command: make test-context-compaction-eval-fixtures
+    result: Passed all 45 Python cases, 105 recorded scored samples and both Go packages; both new regressions failed before the fix.
+  - command: make lint
+    result: Passed complete repository lint and layer contracts.
+  - command: Read-only replay of old and corrected observers over all 30 released terminal Runs
+    result: Identical observations for all 30; previously selected results/assessments remain intact. No compact/handoff/masking member was submitted and no completed model execution repeated.
