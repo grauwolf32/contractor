@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import tempfile
 from contextlib import asynccontextmanager
@@ -59,6 +60,7 @@ def request_value():
         "unknown-document",
         "api-version",
         "nan",
+        "surrogate",
         "missing-labels",
         "invalid-label-name",
         "invalid-label-value",
@@ -87,6 +89,10 @@ def test_lifecycle_rejects_invalid_wire_before_dispatch(variant):
                 "nan": b'{"unknown":NaN,',
             }[variant]
             request.spec.runtime_settings.json = prefix + raw[1:]
+        elif variant == "surrogate":
+            template = json.loads(request.spec.agent_template.json)
+            template["instructions"]["text"] = "\ud800"
+            request.spec.agent_template.json = json.dumps(template).encode()
         elif variant == "api-version":
             request.api_version = "contractor.dev/v0"
         elif variant == "missing-labels":

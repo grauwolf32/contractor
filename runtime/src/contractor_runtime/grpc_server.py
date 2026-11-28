@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 
 import grpc
@@ -224,10 +223,8 @@ async def _abort(context, status, code, retryable, request_id):
 def _decode_request(request, model):
     if request.ByteSize() > MAX_LIFECYCLE_BYTES:
         raise codec.InvalidWireValue
-    document = json.dumps(
-        codec.decode(request), ensure_ascii=False, allow_nan=False, separators=(",", ":")
-    )
-    if len(document.encode("utf-8")) > MAX_LIFECYCLE_BYTES:
+    document = codec.json_bytes(request)
+    if len(document) > MAX_LIFECYCLE_BYTES:
         raise codec.InvalidWireValue
     return decode_private(model, document)
 

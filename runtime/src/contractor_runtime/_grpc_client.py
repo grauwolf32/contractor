@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import math
 import ssl
 import tempfile
@@ -191,10 +190,8 @@ def _encode_request(value, request_type):
 
 
 def _decode_response(response, model):
-    raw = json.dumps(
-        codec.decode(response), ensure_ascii=False, allow_nan=False, separators=(",", ":")
-    )
-    if len(raw.encode()) > MAX_CONTROL_BYTES:
+    raw = codec.json_bytes(response)
+    if len(raw) > MAX_CONTROL_BYTES:
         raise codec.InvalidWireValue
     value = decode_private(model, raw)
     return value.model_dump(mode="json", by_alias=True, exclude_none=True)
