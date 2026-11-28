@@ -69,7 +69,8 @@ def complete_manifest():
         for path, body in published_configurations().items()
     )
     return {
-        "schemaVersion": "context-compaction-live/v1",
+        "schemaVersion": "context-compaction-live/v2",
+        "concurrency": 1,
         "id": "offline",
         "fixtureSha256": h.digest((h.ROOT / "variants.json").read_bytes()),
         "observerSha256": "sha256:" + "e" * 64,
@@ -768,6 +769,101 @@ class HarnessTests(unittest.TestCase):
             result = h.live(manifest, api, observer="unused", clock=lambda: 0, pause=lambda _: None)
         self.assertEqual((result["expected"], len(api.submissions)), (120, 1))
         self.assertEqual(sum(row["state"] == "not_submitted" for row in result["members"]), 119)
+
+    def parallel_manifest(self, members=4):
+        manifest = complete_manifest()
+        manifest["concurrency"] = 4
+        for field, unit in [("maxCalls", 4), ("maxTokens", 400), ("maxToolCalls", 4)]:
+            manifest["budgets"][field] = members * unit
+        return manifest
+
+    def test_parallel_manifest_rejects_missing_or_invalid_concurrency_before_api_reads(self):
+        for value in [None, False, 0, 9]:
+            manifest = complete_manifest()
+            if value is None:
+                manifest.pop("concurrency")
+            else:
+                manifest["concurrency"] = value
+            api = FakeAPI(manifest)
+            with self.subTest(value=value), self.assertRaises(h.Rejected):
+                h.live(manifest, api, observer="unused")
+            self.assertEqual(api.calls, [])
+        manifest = complete_manifest()
+        manifest["concurrency"] = 8
+        h.preflight(manifest)
+
+    def test_parallel_admission_precedes_observation_and_reserves_all_active_budgets(self):
+        for capacity, expected in [(4, 4), (2, 2)]:
+            manifest = self.parallel_manifest(capacity)
+            api = FakeAPI(manifest)
+            collected = []
+
+            def collect(_client, member, *_args):
+                self.assertEqual(len(api.submissions), expected)
+                collected.append(member["memberId"])
+                return {**member, "state": "succeeded", "calls": 4, "tokens": 400, "toolCalls": 4}
+
+            with self.subTest(capacity=capacity), patch.object(h, "collect_member", collect):
+                result = h.live(
+                    manifest, api, observer="unused", clock=lambda: 0, pause=lambda _: None
+                )
+            self.assertEqual(len(api.submissions), expected)
+            self.assertEqual(len(set(collected)), expected)
+            self.assertEqual(
+                sum(m["state"] == "not_submitted" for m in result["members"]), 120 - expected
+            )
+
+    def test_partial_usage_drains_the_other_admitted_members_without_new_submissions(self):
+        manifest = self.parallel_manifest(20)
+        api = FakeAPI(manifest)
+        records = []
+
+        def collect(_client, member, *_args):
+            return {
+                **member,
+                "state": "succeeded",
+                "calls": 4,
+                "tokens": None if not records else 400,
+                "toolCalls": 4,
+            }
+
+        with patch.object(h, "collect_member", collect):
+            result = h.live(
+                manifest,
+                api,
+                observer="unused",
+                clock=lambda: 0,
+                pause=lambda _: None,
+                emit=records.append,
+            )
+        self.assertEqual(len(api.submissions), 4)
+        self.assertEqual(len(records), 4)
+        self.assertIsNone(records[0]["tokens"])
+        self.assertEqual(sum(m["state"] == "not_submitted" for m in result["members"]), 116)
+
+    def test_parallel_timeout_cancels_an_experiment_once_and_joins_all_admitted_runs(self):
+        manifest = self.parallel_manifest()
+        api = FakeAPI(manifest)
+        api.timeout = True
+        tick, records = [0], []
+
+        def pause(seconds):
+            tick[0] += seconds
+
+        result = h.live(
+            manifest,
+            api,
+            observer="unused",
+            clock=lambda: tick[0],
+            pause=pause,
+            emit=records.append,
+        )
+        commands = [x for x in api.calls if x[0] == "POST" and x[1].endswith("/commands")]
+        self.assertEqual(len(api.submissions), 4)
+        self.assertEqual(len(commands), 1)
+        self.assertEqual(len(records), 4)
+        self.assertTrue(all(x["cleanupJoined"] for x in records))
+        self.assertEqual(sum(m["state"] == "cancelled" for m in result["members"]), 4)
         self.assertFalse(h.measurement_complete(result))
         self.assertEqual(result["comparisons"][0]["summary"]["counts"]["fixture"]["expected"], 30)
 

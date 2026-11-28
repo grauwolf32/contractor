@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "task": "V500-008",
+  "date": "2026-11-28",
+  "manifest": "context-compaction-live/v2",
+  "frozenConcurrency": 4,
+  "bounds": "1..8 concurrent members; full member budgets reserved before admission; one serial writer for receipts/results/selections",
+  "failureOutcomes": [
+    "unknown usage closes new admission and drains admitted peers",
+    "deadline cancels each affected experiment once and joins every admitted Run under one cleanup deadline",
+    "bounded stopReason excludes provider/error contents"
+  ],
+  "verification": {
+    "fixtureGate": "passed57 tests,105 scored offline samples and both Go packages; no model calls",
+    "lint": "passed",
+    "regressions": [
+      "four admissions before collection",
+      "concurrency cap",
+      "aggregate reservation cap",
+      "unknown usage preserves admitted peers",
+      "timeout joins all four without duplicate cancellation",
+      "strict manifest concurrency bounds"
+    ]
+  },
+  "liveOverlap": "Not inferred from reservation counts; dependent V417-010 owns actual native demo overlap and quality measurements."
+}

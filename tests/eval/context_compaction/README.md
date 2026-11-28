@@ -133,11 +133,12 @@ operator action through the existing catalog and Eval public APIs:
    for compact/handoff, not for a terminal-only answer. If a tiny pilot completes
    without a checkpoint, record that limitation; do not fabricate continuation.
 
-The closed `context-compaction-live/v1` manifest contains:
+The closed `context-compaction-live/v2` manifest contains:
 
 | Field | Frozen value |
 | --- | --- |
 | `id`, `repetitions`, `seed`, `thresholds` | Experiment label, 5–100 repeats, seed 417, gates above |
+| `concurrency` | Explicit integer 1..8, fixed for the entire matrix; current OpenRouter demo study uses 4 |
 | `fixtureSha256`, `observerSha256` | Exact `variants.json` and observer bytes |
 | `runtime` | `{adk, lockSha256, build}`; `adk` equals the exact `google-adk` version in the current Runtime lock; exact lock bytes and Runtime build digest |
 | `budgets` | Positive integer `wallMs`, `memberMs`, `maxCalls`, `maxTokens`, `maxToolCalls`, `memberCalls`, `memberTokens`, `memberToolCalls` |
@@ -166,8 +167,11 @@ that the harness can discover upstream weights from an alias.
 
 Use conservative per-member ceilings from the frozen execution closure, including
 all Worker/Planner calls, terminal summarization, compaction, finalization and retry
-limits. Global budgets are shared across all arms. Before each sequential member
-dispatch the consumer reserves a complete bounded task. Missing cumulative usage
+limits. Global budgets are shared across all arms. Before each member dispatch the consumer reserves a complete bounded task
+for every in-flight member. It polls each active experiment once per iteration
+and serializes result/assessment/CAS writes. Unknown usage closes new admission
+while admitted peers settle. Exceptions cancel each affected experiment once
+and join all active members under one shared cleanup deadline. Missing cumulative usage
 stops further dispatch. Existing cooperative token limits can observe an in-flight
 member's overshoot; this consumer is not a new hard per-token limiter. Increasing
 a timeout requires a new frozen equal-budget experiment, not changing the model.
@@ -218,6 +222,12 @@ at that deadline remains inconclusive. Cancellation uses the existing Eval comma
 and a separate 60-second cleanup deadline. Unknown or failed cleanup is retained.
 Resume with the same frozen registrations/keys and a new local output path; do not
 replace members or delete an uncertain execution to improve the denominator.
+
+Local version1 manifests remain historical evidence; this consumer requires
+version2 and explicit concurrency. `peakReservedMembers` counts producer
+reservations, including ambiguous submissions; native Run timestamps establish
+actual execution overlap. `stopReason` is a bounded classification without
+provider/credential text.
 
 The sibling `.members.jsonl` streams safe per-member records as they settle;
 the final JSON retains every expected ID/status, manifest digest and the **server's**

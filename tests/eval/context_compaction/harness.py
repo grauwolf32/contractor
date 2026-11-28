@@ -335,12 +335,17 @@ def preflight(manifest):
             "resources",
             "fixtureSha256",
             "observerSha256",
+            "concurrency",
         },
         "incomplete live manifest",
     )
     require(
-        manifest["schemaVersion"] == "context-compaction-live/v1" and ID.fullmatch(manifest["id"]),
+        manifest["schemaVersion"] == "context-compaction-live/v2" and ID.fullmatch(manifest["id"]),
         "unknown manifest",
+    )
+    require(
+        type(manifest["concurrency"]) is int and 1 <= manifest["concurrency"] <= 8,
+        "invalid frozen concurrency",
     )
     require(manifest["thresholds"] == variants["thresholds"], "unfrozen thresholds")
     require(
@@ -1088,94 +1093,135 @@ def live(
     preflight(manifest)
     expected = verify_remote(client, manifest)
     _, cases, truth = fixtures()
-    observed, active = {}, None
+    observed, active = {}, {}
     budget = manifest["budgets"]
     spent = {"calls": 0, "tokens": 0, "toolCalls": 0}
-    coverage_complete = True
+    next_index, peak_active = 0, 0
+    admission_open = True
+    stop_reason = None
+    dimensions = [
+        ("calls", "memberCalls", "maxCalls"),
+        ("tokens", "memberTokens", "maxTokens"),
+        ("toolCalls", "memberToolCalls", "maxToolCalls"),
+    ]
     try:
-        for member in expected:
-            if member["eligibility"] != "eligible":
-                observed[member["memberId"]] = {
-                    **member,
-                    "state": member["eligibility"],
-                }
-                emit(observed[member["memberId"]])
-                observed[member["memberId"]] = member["eligibility"]
-                continue
-            # Reserve a whole bounded task before dispatch; no auxiliary role
-            # gains unaccounted dispatch credit. Missing usage closes dispatch.
-            if not coverage_complete:
-                break
-            if clock() + budget["memberMs"] / 1000 > until or any(
-                spent[k] + budget[member_key] > budget[max_key]
-                for k, member_key, max_key in [
-                    ("calls", "memberCalls", "maxCalls"),
-                    ("tokens", "memberTokens", "maxTokens"),
-                    ("toolCalls", "memberToolCalls", "maxToolCalls"),
-                ]
+        while active or (admission_open and next_index < len(expected)):
+            # One owner submits ordinary Runs. Every active member retains its
+            # full reservation until exact cumulative usage is collected.
+            while (
+                admission_open
+                and next_index < len(expected)
+                and len(active) < manifest["concurrency"]
             ):
+                member = expected[next_index]
+                identity = member["memberId"]
+                if member["eligibility"] != "eligible":
+                    emit({**member, "state": member["eligibility"]})
+                    observed[identity] = member["eligibility"]
+                    next_index += 1
+                    continue
+                if clock() + budget["memberMs"] / 1000 > until:
+                    admission_open = False
+                    stop_reason = "aggregate_deadline"
+                    break
+                if any(
+                    spent[k] + (len(active) + 1) * budget[m] > budget[maximum]
+                    for k, m, maximum in dimensions
+                ):
+                    break
+                deadline = min(until, clock() + budget["memberMs"] / 1000)
+                active[identity] = (member, deadline)
+                peak_active = max(peak_active, len(active))
+                client.deadline = min(value[1] for value in active.values())
+                receipt = submit_member(client, member)
+                next_index += 1
+                if receipt["state"] == "rejected":
+                    emit({**member, "state": "blocked", "passed": False})
+                    observed[identity] = "blocked"
+                    active.pop(identity)
+                    admission_open = False
+                    stop_reason = "submission_rejected"
+            if not active:
+                if admission_open and next_index < len(expected):
+                    stop_reason = "aggregate_budget"
                 break
-            active = member
-            member_until = min(until, clock() + budget["memberMs"] / 1000)
-            client.deadline = member_until
-            receipt = submit_member(client, member)
-            if receipt["state"] == "rejected":
-                record = {**member, "state": "blocked", "passed": False}
+            earliest = min(deadline for _, deadline in active.values())
+            if clock() >= earliest:
+                stop_reason = "member_deadline"
+                raise TimeoutError("member observation deadline")
+            client.deadline = earliest
+            # A bounded iteration reads each active experiment only once;
+            # result/assessment/CAS writes remain serialized by this owner.
+            experiments = dict.fromkeys(member["experimentId"] for member, _ in active.values())
+            snapshots = {
+                eid: {
+                    row["member"]["memberId"]: row
+                    for row in client.pages("/v1/eval-experiments/" + eid + "/members")
+                }
+                for eid in experiments
+            }
+            settled = False
+            for identity, (member, deadline) in list(active.items()):
+                row = snapshots[member["experimentId"]][identity]
+                if not row.get("execution") or row["execution"]["state"] not in TERMINAL:
+                    continue
+                ref = row["execution"]["ref"]
+                require(ref["kind"] == "run", "pilot requires Workflow members")
+                run = client.request("GET", "/v1/runs/" + ref["id"])
+                if not run["deletable"]:
+                    continue
+                if clock() >= deadline:
+                    raise TimeoutError("member collection deadline")
+                record = collect_member(
+                    client,
+                    member,
+                    row,
+                    run,
+                    cases[member["caseId"]],
+                    truth[member["caseId"]],
+                    observer,
+                    min(30, deadline - clock()),
+                )
+                complete = all(record.get(k) is not None for k in spent)
+                if complete:
+                    for key in spent:
+                        spent[key] += record[key]
+                else:
+                    # Already admitted work settles naturally. Unknown usage
+                    # cannot authorize another member, even if peers are cheap.
+                    admission_open = False
+                    stop_reason = "usage_incomplete"
                 emit(record)
-                observed[member["memberId"]] = "blocked"
-                coverage_complete = False
-                active = None
-                continue
-            row, run = observe_member(
-                client,
-                member,
-                member_until,
-                clock,
-                pause,
-            )
-            if clock() >= member_until:
-                raise TimeoutError("member collection deadline")
-            observed[member["memberId"]] = collect_member(
-                client,
-                member,
-                row,
-                run,
-                cases[member["caseId"]],
-                truth[member["caseId"]],
-                observer,
-                min(30, member_until - clock()),
-            )
-            record = observed[member["memberId"]]
-            coverage_complete = all(record.get(key) is not None for key in spent)
-            if coverage_complete:
-                for key in spent:
-                    spent[key] += record[key]
-            emit(record)
-            observed[member["memberId"]] = record["state"]
-            active = None
-            client.deadline = until
-    except (Exception, KeyboardInterrupt):
-        if active is not None:
-            # Cleanup owns a separate finite deadline; failure remains visible.
+                observed[identity] = record["state"]
+                active.pop(identity)
+                settled = True
+            if active and not settled:
+                pause(min(1, max(0, earliest - clock())))
+    except (Exception, KeyboardInterrupt) as error:
+        if stop_reason is None:
+            stop_reason = "producer_" + type(error).__name__
+        # One shared cleanup deadline and at most one cancellation per
+        # experiment; no in-flight execution is dropped from the denominator.
+        cleanup_deadline = clock() + 60
+        cancelled = set()
+        for identity, (member, _deadline) in list(active.items()):
             try:
-                client.deadline = clock() + 60
-                row, run = cancel_and_join(client, active, client.deadline, clock, pause)
-                observed[active["memberId"]] = {
-                    **usage_record(client, active, row, run),
+                client.deadline = cleanup_deadline
+                if member["experimentId"] not in cancelled:
+                    cancelled.add(member["experimentId"])
+                    row, run = cancel_and_join(client, member, cleanup_deadline, clock, pause)
+                else:
+                    row, run = observe_member(client, member, cleanup_deadline, clock, pause)
+                record = {
+                    **usage_record(client, member, row, run),
                     "passed": False,
                     "cleanupJoined": True,
                 }
             except (Exception, KeyboardInterrupt):
-                observed[active["memberId"]] = {
-                    **active,
-                    "state": "timed_out",
-                    "passed": False,
-                    "cleanupJoined": False,
-                }
-    if active is not None:
-        record = observed[active["memberId"]]
-        emit(record)
-        observed[active["memberId"]] = record["state"]
+                record = {**member, "state": "timed_out", "passed": False, "cleanupJoined": False}
+            emit(record)
+            observed[identity] = record["state"]
+            active.pop(identity)
     # Use the existing server comparison, without reconstructing denominators.
     client.deadline = clock() + 10
     comparisons = []
@@ -1199,6 +1245,9 @@ def live(
         )
     result = {
         "expected": len(expected),
+        "concurrency": manifest["concurrency"],
+        "peakReservedMembers": peak_active,
+        "stopReason": stop_reason,
         "members": [
             {
                 "memberId": row["memberId"],

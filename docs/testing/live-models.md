@@ -2,6 +2,11 @@
 
 [Testing overview](README.md) · [Local stack](../guides/local-stack.md)
 
+Live eval/research campaigns use the existing demo deployment, its configured
+models and debug tracing. Do not start separate deployment copies for a campaign
+(user decision 2026-11-28 in AGENTS.md). Current OpenRouter context studies freeze
+concurrency4 to match demo admission; model choices remain unchanged.
+
 These opt-in commands call a real Gateway/model and can consume its budget.
 They are separate from deterministic release checks. Run each command block
 from the repository root unless it begins with `cd runtime`. Install the
@@ -174,7 +179,7 @@ quality gate always execute both.
 
 `make test-context-compaction-eval-fixtures` runs the nonempty recorded-provider,
 scorer, public-contract and bounded-consumer checks without a Gateway. The explicit
-`make eval-context-compaction-live` command consumes three already registered
+`make eval-context-compaction-live` command consumes four already registered
 two-arm Managed Eval experiments; it never publishes configurations or chooses
 models. It is excluded from deterministic CI/release targets.
 

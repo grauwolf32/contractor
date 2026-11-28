@@ -23,6 +23,9 @@ context:
     CAS/idempotency mechanisms. No new scheduler, ledger or parallel comparison.
     The local manifest version2 explicitly freezes concurrency1..8; historical
     version1 manifests/results remain retained and are not leniently admitted.
+    Deterministic producer acceptance precedes the model-quality study; V417-010
+    owns real demo overlap/quality/cost measurements, avoiding a circular live
+    prerequisite or extra model samples merely to close this producer task.
 scope:
   in:
     - Frozen local manifest concurrency and bounded active-member polling/admission.
@@ -53,7 +56,7 @@ acceptance_criteria:
   - id: A2
     text: In-flight reservations cannot exceed aggregate budgets. Missing usage stops new admission while already admitted members are retained/settled; no lost or duplicate selection occurs.
   - id: A3
-    text: Timeout/cancellation joins all admitted work under finite cleanup; full fixture and lint gates pass, and the demo study records actual overlap with debug enabled.
+    text: Timeout/cancellation joins all admitted work under finite cleanup; full fixture and lint gates pass. Native execution overlap is measured by the dependent live study, distinct from producer reservation counts.
 tests:
   - command: make test-context-compaction-eval-fixtures
     covers: [A1, A2, A3]
