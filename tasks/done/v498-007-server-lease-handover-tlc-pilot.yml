@@ -5,7 +5,8 @@ milestone: persistence-api-cleanup-2026-10
 epic: persistence
 kind: chore
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: fecf68bdd453a206fd6efe06ac316833f580e3ba
 depends_on: [V498-006]
 languages: [go]
 goal: >-
@@ -79,3 +80,39 @@ tests:
     covers: [A3, A4, A5]
   - command: make lint
     covers: [A5]
+verification:
+  evidence: tasks/evidence/v498-007-server-lease-handover.json
+  local_report: /Users/ruslan/src/contractor/.lean/server-lease-handover/README.md
+  result: >-
+    All 42 TLC outcomes match: six baseline graphs exhaust with 247, 267,
+    2095, 2527, 3882 and 187 distinct states; ten named negative controls
+    fail their assigned invariants and 26 witnesses are reached. Full
+    persistence/postgres, app and credentials packages pass with race and
+    integration tags on real UTF8 PostgreSQL: 255 top-level tests, all five
+    new scenarios and all required existing identities, no Go skips.
+    Full make lint passes with one auxiliary Python unittest skip, not
+    passing coverage. Owned database, server, data and socket are removed
+    only after both full checks end. No production/schema/API change.
+  verification_incident: >-
+    The first lint failed in the unchanged release report runner's bounded
+    output test: os.killpg raised PermissionError while cleaning up a child.
+    The exact isolated test and a full lint rerun passed without source
+    changes. The cause was not established; failed and successful logs are
+    retained, and the failed run is not coverage. The Quality/report-runner
+    owner reopens this as a separate defect if the ordinary gate reproduces it.
+  limits: >-
+    Finite safety, not an unbounded/refinement/composition or liveness proof.
+    One old session, one/two old transactions and one/two successor startup
+    attempts; a retry follows cancellation/failure before recovery. Stable
+    successor lease during recovery is assumed; loss of that session during
+    startup/recovery and arbitrary handover chains are excluded. Session
+    exclusivity and atomicity are primitives; fresh shared/exclusive queue
+    behavior is independently tested, reentrant locks excluded. Identity
+    abstracts PID/backend_start and is checked on PostgreSQL. Journal intent
+    and completion rows and recovery are abstractions of credential work;
+    Gateway correctness, same-credential serialization, abandoned states,
+    ciphertext and pagination are not proved. Existing protocol-fault tests
+    hold actual PostgreSQL COMMIT; no separate Server process is killed.
+    No universal revocation of old-process writes/calls: PER-R36 still applies.
+    Persistence/credential owners reopen on identity, lock/proof order,
+    transaction scope, startup admission or fenced-write membership changes.

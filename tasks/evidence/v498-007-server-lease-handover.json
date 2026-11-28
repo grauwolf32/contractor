@@ -1130,5 +1130,6 @@
   "primary_references": [
     "https://www.postgresql.org/docs/17/explicit-locking.html#ADVISORY-LOCKS",
     "https://docs.tlapl.us/using%3Atlc%3Astart"
-  ]
+  ],
+  "implementation_commit": "fecf68bdd453a206fd6efe06ac316833f580e3ba"
 }
