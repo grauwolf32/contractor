@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 1,
+  "task": "V417-010",
+  "series": "R6",
+  "recordedAt": "2026-11-28T17:13:08.464021+00:00",
+  "phase": "terminal reasoning off/on complete; other comparisons still running",
+  "experimentId": "experiment-5c70f774c4af12c4a04ccc697de11bf1",
+  "nativeSummary": {
+    "counts": {
+      "terminal-off": {
+        "expected": 15,
+        "eligible": 15,
+        "unsupported": 0,
+        "blocked": 0,
+        "submitted": 15,
+        "terminal": 15,
+        "missing": 0,
+        "conflicting": 0,
+        "collectionComplete": 0,
+        "scored": 15,
+        "qualityPassed": 0,
+        "executionSucceeded": 0,
+        "endToEndPassed": 0
+      },
+      "terminal-on": {
+        "expected": 15,
+        "eligible": 15,
+        "unsupported": 0,
+        "blocked": 0,
+        "submitted": 15,
+        "terminal": 15,
+        "missing": 0,
+        "conflicting": 0,
+        "collectionComplete": 2,
+        "scored": 15,
+        "qualityPassed": 1,
+        "executionSucceeded": 2,
+        "endToEndPassed": 1
+      }
+    },
+    "quality": {
+      "terminal-off": {
+        "executionSuccess": {
+          "numerator": 0,
+          "denominator": 15,
+          "value": 0
+        },
+        "endToEndPass": {
+          "numerator": 0,
+          "denominator": 15,
+          "value": 0
+        },
+        "conditionalQuality": {
+          "numerator": 0,
+          "denominator": 15,
+          "value": 0
+        }
+      },
+      "terminal-on": {
+        "executionSuccess": {
+          "numerator": 2,
+          "denominator": 15,
+          "value": 0.13333333333333333
+        },
+        "endToEndPass": {
+          "numerator": 1,
+          "denominator": 15,
+          "value": 0.06666666666666667
+        },
+        "conditionalQuality": {
+          "numerator": 1,
+          "denominator": 15,
+          "value": 0.06666666666666667
+        }
+      }
+    },
+    "terminalPairs": 15,
+    "completeQualityPairs": 0,
+    "completeTokenPairs": 15,
+    "conclusion": "inconclusive"
+  },
+  "variants": {
+    "terminal-off": {
+      "members": 15,
+      "states": {
+        "failed": 15
+      },
+      "passed": 0,
+      "usageKnown": 15,
+      "priceKnown": 15,
+      "usdKnown": "0.0607363692",
+      "tokensKnown": 364511,
+      "callsKnown": 57,
+      "toolCallsKnown": 73,
+      "failedChecks": {
+        "execution": 15
+      },
+      "executionErrors": {
+        "worker_summarized": 14,
+        "worker_summarization_failed": 1
+      },
+      "traceRuns": 15,
+      "compactionApplied": 0,
+      "postCheckpointRuns": 0,
+      "observationUnavailable": 0,
+      "archiveCalls": 0,
+      "modelPhases": {
+        "main": {
+          "modelCalls": 42,
+          "inputTokens": 156088,
+          "outputTokens": 74223,
+          "totalTokens": 230311,
+          "tokenUsageUnavailable": 0,
+          "durationMs": 401929
+        },
+        "compaction": {
+          "modelCalls": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalTokens": 0,
+          "tokenUsageUnavailable": 0,
+          "durationMs": 0
+        },
+        "finalization": {
+          "modelCalls": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalTokens": 0,
+          "tokenUsageUnavailable": 0,
+          "durationMs": 0
+        },
+        "summarization": {
+          "modelCalls": 15,
+          "inputTokens": 90425,
+          "outputTokens": 43775,
+          "totalTokens": 134200,
+          "tokenUsageUnavailable": 0
+        }
+      },
+      "controlProjectionRuns": 0,
+      "questionActivatedRuns": 0,
+      "maxMaskedResponses": 0
+    },
+    "terminal-on": {
+      "members": 15,
+      "states": {
+        "succeeded": 2,
+        "failed": 13
+      },
+      "passed": 1,
+      "usageKnown": 15,
+      "priceKnown": 15,
+      "usdKnown": "0.0606175551",
+      "tokensKnown": 349853,
+      "callsKnown": 57,
+      "toolCallsKnown": 73,
+      "failedChecks": {
+        "document_structure": 1,
+        "side_constraint": 1,
+        "execution": 13
+      },
+      "executionErrors": {
+        "worker_summarized": 12,
+        "worker_summarization_failed": 1
+      },
+      "traceRuns": 15,
+      "compactionApplied": 0,
+      "postCheckpointRuns": 0,
+      "observationUnavailable": 0,
+      "archiveCalls": 0,
+      "modelPhases": {
+        "main": {
+          "modelCalls": 42,
+          "inputTokens": 158125,
+          "outputTokens": 51534,
+          "totalTokens": 209659,
+          "tokenUsageUnavailable": 0,
+          "durationMs": 227130
+        },
+        "compaction": {
+          "modelCalls": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalTokens": 0,
+          "tokenUsageUnavailable": 0,
+          "durationMs": 0
+        },
+        "finalization": {
+          "modelCalls": 2,
+          "inputTokens": 1186,
+          "outputTokens": 2753,
+          "totalTokens": 3939,
+          "tokenUsageUnavailable": 0,
+          "durationMs": 8129
+        },
+        "summarization": {
+          "modelCalls": 13,
+          "inputTokens": 92187,
+          "outputTokens": 44068,
+          "totalTokens": 136255,
+          "tokenUsageUnavailable": 0
+        }
+      },
+      "controlProjectionRuns": 0,
+      "questionActivatedRuns": 0,
+      "maxMaskedResponses": 0
+    }
+  },
+  "observation": "28 worker_summarized outcomes did not publish the required result; keep execution failures. Token coverage complete for15pairs, native completeQualityPairs=0 and conclusion=inconclusive. No includeReasoning recommendation from this comparison.",
+  "frozenInputsOrAssessmentsChanged": false
+}
