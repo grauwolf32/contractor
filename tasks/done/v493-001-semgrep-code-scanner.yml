@@ -130,3 +130,11 @@ tests:
   - command: go test ./internal/planner/scan
     covers: [A2, A3]
 implementation_commit: 7ae0fcf9b9a770838f0f7c39224c30a75854489a
+delivery:
+  date: '2026-11-28'
+  merged_into_main: true
+  merge_commit: 1040b00534b479b829e26d7df007522383f02f9b
+  main_first_parent: 4862f0c6ef5882f9e6b94b101ab363c7b57456f5
+  feature_tip: 1b8b87242b3db64fdf25cd6a0cbe28a8cf5365b3
+  evidence: tasks/evidence/v493-001-main-integration.json
+  deployed: false

@@ -1,0 +1,56 @@
+{
+  "task": "V493-001",
+  "integrated_at": "2026-11-28T14:24:28.351226+03:00",
+  "authority": "User request 2026-11-28 to merge Semgrep into main; repository Git policy selects a no-fast-forward merge.",
+  "merge_commit": "1040b00534b479b829e26d7df007522383f02f9b",
+  "main_first_parent": "4862f0c6ef5882f9e6b94b101ab363c7b57456f5",
+  "feature_tip": "1b8b87242b3db64fdf25cd6a0cbe28a8cf5365b3",
+  "merge_parents": [
+    "4862f0c6ef5882f9e6b94b101ab363c7b57456f5",
+    "1b8b87242b3db64fdf25cd6a0cbe28a8cf5365b3"
+  ],
+  "verified_tree": "6ca9d009d67046a6291b82aa986bd5c0984b2d20",
+  "tree_equals_feature_tip": true,
+  "verification_reused": "tasks/evidence/v493-001-semgrep-verification.json",
+  "additional_checks": [
+    {
+      "command": "git diff --exit-code codex/semgrep <merge>",
+      "outcome": "passed; entire merge tree equals the already verified feature tree"
+    },
+    {
+      "command": "go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock",
+      "outcome": "passed"
+    },
+    {
+      "command": "python scripts/check_tasks.py",
+      "outcome": "passed; 1808 task records consistent"
+    },
+    {
+      "command": "python3 scripts/check_spec.py",
+      "outcome": "passed; 51 specification documents consistent"
+    }
+  ],
+  "primary_preservation": {
+    "files": [
+      {
+        "path": "tasks/BACKLOG.md",
+        "sha256": "4dc80e91048fac0e609d5bda44ee3ea4d0406fa9a469e20c42d79149caf9062a",
+        "mode": 420
+      },
+      {
+        "path": "tasks/v486-001-portable-linux-kit.yml",
+        "sha256": "fec1a80da187967959302f276030ab3f5b91e601982411de12953071cbe73b94",
+        "mode": 420
+      }
+    ],
+    "staged_delta_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes_modes_and_staged_delta_preserved": true,
+    "method": "Guarded clean-path installation, protected backlog index-base update and compare-and-swap of main; protected working files are never rewritten."
+  },
+  "delivery": {
+    "merged_into_local_main": true,
+    "remote_push_performed": false,
+    "deployed": false,
+    "new_test_database_created": false
+  }
+}
