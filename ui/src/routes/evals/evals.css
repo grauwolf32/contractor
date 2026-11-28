@@ -1463,51 +1463,6 @@
   overflow-wrap: anywhere;
 }
 
-.eval-artifact-picker {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-3-5);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--surface-subtle);
-}
-
-.eval-choice-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-}
-
-.eval-choice-list li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-3);
-  padding: var(--space-2-5) var(--space-3);
-}
-
-.eval-choice-list li + li {
-  border-top: 1px solid var(--line);
-}
-
-.eval-choice-main {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-0-5);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.eval-choice-main small {
-  color: var(--muted);
-  font-size: var(--text-xs);
-}
-
 /* ---------- Human review ---------- */
 
 .eval-review {

@@ -70,6 +70,7 @@ import {
   type StateFilter,
 } from "./links";
 
+import { ProjectFactsRoute } from "../projects/audits/project-facts";
 import "./issues.css";
 
 /**
@@ -177,6 +178,15 @@ interface FocusRequest {
  * live in the query string; J / K move, C / R / E decide.
  */
 export function IssuesRoute() {
+  const [params] = useSearchParams();
+  const { findingId } = useParams();
+  return findingId && params.get("from") === "facts" ? (
+    <ProjectFactsRoute />
+  ) : (
+    <IssuesWorkspace />
+  );
+}
+function IssuesWorkspace() {
   const { projectId, findingId } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();

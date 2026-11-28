@@ -1,3 +1,4 @@
+import { findingSummary } from "../src/test/builders";
 import { expect, test } from "@playwright/test";
 import { projectFactsFixture } from "../src/test/project-facts-fixtures";
 import {
@@ -7,6 +8,7 @@ import {
 } from "../src/test/audit-research-fixtures";
 import {
   fulfillContent,
+  fulfillJSON,
   fulfillEmptyPageOrNotFound,
   fulfillResponse,
   mockAPI,
@@ -51,6 +53,12 @@ for (const width of [390, 1440]) {
       const facts = page.getByRole("list", { name: "Facts", exact: true });
       await expect(facts.getByRole("link")).toHaveCount(1);
       expect(data.listReads).toEqual([0, 50, 100, 150, 200]);
+      const first = facts.getByRole("link").first();
+      const bounds = await first.boundingBox();
+      expect(bounds!.y + bounds!.height).toBeLessThan(
+        width === 390 ? 844 : 900,
+      );
+      await expect(page.getByLabel("Severity", { exact: true })).toHaveCount(0);
       await page.getByRole("button", { name: "Load more facts" }).click();
       await expect(facts.getByRole("link")).toHaveCount(2);
       expect(data.listReads).toHaveLength(10);
@@ -62,8 +70,14 @@ for (const width of [390, 1440]) {
         page.getByRole("heading", { name: data.fact.title, exact: true }),
       ).toBeVisible();
       await expect(
-        page.getByRole("link", { name: "View in Project" }),
+        page.getByRole("link", { name: "Back to facts", exact: true }),
       ).toHaveAttribute("href", `/projects/${data.owner.projectId}/facts`);
+      await expect(
+        page.getByRole("heading", { name: "Observation", exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Confirm issue", exact: true }),
+      ).toHaveCount(0);
       expect(data.sourceReads).toEqual([]);
       expect(data.payloadReads).toEqual([]);
       const evidence = page.getByRole("tab", { name: /^Evidence/ });
@@ -188,4 +202,57 @@ test("a hypothesis opens its pinned selected grounds separately from check resul
   expect(new URL(payloads[0]!).searchParams.get("revision")).toBe(
     selected.ref.revision,
   );
+});
+
+test("returning to project observations restores the search and mobile reading position", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const data = projectFactsFixture();
+  const observation = findingSummary(data.fact);
+  const rows = Array.from({ length: 45 }, (_, i) => ({
+    ...observation,
+    findingId: "fact_" + String(i).padStart(2, "0"),
+    title: "Reported service " + i,
+  }));
+  rows.push(observation);
+  await mockAPI(page, async (route, request, url) => {
+    if (url.pathname === "/v1/projects/project_facts/findings")
+      return fulfillJSON(route, {
+        items: rows,
+        page: { hasMore: false },
+        projectRevision: 1,
+      });
+    const response = data.respond(new Request(url));
+    return response
+      ? fulfillResponse(route, response)
+      : fulfillEmptyPageOrNotFound(route);
+  });
+  await page.goto("/projects/project_facts/facts");
+  await page.getByRole("searchbox", { name: "Search facts" }).fill("Reported");
+  const row = page.getByRole("link", {
+    name: "Reported nginx deployment",
+    exact: true,
+  });
+  await row.scrollIntoViewIfNeeded();
+  const initial = await page.evaluate(
+    () => document.scrollingElement!.scrollTop,
+  );
+  expect(initial).toBeGreaterThan(100);
+  await row.click();
+  await expect(
+    page.getByRole("heading", { name: "Observation", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Back to facts", exact: true }).click();
+  await expect(
+    page.getByRole("searchbox", { name: "Search facts" }),
+  ).toHaveValue("Reported");
+  await expect
+    .poll(async () =>
+      Math.abs(
+        (await page.evaluate(() => document.scrollingElement!.scrollTop)) -
+          initial,
+      ),
+    )
+    .toBeLessThan(3);
 });

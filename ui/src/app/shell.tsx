@@ -141,7 +141,7 @@ function CommandButton({ onOpen }: { onOpen: () => void }) {
 export function ApplicationShell({ error }: { error?: ReactNode }) {
   const { session } = useSession();
   const location = useLocation();
-  const active = activeDestination(location.pathname);
+  const active = activeDestination(location.pathname, location.search);
   const destinations = destinationsFor(session?.principal.capabilities);
   // Open for the location it was opened at, so any navigation closes it.
   const [menuOpenAt, setMenuOpenAt] = useState<string | null>(null);

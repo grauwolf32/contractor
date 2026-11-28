@@ -38,7 +38,12 @@ function renderPicker(
     "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}": download,
   });
   renderWithAPI(
-    <EvalArtifactPicker projectId="project_eval" onSelect={onSelect} />,
+    <EvalArtifactPicker
+      role="source"
+      onClose={() => {}}
+      projectId="project_eval"
+      onSelect={onSelect}
+    />,
     { server, session: testSession(["user"]) },
   );
   return server.requests;
@@ -56,7 +61,11 @@ describe("Eval input picker", () => {
     const requests = renderPicker({ project: [], user: [input] }, onSelect);
     const user = userEvent.setup();
     await user.selectOptions(screen.getByLabelText("Input source"), "user");
-    await user.click(await screen.findByRole("button", { name: "Use input" }));
+    await user.click(
+      await screen.findByRole("button", { name: "inputs/spec@revision-1" }),
+    );
+    expect(onSelect).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Use input" }));
 
     await waitFor(() => expect(onSelect).toHaveBeenCalledTimes(1));
     expect(onSelect.mock.calls[0]?.[0]).toEqual({
@@ -105,7 +114,7 @@ describe("Eval input picker", () => {
         /The Server sent an answer this page cannot read/,
       ),
     ).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Use input" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Use input" })).toBeDisabled();
     expect(onSelect).not.toHaveBeenCalled();
     expect(
       requests.some((request) =>

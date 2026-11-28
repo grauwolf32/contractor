@@ -16,7 +16,7 @@ import { MaterialIcon } from "../artifacts/icons";
 import { groupMaterialsByKind } from "../artifacts/kinds";
 import { MaterialList } from "../artifacts/material-list";
 import { MaterialRow } from "../artifacts/material-row";
-import { useMaterialListScroll } from "../artifacts/material-list-scroll";
+import { useListReadingPosition } from "../../app/list-reading-position";
 import {
   matchingMaterials,
   materialCategory,
@@ -77,9 +77,10 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
         ...(cursor === undefined ? {} : { cursor }),
       }),
   });
-  const rememberReadingPosition = useMaterialListScroll(
+  const rememberReadingPosition = useListReadingPosition(
     region,
     query.data !== undefined,
+    ".materials-row-link",
   );
 
   // Move focus to the outcome of a write once the dialog that made it has

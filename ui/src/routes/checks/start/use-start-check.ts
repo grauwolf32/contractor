@@ -1,3 +1,4 @@
+import { materialKey } from "../../artifacts/material-library-filter";
 import { useSharedConfig } from "../../../config/shared-config";
 import { isWebScanProfile } from "./web-scan-contract";
 /**
@@ -23,7 +24,6 @@ import {
   formatList,
   inputLabel,
   inSentence,
-  materialKey,
   orderedInputs,
   presentCheckType,
   readinessOf,
