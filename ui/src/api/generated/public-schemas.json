@@ -7483,8 +7483,13 @@
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingLocation"
           }
         },
-        "http_exchange": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingHTTPExchange"
+        "http_exchanges": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingHTTPExchange"
+          }
         }
       }
     },
@@ -14014,8 +14019,13 @@
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingLocation"
           }
         },
-        "http_exchange": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingHTTPExchange"
+        "http_exchanges": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingHTTPExchange"
+          }
         }
       }
     },

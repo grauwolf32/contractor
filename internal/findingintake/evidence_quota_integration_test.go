@@ -45,14 +45,22 @@ func TestPostgresProposalEvidenceQuotaAdmitsExactlyItsLimit(t *testing.T) {
 	if err := strictjson.Decode([]byte(`{"source":"http","request_id":"1","request_tag":"r-test-q000001","observed_at":"2026-11-06T18:20:00Z","attempts":[{"request":{"method":"GET","url":"https://target.example/","message":{"kind":"structured","headers":[],"body_base64":""}},"response":{"status":200,"message":{"kind":"structured","headers":[],"body_base64":"AAE="},"complete":true}}]}`), &capture); err != nil {
 		t.Fatal(err)
 	}
+	secondCapture := capture
+	secondCapture.RequestID = "2"
+	selected := func(input Submission) []SelectedHTTPExchange {
+		return []SelectedHTTPExchange{{InvocationID: input.InvocationID, Capture: capture}, {InvocationID: input.InvocationID, Capture: secondCapture}}
+	}
 	// Exchange content records the original Run/invocation independently of its consumer.
 	exchangeBytes := func(input Submission) int64 {
-		data, err := auditdomain.EncodeHTTPExchangeArtifact(capture,
-			grant.RunID, input.InvocationID)
-		if err != nil {
-			t.Fatal(err)
+		var total int64
+		for _, item := range selected(input) {
+			data, err := auditdomain.EncodeHTTPExchangeArtifact(item.Capture, grant.RunID, item.InvocationID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			total += int64(len(data))
 		}
-		return int64(len(data))
+		return total
 	}
 	exchangeAt := testSubmission("exchange-invocation", "exchange-at-limit", nil)
 	exchangeOver := testSubmission("exchange-invocation", "exchange-over-limit", nil)
@@ -78,11 +86,9 @@ func TestPostgresProposalEvidenceQuotaAdmitsExactlyItsLimit(t *testing.T) {
 	atLimit := []contracts.ArtifactRef{large, write("refs-at-limit", exchange+3)}
 	overLimit := []contracts.ArtifactRef{large, write("refs-over-limit", exchange+4)}
 	exchangeAt.EvidenceRefs, exchangeAt.Proposal.EvidenceIDs = []contracts.ArtifactRef{large, write("exchange-at-limit", 3)}, []string{"evidence-1", "evidence-2"}
-	exchangeAt.HTTPEvidence = &capture
-	exchangeAt.HTTPEvidenceInvocationID = exchangeAt.InvocationID
+	exchangeAt.HTTPEvidence = selected(exchangeAt)
 	exchangeOver.EvidenceRefs, exchangeOver.Proposal.EvidenceIDs = []contracts.ArtifactRef{large, write("exchange-over-limit", 4)}, []string{"evidence-1", "evidence-2"}
-	exchangeOver.HTTPEvidence = &capture
-	exchangeOver.HTTPEvidenceInvocationID = exchangeOver.InvocationID
+	exchangeOver.HTTPEvidence = selected(exchangeOver)
 
 	for _, over := range []Submission{testSubmission("refs-invocation", "refs-over-limit", overLimit), exchangeOver} {
 		_, _, err := service.Submit(ctx, grant, over)

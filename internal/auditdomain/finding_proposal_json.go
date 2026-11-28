@@ -15,7 +15,7 @@ func (proposal *FindingProposal) UnmarshalJSON(data []byte) error {
 	}
 	err = validateFindingJSONFields(fields,
 		"schema client_key title description subject preconditions standard_refs evidence_ids proposed_checks severity_suggestion limitations",
-		"hypothesis locations http_exchange", "subject")
+		"hypothesis locations http_exchanges", "subject")
 	if err != nil {
 		return err
 	}
@@ -83,7 +83,7 @@ func validateHTTPExchangeJSON(value any) error {
 	fields := value.(map[string]any)
 	attempts, ok := fields["attempts"].([]any)
 	if !ok {
-		return invalid(CodeInvalid, "http_exchange.attempts")
+		return invalid(CodeInvalid, "http_exchanges.attempts")
 	}
 	for _, raw := range attempts {
 		if err := validateFindingJSONFields(raw, "method url headers body_base64", "status response_headers error", ""); err != nil {
@@ -97,7 +97,7 @@ func validateHTTPExchangeJSON(value any) error {
 			}
 			headers, ok := values.([]any)
 			if !ok {
-				return invalid(CodeInvalid, "http_exchange.headers")
+				return invalid(CodeInvalid, "http_exchanges.headers")
 			}
 			for _, header := range headers {
 				if err := validateFindingJSONFields(header, "name value", "", ""); err != nil {

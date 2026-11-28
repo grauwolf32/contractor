@@ -32,38 +32,40 @@
             "method": "GET"
           }
         ],
-        "http_exchange": {
-          "request_id": 42,
-          "request_tag": "synthetic-debug-response",
-          "attempts": [
-            {
-              "method": "GET",
-              "url": "https://shop.example.test/debug",
-              "headers": [
-                {
-                  "name": "Accept",
-                  "value": "application/json"
-                },
-                {
-                  "name": "Authorization",
-                  "value": "Bearer synthetic-demo-token"
-                }
-              ],
-              "body_base64": "",
-              "status": 200,
-              "response_headers": [
-                {
-                  "name": "Content-Type",
-                  "value": "application/json"
-                },
-                {
-                  "name": "Set-Cookie",
-                  "value": "demo-session=synthetic-only; HttpOnly; Secure"
-                }
-              ]
-            }
-          ]
-        }
+        "http_exchanges": [
+          {
+            "request_id": 42,
+            "request_tag": "synthetic-debug-response",
+            "attempts": [
+              {
+                "method": "GET",
+                "url": "https://shop.example.test/debug",
+                "headers": [
+                  {
+                    "name": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "Authorization",
+                    "value": "Bearer synthetic-demo-token"
+                  }
+                ],
+                "body_base64": "",
+                "status": 200,
+                "response_headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "name": "Set-Cookie",
+                    "value": "demo-session=synthetic-only; HttpOnly; Secure"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "impact": "Internal names and stack frames could help an attacker map the application.",
       "assessment": "supported",

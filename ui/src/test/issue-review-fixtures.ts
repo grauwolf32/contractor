@@ -96,9 +96,9 @@ export function issueReviewFixtures() {
       ...(document.locations === undefined
         ? {}
         : { locations: document.locations }),
-      ...(document.http_exchange === undefined
+      ...(document.http_exchanges === undefined
         ? {}
-        : { http_exchange: document.http_exchange }),
+        : { http_exchanges: document.http_exchanges }),
     };
     const finding = build.finding(
       projectId,

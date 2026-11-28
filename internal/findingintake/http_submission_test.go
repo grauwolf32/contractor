@@ -40,11 +40,15 @@ func TestSharedFindingHTTPSelectionOrigin(t *testing.T) {
 			if err := json.Unmarshal(data, &value); err != nil {
 				t.Fatal(err)
 			}
-			if row.Capture {
-				value["httpEvidence"] = fixture.Cases[0].Value
-			}
-			if row.Present {
-				value["httpEvidenceInvocationId"] = row.Value
+			if row.Capture || row.Present {
+				selected := map[string]any{}
+				if row.Capture {
+					selected["capture"] = fixture.Cases[0].Value
+				}
+				if row.Present {
+					selected["invocationId"] = row.Value
+				}
+				value["httpEvidence"] = []any{selected}
 			}
 			data, err = json.Marshal(value)
 			if err != nil {

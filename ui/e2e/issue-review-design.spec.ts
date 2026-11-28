@@ -319,3 +319,50 @@ test("mobile review uses four verdicts and a full-width rationale/submit, with n
     ).toBeEnabled();
   }
 });
+
+for (const theme of ["light", "dark", "black"]) {
+  for (const width of [1440, 390]) {
+    test(`Multiple HTTP evidence: ${theme}, ${width}px`, async ({ page }) => {
+      const data = issueReviewFixtures();
+      const source = data.sources.find(
+        (value) => value.document.http_exchanges?.length,
+      )!;
+      const first = source.document.http_exchanges![0]!;
+      const second = structuredClone(first);
+      second.request_id = first.request_id + 1;
+      second.request_tag = "control";
+      second.attempts[0]!.url = "https://shop.example/control";
+      second.attempts[0]!.status = 403;
+      source.document.http_exchanges = [first, second];
+      await install(page, data);
+      await page.setViewportSize({ width, height: 1000 });
+      await page.addInitScript(
+        (value) => localStorage.setItem("contractor.theme", value),
+        theme,
+      );
+      const finding = data.findings.find(
+        (value) => value.findingId === source.findingId,
+      )!;
+      await page.goto(findingPath(finding));
+      await page.getByRole("tab", { name: /^Evidence/ }).click();
+      await expect(
+        page.getByRole("heading", { name: "Captured HTTP exchanges" }),
+      ).toBeVisible();
+      for (const exchange of [first, second]) {
+        await page
+          .getByText(
+            `Captured HTTP evidence · request ${exchange.request_id}`,
+            { exact: true },
+          )
+          .click();
+      }
+      await expect(
+        page.getByText("https://shop.example/control", { exact: false }),
+      ).toBeVisible();
+      await expect(page.getByText("HTTP 403", { exact: true })).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(width);
+    });
+  }
+}

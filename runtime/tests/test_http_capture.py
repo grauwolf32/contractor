@@ -80,9 +80,14 @@ def test_shared_finding_http_selection_origin():
     )
     validator = private_validator("http-exchange.schema.json#/$defs/selection")
     for row in fixture["selectionOrigins"]:
-        value = {"httpEvidence": fixture["cases"][0]["value"]} if row["capture"] else {}
-        if row["present"]:
-            value["httpEvidenceInvocationId"] = row["value"]
+        value = {}
+        if row["capture"] or row["present"]:
+            selected = {}
+            if row["capture"]:
+                selected["capture"] = fixture["cases"][0]["value"]
+            if row["present"]:
+                selected["invocationId"] = row["value"]
+            value["httpEvidence"] = [selected]
         if row["valid"]:
             validator.validate(value)
         else:

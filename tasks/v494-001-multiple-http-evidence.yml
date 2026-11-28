@@ -13,6 +13,8 @@ demonstration: Submit two captured HTTP sources with one artifact source through
 context:
   authority: 'User decision 2026-11-28: create a task and implement multiple HTTP evidence per Finding through Runtime, Server, API and UI, preserving common limits and adding tests.'
   specification: docs/spec/findings/findings.md#FND-R241
+  verification_budget: The complete UI suite uses four workers; default host concurrency exceeded existing large-list test deadlines while other gates ran. Timeouts and assertions are unchanged.
+  prerequisite: The already completed V493-002 code-evidence fixture reader declaration is imported from main as the existing baseline lint repair.
   boundary: Runtime resolves each selected local HTTP/Caido ID and preserves its original invocation. Finding intake owns common validation, evidence numbering, atomic frozen Artifact publication and receipts. Replace the singular private capture with a bounded array of invocation/capture envelopes and the singular public projection with http_exchanges. Reuse the existing bulk HTTP document, Artifact store and receipt; no new table or compatibility reader. Publishing HTTP separately before intake is simpler but weakens existing atomicity, so retain the current transaction. Reopen only if the bounded array cannot satisfy existing payload limits.
 scope:
   in:
@@ -66,7 +68,11 @@ tests:
     covers: [A1, A2]
   - command: make test-wire-cross-language
     covers: [A1, A2]
-  - command: make ui-verify
+  - command: make ui-generate-check ui-lint ui-typecheck ui-build
+    covers: [A1, A2]
+  - command: cd ui && corepack pnpm exec vitest --run --maxWorkers=4
+    covers: [A1, A2]
+  - command: cd ui && corepack pnpm test:server
     covers: [A1, A2]
   - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestAuditPartialJudgmentsAcrossProcesses$'
     covers: [A1, A3]

@@ -57,8 +57,7 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 			}
 			missingRevision := "missing"
 			rejected := testSubmission("http-invocation", "rejected", []contracts.ArtifactRef{{Namespace: grant.Namespace, Name: "absent", Revision: &missingRevision}})
-			rejected.HTTPEvidence = &capture
-			rejected.HTTPEvidenceInvocationID = rejected.InvocationID
+			rejected.HTTPEvidence = []SelectedHTTPExchange{{InvocationID: rejected.InvocationID, Capture: capture}}
 			if _, _, err := service.Submit(ctx, grant, rejected); !errors.Is(err, ErrAccessDenied) {
 				t.Fatalf("invalid evidence: %v", err)
 			}
@@ -69,8 +68,7 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 			// Force a failure after the HTTP binding was created inside the
 			// transaction, proving its rollback together with the proposal.
 			lateRejected := testSubmission("http-invocation", "late-rejected", []contracts.ArtifactRef{})
-			lateRejected.HTTPEvidence = &capture
-			lateRejected.HTTPEvidenceInvocationID = lateRejected.InvocationID
+			lateRejected.HTTPEvidence = []SelectedHTTPExchange{{InvocationID: lateRejected.InvocationID, Capture: capture}}
 			occupied := deterministicID("proposal", grant.AllocationID, lateRejected.InvocationID, lateRejected.SubmissionID)
 			collisionPayload, err := artifactStorage.PreparePayload(ctx, pool, artifacts.Payload{MediaType: "application/json", Data: []byte(`{}`)})
 			if err != nil {
@@ -87,8 +85,7 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 				t.Fatalf("HTTP artifacts after rollback: %d, %v", count, err)
 			}
 			input := testSubmission("http-invocation", "selected", []contracts.ArtifactRef{})
-			input.HTTPEvidence = &capture
-			input.HTTPEvidenceInvocationID = input.InvocationID
+			input.HTTPEvidence = []SelectedHTTPExchange{{InvocationID: input.InvocationID, Capture: capture}}
 			type result struct {
 				receipt  Receipt
 				replayed bool
@@ -134,7 +131,7 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 				t.Fatal(err)
 			}
 			proposal, err := auditdomain.DecodeFindingProposal(proposalRead.Payload.Data)
-			if err != nil || len(proposal.EvidenceIDs) != 1 || proposal.HTTPExchange == nil {
+			if err != nil || len(proposal.EvidenceIDs) != 1 || len(proposal.HTTPExchanges) == 0 {
 				t.Fatalf("stored finding did not reference captured evidence: %v", err)
 			}
 			read, err := runStore.Read(ctx, saved.Evidence[0].Ref)
@@ -167,8 +164,7 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 				t.Fatalf("evidence not frozen: %+v, %v", metadata, err)
 			}
 			duplicate := testSubmission("http-invocation", "duplicate-selection", []contracts.ArtifactRef{saved.Evidence[0].Ref})
-			duplicate.HTTPEvidence = &capture
-			duplicate.HTTPEvidenceInvocationID = duplicate.InvocationID
+			duplicate.HTTPEvidence = []SelectedHTTPExchange{{InvocationID: duplicate.InvocationID, Capture: capture}}
 			if _, _, err := service.Submit(ctx, grant, duplicate); !errors.Is(err, ErrInvalid) {
 				t.Fatalf("duplicate raw/exact selection: %v", err)
 			}
@@ -183,8 +179,7 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 				selectedCapture := capture
 				selectedCapture.RequestID = requestID
 				later := testSubmission("later-invocation", "reuse-local-"+requestID, []contracts.ArtifactRef{})
-				later.HTTPEvidence = &selectedCapture
-				later.HTTPEvidenceInvocationID = input.InvocationID
+				later.HTTPEvidence = []SelectedHTTPExchange{{InvocationID: input.InvocationID, Capture: selectedCapture}}
 				receipt, replayed, err := service.Submit(ctx, grant, later)
 				if err != nil || replayed || len(receipt.Evidence) != 1 || receipt.Origin.InvocationID != later.InvocationID {
 					t.Fatalf("cross-invocation selection: %+v %v", receipt, err)
@@ -204,7 +199,8 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 					t.Fatalf("later selection replay: %+v %v", replay, err)
 				}
 				changedOrigin := later
-				changedOrigin.HTTPEvidenceInvocationID = later.InvocationID
+				changedOrigin.HTTPEvidence = append([]SelectedHTTPExchange(nil), later.HTTPEvidence...)
+				changedOrigin.HTTPEvidence[0].InvocationID = later.InvocationID
 				if _, _, err := service.Submit(ctx, grant, changedOrigin); !errors.Is(err, ErrConflict) {
 					t.Fatalf("changed capture origin replay: %v", err)
 				}
@@ -220,8 +216,7 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 			}
 			changed := capture
 			changed.RequestTag = "r-changed"
-			input.HTTPEvidence = &changed
-			input.HTTPEvidenceInvocationID = input.InvocationID
+			input.HTTPEvidence = []SelectedHTTPExchange{{InvocationID: input.InvocationID, Capture: changed}}
 			if _, _, err := service.Submit(ctx, grant, input); !errors.Is(err, ErrConflict) {
 				t.Fatalf("changed replay: %v", err)
 			}
@@ -238,8 +233,7 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 				}},
 			}
 			missingResponse := testSubmission("http-invocation", "request-only", []contracts.ArtifactRef{})
-			missingResponse.HTTPEvidence = &requestOnly
-			missingResponse.HTTPEvidenceInvocationID = missingResponse.InvocationID
+			missingResponse.HTTPEvidence = []SelectedHTTPExchange{{InvocationID: missingResponse.InvocationID, Capture: requestOnly}}
 			selected, _, err := service.Submit(ctx, grant, missingResponse)
 			if err != nil || len(selected.Evidence) != 1 {
 				t.Fatalf("select request-only Caido evidence: %v", err)

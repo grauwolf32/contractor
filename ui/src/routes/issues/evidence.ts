@@ -99,7 +99,10 @@ export function attemptOutcome(
 export function evidenceCount(proposal: FindingProposalReceipt): number {
   return (
     (proposal.document.locations?.length ?? 0) +
-    (proposal.document.http_exchange?.attempts.length ?? 0) +
+    (proposal.document.http_exchanges?.reduce(
+      (count, exchange) => count + exchange.attempts.length,
+      0,
+    ) ?? 0) +
     (proposal.projectEvidence?.length ?? 0)
   );
 }

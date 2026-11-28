@@ -20,13 +20,13 @@ func TestFindingReportProjectionRoundTripsTheReportFields(t *testing.T) {
 	proposal.Limitations = []string{"Only the staging host was exercised."}
 	proposal.EvidenceIDs = []string{"evidence-1"}
 	proposal.Locations = []FindingLocation{{File: "src/redirect.py", Line: &line}, {URL: "https://target.test/r?to=x", Method: "GET"}}
-	proposal.HTTPExchange = &FindingHTTPExchange{
+	proposal.HTTPExchanges = []FindingHTTPExchange{{
 		RequestID: 4, RequestTag: "redirect", ResponseBodyEvidenceID: "evidence-1",
 		Attempts: []FindingHTTPAttempt{{
 			URL: "https://target.test/r?to=x", Method: "GET", Headers: []FindingHTTPHeader{{Name: "Accept", Value: "*/*"}},
 			Status: &status, ResponseHeaders: []FindingHTTPHeader{{Name: "Location", Value: "https://x.test"}},
 		}},
-	}
+	}}
 	if _, err := EncodeFindingProposal(proposal); err != nil {
 		t.Fatal(err)
 	}
@@ -66,8 +66,8 @@ func TestFindingReportProjectionDecodesStrictly(t *testing.T) {
 		"duplicate key":        `{"description":"d","description":"e","preconditions":[],"limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"t"}`,
 		"trailing data":        valid + `{}`,
 		"subject extra field":  `{"description":"d","preconditions":[],"limitations":[],"severity_suggestion":"","standard_refs":[],"subject":{"kind":"k","key":"v","x":1},"title":"t"}`,
-		"exchange extra":       `{"description":"d","http_exchange":{"request_id":1,"request_tag":"r","attempts":[],"x":1},"preconditions":[],"limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"t"}`,
-		"exchange evidence":    `{"description":"d","http_exchange":{"request_id":1,"request_tag":"r","attempts":[{"method":"GET","url":"https://t.test/","headers":[],"body_base64":"","status":200}],"response_body_evidence_id":"bad id"},"preconditions":[],"limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"t"}`,
+		"exchange extra":       `{"description":"d","http_exchanges":[{"request_id":1,"request_tag":"r","attempts":[],"x":1}],"preconditions":[],"limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"t"}`,
+		"exchange evidence":    `{"description":"d","http_exchanges":[{"request_id":1,"request_tag":"r","attempts":[{"method":"GET","url":"https://t.test/","headers":[],"body_base64":"","status":200}],"response_body_evidence_id":"bad id"}],"preconditions":[],"limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"t"}`,
 	} {
 		if err := strictjson.Decode([]byte(document), &decoded); err == nil {
 			t.Errorf("%s: decoded", name)
@@ -103,10 +103,10 @@ func TestFindingProposalAndProjectionShareTheReportFieldRules(t *testing.T) {
 	// exchange shape but has no evidence IDs to resolve.
 	proposal := findingFixture()
 	status := 200
-	proposal.HTTPExchange = &FindingHTTPExchange{
+	proposal.HTTPExchanges = []FindingHTTPExchange{{
 		RequestID: 1, RequestTag: "r", ResponseBodyEvidenceID: "evidence-9",
 		Attempts: []FindingHTTPAttempt{{URL: "https://t.test/", Method: "GET", Headers: []FindingHTTPHeader{}, Status: &status}},
-	}
+	}}
 	var reference *ValidationError
 	if _, err := EncodeFindingProposal(proposal); !errors.As(err, &reference) || reference.Code != CodeReferenceInvalid {
 		t.Fatalf("unresolved evidence reference = %v", err)

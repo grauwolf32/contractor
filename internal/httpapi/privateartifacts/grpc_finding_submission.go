@@ -18,16 +18,15 @@ import (
 )
 
 type findingStreamHeader struct {
-	APIVersion               string                  `json:"apiVersion" strictjson:"required"`
-	InvocationID             string                  `json:"invocationId" strictjson:"required"`
-	SubmissionID             string                  `json:"submissionId" strictjson:"required"`
-	Incidental               *bool                   `json:"incidental,omitempty"`
-	ItemKey                  *string                 `json:"itemKey,omitempty"`
-	EvidenceRefs             []contracts.ArtifactRef `json:"evidenceRefs" strictjson:"required"`
-	HTTPEvidenceInvocationID *string                 `json:"httpEvidenceInvocationId,omitempty"`
-	ProposalSize             *uint64                 `json:"proposalSize" strictjson:"required"`
-	DerivedAnchorsSize       *uint64                 `json:"derivedAnchorsSize,omitempty"`
-	HTTPEvidenceSize         *uint64                 `json:"httpEvidenceSize,omitempty"`
+	APIVersion         string                  `json:"apiVersion" strictjson:"required"`
+	InvocationID       string                  `json:"invocationId" strictjson:"required"`
+	SubmissionID       string                  `json:"submissionId" strictjson:"required"`
+	Incidental         *bool                   `json:"incidental,omitempty"`
+	ItemKey            *string                 `json:"itemKey,omitempty"`
+	EvidenceRefs       []contracts.ArtifactRef `json:"evidenceRefs" strictjson:"required"`
+	ProposalSize       *uint64                 `json:"proposalSize" strictjson:"required"`
+	DerivedAnchorsSize *uint64                 `json:"derivedAnchorsSize,omitempty"`
+	HTTPEvidenceSize   *uint64                 `json:"httpEvidenceSize,omitempty"`
 }
 
 func (input findingStreamHeader) submission() (findingintake.Submission, uint64, error) {
@@ -35,7 +34,7 @@ func (input findingStreamHeader) submission() (findingintake.Submission, uint64,
 	if input.Incidental != nil {
 		result.Incidental = *input.Incidental
 	}
-	if input.ProposalSize == nil || *input.ProposalSize < 2 || *input.ProposalSize > auditdomain.MaximumDocumentBytes || len(input.EvidenceRefs) > findingintake.MaxEvidenceRefs || (input.HTTPEvidenceSize == nil) != (input.HTTPEvidenceInvocationID == nil) {
+	if input.ProposalSize == nil || *input.ProposalSize < 2 || *input.ProposalSize > auditdomain.MaximumDocumentBytes || len(input.EvidenceRefs) > findingintake.MaxEvidenceRefs {
 		return result, 0, findingintake.ErrInvalid
 	}
 	if input.DerivedAnchorsSize != nil && *input.DerivedAnchorsSize > auditdomain.MaximumFindingAnchorDerivationBytes {
@@ -47,13 +46,6 @@ func (input findingStreamHeader) submission() (findingintake.Submission, uint64,
 	}
 	if input.ItemKey != nil {
 		projection["itemKey"] = *input.ItemKey
-	}
-	if input.HTTPEvidenceInvocationID != nil {
-		if *input.HTTPEvidenceInvocationID == "" {
-			return result, 0, findingintake.ErrInvalid
-		}
-		result.HTTPEvidenceInvocationID = *input.HTTPEvidenceInvocationID
-		projection["httpEvidenceInvocationId"] = *input.HTTPEvidenceInvocationID
 	}
 	for _, ref := range input.EvidenceRefs {
 		if ref.ValidateExact() != nil {
@@ -143,8 +135,7 @@ func (h *allocationRPCServer) SubmitFinding(stream grpc.ClientStreamingServer[pb
 			}
 			input.DerivedAnchors = data
 		case pb.FindingDocumentKind_FINDING_DOCUMENT_HTTP_EVIDENCE:
-			input.HTTPEvidence = new(auditdomain.CapturedHTTPExchange)
-			if decodeRequestJSON(data, input.HTTPEvidence) != nil {
+			if decodeRequestJSON(data, &input.HTTPEvidence) != nil || len(input.HTTPEvidence) == 0 || len(input.HTTPEvidence)+len(input.EvidenceRefs) > findingintake.MaxEvidenceRefs {
 				return allocationDomainError(ctx, findingintake.ErrInvalid)
 			}
 		}

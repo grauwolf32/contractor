@@ -101,6 +101,20 @@ func testAuditInterruptedRetention(t *testing.T, withJudgment, browser bool) {
 					return map[string]any{"title": "Incidental query concatenation observation", "description": findingsEvidence + " The local HTTP response supplies observation context only; it does not prove exploitation.", "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "incidental": true, "sources": []any{map[string]any{"kind": "code", "file": "app.py", "start_line": 4, "end_line": 10}, map[string]any{"kind": "http", "request_id": exchanges[0]["request_id"]}, selected[0]}}, nil
 				}))
 		}
+		if !browser {
+			stage.steps = append(stage.steps, toolGatewayStep("finding", func(request map[string]any) (map[string]any, error) {
+				exchanges := findingsToolResponses(request, "http_request")
+				notes := findingsToolResponses(request, "evidence")
+				if len(exchanges) != 2 || len(notes) != 2 {
+					return nil, fmt.Errorf("missing control/probe observations")
+				}
+				selected, ok := notes[0]["sourceSelectors"].([]any)
+				if !ok || len(selected) != 3 {
+					return nil, fmt.Errorf("missing exact material selector")
+				}
+				return map[string]any{"title": "Compare control and probe", "description": "Both observed responses are evidence of this incidental observation.", "file": "app.py", "incidental": true, "sources": []any{selected[0], map[string]any{"kind": "http", "request_id": exchanges[0]["request_id"]}, map[string]any{"kind": "http", "request_id": exchanges[1]["request_id"]}}}, nil
+			}))
+		}
 		for _, text := range []string{"Preliminary fixture judgment A", "Latest accepted correction B"} {
 			stage.steps = append(stage.steps, toolGatewayStep("submit_result", func(request map[string]any) (map[string]any, error) {
 				if browser {
@@ -325,6 +339,28 @@ waitForAcceptance:
 		}
 		basicPoll(t, h)
 	}
+	var multiReceiptID string
+	if withJudgment && !browser {
+		var findings struct {
+			Items []struct {
+				FindingID string `json:"findingId"`
+			} `json:"items"`
+		}
+		auditProgramGET(t, h.client, h.baseURL+"/v1/projects/"+project.ProjectID+"/findings?limit=100", &findings)
+		if len(findings.Items) != 1 {
+			t.Fatalf("missing multi-HTTP Finding: %+v", findings)
+		}
+		var detail struct {
+			FirstReceiptID string `json:"firstReceiptId"`
+		}
+		auditProgramGET(t, h.client, h.baseURL+"/v1/projects/"+project.ProjectID+"/findings/"+findings.Items[0].FindingID, &detail)
+		multiReceiptID = detail.FirstReceiptID
+		var source findingintake.Receipt
+		auditProgramGET(t, h.client, h.baseURL+"/v1/projects/"+project.ProjectID+"/finding-sources/"+detail.FirstReceiptID, &source)
+		if len(source.Evidence) != 3 || len(source.Document.HTTPExchanges) != 2 {
+			t.Fatalf("lost HTTP evidence after restart: %+v", source.Document)
+		}
+	}
 	var runID string
 	// Read the accepted note before producer deletion to obtain its machine origin.
 	materials, _ := basicAuditRequest(t, h, http.MethodGet, "/v1/audits/"+id+"/materials?limit=100", nil, "", 0, http.StatusOK)
@@ -417,6 +453,13 @@ waitForAcceptance:
 	foundJudgment = !withJudgment
 	foundHTTP = map[string]bool{}
 	readRetained(true)
+	if multiReceiptID != "" {
+		var saved findingintake.Receipt
+		auditProgramGET(t, h.client, h.baseURL+"/v1/projects/"+project.ProjectID+"/finding-sources/"+multiReceiptID, &saved)
+		if !saved.Origin.RunDeleted || len(saved.ProjectEvidence) != 3 || len(saved.Document.HTTPExchanges) != 2 {
+			t.Fatal("producer deletion lost HTTP evidence", saved)
+		}
+	}
 	if browser {
 		var saved findingintake.Receipt
 		auditProgramGET(t, h.client, h.baseURL+"/v1/projects/"+project.ProjectID+"/finding-sources/"+incidental.ReceiptID, &saved)

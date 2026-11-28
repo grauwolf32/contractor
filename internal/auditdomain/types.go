@@ -103,20 +103,20 @@ type DirectVerificationResult struct {
 }
 
 type FindingProposal struct {
-	Schema             string               `json:"schema"`
-	ClientKey          string               `json:"client_key"`
-	Title              string               `json:"title"`
-	Description        string               `json:"description"`
-	Subject            *FindingSubject      `json:"subject"`
-	Hypothesis         string               `json:"hypothesis,omitempty"`
-	Preconditions      []string             `json:"preconditions"`
-	StandardRefs       []StandardReference  `json:"standard_refs"`
-	EvidenceIDs        []string             `json:"evidence_ids"`
-	ProposedChecks     []ProposedCheck      `json:"proposed_checks"`
-	SeveritySuggestion string               `json:"severity_suggestion"`
-	Limitations        []string             `json:"limitations"`
-	Locations          []FindingLocation    `json:"locations,omitempty"`
-	HTTPExchange       *FindingHTTPExchange `json:"http_exchange,omitempty"`
+	Schema             string                `json:"schema"`
+	ClientKey          string                `json:"client_key"`
+	Title              string                `json:"title"`
+	Description        string                `json:"description"`
+	Subject            *FindingSubject       `json:"subject"`
+	Hypothesis         string                `json:"hypothesis,omitempty"`
+	Preconditions      []string              `json:"preconditions"`
+	StandardRefs       []StandardReference   `json:"standard_refs"`
+	EvidenceIDs        []string              `json:"evidence_ids"`
+	ProposedChecks     []ProposedCheck       `json:"proposed_checks"`
+	SeveritySuggestion string                `json:"severity_suggestion"`
+	Limitations        []string              `json:"limitations"`
+	Locations          []FindingLocation     `json:"locations,omitempty"`
+	HTTPExchanges      []FindingHTTPExchange `json:"http_exchanges,omitempty"`
 }
 
 type FindingSubject struct {

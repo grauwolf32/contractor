@@ -66,8 +66,9 @@ class GeneralFindingTool(_FindingFacade):
             Artifact selectors use kind=artifact and namespace/name; Runtime supplies
             the selected revision. Code selects file/start_line/end_line in the opened
             pinned archive; workspace=true verifies current workspace coordinates.
-            HTTP selects kind=http and a local request_id without replay; at most one
-            local exchange. Retained sources preserve their original observation context.
+            HTTP selects kind=http and a local request_id without replay; multiple
+            exchanges may be selected within the total source limit. Retained sources
+            preserve their original observation context.
             A fact statement or Memory note does not independently verify its claim.
         standard_refs: Optional exact standard identities copied from an assigned
             Audit task. A finding linked to a standard-mapped Audit result must
@@ -127,8 +128,9 @@ class FactTool(_FindingFacade):
             Artifact selectors use kind=artifact and namespace/name; Runtime supplies
             the selected revision. Code selects file/start_line/end_line in the opened
             pinned archive; workspace=true verifies current workspace coordinates.
-            HTTP selects kind=http and a local request_id without replay; at most one
-            local exchange. Retained sources preserve their original observation context.
+            HTTP selects kind=http and a local request_id without replay; multiple
+            exchanges may be selected within the total source limit. Retained sources
+            preserve their original observation context.
             A fact statement or Memory note does not independently verify its claim.
         memory_name: Optional exact memory name from the assigned memories snapshot.
             Attaches its complete original content, description and tags; no quotation
@@ -181,8 +183,9 @@ class CodeFindingTool(_FindingFacade):
             Artifact selectors use kind=artifact and namespace/name; Runtime supplies
             the selected revision. Code selects file/start_line/end_line in the opened
             pinned archive; workspace=true verifies current workspace coordinates.
-            HTTP selects kind=http and a local request_id without replay; at most one
-            local exchange. Retained sources preserve their original observation context.
+            HTTP selects kind=http and a local request_id without replay; multiple
+            exchanges may be selected within the total source limit. Retained sources
+            preserve their original observation context.
             A fact statement or Memory note does not independently verify its claim.
         standard_refs: Optional exact standard identities copied from an assigned
             Audit task. A finding linked to a standard-mapped Audit result must
@@ -252,8 +255,9 @@ class HTTPFindingTool(_FindingFacade):
             Artifact selectors use kind=artifact and namespace/name; Runtime supplies
             the selected revision. Code selects file/start_line/end_line in the opened
             pinned archive; workspace=true verifies current workspace coordinates.
-            HTTP selects kind=http and a local request_id without replay; at most one
-            local exchange. Retained sources preserve their original observation context.
+            HTTP selects kind=http and a local request_id without replay; multiple
+            exchanges may be selected within the total source limit. Retained sources
+            preserve their original observation context.
             A fact statement or Memory note does not independently verify its claim.
         standard_refs: Optional exact standard identities copied from an assigned
             Audit task. A finding linked to a standard-mapped Audit result must

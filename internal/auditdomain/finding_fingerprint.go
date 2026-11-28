@@ -157,7 +157,7 @@ func FingerprintPinnedSARIF(data []byte, repository, commit string, source, repo
 	// supported machine projection binds this proposal to a native record.
 	if proposal.Subject != nil || proposal.Hypothesis != "" || len(proposal.Preconditions) != 0 ||
 		len(proposal.StandardRefs) != 0 || len(proposal.ProposedChecks) != 0 || len(proposal.Limitations) != 0 ||
-		proposal.HTTPExchange != nil || len(proposal.Locations) != 1 {
+		proposal.HTTPExchanges != nil || len(proposal.Locations) != 1 {
 		return unavailable("producer_key_unavailable")
 	}
 	var document map[string]json.RawMessage

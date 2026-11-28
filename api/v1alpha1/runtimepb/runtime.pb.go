@@ -8877,19 +8877,18 @@ func (*ArtifactWriteFrame_Header) isArtifactWriteFrame_Frame() {}
 func (*ArtifactWriteFrame_Chunk) isArtifactWriteFrame_Frame() {}
 
 type FindingSubmissionHeader struct {
-	state                    protoimpl.MessageState `protogen:"open.v1"`
-	ApiVersion               *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
-	InvocationId             *string                `protobuf:"bytes,2,opt,name=invocation_id,json=invocationId,proto3,oneof" json:"invocation_id,omitempty"`
-	SubmissionId             *string                `protobuf:"bytes,3,opt,name=submission_id,json=submissionId,proto3,oneof" json:"submission_id,omitempty"`
-	Incidental               *bool                  `protobuf:"varint,4,opt,name=incidental,proto3,oneof" json:"incidental,omitempty"`
-	ItemKey                  *string                `protobuf:"bytes,5,opt,name=item_key,json=itemKey,proto3,oneof" json:"item_key,omitempty"`
-	EvidenceRefs             *ListOfArtifactRef     `protobuf:"bytes,6,opt,name=evidence_refs,json=evidenceRefs,proto3" json:"evidence_refs,omitempty"`
-	HttpEvidenceInvocationId *string                `protobuf:"bytes,7,opt,name=http_evidence_invocation_id,json=httpEvidenceInvocationId,proto3,oneof" json:"http_evidence_invocation_id,omitempty"`
-	ProposalSize             *uint64                `protobuf:"varint,8,opt,name=proposal_size,json=proposalSize,proto3,oneof" json:"proposal_size,omitempty"`
-	DerivedAnchorsSize       *uint64                `protobuf:"varint,9,opt,name=derived_anchors_size,json=derivedAnchorsSize,proto3,oneof" json:"derived_anchors_size,omitempty"`
-	HttpEvidenceSize         *uint64                `protobuf:"varint,10,opt,name=http_evidence_size,json=httpEvidenceSize,proto3,oneof" json:"http_evidence_size,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	ApiVersion         *string                `protobuf:"bytes,1,opt,name=api_version,json=apiVersion,proto3,oneof" json:"api_version,omitempty"`
+	InvocationId       *string                `protobuf:"bytes,2,opt,name=invocation_id,json=invocationId,proto3,oneof" json:"invocation_id,omitempty"`
+	SubmissionId       *string                `protobuf:"bytes,3,opt,name=submission_id,json=submissionId,proto3,oneof" json:"submission_id,omitempty"`
+	Incidental         *bool                  `protobuf:"varint,4,opt,name=incidental,proto3,oneof" json:"incidental,omitempty"`
+	ItemKey            *string                `protobuf:"bytes,5,opt,name=item_key,json=itemKey,proto3,oneof" json:"item_key,omitempty"`
+	EvidenceRefs       *ListOfArtifactRef     `protobuf:"bytes,6,opt,name=evidence_refs,json=evidenceRefs,proto3" json:"evidence_refs,omitempty"`
+	ProposalSize       *uint64                `protobuf:"varint,8,opt,name=proposal_size,json=proposalSize,proto3,oneof" json:"proposal_size,omitempty"`
+	DerivedAnchorsSize *uint64                `protobuf:"varint,9,opt,name=derived_anchors_size,json=derivedAnchorsSize,proto3,oneof" json:"derived_anchors_size,omitempty"`
+	HttpEvidenceSize   *uint64                `protobuf:"varint,10,opt,name=http_evidence_size,json=httpEvidenceSize,proto3,oneof" json:"http_evidence_size,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *FindingSubmissionHeader) Reset() {
@@ -8962,13 +8961,6 @@ func (x *FindingSubmissionHeader) GetEvidenceRefs() *ListOfArtifactRef {
 		return x.EvidenceRefs
 	}
 	return nil
-}
-
-func (x *FindingSubmissionHeader) GetHttpEvidenceInvocationId() string {
-	if x != nil && x.HttpEvidenceInvocationId != nil {
-		return *x.HttpEvidenceInvocationId
-	}
-	return ""
 }
 
 func (x *FindingSubmissionHeader) GetProposalSize() uint64 {
@@ -10272,7 +10264,7 @@ const file_runtime_proto_rawDesc = "" +
 	"\x12ArtifactWriteFrame\x12J\n" +
 	"\x06header\x18\x01 \x01(\v20.contractor.runtime.v1alpha1.ArtifactWriteHeaderH\x00R\x06header\x12\x16\n" +
 	"\x05chunk\x18\x02 \x01(\fH\x00R\x05chunkB\a\n" +
-	"\x05frame\"\xb7\x05\n" +
+	"\x05frame\"\xd9\x04\n" +
 	"\x17FindingSubmissionHeader\x12$\n" +
 	"\vapi_version\x18\x01 \x01(\tH\x00R\n" +
 	"apiVersion\x88\x01\x01\x12(\n" +
@@ -10282,21 +10274,19 @@ const file_runtime_proto_rawDesc = "" +
 	"incidental\x18\x04 \x01(\bH\x03R\n" +
 	"incidental\x88\x01\x01\x12\x1e\n" +
 	"\bitem_key\x18\x05 \x01(\tH\x04R\aitemKey\x88\x01\x01\x12S\n" +
-	"\revidence_refs\x18\x06 \x01(\v2..contractor.runtime.v1alpha1.ListOfArtifactRefR\fevidenceRefs\x12B\n" +
-	"\x1bhttp_evidence_invocation_id\x18\a \x01(\tH\x05R\x18httpEvidenceInvocationId\x88\x01\x01\x12(\n" +
-	"\rproposal_size\x18\b \x01(\x04H\x06R\fproposalSize\x88\x01\x01\x125\n" +
-	"\x14derived_anchors_size\x18\t \x01(\x04H\aR\x12derivedAnchorsSize\x88\x01\x01\x121\n" +
+	"\revidence_refs\x18\x06 \x01(\v2..contractor.runtime.v1alpha1.ListOfArtifactRefR\fevidenceRefs\x12(\n" +
+	"\rproposal_size\x18\b \x01(\x04H\x05R\fproposalSize\x88\x01\x01\x125\n" +
+	"\x14derived_anchors_size\x18\t \x01(\x04H\x06R\x12derivedAnchorsSize\x88\x01\x01\x121\n" +
 	"\x12http_evidence_size\x18\n" +
-	" \x01(\x04H\bR\x10httpEvidenceSize\x88\x01\x01B\x0e\n" +
+	" \x01(\x04H\aR\x10httpEvidenceSize\x88\x01\x01B\x0e\n" +
 	"\f_api_versionB\x10\n" +
 	"\x0e_invocation_idB\x10\n" +
 	"\x0e_submission_idB\r\n" +
 	"\v_incidentalB\v\n" +
-	"\t_item_keyB\x1e\n" +
-	"\x1c_http_evidence_invocation_idB\x10\n" +
+	"\t_item_keyB\x10\n" +
 	"\x0e_proposal_sizeB\x17\n" +
 	"\x15_derived_anchors_sizeB\x15\n" +
-	"\x13_http_evidence_size\"\x98\x01\n" +
+	"\x13_http_evidence_sizeJ\x04\b\a\x10\b\"\x98\x01\n" +
 	"\x14FindingDocumentChunk\x12Q\n" +
 	"\bdocument\x18\x01 \x01(\x0e20.contractor.runtime.v1alpha1.FindingDocumentKindH\x00R\bdocument\x88\x01\x01\x12\x17\n" +
 	"\x04data\x18\x02 \x01(\fH\x01R\x04data\x88\x01\x01B\v\n" +

@@ -1,0 +1,244 @@
+{
+  "cases": [
+    {
+      "name": "two-exchanges",
+      "valid": true,
+      "proposal": {
+        "schema": "contractor.audit.finding-proposal.v1",
+        "client_key": "multi-http",
+        "title": "Observed access",
+        "description": "Compare control and probe",
+        "subject": null,
+        "preconditions": [],
+        "standard_refs": [],
+        "evidence_ids": [
+          "evidence-1",
+          "evidence-2"
+        ],
+        "proposed_checks": [],
+        "severity_suggestion": "high",
+        "limitations": [],
+        "http_exchanges": [
+          {
+            "request_id": 1,
+            "request_tag": "control",
+            "attempts": [
+              {
+                "method": "GET",
+                "url": "https://target.test/control",
+                "headers": [],
+                "body_base64": "",
+                "status": 200
+              }
+            ]
+          },
+          {
+            "request_id": 2,
+            "request_tag": "probe",
+            "attempts": [
+              {
+                "method": "GET",
+                "url": "https://target.test/control",
+                "headers": [],
+                "body_base64": "",
+                "status": 200
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty-array",
+      "valid": false,
+      "proposal": {
+        "schema": "contractor.audit.finding-proposal.v1",
+        "client_key": "multi-http",
+        "title": "Observed access",
+        "description": "Compare control and probe",
+        "subject": null,
+        "preconditions": [],
+        "standard_refs": [],
+        "evidence_ids": [
+          "evidence-1",
+          "evidence-2"
+        ],
+        "proposed_checks": [],
+        "severity_suggestion": "high",
+        "limitations": [],
+        "http_exchanges": []
+      }
+    },
+    {
+      "name": "null-array",
+      "valid": false,
+      "proposal": {
+        "schema": "contractor.audit.finding-proposal.v1",
+        "client_key": "multi-http",
+        "title": "Observed access",
+        "description": "Compare control and probe",
+        "subject": null,
+        "preconditions": [],
+        "standard_refs": [],
+        "evidence_ids": [
+          "evidence-1",
+          "evidence-2"
+        ],
+        "proposed_checks": [],
+        "severity_suggestion": "high",
+        "limitations": [],
+        "http_exchanges": null
+      }
+    },
+    {
+      "name": "singular-object",
+      "valid": false,
+      "proposal": {
+        "schema": "contractor.audit.finding-proposal.v1",
+        "client_key": "multi-http",
+        "title": "Observed access",
+        "description": "Compare control and probe",
+        "subject": null,
+        "preconditions": [],
+        "standard_refs": [],
+        "evidence_ids": [
+          "evidence-1",
+          "evidence-2"
+        ],
+        "proposed_checks": [],
+        "severity_suggestion": "high",
+        "limitations": [],
+        "http_exchanges": {
+          "request_id": 1,
+          "request_tag": "control",
+          "attempts": [
+            {
+              "method": "GET",
+              "url": "https://target.test/control",
+              "headers": [],
+              "body_base64": "",
+              "status": 200
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "retired-field",
+      "valid": false,
+      "proposal": {
+        "schema": "contractor.audit.finding-proposal.v1",
+        "client_key": "multi-http",
+        "title": "Observed access",
+        "description": "Compare control and probe",
+        "subject": null,
+        "preconditions": [],
+        "standard_refs": [],
+        "evidence_ids": [
+          "evidence-1",
+          "evidence-2"
+        ],
+        "proposed_checks": [],
+        "severity_suggestion": "high",
+        "limitations": [],
+        "http_exchange": {
+          "request_id": 1,
+          "request_tag": "control",
+          "attempts": [
+            {
+              "method": "GET",
+              "url": "https://target.test/control",
+              "headers": [],
+              "body_base64": "",
+              "status": 200
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "invalid-second-status",
+      "valid": false,
+      "proposal": {
+        "schema": "contractor.audit.finding-proposal.v1",
+        "client_key": "multi-http",
+        "title": "Observed access",
+        "description": "Compare control and probe",
+        "subject": null,
+        "preconditions": [],
+        "standard_refs": [],
+        "evidence_ids": [
+          "evidence-1",
+          "evidence-2"
+        ],
+        "proposed_checks": [],
+        "severity_suggestion": "high",
+        "limitations": [],
+        "http_exchanges": [
+          {
+            "request_id": 1,
+            "request_tag": "control",
+            "attempts": [
+              {
+                "method": "GET",
+                "url": "https://target.test/control",
+                "headers": [],
+                "body_base64": "",
+                "status": 200
+              }
+            ]
+          },
+          {
+            "request_id": 2,
+            "request_tag": "probe",
+            "attempts": [
+              {
+                "method": "GET",
+                "url": "https://target.test/control",
+                "headers": [],
+                "body_base64": "",
+                "status": 999
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "null-element",
+      "valid": false,
+      "proposal": {
+        "schema": "contractor.audit.finding-proposal.v1",
+        "client_key": "multi-http",
+        "title": "Observed access",
+        "description": "Compare control and probe",
+        "subject": null,
+        "preconditions": [],
+        "standard_refs": [],
+        "evidence_ids": [
+          "evidence-1",
+          "evidence-2"
+        ],
+        "proposed_checks": [],
+        "severity_suggestion": "high",
+        "limitations": [],
+        "http_exchanges": [
+          {
+            "request_id": 1,
+            "request_tag": "control",
+            "attempts": [
+              {
+                "method": "GET",
+                "url": "https://target.test/control",
+                "headers": [],
+                "body_base64": "",
+                "status": 200
+              }
+            ]
+          },
+          null
+        ]
+      }
+    }
+  ]
+}
