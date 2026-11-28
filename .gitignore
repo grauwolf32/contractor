@@ -19,6 +19,9 @@
 /.pnpm-store/
 /.portable/
 
+# Local formal-verification pilot models, tools and evidence
+/.lean/
+
 # Go commands and verification output
 /contractor-server
 /bin/
