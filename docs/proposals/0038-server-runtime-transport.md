@@ -1,11 +1,12 @@
 # Server ↔ Runtime: переход на gRPC с сохранением A2A
 
-Обновлено 2026-11-27. База: `main @ 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b`.
-Статус: **переход разрешён пользователем; задачи созданы; подтверждена транспортная
-предпосылка mTLS; пользователь выбрал локальный TLS-адаптер. Первый сквозной путь registration → lifecycle → A2A gRPC
-принят. Полный control/State также принят: Go/PostgreSQL, Runtime, wire, lint
-и 71 process-сценарий прошли.
-Остальные семейства и полная release-приёмка ещё не завершены.** Исторический разбор ниже
+Обновлено 2026-11-28. База: `main @ 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b`.
+Статус: **переход реализован и принят в ветке `codex/server-runtime-grpc-plan`.
+Control/lifecycle/State, allocation callbacks и Artifact streams используют gRPC;
+A2A сохранён через официальный gRPC binding. Прежний private HTTP-клиент и
+JSON-RPC handlers удалены; operational HTTPS-пробы сохранены. Полный
+`make release-verify`, public API/PostgreSQL, wire и architecture проверки прошли,
+включая все 71 process-сценарий. Ветка не слита в main и не развёрнута.** Исторический разбор ниже
 сохранён как контекст; его рекомендация оставить HTTP больше не является планом.
 
 ## Решения и результат
@@ -28,9 +29,9 @@ Task/Message/Agent Card, используемым официальными SDK. 
 а не отдельные требования пользователя. Неопределённость в TLS решается первой,
 до изменения гарантии или добавления обходного слоя.
 
-## Текущая граница и целевой транспорт
+## Граница на baseline и реализованный транспорт
 
-| Направление | Сейчас | План |
+| Направление | На baseline | Реализовано |
 | --- | --- | --- |
 | Runtime → Server: bootstrap, registration, heartbeat | `internal/controlplane/http.go`, `control_client.py` | Именованные unary control RPC |
 | Server → Runtime: prepare/finalize/abort/release/State | `runtime_client*.go`, `runtime_*`, `server.py` | Именованные unary lifecycle/State RPC |
@@ -243,7 +244,15 @@ maps в JSON-совместимые значения; Go SDK не принима
 | [V490-003](../../tasks/done/v490-003-grpc-control-lifecycle.yml) | Полный control/State, четыре slots, lease, shutdown, lost replies и restart | 002 |
 | [V490-004](../../tasks/done/v490-004-grpc-allocation-services.yml) | Planner callbacks, Audit, sitemap, finding reads/selections и Artifact metadata на gRPC | 003 |
 | [V490-005](../../tasks/done/v490-005-grpc-artifact-streams.yml) | Artifact и finding evidence streams с CAS, receipt, bounded memory и cleanup | 004 |
-| [V490-006](../../tasks/v490-006-grpc-release.yml) | Удалён старый транспорт, обновлены consumers/specs/ops, пройден release gate | 005 |
+| [V490-006](../../tasks/done/v490-006-grpc-release.yml) | Удалён старый транспорт, обновлены consumers/specs/ops, пройден release gate | 005, 008, 009 |
+
+Итоговая приёмка и hashes отчётов:
+[V490-006 evidence](../../tasks/evidence/v490-006-grpc-release-20261128.json).
+Runtime: 6726 passed и 136 объявленных skips; process shards: 26 + 16 + 29
+успешных корневых сценариев без skips. Named heavy-I/O fixtures не включались;
+disabled/platform/live skips не считаются passing coverage. Созданные тестовые
+БД удалены, отдельный PostgreSQL-кластер остановлен. Модели и canonical JSON
+digests сохраняются; сравнительное ускорение не измерялось.
 
 001 — ограниченная проверка предпосылки, не отдельный транспортный framework.
 Первый feature deliverable 002 проходит реальные компоненты до полноценного
@@ -464,4 +473,7 @@ Owner: `execution-core` (Control Plane), with `planner-worker` for A2A and
 offline scorer dependency pin после V489-001. Он исправлен отдельно в
 [V490-008](../../tasks/done/v490-008-offline-eval-dependency-pin.yml): обновлён
 pin текущего Go dependency closure, без изменения scorer, моделей, truth или
-существующих Eval-регистраций. Полная release-приёмка остаётся V490-006.
+существующих Eval-регистраций. Отдельная
+[V490-009](../../tasks/done/v490-009-planner-resource-browser-fixture.yml)
+обновила устаревшие browser assertions для уже существующих отдельных Planner
+и Worker allocations. Полная release-приёмка завершена в V490-006.

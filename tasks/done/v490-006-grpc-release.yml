@@ -5,7 +5,7 @@ milestone: server-runtime-grpc-2026-11
 epic: execution-core
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V490-005
 - V490-008
@@ -121,3 +121,30 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 43f9c9b22e2f831dce8ca1e6234ed6e764248875
+verification:
+  status: passed
+  evidence: tasks/evidence/v490-006-grpc-release-20261128.json
+  observed: >-
+    Full caffeinate -is make -k release-verify exited zero on the implementation
+    commit with a clean working tree. All release stages, the shared fixture
+    reader gate, real PostgreSQL/race/integration, Runtime, UI/browser and all
+    71 process roots passed. Runtime: 6726 passed, 136 declared skips; compaction
+    verifiers: 611 Python and 60 Go cases. Process shards passed 26/16/29 roots
+    with no skipped cases. Integration: 163 roots passed; four named optional
+    heavy-I/O roots stayed disabled and are not passing coverage. Public
+    API/PostgreSQL and architecture commands passed separately. Image and Audit
+    fault proxies retain real native delivery, committed-reply loss, exact
+    read-back and one-revision assertions. An earlier Runtime guidance timeout
+    coincided with confirmed Mac clamshell sleep; the whole root and final full
+    release rerun passed without changing code, models or deadlines.
+  cleanup: >-
+    Test processes and pools stopped before deletion. Removed the owned
+    contractor_v490_test database and two leftover contractor_process databases
+    in the lane-owned PostgreSQL 17 cluster on port 55490; verified only the
+    postgres maintenance database remains, then stopped that cluster. The
+    command-scoped caffeinate assertion ended with the release process. No
+    demo database or unrelated process was touched.
+  delivery: >-
+    Ready for user merge on codex/server-runtime-grpc-plan. Main remains
+    unmerged; no push, deployment or live-model experiment was performed.
