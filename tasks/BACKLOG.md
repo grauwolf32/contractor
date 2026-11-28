@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 12 in progress, 45 pending, 13 deferred. 1734 finished: 1715 completed, 19 archived.
+71 open tasks: 16 in progress, 42 pending, 13 deferred. 1734 finished: 1715 completed, 19 archived.
 
 ## In progress
 
@@ -23,6 +23,10 @@ the epics are in [epics.yml](epics.yml).
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V492-001](v492-001-lifecycle-cancellation.yml) | execution-core | defect | P1 | Keep admitted Finalize and Abort alive through RPC cancellation |
 | [V492-002](v492-002-planner-rpc-admission.yml) | execution-core | defect | P1 | Reserve progress capacity for Worker RPCs while Planners wait |
+| [V492-003](v492-003-control-body-deadline.yml) | execution-core | defect | P2 | Bound ControlPlane message reads independently of caller deadlines |
+| [V492-004](v492-004-grpc-utf8-size.yml) | api-contracts | defect | P2 | Count private protobuf domain projections as compact UTF-8 |
+| [V492-005](v492-005-grpc-receive-error.yml) | execution-core | defect | P2 | Classify oversized lifecycle replies as permanent protocol failures |
+| [V492-006](v492-006-bulk-final-status.yml) | projects-artifacts | defect | P2 | Preserve the final native status after an early bulk upload rejection |
 
 ## Pending
 
@@ -32,8 +36,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
 | [V469-002](v469-002-opencode-audit-runtime.yml) | feature | P1 | V469-001 | Run OpenCode in one retained Audit environment through existing A2A |
-| [V492-003](v492-003-control-body-deadline.yml) | defect | P2 | — | Bound ControlPlane message reads independently of caller deadlines |
-| [V492-005](v492-005-grpc-receive-error.yml) | defect | P2 | — | Classify oversized lifecycle replies as permanent protocol failures |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -115,7 +117,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016 | Expose HTTP engagement setup and results through existing API and CLI |
-| [V492-004](v492-004-grpc-utf8-size.yml) | defect | P2 | — | Count private protobuf domain projections as compact UTF-8 |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -172,7 +173,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 13 | 30 |
 | Findings tools and collections (`findings`) | 0 | 22 | 16 | 13 | 30 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 41 | 21 | 78 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 42 | 42 | 21 | 79 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 23 | 47 | 24 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |

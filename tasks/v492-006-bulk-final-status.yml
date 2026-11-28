@@ -1,0 +1,68 @@
+schema_version: '1.0'
+id: V492-006
+title: Preserve the final native status after an early bulk upload rejection
+milestone: server-runtime-grpc-2026-11
+epic: projects-artifacts
+kind: defect
+introduced_by: V490-005
+priority: P2
+status: in_progress
+depends_on: []
+languages:
+- python
+goal: A bulk upload preserves the final typed peer rejection when a local write or half-close error arrives
+  before its status, without replaying the upload.
+context:
+  authority: 'User decision 2026-11-28 requires regression tests and necessary verification for V492-001 through
+    V492-005. Agent-discovered acceptance prerequisite: the full Runtime gate exposes an existing bulk-status
+    race; keep this correction in its own task rather than widen the five original defects.'
+  severity: medium
+  finding: runtime/src/contractor_runtime/_bulk_rpc.py:115 catches only InvalidStateError from call.write.
+    A native early FailedPrecondition can instead raise a local AioRpcError before the final status; _rpc_connections.py
+    then classifies it as a transport failure. test_bulk_early_typed_rejection_stops_upload_without_replay_or_peer_text
+    fails 12/30 baseline and 6/30 corrected-branch attempts. Waiting for the native final call passes 30/30
+    diagnostic attempts.
+  siblings: Artifact.Write and Artifact.SubmitFinding share frame writes and each half-closes its request stream.
+    Both write and half-close must join final status on InvalidStateError/AioRpcError. Cancellation, response
+    validation and joined channel cleanup retain their existing owners.
+  specification:
+  - docs/spec/execution/control-plane.md#CTL-R177
+  - docs/spec/platform/failure-model.md
+  - api/v1alpha1/README.md
+  boundary_decision: Join the existing native call before classifying a failed upload step. Parsing SDK error
+    text or replaying the upload would lose authority or risk duplicate writes; a new preflight acknowledgement
+    would change the protocol unnecessarily. Deterministic write/half-close races and repeated native rejection
+    probes pin the behavior. Reopen when the SDK upload/status API changes.
+scope:
+  in:
+  - Preserve final native rejection across frame-write and half-close races for Artifact writes and finding
+    submission.
+  - Deterministic regression tests plus the real TLS streaming test and full Runtime acceptance.
+  out:
+  - No new metadata handshake, stream frame, retry, receipt, Server route or public API.
+acceptance_criteria:
+- id: A1
+  text: A local write or half-close error cannot mask a typed final peer rejection; the existing domain code
+    and retryability reach the caller.
+- id: A2
+  text: Each upload step and native call executes once, cancellation joins existing cleanup, and successful
+    early EOF is still rejected rather than manufacturing a committed result.
+- id: A3
+  text: Deterministic tests fail before the fix and native early-rejection/Artifact/finding suites and full
+    Runtime gate pass.
+tests:
+- command: runtime/.venv/bin/python -m pytest -W error runtime/tests/test_bulk_rpc.py runtime/tests/test_allocation_rpc.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
