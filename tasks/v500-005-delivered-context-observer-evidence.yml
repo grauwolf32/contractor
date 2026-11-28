@@ -6,12 +6,17 @@ epic: evals
 kind: defect
 introduced_by: V500-004
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V500-004]
 languages: [python, markdown]
 goal: Make a future context study measure real continuation and validate handoff trace coverage through the actual export boundary.
 context:
-  authority: 'Agent-proposed follow-up from user-authorized research on 2026-11-28. This task records the prerequisite; it does not authorize another live matrix or change existing frozen assessments.'
+  authority: >-
+    User decision 2026-11-28 explicitly requests checking refreshed main,
+    fixing the discovered problems, investigating partial usage and repeating
+    compaction with debug on the existing demo stand. No separate demo copy;
+    record observations/results and push changes. Prior agent proposal is now
+    assigned. Preserve historical frozen executions and assessments.
   review: docs/research/context-compaction-evaluation.md
   finding: >-
     tests/eval/context_compaction/observer.py:68 expects model.phase, but
