@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import grpc
 import httpx
 import pytest
 from fakes.worker_state import WorkerState
@@ -309,7 +310,9 @@ def test_completed_post_reports_checkpoint_failure_and_get_repairs_only_storage(
 
         async def write_artifact(self, *args: Any, **kwargs: Any) -> Any:
             if self.down:
-                raise ArtifactAPIError(503, "storage_transaction_conflict", True)
+                raise ArtifactAPIError(
+                    grpc.StatusCode.UNAVAILABLE, "storage_transaction_conflict", True
+                )
             return await super().write_artifact(*args, **kwargs)
 
     async def scenario() -> None:

@@ -11,6 +11,7 @@ import pytest
 from a2a.types import AgentCard
 from fakes.allocation import allocation_context
 from fakes.allocation_rpc import AllocationRPCFixture
+from fakes.artifact_responses import ArtifactHTTPResponse
 from fakes.process_markers import atomic_marker_source
 from fakes.worker_state import WorkerState
 from google.protobuf.json_format import ParseDict
@@ -18,11 +19,7 @@ from target_policy_fixtures import SCAN_TEST_POLICY
 from test_a2a_server import data_request, native_client, send
 
 from contractor_runtime.allocation import AllocationService
-from contractor_runtime.artifacts import (
-    ArtifactClient,
-    ArtifactHTTPResponse,
-    ArtifactTransportError,
-)
+from contractor_runtime.artifacts import ArtifactClient, ArtifactTransportError
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     AbortAllocationRequest,

@@ -8,6 +8,7 @@ from datetime import UTC
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
+import grpc
 from pydantic import Field
 
 from contractor_runtime import threads
@@ -152,16 +153,16 @@ async def prepare_report(client: ArtifactClient, format_: str, artifact: Artifac
     try:
         value = await client.read_artifact(artifact.require_exact(), max_bytes=MAX_REPORT_BYTES)
     except ArtifactResponseLimitError:
-        raise ArtifactAPIError(400, "invalid_request", False) from None
+        raise ArtifactAPIError(grpc.StatusCode.INVALID_ARGUMENT, "invalid_request", False) from None
     if value.media_type != "application/json":
-        raise ArtifactAPIError(400, "invalid_request", False)
+        raise ArtifactAPIError(grpc.StatusCode.INVALID_ARGUMENT, "invalid_request", False)
     at = value.revision_created_at.astimezone(UTC).isoformat().replace("+00:00", "Z")
     try:
         batch = await threads.to_thread_until_done(
             project_report, value.data, format_, at, name="sitemap-report-project"
         )
     except (ValueError, TypeError, KeyError, RecursionError, UnicodeError):
-        raise ArtifactAPIError(400, "invalid_request", False) from None
+        raise ArtifactAPIError(grpc.StatusCode.INVALID_ARGUMENT, "invalid_request", False) from None
     batch["artifact"] = value.artifact.model_dump(by_alias=True)
     return batch
 

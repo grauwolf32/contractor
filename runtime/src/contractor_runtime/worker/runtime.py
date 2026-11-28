@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
+from a2a.server.request_handlers.grpc_handler import GrpcHandler
 from google.adk.agents import LlmAgent
 from google.adk.apps import App
 from google.adk.events import Event, EventActions
@@ -18,7 +19,6 @@ from google.adk.models.base_llm import BaseLlm
 from google.adk.runners import Runner
 from google.adk.sessions import BaseSessionService
 from google.adk.sessions.base_session_service import GetSessionConfig
-from starlette.types import ASGIApp
 
 from contractor_runtime.a2a_server import (
     agent_card_dict,
@@ -296,7 +296,7 @@ class AdkWorkerRuntime:
         return dict(self._agent_card)
 
     @property
-    def a2a_application(self) -> ASGIApp:
+    def a2a_application(self) -> GrpcHandler:
         return self._a2a_application
 
     async def agent_state_snapshot(self) -> AgentStateSnapshot:

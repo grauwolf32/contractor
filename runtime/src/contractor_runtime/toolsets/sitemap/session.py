@@ -11,6 +11,8 @@ from contextlib import asynccontextmanager
 from typing import Any
 from uuid import uuid4
 
+import grpc
+
 from contractor_runtime import threads
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
@@ -71,7 +73,9 @@ class SitemapSession:
 
     @staticmethod
     def expired() -> ArtifactAPIError:
-        return ArtifactAPIError(409, "sitemap_cursor_expired", False)
+        return ArtifactAPIError(
+            grpc.StatusCode.FAILED_PRECONDITION, "sitemap_cursor_expired", False
+        )
 
     @asynccontextmanager
     async def _reading(
@@ -288,7 +292,7 @@ class SitemapSession:
         async with self._reading("read_sitemap_entry", refresh, cursor, query) as (view, offset):
             entry = view.entries.get(identity)
             if entry is None:
-                raise ArtifactAPIError(404, "artifact_not_found", False)
+                raise ArtifactAPIError(grpc.StatusCode.NOT_FOUND, "artifact_not_found", False)
             return self._parts_page(
                 query,
                 offset,

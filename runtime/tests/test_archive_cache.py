@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fakes.allocation_rpc import AllocationRPCFixture
+from fakes.artifact_responses import ArtifactHTTPResponse
 from shared_config_defaults import MAX_ARTIFACT_BYTES
 from test_artifacts import TIMESTAMP_HEADERS
 
@@ -27,12 +28,7 @@ from contractor_runtime.archive_cache import (
     tls_trust_fingerprint,
 )
 from contractor_runtime.archive_cache_files import CACHE_DIRECTORY, MARKER, CacheFiles
-from contractor_runtime.artifacts import (
-    ArtifactAPIError,
-    ArtifactClient,
-    ArtifactHTTPResponse,
-    ArtifactTransportError,
-)
+from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef
 
 

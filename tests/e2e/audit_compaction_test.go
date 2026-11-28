@@ -37,14 +37,18 @@ func TestAuditCompactionPreservesTrustedCompletionAcrossProcesses(t *testing.T) 
 		installCompactAuditProcessFixture(t, root, gateway.server.URL+"/v1")
 	}, func(h *findingsHarness) {
 		h.runtimeControlPlaneURL = h.proxyPrivateAPI(func(response *http.Response) error {
-			if !strings.HasSuffix(response.Request.URL.Path, "/artifacts/checker/result") || response.StatusCode >= 300 {
+			metadata, err := privateArtifactRPCMetadata(response)
+			if err != nil {
+				return err
+			}
+			if metadata == nil || metadata.GetArtifact().GetNamespace() != "checker" || metadata.GetArtifact().GetName() != "result" {
 				return nil
 			}
-			if response.Request.Method == http.MethodPut && lost.CompareAndSwap(0, 1) {
+			if response.Request.URL.Path == runtimepb.Artifact_Write_FullMethodName && lost.CompareAndSwap(0, 1) {
 				_ = response.Body.Close()
 				return errors.New("controlled committed Audit result acknowledgement loss")
 			}
-			if response.Request.Method == http.MethodGet {
+			if response.Request.URL.Path == runtimepb.Artifact_Read_FullMethodName {
 				reconciled.Add(1)
 			}
 			return nil

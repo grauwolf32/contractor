@@ -4,8 +4,9 @@ import hashlib
 import json
 from urllib.parse import parse_qs, urlsplit
 
-from contractor_runtime.artifacts import ArtifactHTTPResponse, ArtifactTransportError
+from contractor_runtime.artifacts import ArtifactTransportError
 from fakes.allocation_rpc import AllocationRPCFixture
+from fakes.artifact_responses import ArtifactHTTPResponse
 
 ARTIFACT_DIGEST = "sha256:" + "a" * 64
 

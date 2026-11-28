@@ -234,10 +234,11 @@ def test_parser_budget_stops_without_partial_anchors(monkeypatch):
 
 
 def test_shared_code_publisher_uses_hidden_exact_anchor_metadata():
+    from fakes.artifact_responses import ArtifactHTTPResponse
     from test_finding_facades import context, finding_tool
     from test_security_findings_toolset import FakeFindingClient
 
-    from contractor_runtime.artifacts import ArtifactHTTPResponse, ArtifactTransportError
+    from contractor_runtime.artifacts import ArtifactTransportError
     from contractor_runtime.contracts import ArtifactRef
     from contractor_runtime.toolsets.security_findings.facades import CodeFindingsToolsetFactory
 
@@ -389,7 +390,7 @@ class SourceAPI(AllocationRPCFixture):
     async def request(self, method, path, *, headers, body, max_response_bytes):
         from urllib.parse import parse_qs, urlsplit
 
-        from contractor_runtime.artifacts import ArtifactHTTPResponse
+        from fakes.artifact_responses import ArtifactHTTPResponse
 
         if method != "GET":
             return await self.intake.request(

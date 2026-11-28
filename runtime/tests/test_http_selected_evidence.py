@@ -7,16 +7,13 @@ from types import SimpleNamespace
 import pytest
 from audit_fixtures import assigned
 from fakes.allocation_rpc import AllocationRPCFixture
+from fakes.artifact_responses import ArtifactHTTPResponse
 from fakes.audit_judgments import acknowledged_judgments
 from fakes.engagement_socket import SocketTarget, preflight
 from fakes.worker_state import WorkerState
 from test_artifacts import TIMESTAMP_HEADERS, json_response
 
-from contractor_runtime.artifacts import (
-    ArtifactClient,
-    ArtifactHTTPResponse,
-    ArtifactTransportError,
-)
+from contractor_runtime.artifacts import ArtifactClient, ArtifactTransportError
 from contractor_runtime.audit_evidence import evidence_snapshot_ref
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.input_errors import ToolInputError

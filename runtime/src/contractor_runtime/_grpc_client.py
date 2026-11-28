@@ -16,8 +16,8 @@ from google.protobuf.message import DecodeError
 from google.rpc.error_details_pb2 import RetryInfo
 from google.rpc.status_pb2 import Status
 
+from contractor_runtime._grpc_metadata import error_detail
 from contractor_runtime._grpc_tls import TLSForwarder
-from contractor_runtime._https import decode_private_error
 from contractor_runtime.contracts import (
     AgentRegistrationResponse,
     HeartbeatResponse,
@@ -26,12 +26,14 @@ from contractor_runtime.contracts import (
     decode_private,
 )
 from contractor_runtime.contracts.grpc_wire import codec, runtime_pb2, runtime_pb2_grpc
-from contractor_runtime.contracts.grpc_wire.limits import MAX_CONTROL_BYTES, METADATA_OPTIONS
+from contractor_runtime.contracts.grpc_wire.limits import (
+    IDLE_SECONDS,
+    LIFETIME_SECONDS,
+    MAX_CONTROL_BYTES,
+    METADATA_OPTIONS,
+)
 from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.threads import to_thread_until_done
-
-IDLE_SECONDS = 30.0
-LIFETIME_SECONDS = 300.0
 
 
 class ControlRPCError(Exception):
@@ -255,12 +257,8 @@ def _error(error, correlation, *, allow_retry_info=False):
             if not status.details[0].Unpack(detail):
                 raise ValueError
             value = codec.decode(detail)
-            # Reuse the private error grammar; it validates code, retry class
-            # and request ID and never propagates the remote raw error text.
-            parsed = decode_private_error(json.dumps({**value, "message": "RPC failed"}).encode())
-            if parsed is None:
-                raise ValueError
-            code, retryable, correlation = parsed.code, parsed.retryable, parsed.request_id
+            code, retryable, correlation = error_detail(value)
+
         except (ValueError, TypeError, DecodeError):
             code, retryable, retry_after = "invalid_error_response", False, None
     elif details:

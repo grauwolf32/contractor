@@ -43,6 +43,11 @@ context:
     Native status validation replaces integer HTTP status compatibility. Shared
     native lifetime fixtures distinguish Server active-call limits from Runtime
     channel admission; no new pool, retry owner or telemetry subsystem is added.
+    Process fault/observation proxies inspect named Artifact RPC protobuf
+    metadata: read probes replay only the bounded first header frame, and a
+    lost write receipt is injected after the complete successful gRPC trailer.
+    Original image byte/pixel checks, Audit trust, exact read-back and the
+    single PostgreSQL revision assertion remain on real components.
   baseline: main 9fd3ac96d32c696fa39988df85e32f6bb6d1d83b
 scope:
   in:

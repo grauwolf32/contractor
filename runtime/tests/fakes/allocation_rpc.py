@@ -7,43 +7,11 @@ production uses RPCConnections and the native interop suites cover it.
 import json
 from urllib.parse import quote, urlencode
 
-import grpc
-
 from contractor_runtime._bulk_rpc import PayloadDownload
-from contractor_runtime.artifacts import (
-    ArtifactAPIError,
-    ArtifactTransportError,
-    _strong_etag,
-    raise_for_status,
-    require_json,
-)
+from contractor_runtime.artifacts import ArtifactTransportError
 from contractor_runtime.strict_json import strict_json_loads
-
-
-def raise_rpc_status(response):
-    try:
-        raise_for_status(response)
-    except ArtifactAPIError as error:
-        status = {
-            400: grpc.StatusCode.INVALID_ARGUMENT,
-            401: grpc.StatusCode.UNAUTHENTICATED,
-            403: grpc.StatusCode.PERMISSION_DENIED,
-            404: grpc.StatusCode.NOT_FOUND,
-            409: grpc.StatusCode.FAILED_PRECONDITION,
-            412: grpc.StatusCode.FAILED_PRECONDITION,
-            413: grpc.StatusCode.RESOURCE_EXHAUSTED,
-            422: grpc.StatusCode.INVALID_ARGUMENT,
-            429: grpc.StatusCode.RESOURCE_EXHAUSTED,
-            500: grpc.StatusCode.INTERNAL,
-            502: grpc.StatusCode.UNAVAILABLE,
-            503: grpc.StatusCode.UNAVAILABLE,
-            504: grpc.StatusCode.DEADLINE_EXCEEDED,
-        }.get(error.status_code, grpc.StatusCode.UNKNOWN)
-        if error.code == "artifact_transfer_capacity":
-            status = grpc.StatusCode.RESOURCE_EXHAUSTED
-        elif error.code == "storage_transaction_conflict":
-            status = grpc.StatusCode.ABORTED
-        raise ArtifactAPIError(status, error.code, error.retryable, error.request_id) from None
+from fakes.artifact_responses import _strong_etag, require_json
+from fakes.artifact_responses import raise_for_status as raise_rpc_status
 
 
 class AllocationRPCFixture:

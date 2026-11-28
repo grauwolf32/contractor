@@ -47,8 +47,8 @@ class TLSForwarder:
     ) -> int:
         """Accept and verify peers before selecting their local ALPN backend.
 
-        During the operation-family migration the HTTP/1.1 backend serves only
-        operations not yet migrated. Each migrated operation has one gRPC route.
+        The HTTP/1.1 backend serves only operational health/readiness probes.
+        Commands and allocation data use the native gRPC backend.
         Admission happens before the TLS handshake, including unauthenticated
         and stalled clients, rather than just bounding completed handshakes.
         """
@@ -125,8 +125,8 @@ class TLSForwarder:
             )
             writer = asyncio.StreamWriter(transport, protocol, reader, loop)
             negotiated = _verify(writer)
-            # HTTP/1.1 clients historically need not offer ALPN. This branch
-            # disappears with the final unmigrated HTTP operation family.
+            # Operational HTTPS probes may omit ALPN. Their dedicated backend
+            # has only health/readiness routes and cannot execute private RPCs.
             selected = negotiated or "http/1.1"
             if selected not in backends:
                 raise ssl.SSLError("unsupported private transport")

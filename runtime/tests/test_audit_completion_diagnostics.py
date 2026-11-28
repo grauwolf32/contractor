@@ -156,7 +156,9 @@ def test_shared_real_runtime_reports_counts_phases_and_no_fictitious_calls(tmp_p
             responses = [submit(items[0]), submit(items[1], "second"), text_result("Finished")]
         runtime, model, client, state, _ = await runtime_for(tmp_path, responses, batch=True)
         if mode == "forbidden":
-            client.write_error = ArtifactAPIError(403, "allocation_write_fenced", False)
+            client.write_error = ArtifactAPIError(
+                grpc.StatusCode.PERMISSION_DENIED, "allocation_write_fenced", False
+            )
         elif mode in {"transport", "conflict"}:
             client.write_error = ArtifactTransportError("private-transport-marker")
             original_read = client.read_artifact

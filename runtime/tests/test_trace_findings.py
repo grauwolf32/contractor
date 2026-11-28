@@ -4,7 +4,9 @@ import asyncio
 import json
 from datetime import UTC, datetime
 
+import grpc
 import pytest
+from fakes.artifact_responses import ArtifactHTTPResponse
 from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from test_projectfs_zip import archive, settings, workspace_inputs
@@ -14,7 +16,6 @@ from test_taint_annotations import LANGUAGE_CASES, MemoryWriter, make_tools
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactClient,
-    ArtifactHTTPResponse,
     ArtifactTransportError,
     ArtifactValue,
 )
@@ -113,7 +114,7 @@ class MemoryArtifacts(ArtifactClient):
     async def read_artifact(self, ref, *, max_bytes=None, **kwargs):
         value = self.values.get((ref.namespace, ref.name))
         if value is None:
-            raise ArtifactAPIError(404, "artifact_not_found", False)
+            raise ArtifactAPIError(grpc.StatusCode.NOT_FOUND, "artifact_not_found", False)
         assert ref.revision is None or ref.revision == value.artifact.revision
         assert max_bytes is None or len(value.data) <= max_bytes
         return value
@@ -132,7 +133,7 @@ class MemoryArtifacts(ArtifactClient):
         assert expected_revision is None
         key = (target.namespace, target.name)
         if key in self.values:
-            raise ArtifactAPIError(409, "artifact_conflict", False)
+            raise ArtifactAPIError(grpc.StatusCode.FAILED_PRECONDITION, "artifact_conflict", False)
         self.writes += 1
         exact = target.model_copy(update={"revision": "proof-1"})
         self.values[key] = ArtifactValue(exact, media_type, data, NOW, NOW)

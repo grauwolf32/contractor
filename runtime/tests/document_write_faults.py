@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import grpc
+
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef
 
@@ -34,15 +36,15 @@ class FaultInjectingArtifactClient:
         if failure in {"fenced", "forbidden", "invalid"}:
             self.failure = None
             status, code = {
-                "fenced": (409, "allocation_write_fenced"),
-                "forbidden": (403, "artifact_access_denied"),
-                "invalid": (400, "artifact_invalid"),
+                "fenced": (grpc.StatusCode.FAILED_PRECONDITION, "allocation_write_fenced"),
+                "forbidden": (grpc.StatusCode.PERMISSION_DENIED, "artifact_access_denied"),
+                "invalid": (grpc.StatusCode.INVALID_ARGUMENT, "artifact_invalid"),
             }[failure]
             raise ArtifactAPIError(status, code, False)
         if failure == "conflict":
             self.failure = None
             self.inner.seed(target.namespace, target.name, media_type, self.concurrent_data)
-            raise ArtifactAPIError(409, "artifact_conflict", True)
+            raise ArtifactAPIError(grpc.StatusCode.FAILED_PRECONDITION, "artifact_conflict", True)
         try:
             written = await self.inner.write_artifact(
                 target,
@@ -51,12 +53,14 @@ class FaultInjectingArtifactClient:
                 expected_revision=expected_revision,
             )
         except ValueError:
-            raise ArtifactAPIError(409, "artifact_conflict", True) from None
+            raise ArtifactAPIError(
+                grpc.StatusCode.FAILED_PRECONDITION, "artifact_conflict", True
+            ) from None
         if failure in {"lost_transport", "lost_500", "diverged"}:
             self.failure = None
             if failure == "diverged":
                 self.inner.seed(target.namespace, target.name, media_type, self.concurrent_data)
             if failure == "lost_500":
-                raise ArtifactAPIError(500, "artifact_write_failed", True)
+                raise ArtifactAPIError(grpc.StatusCode.INTERNAL, "artifact_write_failed", True)
             raise ArtifactTransportError("write response was lost")
         return written

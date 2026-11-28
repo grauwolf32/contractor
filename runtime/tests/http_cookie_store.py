@@ -5,6 +5,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+import grpc
+
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactResponseLimitError
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.toolsets.http.tools import (
@@ -22,7 +24,7 @@ class CookieArtifactStore:
         self.reads += 1
         value = self.current.get((ref.namespace, ref.name))
         if value is None or (ref.revision is not None and ref.revision != value.artifact.revision):
-            raise ArtifactAPIError(404, "artifact_not_found", False)
+            raise ArtifactAPIError(grpc.StatusCode.NOT_FOUND, "artifact_not_found", False)
         if len(value.data) > max_bytes:
             raise ArtifactResponseLimitError("response too large")
         return value
@@ -40,7 +42,7 @@ class CookieArtifactStore:
         previous = self.current.get((target.namespace, target.name))
         actual = None if previous is None else previous.artifact.revision
         if actual != expected_revision:
-            raise ArtifactAPIError(409, "artifact_conflict", False)
+            raise ArtifactAPIError(grpc.StatusCode.FAILED_PRECONDITION, "artifact_conflict", False)
         self.writes += 1
         value = SimpleNamespace(
             artifact=target.model_copy(update={"revision": f"cookie-{self.writes}"}),

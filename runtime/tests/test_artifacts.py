@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from fakes.allocation_rpc import AllocationRPCFixture
+from fakes.artifact_responses import ArtifactHTTPResponse
 from pydantic import ValidationError
 from shared_config_defaults import MAX_ARTIFACT_BYTES
 
@@ -16,7 +17,6 @@ from contractor_runtime import artifacts
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactClient,
-    ArtifactHTTPResponse,
     ArtifactReadTarget,
     ArtifactResponseLimitError,
     ArtifactTransportError,

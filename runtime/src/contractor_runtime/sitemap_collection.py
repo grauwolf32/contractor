@@ -12,6 +12,8 @@ from contextlib import suppress
 from dataclasses import dataclass
 from uuid import uuid4
 
+import grpc
+
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.contracts.base import MAX_EXACT_INTEGER
@@ -159,7 +161,7 @@ class SitemapCollector:
         failure = (
             error
             if isinstance(error, ArtifactAPIError)
-            else ArtifactAPIError(503, "sitemap_unavailable", True)
+            else ArtifactAPIError(grpc.StatusCode.UNAVAILABLE, "sitemap_unavailable", True)
         )
         if self._failure is None or self._failure.code != failure.code:
             # The JSON logger deliberately drops arbitrary extras. Render only

@@ -5,6 +5,7 @@ import copy
 import json
 from pathlib import Path
 
+import grpc
 import httpx
 import pytest
 from fakes.sitemap import SitemapTransport
@@ -278,7 +279,9 @@ def test_collection_keeps_http_sessions_and_request_tags_without_identity_metada
 def test_failure_is_logged_without_changing_read_or_completion(caplog):
     async def scenario():
         client = Client()
-        client.failure = ArtifactAPIError(409, "artifact_history_protected", False)
+        client.failure = ArtifactAPIError(
+            grpc.StatusCode.FAILED_PRECONDITION, "artifact_history_protected", False
+        )
         collector = SitemapCollector(client, wait=no_timer)
         await collector.receive_source("http", [observation()])
         await collector.checkpoint()
@@ -361,7 +364,9 @@ def test_cancelled_fresh_read_joins_checkpoint_before_propagating():
 def test_unknown_remote_failure_text_is_never_logged(caplog):
     async def scenario():
         client = Client()
-        client.failure = ArtifactAPIError(503, "private-canary/remote-text", False)
+        client.failure = ArtifactAPIError(
+            grpc.StatusCode.UNAVAILABLE, "private-canary/remote-text", False
+        )
         collector = SitemapCollector(client, wait=no_timer)
         await collector.receive_source("http", [observation()])
         await collector.close()
@@ -385,7 +390,7 @@ def test_retry_budget_is_not_renewed_and_retry_after_is_honoured():
             ("artifact_history_maintenance_pending", 3),
         ]:
             client = Client()
-            client.failure = ArtifactAPIError(503, code, True)
+            client.failure = ArtifactAPIError(grpc.StatusCode.UNAVAILABLE, code, True)
             collector = SitemapCollector(client, clock=lambda: now[0], sleep=advance, wait=no_timer)
             await collector.receive_source("http", [observation()])
             await collector.checkpoint()
@@ -393,7 +398,9 @@ def test_retry_budget_is_not_renewed_and_retry_after_is_honoured():
             await collector.close()
             assert len(client.calls) == count and len({key for _, key in client.calls}) == 1
         client = Client()
-        client.failure = ArtifactAPIError(503, "artifact_history_maintenance_pending", True)
+        client.failure = ArtifactAPIError(
+            grpc.StatusCode.UNAVAILABLE, "artifact_history_maintenance_pending", True
+        )
         client.failure.retry_after_seconds = 2
         client.failure_once = True
         collector = SitemapCollector(client, clock=lambda: now[0], sleep=advance, wait=no_timer)
@@ -416,7 +423,9 @@ def test_checkpoint_does_not_give_the_second_batch_a_fresh_budget():
                     now[0] += 14
                     await collector.receive_source("http", [observation(999)])
                 else:
-                    error = ArtifactAPIError(503, "artifact_history_maintenance_pending", True)
+                    error = ArtifactAPIError(
+                        grpc.StatusCode.UNAVAILABLE, "artifact_history_maintenance_pending", True
+                    )
                     error.retry_after_seconds = 2
                     raise error
 

@@ -6,8 +6,9 @@ from collections.abc import Mapping
 
 from pydantic import ValidationError
 
-from contractor_runtime import _https, threads
+from contractor_runtime import threads
 from contractor_runtime._bulk_rpc import prepare_finding_submission
+from contractor_runtime._grpc_metadata import REQUEST_ID_PATTERN
 from contractor_runtime.artifacts import (
     ArtifactTransport,
     ArtifactTransportError,
@@ -89,16 +90,13 @@ class FindingProposalClient:
         if not isinstance(value, dict) or set(value) != expected:
             raise ArtifactTransportError("finding proposal API returned an invalid receipt")
         published = value["findingId"]
-        if not isinstance(published, str) or _https.REQUEST_ID_PATTERN.fullmatch(published) is None:
+        if not isinstance(published, str) or REQUEST_ID_PATTERN.fullmatch(published) is None:
             raise ArtifactTransportError("finding proposal API returned an invalid Finding ID")
         if value.get("apiVersion") != "contractor/v1alpha1":
             raise ArtifactTransportError("finding proposal API returned an invalid version")
         for field_name in ("proposalId", "receiptId"):
             candidate = value.get(field_name)
-            if (
-                not isinstance(candidate, str)
-                or _https.REQUEST_ID_PATTERN.fullmatch(candidate) is None
-            ):
+            if not isinstance(candidate, str) or REQUEST_ID_PATTERN.fullmatch(candidate) is None:
                 raise ArtifactTransportError("finding proposal API returned an invalid identity")
         if not isinstance(value.get("replayed"), bool):
             raise ArtifactTransportError("finding proposal API returned an invalid replay marker")

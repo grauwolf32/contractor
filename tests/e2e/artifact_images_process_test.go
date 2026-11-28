@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
 )
 
 func TestArtifactImagesAcrossProcesses(t *testing.T) {
@@ -115,7 +117,14 @@ func TestArtifactImagesAcrossProcesses(t *testing.T) {
 		}
 	}, func(h *findingsHarness) {
 		h.proxyPrivateAPI(func(response *http.Response) error {
-			if response.Request.Method == http.MethodGet && strings.Contains(response.Request.URL.Path, "/artifacts/inputs/source") && response.Request.Header.Get("Accept") == "*/*" && response.StatusCode == http.StatusOK {
+			if response.Request.URL.Path != runtimepb.Artifact_Read_FullMethodName {
+				return nil
+			}
+			metadata, err := privateArtifactRPCMetadata(response)
+			if err != nil {
+				return err
+			}
+			if metadata != nil && metadata.GetArtifact().GetNamespace() == "inputs" && metadata.GetArtifact().GetName() == "source" {
 				payloadReads.Add(1)
 			}
 			return nil

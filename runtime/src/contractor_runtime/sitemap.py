@@ -11,6 +11,8 @@ import asyncio
 import json
 from collections.abc import Mapping
 
+import grpc
+
 from contractor_runtime import threads
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
@@ -72,7 +74,7 @@ class SitemapClient:
             name="sitemap-command-encode",
         )
         if len(body) > MAX_SITEMAP_COMMAND_BYTES:
-            raise ArtifactAPIError(400, "invalid_request", False)
+            raise ArtifactAPIError(grpc.StatusCode.INVALID_ARGUMENT, "invalid_request", False)
         # Reconcile one ambiguous transport loss with the same bytes and key.
         # The Server owns storage retry budgets and definite API failures.
         async with asyncio.timeout(15):

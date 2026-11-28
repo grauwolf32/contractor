@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from contractor_runtime._https import PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS
+from contractor_runtime.contracts.grpc_wire.limits import PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS
 from contractor_runtime.mtls import runtime_agent_server_context
 from contractor_runtime.server import RuntimeServer, create_app, create_server_config
 from contractor_runtime.settings import Settings

@@ -484,7 +484,9 @@ class ScriptedTransport:
         if step == "transport":
             raise ArtifactTransportError("connection refused")
         if isinstance(step, int):
-            raise ArtifactAPIError(step, "recovery_unavailable", step >= 500, None)
+            from fakes.artifact_responses import HTTP_TO_RPC
+
+            raise ArtifactAPIError(HTTP_TO_RPC[step], "recovery_unavailable", step >= 500, None)
         try:
             return json.loads(step) if isinstance(step, bytes) else step
         except ValueError:

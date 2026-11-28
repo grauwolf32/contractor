@@ -10,12 +10,12 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 import pytest
 from fakes.allocation_rpc import AllocationRPCFixture
+from fakes.artifact_responses import ArtifactHTTPResponse
 from fakes.model import json_result, scripted_model, text_result
 from fakes.worker_state import WorkerState
 
 from contractor_runtime.artifacts import (
     ArtifactClient,
-    ArtifactHTTPResponse,
     ArtifactResponseLimitError,
     ArtifactTransportError,
 )

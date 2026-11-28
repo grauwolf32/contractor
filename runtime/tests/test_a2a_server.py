@@ -589,7 +589,7 @@ def test_native_a2a_rejection_carries_bounded_correlation(
 ):
     from a2a.types import a2a_pb2_grpc
 
-    from contractor_runtime._https import REQUEST_ID_PATTERN
+    from contractor_runtime._grpc_metadata import REQUEST_ID_PATTERN
 
     class ReleasedAllocation:
         async def active_a2a_application(self, allocation_id):

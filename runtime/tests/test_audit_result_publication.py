@@ -8,12 +8,12 @@ from dataclasses import replace
 import pytest
 from audit_fixtures import assigned, digest
 from fakes.allocation_rpc import AllocationRPCFixture
+from fakes.artifact_responses import ArtifactHTTPResponse
 from fakes.clock import advance_clock, run_with_advanceable_clock
 from test_artifacts import TIMESTAMP_HEADERS, json_response
 
 from contractor_runtime.artifacts import (
     ArtifactClient,
-    ArtifactHTTPResponse,
     ArtifactResponseLimitError,
     ArtifactTransportError,
 )

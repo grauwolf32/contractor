@@ -13,6 +13,7 @@ from typing import Any
 
 import grpc
 import pytest
+from fakes.artifact_responses import HTTP_TO_RPC
 from fakes.worker_state import WorkerState
 from shared_config_defaults import MAX_ARTIFACT_BYTES
 from test_memory_toolset import (
@@ -65,7 +66,9 @@ class _RejectingTransport(FaultingArtifactTransport):
             )
             return self._error_response(
                 ArtifactAPIError(
-                    self._error["status"], self._error["code"], self._error["retryable"]
+                    HTTP_TO_RPC[self._error["status"]],
+                    self._error["code"],
+                    self._error["retryable"],
                 )
             )
         # The base transport records an accepted PUT itself.

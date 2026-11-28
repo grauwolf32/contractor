@@ -7,16 +7,17 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+import grpc
 import pytest
 from fakes.allocation_rpc import AllocationRPCFixture
 from fakes.artifact_reads import CountingPayload, count_derivations
+from fakes.artifact_responses import ArtifactHTTPResponse
 from fakes.worker_state import WorkerState
 
 import contractor_runtime.toolsets.run_artifacts.tools as run_artifacts
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactClient,
-    ArtifactHTTPResponse,
     ArtifactTransportError,
     ArtifactValue,
 )
@@ -316,7 +317,9 @@ def test_tool_error_metrics_are_bounded_typed_and_secret_free(tmp_path) -> None:
     async def scenario():
         async with local_source(tmp_path, SECRET.encode()) as (source, _root):
             client = FakeArtifactClient(
-                write_error=ArtifactAPIError(403, "artifact_access_denied", False)
+                write_error=ArtifactAPIError(
+                    grpc.StatusCode.PERMISSION_DENIED, "artifact_access_denied", False
+                )
             )
             state = WorkerState()
             factory = RunArtifactsToolsetFactory(lambda *_: client)
@@ -745,7 +748,7 @@ def test_file_publication_reconciles_lost_reply_with_exact_source_bytes(tmp_path
             )
             if self.write_calls == 1:
                 raise ArtifactTransportError("response lost after commit")
-            raise ArtifactAPIError(409, "artifact_conflict", False)
+            raise ArtifactAPIError(grpc.StatusCode.FAILED_PRECONDITION, "artifact_conflict", False)
 
         async def read_artifact(self, ref, *, max_bytes=None):
             self.read_calls += 1

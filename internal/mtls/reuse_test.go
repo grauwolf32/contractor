@@ -12,7 +12,7 @@ func TestSharedPrivateConnectionReuseLimits(t *testing.T) {
 		ListenerIdleTimeoutSeconds int `json:"listenerIdleTimeoutSeconds"`
 		ClientIdleReuseSeconds     int `json:"clientIdleReuseSeconds"`
 		ReuseLifetimeSeconds       int `json:"reuseLifetimeSeconds"`
-		ConnectionsPerPeer         int `json:"connectionsPerPeer"`
+		ServerCallsPerPeer         int `json:"serverCallsPerPeer"`
 	}
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "private-connection-reuse.json"), &limits); err != nil {
 		t.Fatal(err)
@@ -20,7 +20,7 @@ func TestSharedPrivateConnectionReuseLimits(t *testing.T) {
 	if time.Duration(limits.ListenerIdleTimeoutSeconds)*time.Second != PrivateListenerIdleTimeout ||
 		time.Duration(limits.ClientIdleReuseSeconds)*time.Second != privateConnectionIdleReuse ||
 		time.Duration(limits.ReuseLifetimeSeconds)*time.Second != privateConnectionReuseLifetime ||
-		limits.ConnectionsPerPeer != privateConnectionsPerPeer {
+		limits.ServerCallsPerPeer != privateConnectionsPerPeer {
 		t.Fatalf("Go reuse limits differ from the shared fixture: %+v", limits)
 	}
 	if privateConnectionIdleReuse >= PrivateListenerIdleTimeout {

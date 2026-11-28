@@ -7,7 +7,6 @@ import contextlib
 import logging
 import math
 import os
-import re
 import ssl
 import tempfile
 import uuid
@@ -24,8 +23,8 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from contractor_runtime._grpc_metadata import REQUEST_ID_PATTERN
 from contractor_runtime._grpc_tls import TLSForwarder
-from contractor_runtime._https import PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS
 from contractor_runtime.a2a_server import MAX_A2A_REQUEST_BYTES, register_a2a_gateway
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.contracts.grpc_wire import runtime_pb2_grpc
@@ -33,6 +32,7 @@ from contractor_runtime.contracts.grpc_wire.limits import (
     MAX_CONCURRENT_RPCS,
     MAX_STATE_MESSAGE_BYTES,
     METADATA_OPTIONS,
+    PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS,
 )
 from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.grpc_server import LifecycleHandler
@@ -43,7 +43,6 @@ logger = logging.getLogger(__name__)
 
 VERIFIED_PEER_EXTENSION = "contractor.mtls.peer_certificate"
 REQUEST_ID_HEADER = b"x-request-id"
-REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
 class VerifiedPeerMiddleware:

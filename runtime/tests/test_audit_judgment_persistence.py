@@ -4,6 +4,7 @@ import asyncio
 import json
 from dataclasses import replace
 
+import grpc
 import pytest
 from audit_fixtures import assigned
 from fakes.audit_judgments import JudgmentTransport
@@ -112,7 +113,9 @@ def test_definite_rejection_is_not_retried_or_locally_accepted():
 
         async def reject(allocation_id, value):
             transport.requests.append(value)
-            raise ArtifactAPIError(409, "audit_result_limit_exceeded", False, "fixture")
+            raise ArtifactAPIError(
+                grpc.StatusCode.FAILED_PRECONDITION, "audit_result_limit_exceeded", False, "fixture"
+            )
 
         transport.submit_audit_judgments = reject
         with pytest.raises(ArtifactAPIError) as error:

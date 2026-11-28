@@ -6,6 +6,7 @@ import json
 import re
 from types import SimpleNamespace
 
+import grpc
 import pytest
 from fakes.worker_state import WorkerState
 from target_policy_fixtures import SCAN_TEST_POLICY
@@ -159,7 +160,7 @@ class Artifacts:
                 size=14,
                 content_cache_key="test_metadata_version",
             )
-        raise ArtifactAPIError(404, "artifact_not_found", False)
+        raise ArtifactAPIError(grpc.StatusCode.NOT_FOUND, "artifact_not_found", False)
 
     async def read_artifact(self, ref, **_kwargs):
         # The existence check never downloads an existing targets payload.

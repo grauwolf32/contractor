@@ -10,16 +10,14 @@ from __future__ import annotations
 
 import json
 import math
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING, Literal, Protocol
-from urllib.parse import quote
 
 from pydantic import Field, ValidationError
 
-from contractor_runtime import _https, threads
+from contractor_runtime import threads
 from contractor_runtime._allocation_errors import (
     ArtifactAPIError as ArtifactAPIError,
 )
@@ -58,37 +56,11 @@ if TYPE_CHECKING:
     from contractor_runtime._rpc_connections import RPCConnections
     from contractor_runtime.archive_cache import ImmutableArchiveCache
 
-MAX_ARTIFACT_JSON_BYTES = 1 << 20
-# artifacts.MaxBindingListLimit (LIM-ART-3), pinned by
-# api/testdata/v1alpha1/artifact-list-cases.json.
-PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
-# The revision a strong entity tag carries verbatim between its double
-# quotes: visible ASCII other than a double quote, a backslash or a comma.
-# An entity tag has no escapes, so If-Match and ETag are never JSON-encoded;
-# the Server reads the same grammar (API-R70,
-# api/testdata/v1alpha1/strong-etag-cases.json).
-STRONG_ETAG_REVISION_PATTERN = re.compile(r"[!#-+\--\[\]-~]+")
-RUNTIME_INSTANCE_HEADER = "X-Contractor-Runtime-Instance-ID"
-BINDING_CREATED_AT_HEADER = "x-contractor-binding-created-at"
-REVISION_CREATED_AT_HEADER = "x-contractor-revision-created-at"
-RFC3339_UTC_PATTERN = re.compile(
-    r"^(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})"
-    r"(?:\.(?P<fraction>[0-9]{1,9}))?Z$"
-)
-
-
 # A private Artifact API answer to a CAS write whose binding's retained
 # history needs more maintenance than one Server transaction may do. The write
 # stored nothing and the Server committed one maintenance pass before it
 # answered, so the same write may be sent again (ART-R127).
 ARTIFACT_HISTORY_MAINTENANCE_PENDING = "artifact_history_maintenance_pending"
-
-
-@dataclass(frozen=True, slots=True)
-class ArtifactHTTPResponse:
-    status_code: int
-    headers: Mapping[str, str]
-    body: bytes = field(repr=False)
 
 
 class ArtifactTransport(Protocol):
@@ -157,14 +129,6 @@ class ArtifactReadTarget:
             type(self.operation) is not str or NAME_PATTERN.fullmatch(self.operation) is None
         ):
             raise ValueError("artifact read target is invalid")
-
-
-def allocation_path(allocation_id: str, resource: str) -> str:
-    """Return the private API path of one resource of an allocation."""
-
-    if PATH_ID_PATTERN.fullmatch(allocation_id) is None:
-        raise ValueError("allocation ID is not a safe URL path segment")
-    return f"/allocations/{quote(allocation_id, safe='')}/{resource}"
 
 
 class ArtifactClient:
@@ -463,17 +427,6 @@ class ArtifactClient:
         return value
 
 
-def raise_for_status(response: ArtifactHTTPResponse) -> None:
-    """Raise the private API error a non-2xx response carries."""
-
-    if 200 <= response.status_code < 300:
-        return
-    error = _https.decode_private_error(response.body)
-    if error is None:
-        raise ArtifactAPIError(response.status_code, "invalid_error_response", False)
-    raise ArtifactAPIError(response.status_code, error.code, error.retryable, error.request_id)
-
-
 class MTLSArtifactTransport:
     """Named private RPCs over independently owned verified domain/bulk channels."""
 
@@ -557,58 +510,3 @@ class MTLSArtifactTransport:
 def _validate_list_limit(limit: int) -> None:
     if type(limit) is not int or not 1 <= limit <= artifact_list_max_items():
         raise ValueError("artifact list limit is invalid")
-
-
-def _response_media_type(headers: Mapping[str, str]) -> str:
-    return validate_media_type(headers.get("content-type", ""))
-
-
-def require_json(headers: Mapping[str, str]) -> None:
-    """Refuse a private API response that is not JSON."""
-
-    if headers.get("content-type") != "application/json":
-        raise ArtifactTransportError("Artifact API response is not application/json")
-
-
-def _strong_etag(headers: Mapping[str, str]) -> str:
-    value = headers.get("etag", "")
-    if not value or value.startswith("W/") or "," in value:
-        raise ArtifactTransportError("Artifact API response has no strong revision ETag")
-    revision = value[1:-1]
-    if (
-        len(value) < 3
-        or value[0] != '"'
-        or value[-1] != '"'
-        or STRONG_ETAG_REVISION_PATTERN.fullmatch(revision) is None
-    ):
-        raise ArtifactTransportError("Artifact API response has an invalid revision ETag")
-    return revision
-
-
-def _artifact_timestamps(headers: Mapping[str, str]) -> tuple[datetime, datetime]:
-    return (
-        _artifact_timestamp(headers, BINDING_CREATED_AT_HEADER),
-        _artifact_timestamp(headers, REVISION_CREATED_AT_HEADER),
-    )
-
-
-def _artifact_timestamp(headers: Mapping[str, str], name: str) -> datetime:
-    value = headers.get(name, "")
-    match = RFC3339_UTC_PATTERN.fullmatch(value)
-    if match is None:
-        raise ArtifactTransportError("Artifact API response has invalid timestamp metadata")
-    fraction = match.group("fraction") or ""
-    # PostgreSQL stores microseconds. Accept the full RFC3339Nano syntax so a
-    # future repository may emit nine digits; datetime intentionally projects
-    # it at Python's microsecond precision.
-    normalized_fraction = (fraction + "000000")[:6]
-    suffix = f".{normalized_fraction}" if fraction else ""
-    try:
-        parsed = datetime.fromisoformat(f"{match.group('date')}{suffix}+00:00")
-    except ValueError as error:
-        raise ArtifactTransportError(
-            "Artifact API response has invalid timestamp metadata"
-        ) from error
-    if parsed.tzinfo != UTC:
-        raise ArtifactTransportError("Artifact API response has invalid timestamp metadata")
-    return parsed

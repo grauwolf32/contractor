@@ -447,73 +447,46 @@ registered again close at release or after the idle bound. A process
 loads its own certificate, key and trusted CA at startup, so a change to them
 takes effect at restart, which closes every set.
 
-**CTL-R165.** Reuse is bounded on both sides. For native gRPC, an owner admits
-at most LIM-CTL-16 concurrent calls per principal and endpoint, using one
-current HTTP/2 channel. Exhaustion returns `ResourceExhausted` within the
-caller's deadline rather than creating an unbounded waiting queue. Retired
-channels carry only their existing calls, so they do not evade the same call
-bound. The Server evicts the least recently used idle endpoint at LIM-CTL-17;
-if all endpoints are borrowed it rejects admission. It closes idle channels
-at LIM-CTL-14 and replaces aged channels before another call at LIM-CTL-15.
-Runtime allocation-domain calls lease at most four exclusive channels, with at most 32 admitted calls including waiters. Channel rotation happens before borrowing an idle channel, so closing or cancelling one call cannot terminate a sibling allocation. Runtime control serializes calls within their deadlines, never reuses an
-idle or aged channel past these bounds, and closes it at the next exchange or
-shutdown. The following connection/framing rules apply to remaining HTTP families.
+**CTL-R165.** Reuse is bounded on both sides. The Go Server's native channel
+owner admits at most LIM-CTL-16 active calls per principal and endpoint,
+using one current HTTP/2 channel. Exhaustion returns `ResourceExhausted` within
+the caller's deadline. Retired channels finish only existing calls and remain
+inside the same call bound. At LIM-CTL-17 it evicts the least recently used
+idle endpoint; if all endpoints are borrowed it rejects admission.
 
-Reuse is bounded on both sides. A private listener closes a
-keep-alive connection that stays idle for LIM-CTL-13; a client keeps an idle
-connection for reuse for at most LIM-CTL-14, which is shorter, so a client
-normally never writes to a connection the listener already closed. No request
-starts on a connection as old as LIM-CTL-15, so a renewed or replaced peer
-certificate is verified within that time even while requests keep a
-connection busy. The Server's transport closes an idle connection when the
-idle bound ends; the Runtime stops reusing it then and closes it at its next
-exchange to that origin, at shutdown or when the listener closes it after
-LIM-CTL-13. One owner keeps at most LIM-CTL-16 connections per peer endpoint;
-a request beyond that waits for a connection within its own deadline. The
-Server's Runtime control client keeps connections for at most LIM-CTL-17
-Runtime principals and the Runtime for at most LIM-CTL-18 Control Plane
-origins, evicting the least recently used; an exchange already waiting on an
-evicted origin still runs, on a connection of its own that is not kept. While
-the requests of a retired Server transport (after the lifetime or an
-eviction) or of an evicted Runtime origin finish, their connections add to
-those of the replacement, so one endpoint can briefly carry up to twice
-LIM-CTL-16; none of them takes a new request. The Server
-(`internal/mtls`) and the Runtime (`contractor_runtime._https`) hold the
-shared values, which
-[`private-connection-reuse.json`](../../../api/testdata/v1alpha1/private-connection-reuse.json)
-pins.
+The Server closes idle channels at LIM-CTL-14 and replaces aged channels before
+another call at LIM-CTL-15. Runtime control serializes calls within their
+original deadlines. Independent allocation-domain and bulk owners each lease
+at most four exclusive channels and admit at most 32 calls including waiters
+(LIM-CTL-28/31). They retire idle/aged channels before borrowing them. Closing
+or cancelling a call cannot terminate a sibling allocation's leased channel.
+No request starts on an aged channel, so later calls verify a renewed or
+replaced peer certificate. Reuse never extends a call deadline.
+
+The HTTP private Server listener and Runtime operational probe listener close
+idle keep-alive connections under LIM-CTL-13; private clients retire their idle
+channels earlier. There is no private HTTP origin pool or HTTP response parser.
+The Go owner (`internal/mtls`) and Runtime native wire limits pin their shared
+lifetime policy through
+[`private-connection-reuse.json`](../../../api/testdata/v1alpha1/private-connection-reuse.json).
+Its Server call ceiling is separate from the Runtime's channel admission.
 
 **CTL-R166.** Reuse changes neither request deadlines, error classification
-nor retry semantics (FAIL-CTL-11). Native gRPC retries and hedging are disabled;
-reconnection is not authorization to replay a mutation. Lifecycle cancellation and
+nor retry semantics (FAIL-CTL-11). Native retries and hedging are disabled;
+reconnection does not authorize a new semantic mutation. Cancellation and
 transport/protocol failure retire the affected generation without interrupting
 borrowed sibling calls. A2A cancellation uses its invocation-owned channel
-before that owner closes. Remaining HTTP families use the framing rules below. A request's deadline covers waiting for a
-connection, connecting, peer verification and the response, and a peer that
-fails verification fails the request before any request byte with the error
-it caused before reuse. A connection is closed instead of reused after a
-timeout, cancellation, transport or parse error, a response without length
-framing, an HTTP/1.0 or `Connection: close` response, or bytes beyond the
-response. The Runtime, whose HTTP/1.1 client is its own, also closes a
-connection after an interim (1xx) response: an interim response carries no
-content and is skipped, at most five per exchange, and a protocol switch
-(101), more interim responses, and a 204 or 304 response that declares
-content (`Transfer-Encoding` or a non-zero `Content-Length`) fail the
-exchange as malformed responses. The Server's transports follow Go
-`net/http` for these responses: it skips interim responses within its
-response-header byte bound and may reuse the connection afterwards, treats
-101 as a final response and ignores declared content on 204 and 304. The connection layer repeats a request only when none of its bytes
-were written, or when it is a read (`GET`) that received no response byte on
-a reused connection, and then on another connection; the Runtime repeats such
-a read once, on a new verified connection. A write whose
-response was lost is never repeated by the connection layer; its caller
-reconciles it as before (heartbeat sequence, finalization and abort
-identities, Artifact expected revisions). A caller's private request carries
-no `Connection` header, and a Server request no `Idempotency-Key` or
-`X-Idempotency-Key` header, which would let net/http repeat a write; the
-connection layer refuses such a request before sending it.
+before that owner closes. The original call deadline covers admission,
+connection establishment, actual-peer verification, encoding and response
+validation. A failed peer check sends no application bytes to that peer.
 
-### Registration and process identity
+A lost response is reconciled only by the existing owner: heartbeat sequence,
+finalization/abort identity, Artifact expected revision or the operation's
+existing receipt. The connection owner never creates a new identity or silently
+replays an append. Native error details have exactly bounded `code`, explicit
+`retryable` and `request_id`; status code, unknown fields, correlation grammar
+and optional bounded `RetryInfo` are validated before their values reach a
+caller. Remote status text never becomes a domain diagnostic.
 
 **CTL-R11.** On process start a Runtime Agent generates a fresh random
 `instance_id`. It retains that value in memory across registration retries and
@@ -1592,7 +1565,7 @@ The private live-state route is
 - [LIM-CTL-10](../platform/limits.md): a hold window of five Scheduler poll
   intervals, 5 seconds by default (CTL-R155).
 - [LIM-CTL-13](../platform/limits.md) to
-  [LIM-CTL-18](../platform/limits.md): idle, lifetime and count bounds of
+  [LIM-CTL-17](../platform/limits.md): idle, lifetime and count bounds of
   reusable private connections (CTL-R165).
 - [FAIL-CTL-1](../platform/failure-model.md): Runtime Agent registration and
   re-registration (CTL-R12, CTL-R34,

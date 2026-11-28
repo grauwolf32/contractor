@@ -329,3 +329,71 @@ def test_malformed_committed_receipt_reconciles_same_native_mutation(pki):
             await server.stop(0)
 
     asyncio.run(scenario())
+
+
+def test_shared_private_connection_reuse_limits():
+    import json
+
+    from contractor_runtime.contracts.grpc_wire import limits
+
+    fixture = json.loads(
+        (
+            Path(__file__).resolve().parents[2]
+            / "api/testdata/v1alpha1/private-connection-reuse.json"
+        ).read_bytes()
+    )
+    assert fixture["listenerIdleTimeoutSeconds"] == limits.PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS
+    assert fixture["clientIdleReuseSeconds"] == limits.IDLE_SECONDS
+    assert fixture["reuseLifetimeSeconds"] == limits.LIFETIME_SECONDS
+    assert limits.IDLE_SECONDS < limits.PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS
+
+
+@pytest.mark.parametrize(
+    "damage", ["code", "request", "retry", "unknown", "long-code", "long-request"]
+)
+def test_native_error_detail_rejects_missing_or_unbounded_fields(pki, damage):
+    class Malformed(Operations):
+        async def PlannerOperation(self, request, context):
+            detail = pb.ErrorDetail(code="invalid_request", retryable=False, request_id="request_1")
+            if damage == "code":
+                detail.ClearField("code")
+            elif damage == "request":
+                detail.request_id = "invalid/request"
+            elif damage == "retry":
+                detail.ClearField("retryable")
+            elif damage == "unknown":
+                detail.MergeFromString(b"\xf8\x07\x01")
+            elif damage == "long-code":
+                detail.code = "x" * 65
+            elif damage == "long-request":
+                detail.request_id = "r" * 129
+            wrapped = Any()
+            wrapped.Pack(detail)
+            status = Status(code=grpc.StatusCode.INVALID_ARGUMENT.value[0], details=[wrapped])
+            await context.abort(
+                grpc.StatusCode.INVALID_ARGUMENT,
+                "PRIVATE_DIAGNOSTIC",
+                trailing_metadata=(("grpc-status-details-bin", status.SerializeToString()),),
+            )
+
+    async def scenario():
+        server, origin = await serve(pki, Malformed())
+        owner = RPCConnections(runtime_context(pki))
+        try:
+            with pytest.raises(ArtifactAPIError) as failure:
+                await AllocationRPC(owner, origin, "runtime-1", 3).planner_operation(
+                    "allocation-1", operation(), timeout_seconds=3
+                )
+            assert failure.value.code == "invalid_error_response" and not failure.value.retryable
+            assert "PRIVATE_DIAGNOSTIC" not in str(failure.value)
+        finally:
+            await owner.aclose()
+            await server.stop(0)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("status", [400, 409, 503])
+def test_allocation_errors_require_native_status(status):
+    with pytest.raises(TypeError, match="native gRPC status"):
+        ArtifactAPIError(status, "invalid_request", False)

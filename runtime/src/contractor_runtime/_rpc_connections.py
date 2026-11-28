@@ -14,10 +14,15 @@ from pathlib import Path
 import grpc
 
 from contractor_runtime._allocation_errors import ArtifactAPIError, ArtifactTransportError
-from contractor_runtime._grpc_client import IDLE_SECONDS, LIFETIME_SECONDS, _error
+from contractor_runtime._grpc_client import _error
 from contractor_runtime._grpc_tls import TLSForwarder
 from contractor_runtime.contracts.base import parse_private_rpc_origin
-from contractor_runtime.contracts.grpc_wire.limits import BULK_LOOKAHEAD_BYTES, METADATA_OPTIONS
+from contractor_runtime.contracts.grpc_wire.limits import (
+    BULK_LOOKAHEAD_BYTES,
+    IDLE_SECONDS,
+    LIFETIME_SECONDS,
+    METADATA_OPTIONS,
+)
 from contractor_runtime.core.async_tasks import join_owned_task
 
 MAX_CHANNELS = 4

@@ -17,14 +17,11 @@ import jcs
 import pytest
 from fakes import finding_collection
 from fakes.allocation_rpc import AllocationRPCFixture
+from fakes.artifact_responses import ArtifactHTTPResponse
 from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 
-from contractor_runtime.artifacts import (
-    ArtifactClient,
-    ArtifactHTTPResponse,
-    ArtifactTransportError,
-)
+from contractor_runtime.artifacts import ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import API_VERSION, ArtifactRef, RuntimeSettings
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.toolsets.run_artifacts.tools import ReadArtifactTool

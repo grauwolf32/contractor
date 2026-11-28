@@ -14,6 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import grpc
 import h11
 import httpcore
 import httpx
@@ -283,7 +284,7 @@ def test_http_body_read_skips_content_above_cache_bound(
     "error",
     [
         ArtifactTransportError("temporary transport failure"),
-        ArtifactAPIError(503, "unavailable", True),
+        ArtifactAPIError(grpc.StatusCode.UNAVAILABLE, "unavailable", True),
     ],
 )
 def test_http_body_read_uses_buffer_during_artifact_failures(

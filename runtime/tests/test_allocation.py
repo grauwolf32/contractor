@@ -398,15 +398,15 @@ def test_prepare_keeps_findings_error_code_and_retryability(
 
         with pytest.raises(AllocationError) as failure:
             await service.prepare(make_spec())
-        assert failure.value.payload() == {
-            "code": error.code,
-            "message": (
+        assert (failure.value.code, failure.value.message, failure.value.retryable) == (
+            error.code,
+            (
                 f"allocation findings preparation failed ({error.code})"
                 if isinstance(error, FindingsError)
                 else f"allocation HTTP preparation failed ({error.code})"
             ),
-            "retryable": error.retryable,
-        }
+            error.retryable,
+        )
         assert failure.value.status_code == status_code
         assert (await state.snapshot("allocation-1")).process_state is ProcessState.IDLE
         assert await allocation_snapshot(service) is None
@@ -493,11 +493,11 @@ def test_failed_prepare_rolls_back_once_before_classifying(
                     "allocation_preparation_failed",
                     "allocation resource preparation failed (RuntimeError)",
                 )
-            assert failure.value.payload() == {
-                "code": code,
-                "message": message,
-                "retryable": getattr(error, "retryable", True),
-            }
+            assert (failure.value.code, failure.value.message, failure.value.retryable) == (
+                code,
+                message,
+                getattr(error, "retryable", True),
+            )
             assert failure.value.status_code == getattr(error, "status_code", 503)
 
     asyncio.run(scenario())
@@ -2224,7 +2224,7 @@ def test_prepare_rejects_a_tool_whose_workspace_observation_differs_from_its_dec
 
         with pytest.raises(AllocationError) as failure:
             await service.prepare(make_spec())
-        assert failure.value.payload()["code"] == "invalid_toolset_factory"
+        assert failure.value.code == "invalid_toolset_factory"
         assert failure.value.status_code == 500
         assert toolsets.tool.close_calls == 1
         assert await allocation_snapshot(service) is None
