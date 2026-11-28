@@ -6,7 +6,7 @@ epic: planner-worker
 kind: defect
 introduced_by: V479-004
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, go, yaml, markdown]
 goal: "A Worker can select an artifact and continue its exact pages using a clearly described cursor-only call."
@@ -41,3 +41,6 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: 3e4933c8d9b88f0039db384c682fec211ebccf6c
+verification: >-
+  Required cursor, Artifact reader, image and text tool suites pass. Before the fix the new provider-declaration regressions failed. ADK selector/window conflicts now give a repair hint without I/O; corrected continuation retains the selected original version after a binding change. Expanded affected package suite: 825 passed, 13 Linux/Podman-only skips on macOS. make lint passes.
