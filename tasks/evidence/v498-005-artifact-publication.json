@@ -40,7 +40,7 @@
     ".lean/artifact-publication/collect_evidence.py": "53b39c883b2907f15e2971baafb4f082cad0f065d50cc29abb9c4e8b04fd428f",
     ".lean/artifact-publication/cleanup_database.py": "320135babcb8b367260bbeede2a16479249f65fea5de41316229c9e0ffed35b4",
     ".lean/artifact-publication/env.sh": "8326d35dc0151266e01a192857ba6b5987626d8da4a47b40ae4749bb6f3cc121",
-    ".lean/artifact-publication/README.md": "3c387371a2e9573e885d9302ffea6e2f21d1f55c5d89821ada40f50ee7d79746",
+    ".lean/artifact-publication/README.md": "aaf075de2141a03e08b2994472c7187bab0b4b2ba0412908bf271355707f5666",
     ".lean/artifact-publication/results/tlc-summary.json": "ff5ed187ff7d414d11eb392c410b0ef932e23697401f3beda929221f1c78e5ac",
     ".lean/artifact-publication/results/postgres-summary.json": "7926aab98bd193ac7351a9a31b7914eb62861b5f58fdd0c7f565829224ebc171",
     ".lean/artifact-publication/results/go-result.json": "36cfe09dc130da6062471e2bcd3002614b0c8e20541c0b9997d3be41cbdfbe8a",
@@ -1099,5 +1099,6 @@
     "Four named heavy IO fixtures skipped by explicit policy and not counted as passing coverage. Ordinary bounded Project purge uses 15 revisions and batch=4; production 50000-revision scale is unverified here.",
     "No production defect established or production behavior/schema/API changed."
   ],
-  "reopen_when": "ArtifactStore and lifecycle owners revisit admission, locks, exact references, transaction boundaries or purge batches."
+  "reopen_when": "ArtifactStore and lifecycle owners revisit admission, locks, exact references, transaction boundaries or purge batches.",
+  "implementation_commit": "4015bcacf5aa3888d975d21e9ae242f09f54b3fc"
 }

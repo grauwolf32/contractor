@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 11 in progress, 41 pending, 13 deferred. 1755 finished: 1736 completed, 19 archived.
+64 open tasks: 10 in progress, 41 pending, 13 deferred. 1756 finished: 1737 completed, 19 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V498-005](v498-005-artifact-publication-tlc-pilot.yml) | projects-artifacts | chore | P2 | Verify Artifact publication against deletion and purge with TLC |
 
 ## Pending
 
@@ -167,7 +166,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 22 | 15 | 13 | 32 |
 | Findings tools and collections (`findings`) | 0 | 23 | 16 | 14 | 30 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 28 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 42 | 42 | 22 | 79 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 22 | 79 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
 | Evaluations (`evals`) | 4 | 24 | 47 | 24 | 55 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |

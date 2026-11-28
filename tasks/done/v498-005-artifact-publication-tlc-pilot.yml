@@ -5,7 +5,8 @@ milestone: artifact-release-cleanup-2026-11
 epic: projects-artifacts
 kind: chore
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 4015bcacf5aa3888d975d21e9ae242f09f54b3fc
 depends_on: [V498-004]
 languages: [go]
 goal: >-
