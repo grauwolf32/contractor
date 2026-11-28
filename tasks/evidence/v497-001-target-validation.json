@@ -1,0 +1,190 @@
+{
+  "task": "V497-001",
+  "base": "b708454f767a73e046294778a27ed0f90a2ac1f3",
+  "production_loc": {
+    "added": 336,
+    "removed": 6,
+    "net": 330
+  },
+  "production_files": [
+    {
+      "path": "internal/app/composition_audit.go",
+      "added": 1,
+      "removed": 1
+    },
+    {
+      "path": "internal/app/finding_run.go",
+      "added": 21,
+      "removed": 0
+    },
+    {
+      "path": "internal/contracts/auditcontract/codec.go",
+      "added": 1,
+      "removed": 1
+    },
+    {
+      "path": "internal/contracts/finding_check.go",
+      "added": 3,
+      "removed": 1
+    },
+    {
+      "path": "internal/findingintake/check_launch.go",
+      "added": 140,
+      "removed": 0
+    },
+    {
+      "path": "internal/httpapi/public/run_handlers.go",
+      "added": 2,
+      "removed": 1
+    },
+    {
+      "path": "internal/httpapi/public/types_run_project.go",
+      "added": 15,
+      "removed": 0
+    },
+    {
+      "path": "internal/rundeletion/deleter.go",
+      "added": 3,
+      "removed": 0
+    },
+    {
+      "path": "internal/runservice/digest.go",
+      "added": 3,
+      "removed": 0
+    },
+    {
+      "path": "internal/runservice/finding_check.go",
+      "added": 100,
+      "removed": 0
+    },
+    {
+      "path": "internal/runservice/public.go",
+      "added": 34,
+      "removed": 2
+    },
+    {
+      "path": "internal/runservice/repeat.go",
+      "added": 4,
+      "removed": 0
+    },
+    {
+      "path": "internal/runservice/types.go",
+      "added": 9,
+      "removed": 0
+    }
+  ],
+  "reused": [
+    "Ordinary Run create/replay and the existing transaction retry owner",
+    "V497-006 common completion, evidence/judgment collector and Artifact acknowledgements",
+    "Existing Project Finding membership, source receipt and correlation fence",
+    "Exact frozen Artifact forks and selected-receipt paged history",
+    "Existing terminal Run purge and Project deletion controllers",
+    "Existing configured model selection and HTTP target/credential policy"
+  ],
+  "new": [
+    "findingCheck selection on existing create Run endpoint",
+    "Concrete transaction adapter for Finding admission",
+    "Single HTTP Workflow/AgentTemplate/instruction identity",
+    "Launch and terminal-execution artifacts in existing Finding history"
+  ],
+  "new_tables": 0,
+  "new_controllers": 0,
+  "new_endpoints": 0,
+  "removed": [
+    "Superseded trusted Run process fixture now covered by the public source-to-HTTP path"
+  ],
+  "verification": {
+    "go_integration": {
+      "passed": 5935,
+      "optional_heavy_io_skips": 9,
+      "command": "go test -tags=integration -count=1 ./internal/contracts/... ./internal/findingintake/... ./internal/auditstore/... ./internal/auditservice/... ./internal/runservice/... ./internal/runstore/... ./internal/scheduler/... ./internal/controlplane/... ./internal/httpapi/... ./internal/artifacts/... ./internal/config/... ./internal/rundeletion/... ./internal/app/..."
+    },
+    "focused_process": {
+      "passed": 22,
+      "skips": 0,
+      "scenarios": [
+        "Source Worker to real SQLite-backed HTTP target",
+        "Control/probe response content, exact selected evidence and existing Finding",
+        "Committed judgment reply lost and reconciled without extra target/model work",
+        "Analyst edit after revision pin; original launch replay after target removal",
+        "Login refusal becomes inconclusive with limitations",
+        "Cancellation after server evidence acknowledgement; retained partial evidence",
+        "Source and validation Run purge followed by populated Project deletion"
+      ]
+    },
+    "runtime": {
+      "passed": 6788,
+      "declared_optional_platform_skips": 140,
+      "failed": 0
+    },
+    "common_audit_process": {
+      "passed": 8,
+      "skips": 0
+    },
+    "audit_completion": {
+      "go_passed": 239,
+      "runtime_passed": 490,
+      "skips": 0
+    },
+    "wire": {
+      "fixtures": 442,
+      "go_shared_tests": 476,
+      "python_shared_tests": 309,
+      "optional_heavy_io_skips": 1
+    },
+    "lint": "passed",
+    "public_api": "make verify-public-api verify-public-api-postgres passed",
+    "shipped_config": "make test-config passed",
+    "commands": [
+      "go test -tags=integration -count=1 ./internal/contracts/... ./internal/findingintake/... ./internal/auditstore/... ./internal/auditservice/... ./internal/runservice/... ./internal/runstore/... ./internal/scheduler/... ./internal/controlplane/... ./internal/httpapi/... ./internal/artifacts/... ./internal/config/... ./internal/rundeletion/... ./internal/app/...",
+      "make require-database",
+      "make test-runtime test-wire-cross-language",
+      "make verify-public-api verify-public-api-postgres test-config",
+      "make test-findings-e2e test-audit-completion-e2e test-audit-common-programs-e2e",
+      "make lint"
+    ],
+    "findings_process": {
+      "required_cases": 30,
+      "status": "passed"
+    }
+  },
+  "date": "2026-11-28",
+  "implementation_commit": "8306e94fcb5000d5aac626b7d3fec84473b73df4",
+  "status": "verified",
+  "logs": {
+    "001-full-go.jsonl": {
+      "path": "/tmp/contractor-v497-run/001-full-go.jsonl",
+      "sha256": "eac7678933d7c552dbe0de3b8f374c87e5e9db124f2e22f564ec987dd65e2316"
+    },
+    "001-runtime.log": {
+      "path": "/tmp/contractor-v497-run/001-runtime.log",
+      "sha256": "f94a32bb36c1c3de5f95643258d1fb7a2ea553ac0ed0620f41e6efe7bb97c85d"
+    },
+    "001-contract-gates.log": {
+      "path": "/tmp/contractor-v497-run/001-contract-gates.log",
+      "sha256": "9c50de03b5dfc89d57734cc10cfd4811786ce6e3720bdd09d1d4b5cf50f2ac6b"
+    },
+    "001-audit-gates.log": {
+      "path": "/tmp/contractor-v497-run/001-audit-gates.log",
+      "sha256": "b7ea1d7f040b986a04537a4cfaed64a38cddea1e946572c340daa02c16a54508"
+    },
+    "001-process7.jsonl": {
+      "path": "/tmp/contractor-v497-run/001-process7.jsonl",
+      "sha256": "4ec0b484c22e199fd4ded5fbe8e4e7459086a70a8bb2b50efef841abc4bee3c7"
+    },
+    "001-findings-gate.log": {
+      "path": "/tmp/contractor-v497-run/001-findings-gate.log",
+      "sha256": "4463beaa28417ddc799390eb9ad1a045ac635015f31991e3852b67d81b687b07"
+    }
+  },
+  "outcome": "A public ordinary Run validates one selected source Finding against the pinned Project HTTP target using real Server, Runtime, PostgreSQL and actual control/probe exchanges. Retained independent results and exact provenance survive source/check Run purge; populated Project deletion releases bindings.",
+  "resources": {
+    "database_dropped": "contractor_v497",
+    "owned_postgresql_stopped": true,
+    "port": 55497,
+    "heavy_io_enabled": false,
+    "live_model_calls": false,
+    "demo_changes": false
+  },
+  "limitations": "Scripted Gateway judgments prove integration and persistence behavior; live-model quality, interactive UI and retest remain their separately scoped work."
+}
