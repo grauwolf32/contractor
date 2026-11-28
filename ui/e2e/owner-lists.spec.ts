@@ -191,7 +191,7 @@ for (const width of [1440, 390]) {
     await page.goto(`/reports?project=${owner.projectId}`);
     const list = page.getByRole("region", { name: "Reports", exact: true });
     await expect(
-      list.getByRole("button", { name: "All 20", exact: true }),
+      list.getByText("20 ready in this page of checks.", { exact: true }),
     ).toBeVisible();
     await expect(list.locator("li.ui-row")).toHaveCount(20);
     expect(reportReads).toHaveLength(20);
@@ -200,7 +200,7 @@ for (const width of [1440, 390]) {
       .getByRole("button", { name: "Next" })
       .click();
     await expect(
-      list.getByRole("button", { name: "All 5", exact: true }),
+      list.getByText("5 ready in this page of checks.", { exact: true }),
     ).toBeVisible();
     expect(reportReads).toHaveLength(25);
     await expect(page).toHaveURL(/project=project_reports&page=1$/);
@@ -247,6 +247,20 @@ for (const width of [1440, 390]) {
       },
       { session: authSession("owner", ["user"]) },
     );
+    await page.goto("/projects");
+    const projectList = page.getByRole("region", {
+      name: "Projects",
+      exact: true,
+    });
+    await projectList
+      .getByRole("searchbox", { name: "Filter projects" })
+      .fill("Project 51");
+    await expect(
+      projectList.getByRole("link", { name: /Project 51/ }),
+    ).toBeVisible();
+    await expect(
+      projectList.getByText("1 of 51 projects", { exact: true }),
+    ).toBeVisible();
     await page.goto("/checks");
     const list = page.getByRole("region", { name: "Checks", exact: true });
     await expect(list.locator("li.ui-row")).toHaveCount(201);
@@ -284,3 +298,165 @@ for (const width of [1440, 390]) {
     ).toBe(true);
   });
 }
+
+for (const width of [1440, 390]) {
+  test(`Report scope changes close the old report and preserve the return path at ${width}px`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    const owners = [
+      project("project_invoice", { name: "Invoice Lab" }),
+      project("project_payments", { name: "Payment Portal" }),
+    ];
+    const checks = owners.map((owner, index) =>
+      audit(owner.projectId, `audit_scope_${index}`, "completed", {
+        scope: {
+          objective:
+            index === 0
+              ? "Review invoice authorization"
+              : "Check payment callbacks",
+        },
+      }),
+    );
+    await mockAPI(page, async (route, _request, url) => {
+      const listed = ownerListResponse(url, {
+        projects: owners,
+        audits: checks,
+      });
+      if (listed) return fulfillResponse(route, listed);
+      if (url.pathname === "/v1/projects")
+        return fulfillJSON(route, { items: owners, page: { hasMore: false } });
+      const owner = owners.find(
+        (p) => url.pathname === `/v1/projects/${p.projectId}`,
+      );
+      if (owner) return fulfillJSON(route, owner, 200, { ETag: '"1"' });
+      const selected = checks.find((check) =>
+        url.pathname.startsWith(`/v1/audits/${check.auditId}`),
+      );
+      if (selected) {
+        if (url.pathname.endsWith("/report"))
+          return fulfillJSON(
+            route,
+            report(selected.auditId, "ready", {
+              summary: `Retained result for ${selected.projectId}.`,
+            }),
+          );
+        return fulfillJSON(route, selected, 200, {
+          ETag: `"${selected.revision}"`,
+        });
+      }
+      return fulfillEmptyPageOrNotFound(route);
+    });
+    await page.goto("/reports?project=project_invoice");
+    const list = page.getByRole("region", { name: "Reports", exact: true });
+    await expect(
+      list.getByRole("link", { name: "Review invoice authorization" }),
+    ).toBeVisible();
+    await expect(
+      list.getByRole("group", { name: "Filter by status" }),
+    ).toHaveCount(0);
+    await list
+      .getByRole("link", { name: "Review invoice authorization" })
+      .click();
+    await expect(
+      page.getByText("Retained result for project_invoice.", { exact: true }),
+    ).toBeVisible();
+    if (width === 390)
+      await page.getByRole("link", { name: "Back to reports" }).click();
+    await list
+      .getByRole("combobox", { name: "Project" })
+      .selectOption("project_payments");
+    await expect(page).toHaveURL(/\/reports\?project=project_payments$/);
+    await expect(
+      list.getByRole("link", { name: "Check payment callbacks" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: "Download summary",
+        includeHidden: true,
+      }),
+    ).toHaveCount(0);
+    await list.getByRole("link", { name: "Check payment callbacks" }).click();
+    await expect(
+      page.getByText("Retained result for project_payments.", { exact: true }),
+    ).toBeVisible();
+    const downloadEvent = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download summary" }).click();
+    expect((await downloadEvent).suggestedFilename()).toBe(
+      "audit_scope_1-report.md",
+    );
+    await expect(
+      page.getByRole("link", { name: "Back to reports", includeHidden: true }),
+    ).toHaveAttribute("href", "/reports?project=project_payments");
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: info.outputPath(`reports-${width}.png`),
+      fullPage: true,
+    });
+  });
+}
+
+test("Project search explains a failed continuation and retries the complete inventory", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  let unavailable = true;
+  const owners = Array.from({ length: 51 }, (_, index) =>
+    project(`project_search_${index}`, {
+      name: index === 50 ? "Travel Ledger" : `Workspace ${index}`,
+    }),
+  );
+  await mockAPI(page, async (route, _request, url) => {
+    if (url.pathname === "/v1/projects") {
+      const offset = Number(url.searchParams.get("cursor") ?? 0);
+      if (offset > 0 && unavailable)
+        return fulfillJSON(
+          route,
+          {
+            code: "storage_transaction_conflict",
+            message: "Project continuation unavailable",
+            retryable: true,
+          },
+          503,
+        );
+      return fulfillJSON(route, {
+        items: owners.slice(offset, offset + 50),
+        page:
+          offset === 0
+            ? { hasMore: true, nextCursor: "50" }
+            : { hasMore: false },
+      });
+    }
+    const listed = ownerListResponse(url, { projects: owners, audits: [] });
+    if (listed) return fulfillResponse(route, listed);
+    return fulfillEmptyPageOrNotFound(route);
+  });
+  await page.goto("/projects");
+  const list = page.getByRole("region", { name: "Projects", exact: true });
+  await list
+    .getByRole("searchbox", { name: "Filter projects" })
+    .fill("Travel Ledger");
+  await expect(
+    list.getByText("No match in loaded projects", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    list.getByText(/Search covers 50 loaded projects/),
+  ).toBeVisible();
+  unavailable = false;
+  await list.getByRole("button", { name: "Retry search" }).click();
+  await expect(list.getByRole("link", { name: /Travel Ledger/ })).toBeVisible();
+  await expect(list.getByText(/Search covers 50 loaded projects/)).toHaveCount(
+    0,
+  );
+  await list.getByRole("searchbox").clear();
+  await expect(list.getByRole("link", { name: /Travel Ledger/ })).toHaveCount(
+    0,
+  );
+  await expect(
+    list.getByRole("navigation", { name: "Projects pages" }),
+  ).toBeVisible();
+});

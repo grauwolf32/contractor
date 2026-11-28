@@ -223,9 +223,21 @@ export function InboxRoute() {
       initialEntry.current = true;
       return;
     }
-    if (Object.values(data.pending).some(Boolean)) return;
-    initialEntry.current = true;
+    // A decision is usable as soon as its section settles. Lower-priority
+    // sections may finish later without replacing the user's selection.
     const first = model.order[0];
+    const sections: InboxSectionId[] = [
+      "decide",
+      "unblock",
+      "ready",
+      "running",
+    ];
+    const through =
+      first === undefined
+        ? sections
+        : sections.slice(0, sections.indexOf(first.section) + 1);
+    if (through.some((section) => data.pending[section])) return;
+    initialEntry.current = true;
     if (first !== undefined)
       void navigate(
         { pathname: "/", search: inboxSearch(first.ref) },

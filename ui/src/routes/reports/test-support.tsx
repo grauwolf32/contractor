@@ -18,7 +18,12 @@ export function audit(
   projectId: string,
   auditId: string,
   state: AuditState,
-  options: { profile?: string; updatedAt?: string; revision?: number } = {},
+  options: {
+    profile?: string;
+    updatedAt?: string;
+    revision?: number;
+    objective?: string;
+  } = {},
 ): Audit {
   return build.audit(projectId, auditId, state, {
     profile: {
@@ -26,6 +31,8 @@ export function audit(
       version: "1",
       digest: build.DIGEST,
     },
+    scope:
+      options.objective === undefined ? {} : { objective: options.objective },
     revision: options.revision ?? 4,
     holdState: "held",
     dispatchState: "closed",
