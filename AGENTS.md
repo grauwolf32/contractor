@@ -110,6 +110,14 @@ These are settled decisions. Do not reopen them without the user.
   be classified; delete a known violation once it is fixed.
 - **Model choice in live runs is not yours to change.** Keep the project's
   configured model; if a live run is slow, raise the timeout instead.
+- **Live evals and research use the demo stand.** User decision 2026-11-28:
+  run them on the existing demo deployment; do not start separate Server,
+  Runtime, PostgreSQL or catalog copies for an eval/research campaign. Create
+  task-owned Projects, Evals and immutable config identities on that stand,
+  preserve its business data and configured models, and enable debug traces
+  before live execution. Verify trace delivery before the repeated series.
+  This does not change the disposable-database rule for deterministic tests
+  or recoverable-backup verification.
 - **Do not touch the user's work.** The primary checkout often holds the
   user's uncommitted files. Never `git add -A`, `git stash`, `git reset --hard`
   or `git clean` there. Stage only the paths you changed.
