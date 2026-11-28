@@ -1899,8 +1899,12 @@ permit an arbitrary method/path/JSON envelope. Secret Prepare bytes are cleared
 after the call; their diagnostic representation remains redacted.
 
 A control/lifecycle message and its domain projection are bounded by
-LIM-CTL-20 (except the State response envelope, LIM-CTL-27), A2A envelopes
-by LIM-CTL-21, metadata by LIM-CTL-22. Python grpcio sets both its soft
+LIM-CTL-20. Domain projections count compact UTF-8 JSON bytes without ASCII,
+HTML or JavaScript-only escaping; this accounting is not a canonical digest
+encoding and does not alter document identities. The independent protobuf byte
+ceiling still applies to the complete message (except the State response
+envelope, LIM-CTL-27). A2A envelopes are bounded by LIM-CTL-21 and metadata by
+LIM-CTL-22. Python grpcio sets both its soft
 metadata threshold and absolute hard limit to that ceiling; probabilistic
 soft rejection alone does not enforce it. Both receivers
 bound aggregate admission with LIM-CTL-23 before application decoding. Server

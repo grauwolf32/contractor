@@ -1,0 +1,24 @@
+{
+  "cases": [
+    {
+      "name": "cyrillic",
+      "unit": "я",
+      "utf8Bytes": 2
+    },
+    {
+      "name": "astral",
+      "unit": "😀",
+      "utf8Bytes": 4
+    },
+    {
+      "name": "html",
+      "unit": "<>&",
+      "utf8Bytes": 3
+    },
+    {
+      "name": "javascript-separators",
+      "unit": "  ",
+      "utf8Bytes": 6
+    }
+  ]
+}

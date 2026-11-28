@@ -178,7 +178,9 @@ async def _abort(context, status, code, retryable, request_id):
 def _decode_request(request, model):
     if request.ByteSize() > MAX_LIFECYCLE_BYTES:
         raise codec.InvalidWireValue
-    document = json.dumps(codec.decode(request), allow_nan=False, separators=(",", ":"))
+    document = json.dumps(
+        codec.decode(request), ensure_ascii=False, allow_nan=False, separators=(",", ":")
+    )
     if len(document.encode("utf-8")) > MAX_LIFECYCLE_BYTES:
         raise codec.InvalidWireValue
     return decode_private(model, document)

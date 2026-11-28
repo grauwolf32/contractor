@@ -1,7 +1,6 @@
 package runtimewire
 
 import (
-	"encoding/json"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -18,7 +17,7 @@ func Encode(value contracts.Validatable, target proto.Message) error {
 	if private, ok := value.(interface{ RevealJSON() ([]byte, error) }); ok {
 		raw, err = private.RevealJSON()
 	} else {
-		raw, err = json.Marshal(value)
+		raw, err = contracts.EncodeCompactJSON(value)
 	}
 	defer clear(raw)
 	if err != nil || len(raw) > MaxControlBytes {

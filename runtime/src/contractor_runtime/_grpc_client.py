@@ -200,7 +200,9 @@ def _encode_request(value, request_type):
 
 
 def _decode_response(response, model):
-    raw = json.dumps(codec.decode(response), allow_nan=False, separators=(",", ":"))
+    raw = json.dumps(
+        codec.decode(response), ensure_ascii=False, allow_nan=False, separators=(",", ":")
+    )
     if len(raw.encode()) > MAX_CONTROL_BYTES:
         raise codec.InvalidWireValue
     value = decode_private(model, raw)

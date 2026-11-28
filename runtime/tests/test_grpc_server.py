@@ -11,7 +11,7 @@ from datetime import timedelta
 import grpc
 import pytest
 from fakes.spec import allocation_spec
-from test_allocation import NOW, make_service, make_spec
+from test_allocation import NOW, make_service, make_spec, resign_template, sha256_digest
 
 from contractor_runtime._grpc_client import _error
 from contractor_runtime.contracts import API_VERSION, PrepareAllocationRequest
@@ -241,6 +241,33 @@ def test_cancelled_terminal_rpc_preserves_siblings_and_cached_report(
                     assert service._allocations[spec.allocation_id]._context.worker is not None
         finally:
             resume.set()
+            await service.close(30)
+
+    asyncio.run(scenario())
+
+
+def test_unicode_prepare_reaches_allocation_service_with_verified_digests(
+    tmp_path, runtime_capabilities
+):
+    async def scenario():
+        _, service = await make_service(tmp_path, runtime_capabilities)
+        spec = make_spec()
+        spec.agent_template.instructions.text = "я" * 180000
+        spec.agent_template.instructions.digest = sha256_digest(
+            spec.agent_template.instructions.text.encode()
+        )
+        resign_template(spec.agent_template)
+        request = codec.encode(
+            PrepareAllocationRequest(apiVersion=API_VERSION, spec=spec).model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            ),
+            pb.PrepareAllocationRequest(),
+        )
+        try:
+            async with lifecycle_client(service) as (client, _):
+                response = await client.Prepare(request, timeout=10)
+                assert response.worker_handle.allocation_id == spec.allocation_id
+        finally:
             await service.close(30)
 
     asyncio.run(scenario())
