@@ -312,7 +312,7 @@ V497-005 добавляет один поддерживаемый source-про�
 
 | Задача | Пользовательский результат | Зависимости |
 | --- | --- | --- |
-| [V497-006](../../tasks/v497-006-common-check-result-owner.yml) | Необходимая предпосылка: общий приём evidence/results для Audit и finding-bound ordinary Run через существующие механизмы | Нет |
+| [V497-006](../../tasks/done/v497-006-common-check-result-owner.yml) | Необходимая предпосылка: общий приём evidence/results для Audit и finding-bound ordinary Run через существующие механизмы | Нет |
 | [V497-001](../../tasks/v497-001-finding-target-validation.yml) | Первая source→HTTP validation через обычный Run, public API и сохранённый результат в истории Finding | V497-006 |
 | [V497-002](../../tasks/v497-002-finding-http-retest.yml) | Полный первый сценарий через API: после исправления повторить выбранную HTTP-validation и сравнить условия/evidence | V497-001 |
 | [V497-003](../../tasks/v497-003-finding-check-ui.yml) | Запустить оба действия из карточки и прочитать правдивую историю проверок | V497-002 |

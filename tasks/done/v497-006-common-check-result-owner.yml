@@ -5,8 +5,9 @@ milestone: finding-validation-retest-2026-11
 epic: findings
 kind: feature
 priority: P1
-status: in_progress
-depends_on: []
+status: completed
+implementation_commit: 86cb9b5d0f6cf2f57621acf9ba658dc2f2258a0e
+depends_on: [V497-007]
 languages: [go, python, json, markdown]
 goal: >-
   Make the existing deterministic check collector, evidence and judgment
@@ -138,3 +139,9 @@ test_prerequisites:
   - Use existing real process fixtures and an owned disposable PostgreSQL database; configured unreachable database, mandatory skips and zero selected cases fail. Drop it after pools/processes stop.
   - Tests use testdata and pseudo-Skills; retain configured model selections. Optional heavy I/O remains caller opt-in and its disabled skips are not passing coverage.
   - Save output to logs, consume final status/skip summaries and investigate detailed logs only on failure or timeout.
+verification:
+  date: '2026-11-28'
+  outcome: Shared ordinary and Audit evidence/judgment acceptance, correction, replay and retention passed real PostgreSQL, real Server/Runtime and required completion/findings gates. Public launch remains V497-001.
+  evidence: tasks/evidence/v497-006-common-result-owner.json
+  production_loc_delta: '+420 excluding generated code, tests and documentation; no new tables, controllers, RPC operations or public endpoints.'
+  optional_skips: Nine named heavy I/O Go fixtures, 139 declared Runtime optional/platform cases and one wire heavy fixture remain disabled and are not counted as passing coverage.
