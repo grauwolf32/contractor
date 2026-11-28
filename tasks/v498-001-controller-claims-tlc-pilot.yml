@@ -1,0 +1,85 @@
+schema_version: "1.0"
+id: V498-001
+title: "Verify controller claim fencing with a bounded TLA+/TLC pilot"
+milestone: persistence-api-cleanup-2026-10
+epic: persistence
+kind: chore
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: >-
+  Establish checked evidence for controller claim ownership, renewal, release
+  and delayed-write fencing, with concrete PostgreSQL regression scenarios.
+context:
+  authority:
+    - "User request 2026-11-28: conduct the controller-claims TLA+/TLC pilot, create a task, check takeover, renew, release and delayed writes, and connect results to PostgreSQL tests."
+    - "User request 2026-11-28: keep pilot artifacts in .lean/ and add that directory to .gitignore."
+  specification:
+    - docs/spec/platform/persistence.md#PER-R25
+  finding: >-
+    internal/persistence/postgres/claims.go owns common Audit/Eval claim SQL.
+    receipts_postgres_test.go:294 covers sequential lease/prove/release, but
+    the shared helper has no dedicated renew, same-holder ABA or admitted
+    transaction versus takeover regression matrix.
+  boundary: >-
+    PostgreSQL and the common helper own authority. The local finite model
+    describes one subject, two holders, bounded epochs and lease time,
+    stale operation tokens and transaction-held row locks. It checks safety,
+    not arbitrary-scale proof, scheduler fairness, real clock monotonicity,
+    database implementation correctness or every domain caller. Tests bind
+    modeled transitions to the real common SQL on both controller tables.
+    No production behavior or public contract changes are intended.
+  decision: >-
+    Use an ignored local TLA+ model with explicit bounds, executable negative
+    controls and a tracked task/evidence summary. A tracked model/CI gate is
+    a possible later proposal, not part of this user-requested local pilot.
+scope:
+  in:
+    - "Add /.lean/ to .gitignore; keep model, runner, counterexamples and logs there."
+    - "Check takeover, same-holder new epoch, live/expired/stale renew and release, and delayed writes including transaction lock/commit/rollback."
+    - "Demonstrate that deliberately weakened fencing is rejected by TLC."
+    - "Extend real PostgreSQL tests for both Audit and Eval common claim tables and map results to existing domain tests."
+    - "Record model bounds, assumptions, hashes, coverage, commands and limitations in local report and tracked task evidence."
+  out:
+    - "Production fixes, schema changes, new claim mechanisms or full-platform formal verification."
+    - "Liveness claims, Lean theorem proofs, CI/toolchain installation requirements or deployment."
+acceptance_criteria:
+  - id: A1
+    text: "The bounded baseline exhausts its reachable state graph without a safety violation; bounds, abstraction and PostgreSQL transaction mapping are documented."
+  - id: A2
+    text: "Negative controls for missing epoch, expired renewal, unfenced release and missing transaction lock yield named violations and retained counterexamples; intended baseline scenarios are reachable."
+  - id: A3
+    text: "Real PostgreSQL tests cover live/expired/replaced/released renewal, same-holder ABA, stale release/write rejection and transaction lock ordering on both claim tables, without sleep-based assertions."
+  - id: A4
+    text: "The complete touched Go package and named domain claim tests pass with a disposable PostgreSQL database; owned database/server are cleaned up and optional skips are reported accurately."
+  - id: A5
+    text: "Pilot artifacts are ignored under .lean/, task evidence identifies exact source/model/test results and make lint passes."
+tests:
+  - command: "python3 .lean/controller-claims/run.py"
+    covers: [A1, A2, A5]
+  - command: "go test -json -race -tags=integration -count=1 ./internal/persistence/postgres"
+    covers: [A3, A4]
+  - command: "go test -json -race -count=1 -run '^(TestClaimedArtifactWritesFenceTakeoverAndPurge|TestSharedPostgresEvalNativeFreezeStaleClaimsAndSuboperationRecovery)$' ./internal/auditstore/internal/pgstore ./internal/evalstore"
+    covers: [A4]
+  - command: "python3 .lean/controller-claims/verify_postgres.py"
+    covers: [A3, A4]
+  - command: make lint
+    covers: [A5]
+verification:
+  evidence: tasks/evidence/v498-001-controller-claims.json
+  local_report: .lean/controller-claims/README.md
+  result: >-
+    Both finite baseline graphs exhaust (451 and 1055 distinct states), all
+    five negative controls fail their expected invariant, and all 13 baseline
+    reachability probes produce a witness. The full persistence PostgreSQL
+    package passes 75 top-level tests and both named domain tests pass; all 20
+    new leaf scenarios execute and there are no PostgreSQL skips. make lint
+    passes with one auxiliary Python unittest skip, not counted as coverage.
+    The first Unix-socket run's unrelated migration-lock timeout mismatch is
+    retained in evidence; the final TCP-loopback package run passes, without
+    claiming a root cause or fix. Owned database/server/data are removed.
+  limits: >-
+    This is finite protocol safety evidence plus regression tests, not a proof
+    of Go/SQL implementation, all callers or liveness. No production defect was
+    established. Ignored model artifacts remain local and are not a CI gate.
