@@ -204,8 +204,8 @@ digests всех 61 таблицы и состояния sequences. Обе ба�
 
 Offline fixture gate прошёл: 45 Python cases, 105 recorded samples и два Go
 package suites. Эти проверки не доказывают пригодность live observer: найденные
-разрывы export-границы сохранены как отдельные дефекты. `make lint` также
-проверяется после финального bookkeeping; полный release gate не запускался.
+разрывы export-границы сохранены как отдельные дефекты. `make lint` прошёл полностью; после финального bookkeeping также прошла
+проверка task records/BACKLOG. Полный release gate не запускался.
 
 ## Исторический отчёт на 16 ноября 2026
 

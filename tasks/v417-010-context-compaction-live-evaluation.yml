@@ -439,3 +439,5 @@ verification:
     Worker/Planner diagnostic mismatch and dropped phase metadata prevent
     valid continuation conclusions. Native assessments unchanged; cleanup
     verified. Task returns pending; no implementation_commit is claimed.
+- command: make lint
+  result: '2026-11-28 final full lint passed; four Runtime layer contracts kept. Subsequent status-only bookkeeping passes scripts/check_tasks.py. Full release-verify was not run.'
