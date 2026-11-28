@@ -768,6 +768,20 @@ the retired pre-production chain in PER-R30 are removed with that chain;
 current-schema and migrator protocol tests remain. Any later data-moving
 migration again requires its own upgrade test.
 
+The singular-to-plural Finding HTTP format transition normalizes existing
+proposal/report bytes and their exact digest/size references atomically, including
+source history, without publishing archival bindings or revisions. Finding,
+receipt, version and revision identities, analyst state and hold counts stay
+unchanged; replaced unreferenced blobs are removed and retained-byte counters are
+reconciled. Only the migration suspends immutable-row guards and restores their
+original modes in the same transaction. Its preflight bounds JSON inventory to
+10000 rows per column and 64 MiB, rewritten blobs to 512 and 32 MiB, and source
+history propagation to 16 passes. When normalization is needed, any external JSON
+or opaque Finding collection package makes reference inspection unsupported;
+pinned Eval references and values outside the affected closed canonical JSON
+grammar are also unsupported. These cases roll back rather than leave inconsistent
+identities. The ordinary readers remain strict and have no singular-format path.
+
 Rationale: one transaction keeps every database at one complete schema
 version, so the ledger is the only record a run or the Server's startup check
 needs, and a failed run needs no repair. Its price is that a migration cannot
