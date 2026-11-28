@@ -4,9 +4,9 @@ title: Classify oversized lifecycle replies as permanent protocol failures
 milestone: server-runtime-grpc-2026-11
 epic: execution-core
 kind: defect
-introduced_by: V490-003
+introduced_by: V490-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -16,13 +16,12 @@ goal: Oversized or malformed private replies fail permanently while a typed retr
 context:
   authority: 'User decision 2026-11-28: create tasks for all five review findings, fix P1 first, add regression
     tests and run required checks. Review baseline 2a54565054c89526d68ff86232f5d5fb8c99d3cc.'
-  boundary_decision: >-
-    Replace Runtime SDK concurrency rejection with native pre-decode interceptor
-    admission on the same 32-RPC ceiling. The SDK RPC task owns its permit until
-    done, covering decode failure, cancellation and joined terminal cleanup.
-    Surplus is a typed retryable control_rpc_capacity; clients fail closed for
-    untyped ResourceExhausted. Parsing SDK diagnostic strings would be fragile,
-    while retaining untyped admission cannot distinguish receive-limit failures.
+  boundary_decision: Replace Runtime SDK concurrency rejection with native pre-decode interceptor admission
+    on the same 32-RPC ceiling. The SDK RPC task owns its permit until done, covering decode failure, cancellation
+    and joined terminal cleanup. Surplus is a typed retryable control_rpc_capacity; clients fail closed for
+    untyped ResourceExhausted. Parsing SDK diagnostic strings would be fragile, while retaining untyped admission
+    cannot distinguish receive-limit failures. Native held-RPC, malformed-decode and cancellation tests pin
+    the SDK task lifetime. Reopen if a grpcio upgrade changes interceptor scheduling or exposes typed SDK admission.
   severity: medium
   finding: internal/controlplane/runtime_grpc.go:85 marks every untyped ResourceExhausted retryable. A real
     gRPC response beyond MaxCallRecvMsgSize becomes transport_unavailable/retryable=true rather than a permanent
@@ -74,3 +73,10 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 6cad2d12878f0e69fe529d9eab79122893ac8494
+verification:
+  status: passed
+  evidence: tasks/evidence/v492-grpc-review-fixes-20261128.json
+  observed: All listed commands passed against the combined fixes. Native regression probes fail before the
+    respective fix. PostgreSQL was enabled for Go and wire checks. Runtime skips remain explicitly reported;
+    optional heavy I/O was not enabled.
