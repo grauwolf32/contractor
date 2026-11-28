@@ -1,0 +1,59 @@
+schema_version: '1.0'
+id: V500-007
+title: Report explicit zero tokens when Runtime observed no direct model calls
+milestone: runtime-telemetry-2026-10
+epic: operations
+kind: defect
+priority: P1
+status: pending
+depends_on: []
+languages: [python, go, markdown]
+goal: A model-free allocation report does not make otherwise complete handoff usage partial, while started calls with unknown usage remain unknown.
+context:
+  authority: 'User decision 2026-11-28 assigns investigation and correction of partial usage before repeating compaction on the existing demo with debug.'
+  finding: >-
+    runtime/src/contractor_runtime/telemetry/metrics.py:559-578 always emits
+    modelCalls=0 for a fresh collector but omits token counters. The R5 handoff
+    planner_executor allocation contains that exact report. Both stored Stage
+    snapshots were recovered read-only from the retained verified archive:
+    actual Planner and Worker/summarizer counters total80328, but the empty
+    executor contribution correctly makes Eval usage partial.
+  history: 'The shallow repository history attributes this producer code to baseline14dddad61; the original introducing task is not recoverable, so introduced_by is not guessed.'
+  specification:
+    - docs/spec/platform/observability.md
+    - docs/spec/evals/managed-evals.md#EVM-R81
+  boundary: >-
+    Fix the Runtime report producer, which knows whether it observed a direct
+    model call. Keep Server strict collection unchanged; no role-name inference,
+    legacy reader, retrospective snapshot rewrite or double counting of Planner
+    usage. The planner_executor's real model work is attributed to Planner by
+    the existing protocol; its allocation Worker report contributes known zero.
+  siblings: >-
+    Cover fresh and tool-only collectors, failed/cancelled zero-call reports,
+    terminal summary-only overhead, a started call with no usage, known zero
+    provider usage, and ordinary known usage. Retained old partial reports
+    remain partial. Real PostgreSQL collection must prove the corrected report
+    contributes zero while actual Planner/Worker/summarizer totals count once.
+scope:
+  in:
+    - Explicit producer token zeros only when no direct model call was recorded.
+    - Runtime producer regressions and real-store handoff accounting regression.
+    - Clarify producer ownership and record the exact observed partial cause.
+  out:
+    - New usage ledger, native normalizer inference, model changes and rewriting old reports.
+acceptance_criteria:
+  - id: A1
+    text: Fresh/tool-only/zero-call terminal producer reports explicitly contain zero input/output/total tokens; a started call without usage keeps counters unavailable and known usage stays exact.
+  - id: A2
+    text: Real PostgreSQL collection of Planner, Worker, summary and corrected executor reports is complete and counts each contribution once; omitting executor token counters reproduces partial coverage.
+  - id: A3
+    text: Regressions fail before the fix; full touched suites and lint pass. Historical R5 reports and assessments remain unchanged.
+tests:
+  - command: cd runtime && uv run --locked pytest tests/test_metrics.py
+    covers: [A1, A3]
+  - command: go test -count=1 ./internal/evalservice
+    covers: [A2, A3]
+  - command: make test-runtime
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
