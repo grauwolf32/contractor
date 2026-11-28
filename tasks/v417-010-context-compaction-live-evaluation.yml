@@ -5,7 +5,7 @@ milestone: worker-context-compaction-quality-2026-10
 epic: evals
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V417-008
 - V417-009
@@ -17,6 +17,8 @@ depends_on:
 - V500-004
 - V500-005
 - V500-006
+- V500-007
+- V500-008
 languages:
 - python
 - yaml
@@ -49,6 +51,26 @@ context:
     never rewrite prior plans, results, comparisons or configured models.
     User request 2026-11-28 explicitly resumes this study and selects Project
     Facts research, with debug traces required before live dispatch.
+  demo_repeat_authority: >-
+    User decision 2026-11-28 explicitly assigns fixes, partial-usage analysis,
+    and a debug-enabled repeat on the existing demo; no duplicate stand.
+    OpenRouter eval concurrency must be4–8. Freeze4 for all R6 arms, within
+    current demo admission. Current Server main is cfe6a7217; accepted Runtime
+    producer/source/control closure is verified on all four existing processes.
+    Model selection, credentials, principals, ports and work roots are preserved.
+    V500-005/V500-006/V500-007/V500-008 are required before dispatch.
+  r6_protocol: >-
+    Preserve R1–R5 and every expected outcome. Use new R6 Project/experiment
+    identities, visible-schema/source/check/observer pins; four comparisons,
+    three cases, five repeats, two arms =120 members. Keep native comparison
+    gates and source/task equality. Debug uses the existing facts-ab-debug
+    RuntimeConfig, durable collector and Phoenix; verify each released Run.
+    Controlled native-compaction/masking uses the same private test launcher
+    on all four existing Runtime processes; questions only, no expected answers.
+    Common source/lock/control closure and per-host interpreter bytes are
+    separately attested; this does not claim identical binaries/checkpoints.
+    Restore ordinary Runtime entrypoints after all task Runs release, retain
+    demo business data/results and remove only owned deterministic test resources.
   resume_authority: >-
     User request 2026-11-28 revokes the earlier pause. Prepare a new frozen
     study on the current accepted Runtime SDK/lock/build after V500-001;
@@ -94,15 +116,13 @@ context:
     comparisons remain inconclusive. All experiments cancelled, Runs released,
     owned processes joined, backup restored and 61 table digests verified,
     owned databases/cluster and ephemeral credentials removed. Exact evidence
-    retained. Return pending for V500-005/V500-006; A1-A4 are not all met.
+    retained. Historical stop retained. All four correction prerequisites are now accepted;
+    R6 resumes in_progress on the existing demo. A1-A4 wait for actual R6 results.
   next_study_decision: >-
-    Agent proposal: after the observer/output-contract prerequisites and
-    investigation of handoff partial usage, freeze a new study with new
-    identities and preserve all R1-R5 outcomes. A smaller viable first step
-    is a development-only end-to-end compaction and handoff pair through the
-    actual exporter before another complete matrix. This trades initial
-    coverage for early confirmation that measurement is valid. No new live
-    matrix or production change is performed by this report.
+    Assigned by the user, replacing the earlier proposal: repeat the complete
+    frozen120-member matrix on the existing demo after the four prerequisites.
+    Existing retained debug deliveries provide route readiness without extra
+    model pilots; the new series validates actual new export and continuation.
   current_results: docs/research/context-compaction-evaluation.md
   current_results_evidence: tasks/evidence/v417-010-results-r5-20261128.json
   cleanup_evidence: tasks/evidence/v500-002-shared-cleanup-20261128.json
