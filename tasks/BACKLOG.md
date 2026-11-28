@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 11 in progress, 46 pending, 13 deferred. 1734 finished: 1715 completed, 19 archived.
+70 open tasks: 12 in progress, 45 pending, 13 deferred. 1734 finished: 1715 completed, 19 archived.
 
 ## In progress
 
@@ -22,6 +22,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V492-001](v492-001-lifecycle-cancellation.yml) | execution-core | defect | P1 | Keep admitted Finalize and Abort alive through RPC cancellation |
+| [V492-002](v492-002-planner-rpc-admission.yml) | execution-core | defect | P1 | Reserve progress capacity for Worker RPCs while Planners wait |
 
 ## Pending
 
@@ -31,7 +32,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
 | [V469-002](v469-002-opencode-audit-runtime.yml) | feature | P1 | V469-001 | Run OpenCode in one retained Audit environment through existing A2A |
-| [V492-002](v492-002-planner-rpc-admission.yml) | defect | P1 | — | Reserve progress capacity for Worker RPCs while Planners wait |
 | [V492-003](v492-003-control-body-deadline.yml) | defect | P2 | — | Bound ControlPlane message reads independently of caller deadlines |
 | [V492-005](v492-005-grpc-receive-error.yml) | defect | P2 | — | Classify oversized lifecycle replies as permanent protocol failures |
 

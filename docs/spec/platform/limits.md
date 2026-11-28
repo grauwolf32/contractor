@@ -387,7 +387,7 @@ its owning requirement.
 | `LIM-CTL-20` | 1 MiB | Control/lifecycle protobuf message and decoded domain projection, except the ReadState response (LIM-CTL-27) | Go/Python codecs and gRPC receivers | [CTL-R175](../execution/control-plane.md) |
 | `LIM-CTL-21` | 4 MiB | Official A2A protobuf envelope; domain result limits still apply | Go/Python A2A gRPC transport | [CTL-R175](../execution/control-plane.md) |
 | `LIM-CTL-22` | 16 KiB | Native gRPC metadata | Go/Python gRPC receivers | [CTL-R175](../execution/control-plane.md) |
-| `LIM-CTL-23` | 32 concurrent RPCs; Server reserves four positions for control | Per-process private gRPC admission; Server non-control calls use at most 28 positions, surplus rejected | Server pre-decode handler, Runtime grpcio admission | [CTL-R175](../execution/control-plane.md) |
+| `LIM-CTL-23` | 32 concurrent RPCs; Server reserves four positions for control and four non-control positions for Worker progress | Per-process private gRPC admission; Server non-control calls use at most 28 positions, PlannerOperation at most 24; surplus rejected | Server pre-decode handler, Runtime grpcio admission | [CTL-R175](../execution/control-plane.md) |
 | `LIM-CTL-24` | 8 connections | Runtime TLS adapter admission, including incomplete handshakes | Runtime TLS adapter | [SEC-R5](security.md) |
 | `LIM-CTL-25` | 5 seconds handshake/connect; 0.5 seconds TLS close | Runtime TLS adapter connection stages | Runtime TLS adapter | [SEC-R5](security.md) |
 | `LIM-CTL-26` | 64 KiB per pump read/write chunk and stream reader limit | Runtime TLS adapter; drain applies backpressure | Runtime TLS adapter | [SEC-R5](security.md) |

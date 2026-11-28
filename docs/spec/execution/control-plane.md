@@ -1903,7 +1903,12 @@ LIM-CTL-20 (except the State response envelope, LIM-CTL-27), A2A envelopes
 by LIM-CTL-21, metadata by LIM-CTL-22. Python grpcio sets both its soft
 metadata threshold and absolute hard limit to that ceiling; probabilistic
 soft rejection alone does not enforce it. Both receivers
-bound aggregate admission with LIM-CTL-23 before application decoding. Caller
+bound aggregate admission with LIM-CTL-23 before application decoding. Server
+PlannerOperation calls have a separate sublimit inside that ceiling: callbacks
+may wait for a Worker that needs Artifact or Allocation RPCs to finish. Reserving
+Worker progress positions prevents those callbacks from consuming their own
+dependencies; surplus receives the existing typed retryable capacity error.
+The independent ControlPlane reserve remains available. Caller
 deadlines include admission, connection, TLS and response; domain finalization,
 lease and Stage deadlines remain separate. Invalid input is `InvalidArgument`,
 missing TLS identity `Unauthenticated`, state conflicts `FailedPrecondition`,

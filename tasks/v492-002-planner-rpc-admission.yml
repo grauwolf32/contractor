@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V490-004
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
@@ -14,6 +14,12 @@ goal: Supported concurrent Planner executions cannot occupy the RPC capacity req
 context:
   authority: 'User decision 2026-11-28: create tasks for all five review findings, fix P1 first, add regression
     tests and run required checks. Review baseline 2a54565054c89526d68ff86232f5d5fb8c99d3cc.'
+  boundary_decision: >-
+    Reserve four Worker progress positions inside the existing 28 non-control positions;
+    cap PlannerOperation at 24 and retain the four ControlPlane positions and 32 total.
+    Raising the total would only move the dependency starvation threshold and increase
+    decode memory. Supported Scheduler lanes may receive existing bounded retryable
+    capacity rejection; they do not all require concurrent private RPC admission.
   severity: high
   finding: internal/app/composition_http.go:197 shares 28 non-control permits with PlannerOperation. privateartifacts/grpc.go:207
     holds a permit while streamline/tools.go:206 awaits a Worker. Twenty-eight Planner waits reject Artifact

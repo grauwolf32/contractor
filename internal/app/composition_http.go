@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	pb "github.com/grauwolf32/contractor/api/v1alpha1/runtimepb"
+
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auth"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
@@ -188,16 +190,31 @@ func configureHTTP(
 	return serverHandlers{public: processHandler, private: instrumentedPrivate, runners: runners}, nil
 }
 
-const privateControlRPCReserve = 4
+const (
+	privateControlRPCReserve = 4
+	// Waiting Planner callbacks can invoke Workers that need allocation RPCs.
+	// Keep progress capacity separate inside the existing process ceiling.
+	privateWorkerRPCReserve = 4
+)
 
 func newPrivateHandler(rpc http.Handler) http.Handler {
 	// All private RPC families share the process bound even though each
 	// service also protects its standalone composition before decoding.
 	permits := make(chan struct{}, runtimewire.MaxConcurrentRPCs)
 	dataPermits := make(chan struct{}, runtimewire.MaxConcurrentRPCs-privateControlRPCReserve)
+	plannerPermits := make(chan struct{}, cap(dataPermits)-privateWorkerRPCReserve)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
 			control := strings.HasPrefix(r.URL.Path, "/contractor.runtime.v1alpha1.ControlPlane/")
+			if r.URL.Path == pb.Allocation_PlannerOperation_FullMethodName {
+				select {
+				case plannerPermits <- struct{}{}:
+					defer func() { <-plannerPermits }()
+				default:
+					runtimewire.WriteError(w, runtimewire.Error(r.Context(), codes.ResourceExhausted, "allocation_rpc_capacity", true))
+					return
+				}
+			}
 			if !control {
 				select {
 				case dataPermits <- struct{}{}:
