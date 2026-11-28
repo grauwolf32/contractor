@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "kind": "offline evaluator-contract counterexamples, not model samples",
+  "modelCalls": 0,
+  "mutationsToFrozenStudy": 0,
+  "source": "Exact pinned recorded API answer, varying only POST response code or location of inherited tenant security",
+  "results": {
+    "original": {
+      "openapiValid": true,
+      "scorer": {
+        "pass": true,
+        "checks": {
+          "constraints": true,
+          "read_only": true,
+          "no_repeated_effects": true,
+          "openapi_valid": true,
+          "api_contract": true,
+          "side_constraint": true,
+          "document_structure": true,
+          "dependency_model": true
+        }
+      }
+    },
+    "post201": {
+      "openapiValid": true,
+      "scorer": {
+        "pass": false,
+        "checks": {
+          "well_formed_evidence": false
+        }
+      }
+    },
+    "globalSecurity": {
+      "openapiValid": true,
+      "scorer": {
+        "pass": false,
+        "checks": {
+          "well_formed_evidence": false
+        }
+      }
+    }
+  },
+  "interpretation": "Current scorer rejects standards-valid representations that the visible task does not prohibit. Its generic well_formed_evidence failure cannot alone establish lost domain information. Native frozen assessments remain unchanged.",
+  "task": "V417-010",
+  "sourceImplementation": "tests/eval/context_compaction/harness.py:score"
+}
