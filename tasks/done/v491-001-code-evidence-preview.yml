@@ -5,7 +5,8 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 26d657bbea11374414b2c9df689b25cd6add97da
 depends_on: []
 languages: [typescript, css, markdown, python]
 goal: Researchers can read retained code evidence directly in a possible issue or material preview, with syntax colours, actual line numbers and the selected range instead of decoding the trace proof JSON.
