@@ -1,0 +1,2282 @@
+{
+  "schemaVersion": 1,
+  "task": "V417-010",
+  "series": "R6",
+  "date": "2026-11-28",
+  "consumerCommit": "e550d1b855519356010b79feadf4dd9a0f770fd2",
+  "serverCommit": "cfe6a7217b3f7fd6fd0bed8306a9fd4351857142",
+  "runtimeSourceCommit": "893f78667de06e3c0f17fe949690b5bf3956063c",
+  "deployment": "existing demo only; same Server, four Runtime identities and PostgreSQL",
+  "schemaChangedByThisTask": false,
+  "configuredModelSelection": {
+    "defaultModel": "glm-5.3-flash",
+    "roles": {}
+  },
+  "concurrency": 4,
+  "debug": {
+    "existingDemoCaptureRoot": "/Users/ruslan/src/contractor/.local/demo/run/facts-ab-v2-20261128/evidence",
+    "retainedRunTraces": 39,
+    "retainedSpans": 590,
+    "reasoningObserved": true,
+    "config": {
+      "name": "facts-ab-demo-debug-20261128",
+      "version": "1",
+      "digest": "sha256:d1166bcb531f1f5758c04de9145fa7e0de15b89b486d83295baf92fda18cabc2"
+    },
+    "collectorGap": false,
+    "phoenixHealthHTTP": 200,
+    "newModelCalls": 0,
+    "limits": "Existing Facts audit child Runs and development trace deliveries verify the route. Each new context Run is separately validated after release; these are not R6 quality samples."
+  },
+  "runtimeAttestation": {
+    "build": "sha256:b6a6d54bfd681d6344757946eaceeb171d4e8cedacd0fd3b79cdf91c81b9ff03",
+    "commonClosure": {
+      "sourceCommit": "893f78667de06e3c0f17fe949690b5bf3956063c",
+      "files": [
+        {
+          "path": "runtime/pyproject.toml",
+          "sha256": "sha256:71340042b6a18d6c58a9d82876f986efdb610b4751555ab71ad4de46a8ac846c"
+        },
+        {
+          "path": "runtime/uv.lock",
+          "sha256": "sha256:a688be7b9bc178dd3603243050ba91260b64e8483a71d739cc25e4810b38c06f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/__init__.py",
+          "sha256": "sha256:cac7d04566196e7aa82da762f4d066a4d04cae14e55a2fcc8d1535403a2d154b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/__main__.py",
+          "sha256": "sha256:1447e6fef48a8a6f8832d87886320b749b2f2244f5786d99e6267f2c930a013d"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/_allocation_errors.py",
+          "sha256": "sha256:8dc40beffb299cc40d8a4d56598e9b0be88e691644faf90affa3eed61be6dd4d"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/_allocation_rpc.py",
+          "sha256": "sha256:51b9856723ad7d46832a4c2169fd9afc9948ab5a110c0a106bb1ac123dfbe2e8"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/_bulk_rpc.py",
+          "sha256": "sha256:3e1e63a6001ff4b2fa852af3c2e01824eac84b199088b1a588eaac601f426c64"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/_grpc_client.py",
+          "sha256": "sha256:c125426ead35be6de953a75c55650bade46b72c33b337ed72c66d8d2e25427a7"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/_grpc_metadata.py",
+          "sha256": "sha256:68a600f37d3ce9299aaab7d4b5c079e832483e6eaf5775b2c8c98668083400a1"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/_grpc_tls.py",
+          "sha256": "sha256:3a3f177445146c2ec3648b03023c5a5885df6b48ea92e3c7200625d50840cdb0"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/_rpc_connections.py",
+          "sha256": "sha256:ed9479915a3bde95f3c7422781b59a4bb4394c10663296ef7a129abe5aca89bf"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/a2a_server.py",
+          "sha256": "sha256:1204dfe1b1c668127a9b1b446b3849eb905549121db0f222c48ae9b7614a535f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/__init__.py",
+          "sha256": "sha256:0955b8afa405da7c6d75c0f1423988867c1bced277470cd05ac9dab15018416a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/bridge/__init__.py",
+          "sha256": "sha256:aa0829d8a94aa3090ff8a58ce052c1286e71812e11a92156201cd1368b29e13f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/bridge/errors.py",
+          "sha256": "sha256:854a27fdfb909ef7f6e31662f835fbe731e174b87d712635a0d92f1f67192355"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/bridge/mitmproxy/__init__.py",
+          "sha256": "sha256:6c70dd75a5b8aeb2e4295a22d50396f81059da579814c53cfbe24621e1cd6dfa"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/bridge/mitmproxy/engine.py",
+          "sha256": "sha256:2281fc18c80a3c6ff4955c3316580d24a8878519f66e0a79004fab7a922110f0"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/bridge/mitmproxy/framing.py",
+          "sha256": "sha256:111d5a4f3d6673f75a50aaafce262bc91954b4880522bad7c1d6de47f7065f4a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/bridge/mitmproxy/ingress.py",
+          "sha256": "sha256:302f3b14fb6f74a6b7af92b60a4263f8cd1fd04fd9659beb3766cb266928c380"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/bridge/mitmproxy/lifecycle.py",
+          "sha256": "sha256:0bb9e13087b2c1f4c222af62aee532449f8ede98a6017afbaf33c4d5cb4a8ee1"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/bridge/mitmproxy/messages.py",
+          "sha256": "sha256:28520427931e878495c67e18e8e57d26ac7bb9d5fc964fe0e1f2ce64a504964a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/bridge/mitmproxy/protocol.py",
+          "sha256": "sha256:fcbc7ffdf1c2b1443307e33cef0c2c9924f7d1faaa1cb37e2e2017f54900920e"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/bridge/mitmproxy/runtime.py",
+          "sha256": "sha256:d01c267920cd19815dfff751b205bfe664271ca0cc886dd53b30dca7654a5d1e"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/bridge/mitmproxy/state.py",
+          "sha256": "sha256:8d4de7d2deb053a5c8801ca7330ab5203b335eccda3db61a68a5809c03565594"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/bridge/proxy.py",
+          "sha256": "sha256:b10ac0a19083f2dc18590e837807db396880c3b467518815b4a38345ebafdd27"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/caido_graphql.py",
+          "sha256": "sha256:6cb6902923718a0389362a9b607fcf93bbb7a1f2ae322315115b880f79f6f38e"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/content.py",
+          "sha256": "sha256:836bf2c8c27603763278df16e4ddca023b8131c275549a9bcc783d0eb23105ac"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/genai.py",
+          "sha256": "sha256:8d7814efb25a185763a7440e3c96a45b093dc67da6d419a92a673f534a4d8333"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/host.py",
+          "sha256": "sha256:8ac623f06757ad6b4045553e751e1af15b854569c5c58f4e0b715a89bf6731c2"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/http_policy.py",
+          "sha256": "sha256:b4a6ec9c209960926e06b46db48eec8d95666c28740543c6fcb923bb8207d363"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/http_proxy.py",
+          "sha256": "sha256:ece47ee0338abfce9933199d7d2b74ec102bac6ab32e3aaa9013f3cf6610d62c"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/http_session.py",
+          "sha256": "sha256:480fbbd90416e1ffacb0bd28c84d14079b2e0a6f950083f70732346f05cbf2de"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/http_stream.py",
+          "sha256": "sha256:e929f37cbc64d0560d7e84f6605bbf5d06aa3334a1885c760858c6e6e9943025"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/http_transport.py",
+          "sha256": "sha256:6fdce0090a3ef2487d6be543e37f4a126733afa6ffe512a15b3ce8b3c87882d5"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/instrumentation.py",
+          "sha256": "sha256:eb6bf34621c869cc950849da0226b727c57e87d7bf710fcc832e570b99fea5fd"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/interactsh.py",
+          "sha256": "sha256:0d20c1336f9a0bdbff51efbb0535d5262cb9083c86d623ffc3de8da16d56abaf"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/otlp_http.py",
+          "sha256": "sha256:e492b7fc2f1de6958fa80b621b9529b0a8224458558992deb02feed6b38afb6b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/adapters/otlp_retry.py",
+          "sha256": "sha256:b9784daae83baaaf070aa9d8aab5961da15059131b9ca64860804c6020b03663"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/agent_skills/__init__.py",
+          "sha256": "sha256:5b58556843452ae44b2ebec7392ed2c3dd10035c5500e521ffa8a9d225e8a61c"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/agent_skills/package.py",
+          "sha256": "sha256:e924a223a07e1ded208e6f6d95c8231ef7adeb625da0763a519d49d463347d66"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/agent_skills/runtime.py",
+          "sha256": "sha256:c2f16a37d5093d5c0a845058169ca8f9d184241d071d20564cc9e617bddc74bb"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/allocation/__init__.py",
+          "sha256": "sha256:e4a36c7fb3123764e83b90bd69b65ac5cf4639477eb85d707e83d85adab2f38f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/allocation/cleanup.py",
+          "sha256": "sha256:5d594417993840ac74b18126822b6283440873b78b16ecc2011c72bf886b7c0e"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/allocation/context.py",
+          "sha256": "sha256:fc72923111f92b3c283706a61ab9d344f512a2f15f69140528c6c08b36c9c4f5"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/allocation/errors.py",
+          "sha256": "sha256:d4fbebf78c0faa50544739324658138c8cbabf795d442d4a015dadecf9b55f68"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/allocation/identity.py",
+          "sha256": "sha256:10c67e4f7284da805682a67be990e4af45889626ef3d8093cebb8ec1a354e7a8"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/allocation/preparation.py",
+          "sha256": "sha256:c4f0c6cca7fdac4899776d43646771feacb4d641f7ed89154918a73195fc189f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/allocation/redaction.py",
+          "sha256": "sha256:f5bc65bf508399a743e41c18c6e932d85ff13ccdcb4ae912b915d7f8878402e2"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/allocation/reports.py",
+          "sha256": "sha256:a7ebe7810efdf6b07408da2e10c02b09fc0813fc60566f81b9eb6c43a96392ce"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/allocation/service.py",
+          "sha256": "sha256:775fc092c2a84fec0c7777df68696270240b2d47d7d33240b2bca8a76fe1999f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/allocation/validation.py",
+          "sha256": "sha256:a151ddf27802e78215817f84f9138c9c78c60caaee57dadbe06e42110c16cb0d"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/archive_cache.py",
+          "sha256": "sha256:17dbbd84c3d956dade64eca8957b3f16b2dab040a2b6ec23677469200d2a7827"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/archive_cache_files.py",
+          "sha256": "sha256:fcad2cf4afe759b0269f3f7afe2c1a8a3d03a9a00b1960f13212538afb84e5a9"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/artifacts.py",
+          "sha256": "sha256:37d8d57fec942447d5ace8d45c6a0a7f5c7fd35ae2c582eae3c5aefc683e45a3"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/audit_evidence.py",
+          "sha256": "sha256:f9b23cbb67bd30baadf8d7dcb70f3d8e38e626ef3cd06ee0d06019416b30aee1"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/audit_judgments.py",
+          "sha256": "sha256:faaf608d5286bc48cf2b40270a6cc87c1fec6e4d75960be543a743ca6c6aa4ed"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/backoff.py",
+          "sha256": "sha256:7e4bee9b77fab65d88d4cd1018a75fafb3be75ecdc86728d9381a222542eefae"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/capabilities.py",
+          "sha256": "sha256:4454ed532a50ad087133c1b042c8a19f3c60228933a830fb1c08df97843b7263"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/cli.py",
+          "sha256": "sha256:f5073760ec9df5b766114bb758c9207212d0891a1860e302d35f51e92ceee2c1"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/__init__.py",
+          "sha256": "sha256:fafb2c578042d3611158e8c263067efcd221f882fa8c718f90a7005c7fcf4215"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/allocation.py",
+          "sha256": "sha256:6d32fb348e95417f37d554d096aa1d2dbded39553bca23dea1944c6bd5897e55"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/artifacts.py",
+          "sha256": "sha256:5aaed6f8ccf0dcc4905c7ff23661ac402452b273a52bf83d122e2981387f1439"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/audit_documents.py",
+          "sha256": "sha256:5e1e3af2e131ca3c159dfed8a94b2781343388e7e89c3ca37c45df4d20b7a8d5"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/base.py",
+          "sha256": "sha256:e39058bc3fc0f023ee6f1965eaa4d816bd3e10576d7a1cc336c2d668ccbe1e5f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/codec.py",
+          "sha256": "sha256:708c5924059026ac02273922fb85ef9e49c5087dd5b20f17dfedfaf383522899"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/compaction.py",
+          "sha256": "sha256:428d0ae30909440b69ed41051f2f60a6e204c9c2e1d0de02a226d1bdfc8c537f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/engagement.py",
+          "sha256": "sha256:245845a3a66033ba0e2e3e2435e8d47a546dcbae823aa84e82d6f408061f2f50"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/engagement_allocation.py",
+          "sha256": "sha256:801b7a4895cae6c87b4b9672567a2a3e5474a2267dcdca0fabc80b6c18003eee"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/fields.py",
+          "sha256": "sha256:753b487b022ff74c8223e264217337cd08603cc23165144cd9afb2795da56fdc"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/grpc_wire/__init__.py",
+          "sha256": "sha256:42f4701bf950aff9db92b99280023e73362d92cf2ba07fb6d1c7c7e0b2e6bf5b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/grpc_wire/bulk.py",
+          "sha256": "sha256:de259e0f92f6a43fe70abd69056bd373a8346937130c6b58ea55c93bf12ca3cf"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/grpc_wire/codec.py",
+          "sha256": "sha256:3bcfb54025d0ee913e81942e8a82528547e40c03aac1105731f44f9e94a52681"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/grpc_wire/limits.py",
+          "sha256": "sha256:19afc339dfb8c93a1441aea2182c3cfdf46d47e1a45e179edad3dd4c6128432f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/grpc_wire/runtime_pb2.py",
+          "sha256": "sha256:d2c8749a86b38913b1427ea151caf439188ed2ffca1d7283d1491d7b0c67c2de"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/grpc_wire/runtime_pb2_grpc.py",
+          "sha256": "sha256:82b051014f82749f88816d3ac0f7b9fa2fc972049c63aa53e153edc2eeba2e06"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/llm_cost.py",
+          "sha256": "sha256:76752238115e02421006fba0daf514cf4fe974439c07855debcd3deeb9486ee6"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/placement.py",
+          "sha256": "sha256:bbafed4fcaa39b36359976b308d415d45f4d69fa926f8f1a2b9e76fdd498d528"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/planner.py",
+          "sha256": "sha256:50f1bdde5469b8fd6e7fc9fef4d57df02871eb035006e68c93887d93ec5ea2b2"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/registration.py",
+          "sha256": "sha256:8ff18dab7b7bcd23072b590c68d1d1122b4f1cadcf466ed1825c5d99d7cca3cb"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/reports.py",
+          "sha256": "sha256:8919665b2c0d70dab651e67043839aedc121bedecfef86993141e3c0a7b7bbb0"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/settings.py",
+          "sha256": "sha256:958dd690e1c29cfdfd1ac37afda1c6e20aa68196d235b349346188efda51201e"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/shared_config.py",
+          "sha256": "sha256:5ddaffa4b3a95f3a89675a1619a3231ece5a11ceecab9b023da6bbdc068fe797"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/sitemap.py",
+          "sha256": "sha256:4b4dec48d1d16420dbf60d55f5b8a4d527b2c6355392c80aaa588c0982f1486c"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/tool_execution.py",
+          "sha256": "sha256:eda13dd136b000a3229f3e612495fb601b19cb156c56d816e019c5a7432c278b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/worker.py",
+          "sha256": "sha256:d0ebeda8088c3e22a961367f56d28be7fdb627a1118b768e9f8f7fe5c3bf537c"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/contracts/workspace.py",
+          "sha256": "sha256:b4407c0dded12fb54de9c307af8c8933034a3200c2f0704d4274ae770c507fbc"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/control_client.py",
+          "sha256": "sha256:00b629ac59370e421eaf985c0641aab738b940ebe75e54b7f5b2e7c6225c4d19"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/core/__init__.py",
+          "sha256": "sha256:4205a872a524e012dfd73088bc2ce4bb45c5333bc72fe29b869e77d56e661122"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/core/async_tasks.py",
+          "sha256": "sha256:d6d3dee83db8348faf6ba8725501d3b8ca5fa1a712da2154d11801484c282791"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/core/http_limits.py",
+          "sha256": "sha256:d7b923375b41f3f94606d7ae12623dcff850f08724a75ede401f6f5c66f73b1a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/core/http_session.py",
+          "sha256": "sha256:ca6147a829867222b063354e8bae03c6a0bd8c9b00ae6984ebbac8bd62856a36"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/core/http_transport.py",
+          "sha256": "sha256:5beaf1a7dcc51b67c2133e1a4ab46e6bf256ac6340cb9ad79ce698af67f9800d"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/core/input_errors.py",
+          "sha256": "sha256:c32a55fc45f736d2de3ac6b01ffed0e755363b39f730b9f9171cb7437d4ba1ea"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/core/lines.py",
+          "sha256": "sha256:d8923e88697e3abe506cb3a88b0c2e6ea252a68332cae9788c4d9bf92e723786"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/core/process.py",
+          "sha256": "sha256:06fc205522e3d4338dd7cee122cde2997637a68d529739a86667ebb6c1d97188"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/core/target_policy.py",
+          "sha256": "sha256:479c293abe438632bc04faaf87f3dc431b9e646e9d18e8771755d6d767ae0302"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/core/tool_errors.py",
+          "sha256": "sha256:2cefcd0fabc93d984df347ed04dc78ff92a818439dc04bc16aa5c1bd6ce43390"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/core/tool_metrics.py",
+          "sha256": "sha256:ed7cb3312dfdb585b8b1f3d87e537be61fd2726d88183167be7598956589c13f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/core/worker_completion.py",
+          "sha256": "sha256:27c9e5b4e9e9b407f485a0593f8cf49b299b1b0d48c587af9e55c09eae974181"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/digests.py",
+          "sha256": "sha256:00000404b49dfbd6e5d27a555778a0bb2036f0028c6402fc06705ea2c830365b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/factories.py",
+          "sha256": "sha256:ef36e77d1427b345ef8e7a6de2c66486f28a5044c7c64058c4bd446fd2c2a18b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/finding_proposals.py",
+          "sha256": "sha256:c8a50dd0745a2cfa6b8d0c0d0945c71add5333c574ef95cc0e9d6349bc91717f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/grpc_server.py",
+          "sha256": "sha256:670324244c302081e1337487f39f4613278ab828c1ef7f83e2658759407a6003"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/http_body.py",
+          "sha256": "sha256:afd622760f405ec24e6803db540b867078421c45180e3e52a86467e6197d791b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/lease.py",
+          "sha256": "sha256:9045cf0b2b7d8d5e84983c60351b4a0de2ce2213dd47dca528e3348330b31371"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/llm/__init__.py",
+          "sha256": "sha256:f495039276979a08b9a172fb02be7a5fcab7d9fe1ab307dd4a34559ca38d5b71"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/llm/client.py",
+          "sha256": "sha256:ad8f0ffbab4f5678e7b92f03dfcb028faedbf3cb5fcb83aa7c6bebaed2c0cacb"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/llm/cost.py",
+          "sha256": "sha256:5115af24bfece4a7af7f663b6fa8f479c4801b27f796f96f17a2e8681b267f49"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/llm/errors.py",
+          "sha256": "sha256:8fbc32dd5557b558761aa2e83302435d67c8bc47e688dfccbfbd8d4134a6cae9"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/llm/factory.py",
+          "sha256": "sha256:1c32c69505ff9356708fea382f2da79f4eabcd8d1f3eabe66a28cb0936c2adaa"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/llm/image_parts.py",
+          "sha256": "sha256:9129ce985b87b5aee8d37e92f0df2ad470a1b3c45c5f5f8ddf499116bb491011"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/llm/one_shot.py",
+          "sha256": "sha256:cf1541063536af33bc5119eaa2dbe3eb9aec69a6920247c3aeef8feabbe21b79"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/llm/openai.py",
+          "sha256": "sha256:5a66d21cd73a628f84b48f71e19e7a816a139220a92702bed8447e1636c2c085"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/llm/recovery.py",
+          "sha256": "sha256:3b66a564baac0383d3a8b44b91102fa6099e3189cbacded903fe797ce7f4ac0f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/llm/request.py",
+          "sha256": "sha256:c1c610968a70a3dc0758ed01a8e86780c009460047842fa0eef0cb73f11a9c15"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/llm/response.py",
+          "sha256": "sha256:a4157c6a3259b5e9ee3f40b4dd3dde76250dad59905354f6d54556a1456457bb"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/llm/usage.py",
+          "sha256": "sha256:ac797a76d910aad2708c99dafe97043d1920b569c5c6845650a7814c02eb6c70"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/log.py",
+          "sha256": "sha256:8dc61ad3c98ed3fc0f9cfb96cdee2234997c713341547b52cc806f514ad9bcdf"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/mtls.py",
+          "sha256": "sha256:0ca25af9bb291eeac75282c69d5dfd8adf5d44d0235ad540870c5ec09d38a34d"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/observations.py",
+          "sha256": "sha256:1c6b61829fb031a1f27853426518b442de5466b882b94b431f5f5c74dfc99120"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/planner/__init__.py",
+          "sha256": "sha256:6ee4b213beb4bce6fdf183c742aebfb55fd499f167637fc587bd036803e3d432"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/planner/compaction.py",
+          "sha256": "sha256:934f16c22a2dfd0106e7ece896ca345589b191e2625f82964e357716c1a030f7"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/planner/host.py",
+          "sha256": "sha256:0c0dcc24983ccf88438b1c9a52ec10345f9389483c75947de0cdc06354381991"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/planner/loop.py",
+          "sha256": "sha256:1c4045f2a6e75d1e233b9887dafae7f598398e2e93b3c4f242ea769016f56f99"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/planner/runtime.py",
+          "sha256": "sha256:8cc98340ba22e24adde80f61bc4c00a770b480f2eaf7eadc28b28310323710be"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/planner/server_host.py",
+          "sha256": "sha256:98423a147b74f5f7844c8417c1431ade43b9126f34bf6456ade52e4fdb2a7a98"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/probe.py",
+          "sha256": "sha256:ea1df18470d6a21ec7c77483ef6a6bc799ab2267e5f74c75bac1045aca24972b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/projectfs/__init__.py",
+          "sha256": "sha256:b07f540d82d4b98b1b7cbe55fedddf9ecd7d9499badafc9e1b32db59c529f754"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/projectfs/config.py",
+          "sha256": "sha256:76bcfc56a7eed97602bc6d692caaf33c2da113e057440b0886805bfc5e2f9c29"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/projectfs/errors.py",
+          "sha256": "sha256:90a397872d2350663289c177523a2648fe40ec42249cf3b2931075542dfe49d9"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/projectfs/exporter.py",
+          "sha256": "sha256:76fc3ce0909b3820db67bf4b85a722cecda21fca4370cafa469b8fef1b2dd43c"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/projectfs/hydrate.py",
+          "sha256": "sha256:02fb050f3649468fef00436bb6e8c15bc5c0299e4f7930c2008d0214b791b0e5"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/projectfs/local_direct.py",
+          "sha256": "sha256:7869aba0f47836ef5f839cbe742cad7e84d950d83a5b6e79523bd2cf75fe8cf2"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/projectfs/local_io.py",
+          "sha256": "sha256:330b556006ee75601a8251e8f07d4e18ec922bf4ff9155fc9025159a3b804238"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/projectfs/operation_guard.py",
+          "sha256": "sha256:e4468d1914649b7507e12bbe8be13927b906c86dc74b9b3d460832dc45464a4b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/projectfs/overlay.py",
+          "sha256": "sha256:3f52a9ddb47770bf74b85080377be9968e8a6c5a1504b6d05fedf110a312bebd"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/projectfs/paths.py",
+          "sha256": "sha256:1d3e40c9cc9921734664166c3b915711218da0982357963556733c6cac66d926"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/projectfs/provider.py",
+          "sha256": "sha256:b6398d083380bee8325ac1697c1e08557f5d9ac699eb5e35be4adac88bb0c9f5"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/projectfs/storage.py",
+          "sha256": "sha256:f8df1f01939bbeeb84fa2f45154a06cb371ded7ae32534af2ddf541b44023055"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/reasoning.py",
+          "sha256": "sha256:064f594fee0f152fde2a17c28db7e7cda621e27773eea81be255a8b0fb5cb368"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/redaction.py",
+          "sha256": "sha256:70cb7d8a95062820cba4c354eb20d0260d5eff1bef17de9f343e02aa1e41085f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/__init__.py",
+          "sha256": "sha256:370d401ea1b1a221af38df29b499f87c386513adf9911209e60f8b32bde28c9e"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/contracts.py",
+          "sha256": "sha256:b9d5348106e31bc1c9ed47053199a8670876fbe24975db5fd004bef9a86f63a3"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/lifecycle.py",
+          "sha256": "sha256:4190b56f89c41c9ca976ab2aded5e09a40524c7ed6c22a6b795cc2ca4d681612"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/podman/__init__.py",
+          "sha256": "sha256:2a840b363b9a4c25e28361bb1ea89343ed7e219017130c73988ba55f24d21a73"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/podman/command.py",
+          "sha256": "sha256:3f0c169ceb51c34f29e72885790c694f78e6b06f7c747ae582348f1d669e65a3"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/podman/engine.py",
+          "sha256": "sha256:e8035151034462fa6f187a9f479ce09be8043aa355d9c3c55f7034f3f61faa64"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/podman/executor.py",
+          "sha256": "sha256:395c7966118b0b85549687cf9762dfba31bd38c69aef2854dca1f97bfa816e8b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/podman/guardian.py",
+          "sha256": "sha256:9519ef9b09672a6866189705dfc9604d4c84966397513a9007dd467f603312cb"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/podman/io.py",
+          "sha256": "sha256:170fa54e62fd4b7e79dd8a7a1ebc097b89cebad32358d7680f5dcfe68cb2b43f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/podman/lifecycle.py",
+          "sha256": "sha256:825eb0ff861dd693c902879b118975bce7f749c18cfcf84da390669d06271720"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/podman/lifecycle_backend.py",
+          "sha256": "sha256:d8d9b03e30f795114854f66e82329f769be175198b081bed0519ef9995390837"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/podman/owner.py",
+          "sha256": "sha256:e1c1c796c08b8853320d9f7c0c1096c36ff4bd5effb1ff58de8a4ec100996834"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/podman/ownership.py",
+          "sha256": "sha256:3f3906474b83c2c927cbf7ef47a87fc9f4112ff984c1a0987c817918b814244b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/podman/probe.py",
+          "sha256": "sha256:d41a3b96ea4fd1a5d35756cff5969e26ba0f2b656dd3388a9c5cdcab858cf5d4"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/podman/settings.py",
+          "sha256": "sha256:1c49235b20b98eb767cc536d965276dbe92de0e6f85b44e5e73a7d9ce6891b73"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/podman/supervisor.py",
+          "sha256": "sha256:01e86b97d9b02af6a567032103b295cb3d7e19f08c84fefca0cdd268999e44a5"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sandbox/podman/workroots.py",
+          "sha256": "sha256:2b7cb9930f4c63d8c6fccbe9932d247072b49843925b07a40c8175f3a0effaaa"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/server.py",
+          "sha256": "sha256:c52d41e580265945b5aae1340e9fedcd8fd3fd7ec3761a760d457371f33735ac"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/settings.py",
+          "sha256": "sha256:3930522f30e353d4c1c6f868bdc8d3008a3e1f3fa09970991622da330b6ffecf"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/shared_config.py",
+          "sha256": "sha256:55a3dd4ee86853ffaf98ab7e1b7e70845e9477fda6bc4d95da2d34a51b6cf359"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sitemap.py",
+          "sha256": "sha256:d4fbba06207afd623afa995d34f1f8a370f25c0f95f5ccc38212d3a311f6818d"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/sitemap_collection.py",
+          "sha256": "sha256:cd65c59321f9c61c11aa3f7b9a476df24f5bdf754a9b3b85ac1916759149e0b7"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/state.py",
+          "sha256": "sha256:77715ea9274c9ac088f77a0183d57fd5627b6331b9d1400d17e8fc2c357cdd8c"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/strict_json.py",
+          "sha256": "sha256:d5458ddf13932576d8b952bbec9385d90f4cdfff31b593fe7cbac74d3cd04133"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/telemetry/__init__.py",
+          "sha256": "sha256:3beedd9497764b680f02a3e7bb7ca6b6b7f3c6efa8d58471284bf3297438da1e"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/telemetry/invocations.py",
+          "sha256": "sha256:c9e1cf40508470fa398e58211481f774ad4a2a874be315f2f2b32e40c3097033"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/telemetry/metrics.py",
+          "sha256": "sha256:4ac6c9683c2e943fbb1d099b96fa863491fb2b90ad31c3ae80b808dce328aa95"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/telemetry/redaction.py",
+          "sha256": "sha256:818896c615780b765beeb7cc73ddf3481dec6a76dfe113c1a12cd75fb27f0c5b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/telemetry/resources.py",
+          "sha256": "sha256:791f0364a9c9a6745c28b1433fec63a7bb7b7ea3d7c489da599b6f08f4d3f5ea"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/threads.py",
+          "sha256": "sha256:46d470da1c5bdb0e6189301e218d1c9461f1b01903f693b458b42b2f61ea4248"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/__init__.py",
+          "sha256": "sha256:0ba6ebdec23f1550e97ce53b3d65c5185710256e146d24ae102f0f81cfaf89fb"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/audit_results/__init__.py",
+          "sha256": "sha256:8dc9b9b3b6314d7b86bbd9355f14ab33a951dd3a338f25ccbdbfbe51612b5556"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/audit_results/arguments.py",
+          "sha256": "sha256:d5ad3ee5bef7dda989328b4171859dc1b8a1fdc124c78157c0879654b87e7dd9"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/audit_results/collector.py",
+          "sha256": "sha256:8eb1a1321d6056eb7e00289fa07ac9f555d4888956db23ee91e33aeb1256fd02"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/audit_results/completion.py",
+          "sha256": "sha256:e9141a2e6419d2356b6194dc5357b7bb7f6558dc3824cb8b248f51fb4fa03cc1"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/audit_results/contracts.py",
+          "sha256": "sha256:bc12018f7038d728dd4929bf60b129b52feab07129ed0a49fbfefaef20acf9a9"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/audit_results/encoding.py",
+          "sha256": "sha256:cd8c41d2050574e89ed7b023095eb932a4e4565197401a32e3a29f009e3bd4fe"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/audit_results/evidence.py",
+          "sha256": "sha256:186672f7de51a5c17921e8027187ce1764276e485d70ed4697b05fe82a799730"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/audit_results/proposals.py",
+          "sha256": "sha256:ea06930200d882593c6a2aeae2459931c738cf4b434a9ea3662bfcd737c2d1e2"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/audit_results/publication.py",
+          "sha256": "sha256:2152fbd803ed2dbb33df882125daa39d2fcc1ace30cbd374e10a0beb382e7ec5"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/audit_results/v2.py",
+          "sha256": "sha256:c0147f6b6b73053a9daa60c9d313a48d4bc51462f936f31ec8f7bfd41ff4b278"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/browser/__init__.py",
+          "sha256": "sha256:a65f3b5263fec5208ee2b02cf345746608ed3011a3733439cc4bd72061949370"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/browser/session.py",
+          "sha256": "sha256:482d9c274858ce28e90baad1efd76dd9126707c0ec8152bd208457366c5d354a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/browser/tools.py",
+          "sha256": "sha256:89108b041fdace8bc1fa5070ea666c14cc48804a58ac5321fc25e6e5001e8e71"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/caido/__init__.py",
+          "sha256": "sha256:1f51eeb361fe01f72314e6916d74c60050e536495a34f76af001a07d8a995722"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/caido/tools.py",
+          "sha256": "sha256:b3ea8e01e5e6ac77bd6bd7340da7a309aab8e673c36ec3243ce0d8e73c96d15e"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/code_analysis/__init__.py",
+          "sha256": "sha256:7aeb0f82f269c64d96fe39c608a1e49feef5b5d4899850eeb619da5feef5d59a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/code_analysis/ids.py",
+          "sha256": "sha256:1230e68464201a0523fbd72a1dc699ea0dd9e9fef8b01691b38e2846a1579e39"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/code_analysis/languages.py",
+          "sha256": "sha256:174d5cdc6dc3a0e4d2a33a7b28c8b520acc036c5500169dadf77cb9c5f76c0d6"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/code_analysis/tools.py",
+          "sha256": "sha256:3b7033aed5f6f6d7e74960ac54bc3360bb751838e45bf0b5d4ead5281969d3ad"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/code_analysis/trailmark_child.py",
+          "sha256": "sha256:664be5cff1856d3de81d85f780549b7e6f64702f359428cbe808a7fa6d77a348"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/code_analysis/trailmark_host.py",
+          "sha256": "sha256:9eb401b8277482236f3cea73f4de2c0ff1c9643e73544eb7df9237e9a3208f49"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/code_execution/__init__.py",
+          "sha256": "sha256:9862c6dc277cdae3e38eb8ce23812da41eb81804bba32d655f9dab42afe164df"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/code_execution/tools.py",
+          "sha256": "sha256:dd47596b95b11c8e8f706fd2fb7d33b5621d2bb119281ef7199dd5c5a182ae67"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/__init__.py",
+          "sha256": "sha256:053e754137e72e99e584fe7de91dc789386aa07db732b8a98291c93d270e1cbd"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/annotation_syntax.py",
+          "sha256": "sha256:3fe0b34be037a890ae0607d1856398b33313f2555f9e3587d35c9e3f90230e01"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/annotation_targets.py",
+          "sha256": "sha256:cfd2b784c2e02cae77d773050ce52c47ae609c8b7ce66b2adcb76dd6a405ac53"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/argument_diagnostics.py",
+          "sha256": "sha256:9c369b8360aeb0238fa37b8120cc54715c65d6b7fc332b34dde7b4a24287fca6"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/arguments.py",
+          "sha256": "sha256:1f4ef7ed0583db811623664a4bf1575fb8679312be280d7e589826b118fb53a8"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/artifact_cursors.py",
+          "sha256": "sha256:0aabed8f9a0de0ee4311c5bd58244f0f20222e51cc842f1bd3019453b49152e1"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/artifact_images.py",
+          "sha256": "sha256:5e5317468d93b4aa75e39e45445b4bc4e9cc85d46b1d2903181ea66f9aedcaad"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/artifact_media.py",
+          "sha256": "sha256:b97694e54af68074d21dcff35c8e090476c7816f91597c646c2d1254909f082b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/artifact_read_cache.py",
+          "sha256": "sha256:acef7489c365c4ff0c90b605c9236deeef9a8ca13e5877b7c292dca7b83d7211"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/artifact_visibility.py",
+          "sha256": "sha256:562c8df6ce467be47672e9e89a710aadd75f74780f2a64a697cfa38f2968e2a0"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/artifact_write.py",
+          "sha256": "sha256:b3ed90e16fa9bd93ff4db668cc9df018e0b568fa80527e79d11b8768d4e3e5c1"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/artifacts.py",
+          "sha256": "sha256:7a7c0d87d746b6c3b723e05426678065e9f03e8932379de3cea41dce888757bb"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/call_identity.py",
+          "sha256": "sha256:6e1d62b4f4eca961230f7019619c1f63f8554ef31a67307a9a2044590b63d1df"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/check_plans.py",
+          "sha256": "sha256:6526bf8cc20f4ff1243a673abf7fd00663b2c25e4f41a15a1f4825def45a58f8"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/credentials.py",
+          "sha256": "sha256:0be116abc7aa94aa249518463fcb54253ae20adcec7bf907caa250dd3adf0f41"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/cursors.py",
+          "sha256": "sha256:b2e7cb0c58dab44f9094594420ee408741eae1cb935dc62c80d9491d44e5c3f7"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/cwe.py",
+          "sha256": "sha256:43bc56e3c4c1b7cd2402c06e1dd9d554b38cc0b5eec8cf80a782dd38246e7d4e"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/document_session.py",
+          "sha256": "sha256:9159baeeae394ec78ce614cae54036d387ed0b79bc84ac9599a8ddac91d547f5"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/document_write.py",
+          "sha256": "sha256:e8f97f273c4693fa42b443f6da1dccf7082c68f851d3ee80d080d00bd03de16b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/execution.py",
+          "sha256": "sha256:3d9a698122de09622a77667cdb6faf993da21bed393874ddcc9b16a39031a5a4"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/factory.py",
+          "sha256": "sha256:e4767c94eb6427dac5dde35141f57f8b095f8d4270f2f7c6964a04651633fc9a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/filesystem_errors.py",
+          "sha256": "sha256:e6fc71a6a52ab0bf25c4dc71f259fc8c47fdf051fba6343d0b76da85cea60f30"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/finding_analysis.py",
+          "sha256": "sha256:e4ae47c79e8a9f780798921528e0da688fccb7fcf4ae07c8bc4e3a4ccc248848"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/finding_anchors.py",
+          "sha256": "sha256:132fa91bcc6478d16baf0d5b8b61c38b0cf5dfce91b4aadfa2057f0e6bc0480e"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/finding_locations.py",
+          "sha256": "sha256:1f407491621f0bab094f6d624e1d8bedb9fd6175c3b38b0634b7f89f437ce3dc"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/http_capture.py",
+          "sha256": "sha256:104cbf643c6d90bf818bc6c6225c073bdd0d04e163dedd5e40337019ecb3a11b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/http_evidence.py",
+          "sha256": "sha256:34ee01c2bb5a76c8a849bdd724f58391f84cdb7feea0b5a93108cb849987b8f7"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/http_exchange.py",
+          "sha256": "sha256:8bcfd214d47e45c61a3ae5c02b6148300c53b95ec8026df6d17a8b1ebc7037a0"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/http_observations.py",
+          "sha256": "sha256:3b2dcfc91fb34af4105cc34227e136d888da31bb0544ca7a69497e37187ace5a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/http_publication.py",
+          "sha256": "sha256:2da035700e45a6588927e6e8484faa9403776703ce3e534a21bb99afd5bfbdb2"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/line_window.py",
+          "sha256": "sha256:1e56a20746966033a3d29dd642a873454a60387ccd3dcf59d68315829e507bbc"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/memory_codec.py",
+          "sha256": "sha256:c7a674374bb551223c2c4772794c129619ad2b7ac57fbfef50410039706109d5"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/observation_metadata.py",
+          "sha256": "sha256:04b3c6aa0b6ec2e3c5c1fea5a295ff3a82f252f530fc913cea73eb2fd455f341"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/repeats.py",
+          "sha256": "sha256:67a27dd49b7efed3693df8295c3cd7a77722e6288b6f5248fe5afd42b648886b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/report_observations.py",
+          "sha256": "sha256:c898c2d3e57eb9aff5ac97131cb1f4c450a4a86ae4509642c7a1d9d78fde7097"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/report_publications.py",
+          "sha256": "sha256:adcd7091ae595a975810da9922653bedb0cf819d265f50e46a04bcb9eba4a2cd"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/resources.py",
+          "sha256": "sha256:bb998a184e1aebc804e9fb6fd591ec76f198565a381a677c79b272de44d1c0f8"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/source_archive.py",
+          "sha256": "sha256:cc7db8bde1b994d9337e4821cc738332a0f3b21ccfcc81a22ee1c06f2c37b8ba"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/source_languages.py",
+          "sha256": "sha256:dfa7d38ff396977826916e2f539a732caa75259208ad5e3db25bc1f3f067b71e"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/source_names.py",
+          "sha256": "sha256:c437ed5fd580ea7c9e3160fe7d237dbfd989ce70d32fbdf702bab9c36ea8cd50"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/sources.py",
+          "sha256": "sha256:e978ffc6607c281be5d1ecfea92dd30c128b1255ab82fee21f45f1e8ebd43845"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/subscribers.py",
+          "sha256": "sha256:855a20ca2fe9a0524e3d217baf1bec383550a859df32c2d01038a3d218b142d0"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/tool_base.py",
+          "sha256": "sha256:e25161901f82d4c64f017f5a8ef5ac10d385850ce6d192bb1163b5e548972826"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/trace_source.py",
+          "sha256": "sha256:b2f866e7363418cbcc6e69613285e6e2fcc115ba72cc1c6ecbaf5d5d0766ca1c"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/common/versions.py",
+          "sha256": "sha256:db676b630e9024df16312d489345fa766f98a8c33c5ac3bbdf1ae44fd238e607"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/edit_files/__init__.py",
+          "sha256": "sha256:e035cab25fb5ce53c964f2eb070762a8584b1a826d3ab7d126dff71e246e7df2"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/edit_files/tools.py",
+          "sha256": "sha256:3af3cff083c3f0866309db3b53fd5392f361e2385d6a5506a4da977e31b3879a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/filesystem/__init__.py",
+          "sha256": "sha256:974642cb49cb9961bc28c8021aba582edc04f9fee38118da165e21b62dfe1968"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/filesystem/tools.py",
+          "sha256": "sha256:414f3ddb3d4ff24ebd865132095db9e451cf49369225498431ba5dc1df22e6b2"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/http/__init__.py",
+          "sha256": "sha256:acda2e5f4b9066ecd3a3778b10f4911cf75f0122426b387c73011e35fee50c04"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/http/arguments.py",
+          "sha256": "sha256:c2a4d226cacba2fcc62eefd45e3c55a754267c9c52598f17bd28cd3c3e220147"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/http/controlled.py",
+          "sha256": "sha256:d43a99c7ed6dcd6ac4ba270996d073a989966cf9fdd7976bdfcfd8263132d6c4"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/http/cookies.py",
+          "sha256": "sha256:2a34bc314e6e86536bd639aebe2efd2b6b42e4533efb267efcce81b31b6ab85a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/http/errors.py",
+          "sha256": "sha256:6e33fb09786650aef3845f9fbb596f9f03d3a5d83c6dbd776ed9a89827a1767c"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/http/fields.py",
+          "sha256": "sha256:7bca803aa391a227ac95267160e30367d0cc1835894580c75afbaad4b3a9d8a8"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/http/headers.py",
+          "sha256": "sha256:60b887973a014641932e8ef290e715ad52194d293b6ce0d1441962bb10b3328f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/http/tools.py",
+          "sha256": "sha256:ecca240a2fa0a6fb148d4608710503b283f68861e38227bbbeeec5c2bde83741"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/http/transport.py",
+          "sha256": "sha256:4fbb2ac87703539624a19511fa49d06b10e3fbfd3ce3e3f01b37464292f9efbf"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/interactsh/__init__.py",
+          "sha256": "sha256:7a52f7badcd7c966853a378d3d10317ae5510a5f59073ffb13aa6fdeced823a8"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/interactsh/tools.py",
+          "sha256": "sha256:e06d39350e6c9b946aabd2f89bb26661ba682bf20657490fad17a52c8740957d"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/likec4/__init__.py",
+          "sha256": "sha256:8ca96d6ed27df761c2b565a5654d358cc7048116031e9227951c1438e2e1934c"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/likec4/tools.py",
+          "sha256": "sha256:8c65d6e27e3757a339e6dee088a58ef580ee844d19ca8d50a28b3544deab0dd7"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/memory/__init__.py",
+          "sha256": "sha256:49c8b76e05bd444177266ce5a018ec4bf1365ae5eb0981a561a90c4528232365"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/memory/tools.py",
+          "sha256": "sha256:70c9790ce470ac71672b525bbc5e825284993a4e89a87416137099f4375cc647"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/openapi/__init__.py",
+          "sha256": "sha256:33c2f883cbbed1f3222ca298e4fdfc12e6c1c7ea57e997c9f6fa3069350a469a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/openapi/models.py",
+          "sha256": "sha256:a0443a4105db2894de61c6c7900adafc344eef79e26af83fe0116ea54a82bebd"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/openapi/tools.py",
+          "sha256": "sha256:d7dd7b585c4a3ffc30f964143e75b23877edcd5f4e2af4dbb2c305cd2c46f06a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/openapi/yaml_scalars.py",
+          "sha256": "sha256:b9bf08202542a84c464a93620d3a7e1b65b302d3d168dc70e521a615939b897f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/run_artifacts/__init__.py",
+          "sha256": "sha256:cd248ea6f427ed049e4de88299af96d407a6c9b69008377cb78fb1c9fe2ace99"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/run_artifacts/tools.py",
+          "sha256": "sha256:d45e243e1c073ee76f3fa519763b3102b689956d428132a8f918dd24caa22735"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/scan/__init__.py",
+          "sha256": "sha256:46af99c2a1a92acb37f80c9797e5e1b8256e27a0186758fb066c527e5429afca"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/scan/ffuf.py",
+          "sha256": "sha256:a11f2dc1497f9dadd68b7ba1fdb3c6986c06fd4aaa92ac02cd18a96af5b52d20"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/scan/findings.py",
+          "sha256": "sha256:28d6daac0634966abdc5827fcf4f539bbfa4910018e695e993affb50e31f57b6"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/scan/http_request.py",
+          "sha256": "sha256:00d88d0f9f5887f12044d823610c948e44671c4422ff6da47c9e4470da6435e6"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/scan/katana.py",
+          "sha256": "sha256:9b866c3b8083d53e9f372235ff9467b0d81d5a256ecd678073abf7f80f7c0e79"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/scan/nuclei_http.py",
+          "sha256": "sha256:6a6613b09c5421399d38e8570215f42339b7cf59d47abbecf785671d484f4180"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/scan/nuclei_inputs.py",
+          "sha256": "sha256:171583e76efcb39bb3e9d5546f4f425e3e569575aa0542958691d29c03008478"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/scan/nuclei_package.py",
+          "sha256": "sha256:59efb2072ef4dc267c2a6b23342b66dfa8e5b9ace039b28cdfe6f1d36c0825da"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/scan/nuclei_rulepack.py",
+          "sha256": "sha256:1b7eab33088d0939e27881bf4829204a2be68f8cd702bf69b4dba131b02f882b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/scan/process.py",
+          "sha256": "sha256:d47f7f9afff067ad6876bd4e359c28332d2c0ab7eee4021df21150fceca4ea4a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/scan/rule_formats.py",
+          "sha256": "sha256:5529abdb9e0a5198fc35760df0825ac9bcabb42a76dce62a27c79ce04a8dca4b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/scan/semgrep.py",
+          "sha256": "sha256:676b094b3a2b54261f5dd1233df082a2f650b85829bd949dc93d0d2d52c4779d"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/scan/tools.py",
+          "sha256": "sha256:eac9e4c62f7247c7ba4ac98e42500d2295df12ef42c65fc37f4b626c18ca86ba"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/scan/wordlist.py",
+          "sha256": "sha256:c1dd98d714f81ba43e7bb2b2504e7bc1fba2ae11518bd3d8803acfd9ad73dfb5"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/security_findings/__init__.py",
+          "sha256": "sha256:e93d8a619c307d099314368e127830b33bff1972d3f1eb19fcb438e275d6d36c"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/security_findings/anchors.py",
+          "sha256": "sha256:c8f337021a139c8ce306af5595ed030eb4329db7099b95608269b078c5df13f6"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/security_findings/collection.py",
+          "sha256": "sha256:f3e4a389a9403ee134e7f6244025fee4d7661a96b6e2d5f8ccba047d256b0d25"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/security_findings/facades.py",
+          "sha256": "sha256:24989b42888b3ebeb6f29a2e42855eee9584e424ba8e910ba9d684cc5f869292"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/security_findings/memories.py",
+          "sha256": "sha256:628fdcd9a138332c309818c0e85f117696a9f964d5b3d754beb31f2c7c0498a0"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/security_findings/project_reader.py",
+          "sha256": "sha256:c6bf1d28d23a0cf0a8d670264e0680a4c46ab7ddba75a5bf0914582c74dfdc2b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/security_findings/publisher.py",
+          "sha256": "sha256:99a719a4dd4cd17d1cf6dda92f16faa70ebec4501b56659c772cdc4b9cc051ff"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/security_findings/reader.py",
+          "sha256": "sha256:3a3289a241739d4c1106411a1be9f18d4dd3ad30d4e3b91ca3ce29185a139163"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/security_findings/submission.py",
+          "sha256": "sha256:03e7156087a98d33fc91890dad5264269409916a93e48dea1b951db7a16868c3"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/security_findings/trace.py",
+          "sha256": "sha256:7c00054bfc8c19fbcb3707022449cc2f61aca9fa34f4712b06d0bb462bcd20da"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/sitemap/__init__.py",
+          "sha256": "sha256:d50edc67b10796eaf0ffdbadf004bdc547dfc7102c364b5ef2fb9ca6f8e67744"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/sitemap/index.py",
+          "sha256": "sha256:4f11f9559483d889e1274dad7758e4d0deb696c78fa903454a3571563bbec2b0"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/sitemap/session.py",
+          "sha256": "sha256:d685ac3c127737481b7b087a54625cca5b3e9ce5239dfa2be07d598082494c6d"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/sitemap/tools.py",
+          "sha256": "sha256:035fc0a1a62f964ce829c3585fc5db7ca2f90e1dd68e0acc4bd134e7d12c6603"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/source_analysis/__init__.py",
+          "sha256": "sha256:c45e398253d138c42abb7c08f7392865f994dc79486c0f69558c322fdd682c3e"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/source_analysis/tools.py",
+          "sha256": "sha256:af27675fbd4d07b5f53be529f723bba3778190b5e9fa46762cc5ac31a4b974fc"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/taint_annotations/__init__.py",
+          "sha256": "sha256:ce9157c8e97976816228de5c16385f243482a415c72ab5fe3c3c8caf957ed682"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/taint_annotations/tools.py",
+          "sha256": "sha256:e8c93c07589ee0705e5b51e7261ecaffca26503b2719bd81b6b9526c16286a29"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/text_artifacts/__init__.py",
+          "sha256": "sha256:a08d1651f69075eb6d501338b1b5a3cbf13539fdc13fb6281354a9d6894a933b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/text_artifacts/tools.py",
+          "sha256": "sha256:f56de5b3cb68570d727281dd2b16f34d9c63dbabf3706bbb9426fe847828ff0f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/workspace_changes/__init__.py",
+          "sha256": "sha256:f0e48384163b723cefa150f2bafe01bf0c2d32df12c95c3f8ba47abd813aa45c"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/toolsets/workspace_changes/tools.py",
+          "sha256": "sha256:0f5e1ec0c09323f490a93820a582e795dbca3226308de5e10a47457e66b4ee8e"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/work_root_lock.py",
+          "sha256": "sha256:97937ebb561c70de8bc23b07ddeb80a639c4c3f0cad8a8ae6d6b9cc596fbd324"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/__init__.py",
+          "sha256": "sha256:44e44be1dca3b73cf01b94eef4305c2f5a34b34c51cfc89bcecf2c9e0b1f3ea6"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/adk_caches.py",
+          "sha256": "sha256:898201f561c0e09fceaba50e9f61e9c39471ca68136a32c1847ff6207e6ce140"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/adk_features.py",
+          "sha256": "sha256:9ae7c45c8670b8ab9ec11a742bbc432981e50ba32539a5590c0882c711948c2f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/adk_turn.py",
+          "sha256": "sha256:328af21635a8a13a666c3032123ee34c6e012ef31863176f1e1db0e7f22b66a3"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/budget.py",
+          "sha256": "sha256:ab4e5b041b975c254c2010a50485658f600e27e671779eb2a9c0924f9ea56add"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/compaction.py",
+          "sha256": "sha256:3b5607743d3923249f520ef577314300c72d1fefc5e7ac574a721c06cbb6a2d4"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/completion.py",
+          "sha256": "sha256:179ba4ddede2a9e4bbc23e1b8be487f5bacd5fad4b729ffb24987cb70e994636"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/factory.py",
+          "sha256": "sha256:0f56e338cf0756b483c95c83fd00b30c87b20a56191a0be95455d25b78410758"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/failures.py",
+          "sha256": "sha256:c9bbc1d8972716d966423219c5ddc5f2bf3b12303d0c85cb90e77811db79903f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/finalizer.py",
+          "sha256": "sha256:3e9a7b6c8a749e3270da4a5c8eee5fd51dfbf59ab698fad87d79a4eebc9cca72"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/function_tools.py",
+          "sha256": "sha256:6ad4742c68684f4864d60ccafa433ef983e426b7b4d2f0091d94507f2779ca8f"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/guidance.py",
+          "sha256": "sha256:e7830be35113429c8f918128538ff13c8acf386814b80e691f75f827767977fa"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/history.py",
+          "sha256": "sha256:42d54416c02ae5ed517688592310942307badca4bcf063a0528b7f25f0e186fa"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/instrumentation.py",
+          "sha256": "sha256:5f57d357f53e796b2c406f16e26e2baf43144344faa91047ea0a3beec4177614"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/invocation.py",
+          "sha256": "sha256:fd250364b67c6d1f8e990ff132879eeb1c09acbf2122073ea6aafbc19f9301ab"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/observations.py",
+          "sha256": "sha256:a5628a23f62aae8471b01d57bed0f41f84f460512ef0377082639abc373d90fb"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/prompts.py",
+          "sha256": "sha256:32a49472addd8515ef2edb6bca212313a7dc6aca503b19d7fcabcbaaf0d62d45"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/repeats.py",
+          "sha256": "sha256:143937cf6426404ca6d2e48de911700f8effa21a59b5df3a4ca35cb3a313c254"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/runtime.py",
+          "sha256": "sha256:c6a2697072985604b975a29e526fa8cb826932c25c43b4f27154371b5f35657b"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/sessions.py",
+          "sha256": "sha256:73c25f6b68db0a604b247d5b56b329bc37d53b3bdb9b302cbd41e25e46e06752"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/state.py",
+          "sha256": "sha256:829ea2b4c504244a5207490ca59d66114af03f56dff6338998565ff41b61f75a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/summarizer.py",
+          "sha256": "sha256:48f3a868e6a451364949a608b7af69535cef2a73b7f965be629f110900df10d5"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/worker/tool_runtime.py",
+          "sha256": "sha256:a72e2d65333cb017dcaea4870abe19e90b5028f733100a3e399b16f3076dce8a"
+        },
+        {
+          "path": "runtime/src/contractor_runtime/workspace.py",
+          "sha256": "sha256:4dd79cba9b8bbbad9dbba90517d7b8190d19b329cd7005f1d46b279284c0a4e4"
+        }
+      ],
+      "controls": [
+        {
+          "path": "controlled_runtime.py",
+          "sha256": "sha256:38442f48f122b6dac73f0b59e013dae9292a30464a7719b6845fb9462c8701e3"
+        },
+        {
+          "path": "harness.py",
+          "sha256": "sha256:0d14d75a5cf12e9b7c8a32d6aa80c413ad4f578e4fe32c1d2d291beda34091b6"
+        },
+        {
+          "path": "questions.json",
+          "sha256": "sha256:85e99f5d95cff72f773243e88491a6d4106983ba7b40d7b1b2e291558059c877"
+        }
+      ]
+    },
+    "hosts": {
+      "cloudru1": {
+        "pythonVersion": "3.13.16 (main, Oct 14 2026, 01:04:01) [Clang 23.1.3 ]",
+        "pythonSha256": "sha256:6e9b7d27499f26dbec3c8687728f3a0500b9b61688664f03678242744567c461",
+        "adk": "2.15.0"
+      },
+      "cloudru2": {
+        "pythonVersion": "3.13.16 (main, Oct 14 2026, 01:04:01) [Clang 23.1.3 ]",
+        "pythonSha256": "sha256:6e9b7d27499f26dbec3c8687728f3a0500b9b61688664f03678242744567c461",
+        "adk": "2.15.0"
+      },
+      "runtime-local-1": {
+        "pythonVersion": "3.13.16 (main, Oct 14 2026, 00:55:38) [Clang 23.1.3 ]",
+        "pythonSha256": "sha256:df68fc75042c7153b9214c2bc9f8d14756a08a3ca04ab479ec9410fefbba7dc0",
+        "adk": "2.15.0"
+      },
+      "runtime-local-2": {
+        "pythonVersion": "3.13.16 (main, Oct 14 2026, 00:55:38) [Clang 23.1.3 ]",
+        "pythonSha256": "sha256:df68fc75042c7153b9214c2bc9f8d14756a08a3ca04ab479ec9410fefbba7dc0",
+        "adk": "2.15.0"
+      }
+    },
+    "limits": "Common source/lock/control build; host interpreter bytes recorded separately. This does not claim identical binary builds or identical checkpoint replay."
+  },
+  "observer": {
+    "wrapperSha256": "sha256:10af8a3286c53b57d79cd0c8b65ba8fc63f4cfb22f106b80eda4721e48233c73",
+    "innerSha256": "sha256:b6cca286a607f89c8b23c492d4b48609eef5c204f97b3c64aa1124c802085d2c",
+    "privateRemoteReads": "bounded metadata-only projection JSONL from the two existing cloud Runtime hosts; no truth or model observations"
+  },
+  "manifest": {
+    "schemaVersion": "context-compaction-live/v2",
+    "id": "demo-r6-20261128",
+    "concurrency": 4,
+    "repetitions": 5,
+    "seed": 417,
+    "thresholds": {
+      "maxQualityDrop": 0,
+      "maxTokenRatio": 1.0,
+      "minEndToEndPass": 1
+    },
+    "runtime": {
+      "adk": "2.15.0",
+      "lockSha256": "sha256:a688be7b9bc178dd3603243050ba91260b64e8483a71d739cc25e4810b38c06f",
+      "build": "sha256:b6a6d54bfd681d6344757946eaceeb171d4e8cedacd0fd3b79cdf91c81b9ff03"
+    },
+    "fixtureSha256": "sha256:05e12f863af550bfd0cd4af044d59b3ae3ecf64c833551539d6251638a1a5242",
+    "observerSha256": "sha256:10af8a3286c53b57d79cd0c8b65ba8fc63f4cfb22f106b80eda4721e48233c73",
+    "budgets": {
+      "wallMs": 86400000,
+      "memberMs": 1200000,
+      "maxCalls": 26400000,
+      "maxTokens": 3600000000000,
+      "maxToolCalls": 24000000,
+      "memberCalls": 220000,
+      "memberTokens": 30000000000,
+      "memberToolCalls": 200000
+    },
+    "variants": {
+      "terminal-off": {
+        "workflow": "context-eval-terminal-off@1",
+        "closureSha256": "sha256:740b9213afabd952fd47056555a2de3983c49a28f0bafd8c63b57157ed731067",
+        "models": [
+          {
+            "policyRef": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/audit-completion-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ac02f08fb8989540fb05bb1d763eabdcb54297a54821930f6d7f30fad0458379",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:6178c2c3bf049a2a8a316e70b9d4be02b696f521cdcd5bf807e4007963fc0b25",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:c6faf574160c2663e17b2149d8ba2340e4e4c91be70aa945c16e48dfd236a6ca",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summary_continuation_planner@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ba243fbcad7e0a036e90b311600fdc1851a7a3cdcdd77c8a628b39b529b1a324",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "terminal_summarizer@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:f62fd38c59c32f1c4b1b87465f4453b98f53e8400c2142ee09548b703ada571f",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:adff280c1a10f90f5868af7e5c7a5068493072b71c599c7ffae28230387c75d0",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:d4436b70dd32093f437d582c7742dcac3952818d165fd3d21c92ce3a1a6fbb43",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:7025f43e7d7aa3fa179b09be118b2d04c26248a0cb8b1a9cc77e7360c4e03c27",
+            "weightsRevision": null
+          }
+        ],
+        "capabilitiesSha256": "sha256:c6fc8bba670471932b90569318f86eae3b7862262da88bca485d214299e38dc3",
+        "instructionsSha256": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+        "skillsSha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasoningAvailable": true,
+        "runtime": {
+          "adk": "2.15.0",
+          "lockSha256": "sha256:a688be7b9bc178dd3603243050ba91260b64e8483a71d739cc25e4810b38c06f",
+          "build": "sha256:b6a6d54bfd681d6344757946eaceeb171d4e8cedacd0fd3b79cdf91c81b9ff03"
+        }
+      },
+      "terminal-on": {
+        "workflow": "context-eval-terminal-on@1",
+        "closureSha256": "sha256:4a813ed8e3279e174526197cdc6ce92b017533c975f79e9812be9766983fc4cb",
+        "models": [
+          {
+            "policyRef": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/audit-completion-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ac02f08fb8989540fb05bb1d763eabdcb54297a54821930f6d7f30fad0458379",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:6178c2c3bf049a2a8a316e70b9d4be02b696f521cdcd5bf807e4007963fc0b25",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:c6faf574160c2663e17b2149d8ba2340e4e4c91be70aa945c16e48dfd236a6ca",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summary_continuation_planner@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ba243fbcad7e0a036e90b311600fdc1851a7a3cdcdd77c8a628b39b529b1a324",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "terminal_summarizer@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:f62fd38c59c32f1c4b1b87465f4453b98f53e8400c2142ee09548b703ada571f",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:adff280c1a10f90f5868af7e5c7a5068493072b71c599c7ffae28230387c75d0",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:d4436b70dd32093f437d582c7742dcac3952818d165fd3d21c92ce3a1a6fbb43",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:7025f43e7d7aa3fa179b09be118b2d04c26248a0cb8b1a9cc77e7360c4e03c27",
+            "weightsRevision": null
+          }
+        ],
+        "capabilitiesSha256": "sha256:c6fc8bba670471932b90569318f86eae3b7862262da88bca485d214299e38dc3",
+        "instructionsSha256": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+        "skillsSha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasoningAvailable": true,
+        "runtime": {
+          "adk": "2.15.0",
+          "lockSha256": "sha256:a688be7b9bc178dd3603243050ba91260b64e8483a71d739cc25e4810b38c06f",
+          "build": "sha256:b6a6d54bfd681d6344757946eaceeb171d4e8cedacd0fd3b79cdf91c81b9ff03"
+        }
+      },
+      "compact-off": {
+        "workflow": "context-eval-compact-off@1",
+        "closureSha256": "sha256:379994df98047a050b5b994c7af5226b3a6b818f8476ec8166aeaf719d2c3bf9",
+        "models": [
+          {
+            "policyRef": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/audit-completion-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ac02f08fb8989540fb05bb1d763eabdcb54297a54821930f6d7f30fad0458379",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:6178c2c3bf049a2a8a316e70b9d4be02b696f521cdcd5bf807e4007963fc0b25",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:c6faf574160c2663e17b2149d8ba2340e4e4c91be70aa945c16e48dfd236a6ca",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summary_continuation_planner@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ba243fbcad7e0a036e90b311600fdc1851a7a3cdcdd77c8a628b39b529b1a324",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "terminal_summarizer@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:f62fd38c59c32f1c4b1b87465f4453b98f53e8400c2142ee09548b703ada571f",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:adff280c1a10f90f5868af7e5c7a5068493072b71c599c7ffae28230387c75d0",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:d4436b70dd32093f437d582c7742dcac3952818d165fd3d21c92ce3a1a6fbb43",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:7025f43e7d7aa3fa179b09be118b2d04c26248a0cb8b1a9cc77e7360c4e03c27",
+            "weightsRevision": null
+          }
+        ],
+        "capabilitiesSha256": "sha256:c6fc8bba670471932b90569318f86eae3b7862262da88bca485d214299e38dc3",
+        "instructionsSha256": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+        "skillsSha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasoningAvailable": true,
+        "runtime": {
+          "adk": "2.15.0",
+          "lockSha256": "sha256:a688be7b9bc178dd3603243050ba91260b64e8483a71d739cc25e4810b38c06f",
+          "build": "sha256:b6a6d54bfd681d6344757946eaceeb171d4e8cedacd0fd3b79cdf91c81b9ff03"
+        }
+      },
+      "compact-on": {
+        "workflow": "context-eval-compact-on@1",
+        "closureSha256": "sha256:2c3da0adaff256faf94c3b64967ae840eeb0f662aa526590865e77f3e3b209a4",
+        "models": [
+          {
+            "policyRef": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/audit-completion-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ac02f08fb8989540fb05bb1d763eabdcb54297a54821930f6d7f30fad0458379",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:6178c2c3bf049a2a8a316e70b9d4be02b696f521cdcd5bf807e4007963fc0b25",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:c6faf574160c2663e17b2149d8ba2340e4e4c91be70aa945c16e48dfd236a6ca",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summary_continuation_planner@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ba243fbcad7e0a036e90b311600fdc1851a7a3cdcdd77c8a628b39b529b1a324",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "terminal_summarizer@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:f62fd38c59c32f1c4b1b87465f4453b98f53e8400c2142ee09548b703ada571f",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:adff280c1a10f90f5868af7e5c7a5068493072b71c599c7ffae28230387c75d0",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:d4436b70dd32093f437d582c7742dcac3952818d165fd3d21c92ce3a1a6fbb43",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:7025f43e7d7aa3fa179b09be118b2d04c26248a0cb8b1a9cc77e7360c4e03c27",
+            "weightsRevision": null
+          }
+        ],
+        "capabilitiesSha256": "sha256:c6fc8bba670471932b90569318f86eae3b7862262da88bca485d214299e38dc3",
+        "instructionsSha256": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+        "skillsSha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasoningAvailable": true,
+        "runtime": {
+          "adk": "2.15.0",
+          "lockSha256": "sha256:a688be7b9bc178dd3603243050ba91260b64e8483a71d739cc25e4810b38c06f",
+          "build": "sha256:b6a6d54bfd681d6344757946eaceeb171d4e8cedacd0fd3b79cdf91c81b9ff03"
+        }
+      },
+      "terminal-handoff": {
+        "workflow": "context-eval-terminal-handoff@1",
+        "closureSha256": "sha256:ece1da8d3c6b4ab1605429b13337b1533ec4c0cb04d6a43dfb83d24ca53cf523",
+        "models": [
+          {
+            "policyRef": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/audit-completion-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ac02f08fb8989540fb05bb1d763eabdcb54297a54821930f6d7f30fad0458379",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:6178c2c3bf049a2a8a316e70b9d4be02b696f521cdcd5bf807e4007963fc0b25",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:c6faf574160c2663e17b2149d8ba2340e4e4c91be70aa945c16e48dfd236a6ca",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summary_continuation_planner@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ba243fbcad7e0a036e90b311600fdc1851a7a3cdcdd77c8a628b39b529b1a324",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "terminal_summarizer@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:f62fd38c59c32f1c4b1b87465f4453b98f53e8400c2142ee09548b703ada571f",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:adff280c1a10f90f5868af7e5c7a5068493072b71c599c7ffae28230387c75d0",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:d4436b70dd32093f437d582c7742dcac3952818d165fd3d21c92ce3a1a6fbb43",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:7025f43e7d7aa3fa179b09be118b2d04c26248a0cb8b1a9cc77e7360c4e03c27",
+            "weightsRevision": null
+          }
+        ],
+        "capabilitiesSha256": "sha256:c6fc8bba670471932b90569318f86eae3b7862262da88bca485d214299e38dc3",
+        "instructionsSha256": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+        "skillsSha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasoningAvailable": true,
+        "runtime": {
+          "adk": "2.15.0",
+          "lockSha256": "sha256:a688be7b9bc178dd3603243050ba91260b64e8483a71d739cc25e4810b38c06f",
+          "build": "sha256:b6a6d54bfd681d6344757946eaceeb171d4e8cedacd0fd3b79cdf91c81b9ff03"
+        }
+      },
+      "controlled-compact": {
+        "workflow": "context-eval-controlled-compact@1",
+        "closureSha256": "sha256:d760214a7e4836c67b5bbd3f4bdeb0ca152ac2aee4fb9c52adfc2925b55fd24d",
+        "models": [
+          {
+            "policyRef": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/audit-completion-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ac02f08fb8989540fb05bb1d763eabdcb54297a54821930f6d7f30fad0458379",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:6178c2c3bf049a2a8a316e70b9d4be02b696f521cdcd5bf807e4007963fc0b25",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:c6faf574160c2663e17b2149d8ba2340e4e4c91be70aa945c16e48dfd236a6ca",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summary_continuation_planner@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ba243fbcad7e0a036e90b311600fdc1851a7a3cdcdd77c8a628b39b529b1a324",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "terminal_summarizer@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:f62fd38c59c32f1c4b1b87465f4453b98f53e8400c2142ee09548b703ada571f",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:adff280c1a10f90f5868af7e5c7a5068493072b71c599c7ffae28230387c75d0",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:d4436b70dd32093f437d582c7742dcac3952818d165fd3d21c92ce3a1a6fbb43",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:7025f43e7d7aa3fa179b09be118b2d04c26248a0cb8b1a9cc77e7360c4e03c27",
+            "weightsRevision": null
+          }
+        ],
+        "capabilitiesSha256": "sha256:c6fc8bba670471932b90569318f86eae3b7862262da88bca485d214299e38dc3",
+        "instructionsSha256": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+        "skillsSha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasoningAvailable": true,
+        "runtime": {
+          "adk": "2.15.0",
+          "lockSha256": "sha256:a688be7b9bc178dd3603243050ba91260b64e8483a71d739cc25e4810b38c06f",
+          "build": "sha256:b6a6d54bfd681d6344757946eaceeb171d4e8cedacd0fd3b79cdf91c81b9ff03"
+        }
+      },
+      "masking": {
+        "workflow": "context-eval-masking@1",
+        "closureSha256": "sha256:b7214f1cecdb2be4a5a537fa1819666d6ae3b5eadb0fb2c59c6308a94dca1908",
+        "models": [
+          {
+            "policyRef": "audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/audit-completion-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ac02f08fb8989540fb05bb1d763eabdcb54297a54821930f6d7f30fad0458379",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:6178c2c3bf049a2a8a316e70b9d4be02b696f521cdcd5bf807e4007963fc0b25",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "planner_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:c6faf574160c2663e17b2149d8ba2340e4e4c91be70aa945c16e48dfd236a6ca",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summarizer_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "summary_continuation_planner@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:ba243fbcad7e0a036e90b311600fdc1851a7a3cdcdd77c8a628b39b529b1a324",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "terminal_summarizer@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:f62fd38c59c32f1c4b1b87465f4453b98f53e8400c2142ee09548b703ada571f",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:adff280c1a10f90f5868af7e5c7a5068493072b71c599c7ffae28230387c75d0",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_compactor@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/compactor-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:d4436b70dd32093f437d582c7742dcac3952818d165fd3d21c92ce3a1a6fbb43",
+            "weightsRevision": null
+          },
+          {
+            "policyRef": "worker_glm_5_3_flash_cc78cc13596ab7d7@1",
+            "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+            "gatewaySha256": "sha256:6e1bcf93a5d1fc64307dcd256a5c120f1bac54fe85e9d23d0aaafb84d4f14376",
+            "policySha256": "sha256:7025f43e7d7aa3fa179b09be118b2d04c26248a0cb8b1a9cc77e7360c4e03c27",
+            "weightsRevision": null
+          }
+        ],
+        "capabilitiesSha256": "sha256:c6fc8bba670471932b90569318f86eae3b7862262da88bca485d214299e38dc3",
+        "instructionsSha256": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+        "skillsSha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "reasoningAvailable": true,
+        "runtime": {
+          "adk": "2.15.0",
+          "lockSha256": "sha256:a688be7b9bc178dd3603243050ba91260b64e8483a71d739cc25e4810b38c06f",
+          "build": "sha256:b6a6d54bfd681d6344757946eaceeb171d4e8cedacd0fd3b79cdf91c81b9ff03"
+        }
+      }
+    },
+    "experiments": [
+      {
+        "id": "experiment-5c70f774c4af12c4a04ccc697de11bf1",
+        "portableId": "context-r6-20261128-1",
+        "planSha256": "sha256:93a46e5e24946f39d56dab06546e9b3cffd67aa8e708d018be9c19bf9f9c9286",
+        "setupSha256": "sha256:b359fef18a4707aea03602936701621397e41db573e8f785dd23b4c74061a266",
+        "variants": [
+          "terminal-off",
+          "terminal-on"
+        ],
+        "memberOrder": [
+          "6234e3944f9138609cf2177681b0e78ae6254d29fe66d6479b739d78afde5bc6",
+          "a11c75f21f95d4d8932e198886ef5f31a9e4ad5176cdc5d06101b13a334e8a66",
+          "31e69dc4f02d7ce0c4f0bd58373cc483ffdb1b957e76c1c6f7ce2dad78c310b0",
+          "b02b5a3a35813645794f8fc0a3eaa3072560e97823e6562fcc74be22907c094a",
+          "de5e05e41c5d2244c878be941dbf181bf030c7f5b709fd179ffed19cc4db8aa8",
+          "a8cb09ac3b017fc47cdfc413a97efcbe0949df7b336fd27c755e1c50528d304a",
+          "aa897eb5303cc0a913bd709c9ff3caa4c6700b9d9a565068c5b6eb57e4f38fc8",
+          "5ce782ca621a084ef6fb79a563d8b29182201d93ba578d1224e5cc0da5e120c7",
+          "db96b617dd443e783151e1cce80c1672f19792b897dc64f4e4065832db72e7f1",
+          "1e370662e4fa1dec6919c5700c924cfd15ed7b40a26c715b47b21833ed2a4f2a",
+          "2539cfb891e41514b3deffbfdd380ae179461d2926a8319f10174913303f4070",
+          "b546e678ed8c8fd57d81d4f0596a916f6e5c44e0f5013b7c4d55c6ece92d0426",
+          "74e07cc7a0ed6fdfd65a0e293cf51e81d683e9e5e5c0873c9a18dab69374c642",
+          "5e8e9cac22ce0a457ccc2cd1416fba2fce85c595e2945b568baa99014903fcac",
+          "12948757e9c1986f09913a6e6deeb6c313a1810f6e041e4a8ce1792ab8ed3bd2",
+          "2eeb0e8eb70a39af49d9a94a92605f689ddb76a03d1402b893f82f6029345ff5",
+          "0abaf9343161aa8739322a9c66101919e330e6e6019f406adb217721f7266879",
+          "28b8703ce3b56a74b0e0136ab730f00efe733e751cade77b34828c3b029e0684",
+          "1470282569ea1524a89a06634782ded265580e25f1116c494c9bac5b18ec5d6c",
+          "a9c297718a8196acfc3717055ad41f548460d00aecec5022afba6fbccc0d59ab",
+          "a94c184bf62dcdf72c3a3eb7832e5a56db35620590c772aea5274825a56c808f",
+          "758ff3ca3f6de390a48f2ce78c7c43419ebe4a49931249d1d854200d39c2c453",
+          "65505c90453dbf7a7a6282967463cae2c0b706b2ef8804b32ea21f29e049867f",
+          "66779526bc5cf1712b5f7e7388769496e97406924d7318058470d4a4f8654e27",
+          "7d8d28f7365aed8fd761d4c618da094c764e305f1be9a2fdd2733b5993997b0c",
+          "08a25df14ecc8a1b81d9c808485f5dcd5b5d3dd66c926da54c5b68e887d20fa8",
+          "60d609df6bf12265223440e1b719f31ad2b75c411461215ffbc474daa0275f6a",
+          "6f1bde42ba84541431929b09f0b32c5084326cf212426c43240009e76e362ebc",
+          "2d4eabd57431f380fabd32995c96a3fd3eb00cdc163ac43eede7485423736946",
+          "4acbce28089e167dca1db08f2d101aa73c024a2efb2bf1911e03c4506679ec43"
+        ],
+        "casePins": {
+          "api-dependency": "sha256:8a1c8913eaf2b67657df96d978be457ddf96e89c7d117e09b9b6b06158050352",
+          "negative-memory": "sha256:cc618f10fb965cdbb46a6125e982e6dc47d69b7fb490f6faecd3cff00e7891aa",
+          "source-review": "sha256:bdcfcea3009b6755b5407d983b2412c491ed20a5b8244c95c0ef8c6a2806d516"
+        }
+      },
+      {
+        "id": "experiment-18ce6d4be2553888915a72802bab4743",
+        "portableId": "context-r6-20261128-2",
+        "planSha256": "sha256:9e4b39a3cdb5b9f2d09b86a73112538c920ac18679d60684630f39754f0c1bd0",
+        "setupSha256": "sha256:75eae7d954e80ae603a3f2e44e22a13e244fc32471c547569884bb471ad8e4f8",
+        "variants": [
+          "compact-off",
+          "compact-on"
+        ],
+        "memberOrder": [
+          "38e08b46c75a7d66ad2cf14b56f7ba00549bae1aa8517f31650e258ca58ea11f",
+          "44a6657a65abb88c4d9cbf5631cdc990d5121457d7db8f297d12769aba8918dc",
+          "ab61661cecc56078d6f2d7454a90883441f47359f2afa7c12d87d9844706ef8c",
+          "f49de078f379fc251326a66142f957042b9f07bf822521f1bc548432e7a6f3ca",
+          "db599bc87f6736721d2cf00ddccb6134d03d9889ce2f994064893239aa27cc68",
+          "d1f34a2c643c04cbd5fa48748b730ff8aa448062302d819be6d20b14c1e8ea70",
+          "1760e1dff946de480150cda975f4cc6ea8281c7da14b936847bb28293cfdc124",
+          "34c7ff58211e11c6175d0f0de2bba482457eef3d895444e7ab5faf7b5197247e",
+          "387abff17a4b3c188b2e46ea7e16e723cc83d41458c3928e47d3a3e5af66f007",
+          "291f4ee235dfe486c85217ed848d433435fdcee7fe61231fadfab1b342ba587d",
+          "67d2222d82dd07e6d23e75ba515629e78b2014fb28ae57a512b7236809c002cb",
+          "d4feb8b4417403e96cd4bcc88ce5c3ff82bfd51f9a1a59109e54eaaae4c696a8",
+          "a56636a4ab3520cf98bdf78e76e5964c7dce5c551465b157de1ee563b47e328b",
+          "96d0715b6eefd765aa61f81103e2a5d660ffeb3572854b728e2663ba83b17743",
+          "382f1504ff64e6c6f6498a3c20b8dbd9e51a9491537e4fa05e8653fdc6295a0b",
+          "3e13cb3137038c84051b20c0d1c815b95bbfe853fbda9cf5ef9581a07d2902de",
+          "e9810ebc34731cefc5e1268f9f69a18efadff1d1fbfb02365e459279428ea86a",
+          "6d967899403fdd393b41d0e16894f79151dd2505521e423c418e0df4bbbb52fd",
+          "28c8d8bb6d9ea200cc2cf8d3b1ac45c8b77f567ebf51b0d8f22fab9f4dc7feb0",
+          "8e29f5b5125d548eb990975fe93e5240fd34cc74fa1b739c2195dffaa66dde41",
+          "79a38439953dda28463d09a2ee1b1c511f61f455d1907167e66153ecf2817804",
+          "8e7837b7d8d1948168c0e988a6ec3eb062a488bb8fa5e9930fe6d2f2afc2e6bf",
+          "18dd61afc6318adc336c64c3d2dc6e63c31db0c591677162538e1bbe3aca2272",
+          "82032c15d13980827d4d2b01e34c1b5e472fd92f5c8c78471bc0164d09b4fdf6",
+          "157148b135bf84eae50326e838266688f0f6772fd978f1d882897d0cb5a3682f",
+          "d1553a04c44cfdb8a60ff7a87ee63bbf9fbed1e9528e5f049090445e27f742bd",
+          "3132c1518880d6433dd68c1467bde45d09bc10bd89acb51eec496908ff8fb7ec",
+          "b4b49db32b873c3a976459fa6706fe7fb12ef2046accd931dee47fbc12b87ff8",
+          "0ff18ba55f154eec85a108833bf3f2f6fa542aa9fc70547789e2686c5cdf9f3e",
+          "02b01ff3ef51499cbaa954052dd6ce6bbd787227a7cbd6b89d1955c0edf37b3c"
+        ],
+        "casePins": {
+          "api-dependency": "sha256:8a1c8913eaf2b67657df96d978be457ddf96e89c7d117e09b9b6b06158050352",
+          "negative-memory": "sha256:cc618f10fb965cdbb46a6125e982e6dc47d69b7fb490f6faecd3cff00e7891aa",
+          "source-review": "sha256:bdcfcea3009b6755b5407d983b2412c491ed20a5b8244c95c0ef8c6a2806d516"
+        }
+      },
+      {
+        "id": "experiment-e2adc76cc17d1055bf4f6321744e2c00",
+        "portableId": "context-r6-20261128-3",
+        "planSha256": "sha256:bd91a984bb11faf7bb93632a8b4b56c0e0f6e4ef02b83d94fb9bc953b2f0fd31",
+        "setupSha256": "sha256:f8defd536280149be68ed294f572b0a4c542b7378f5daa68e725ed2de9660374",
+        "variants": [
+          "terminal-off",
+          "terminal-handoff"
+        ],
+        "memberOrder": [
+          "35c7ff44c6a02f927cbd421e1870a4a7d58cbf16ccd981f1e72abb37e66d1661",
+          "f8f612ea1b0b7c84ef69065bae11970123d7e745bbb0d7bc625e3150fe397221",
+          "ba486dc1b2ff89d8ce1ff70f676e2ee9b668959adee9959e32bfb5a55ec13ba6",
+          "e4b52fc62f9b309e0bac111401fa1bea2bec0f78bcfa3fc831d4ea7a2be6e6dd",
+          "8550943e1692df2dff850ff040e584a537acb4428dd8f0a2f6b10e7c71f25563",
+          "537e83a9e39976de109370f6e85804d82cf9e868b4f632da7d1f3d5602b5213b",
+          "f15ad54b39ab18da2ba48b301080f958d2406a27bdb146e5687454d3255b7fe0",
+          "51241e48c2687700734bd101f01c148e38a00771d5ba95e5bde0511553fde49a",
+          "9fdf499316de9e7101466417aadd79845d8014aa3b12b318ba3e65257335347c",
+          "0f4113b5797bd8a753cfa3a22ff3bc32e04f5ce41badf4fbd475e3c2a434f11b",
+          "0dc270cc983a9de88ab70a8b76a0dca6c5ad6aa612085e090eb868fcfbc21e44",
+          "a81025b3e5c4038e813f541255077a737e9a84558e5ee7c6ef3eec05e47ee582",
+          "0d28383fbbca2f6dc0667b5a5c7a0b20ee6d8b39f9d353b4edbd35b87e73d8c7",
+          "e771ce94f8d07f0ed8bd7863181778a4a96ef472c43bc7c14412829f5c373c28",
+          "f0595d021aff4287475c1e78fedbcbca6637cffd841c9d895e5eda7c6a2d4ad9",
+          "78d138edf1717eacec56b39e58c92f29c1d6f95727ec2ef26aeb43cbb853a649",
+          "546a7792a6e2028f12ba425c83b7d51f15a584d4c26f490f3e03183da0da66fe",
+          "cafd24f3ee76e9a3380532cb2b14f2d7be8c4ce4eddb3c05a882c31cbd84cc26",
+          "75f889987cd5c45b57d2f436bc0fd74034f6c9396e191b274b11f2f13cbeea4f",
+          "4bef608147bd96342ce70c28c427c361216bf64db1d2800cc086191e33eeb821",
+          "73dbdf42f7c1732bd8617b4b7cee2777a53e603b1d72ad7410f5ec517aceeeb8",
+          "133e0dcf72125c5ad6923782b98f8bdcc19cfc90408f73324be2d228086b7566",
+          "c8b881bbc8606794f7f1bec508f020af93077fcdf6a1ee65c5ac7be0b7625518",
+          "027bb2a68b00df2dbac6b945e71f4a7c88fabb309aad6e26d52c2901dc34d834",
+          "4f747a7ecd2b7edfb7c29af417e0cd5912d24add9ea42aeddadeeb98b394dddb",
+          "bc2e077d0c4611b5aee0e553e421d42de78bfe77651697f2173bf730c91cb336",
+          "d47d6622fb38e847d536a7337adf1c8260d64258f325b1ec846e1d21b289e48a",
+          "863ebf3ddfd985e52ee0a84fff037540765775a519d81e4fd43f2453a578b07e",
+          "3852931b7802c45f596366fbeab45388296187accfd9b77abcc59ce0d7ceace8",
+          "0b459fa1491081ea4300e5b62e4bf2a5ec162ce277ea7ff6d77a126d609a1cf2"
+        ],
+        "casePins": {
+          "api-dependency": "sha256:8a1c8913eaf2b67657df96d978be457ddf96e89c7d117e09b9b6b06158050352",
+          "negative-memory": "sha256:cc618f10fb965cdbb46a6125e982e6dc47d69b7fb490f6faecd3cff00e7891aa",
+          "source-review": "sha256:bdcfcea3009b6755b5407d983b2412c491ed20a5b8244c95c0ef8c6a2806d516"
+        }
+      },
+      {
+        "id": "experiment-76c76da9882ad4b44871b79629d2e6d7",
+        "portableId": "context-r6-20261128-4",
+        "planSha256": "sha256:9de9d423e1e58a1a836726bc1ceb5df595ff04a5ec6f03be169ca3abc233ac14",
+        "setupSha256": "sha256:f4abb79a6ca206a3b5c50f0445b82de2bb2164e59893d58f908b9dc25a9f32f4",
+        "variants": [
+          "controlled-compact",
+          "masking"
+        ],
+        "memberOrder": [
+          "4cae973f4b5fb3ae0e89d5d5d9d740336c6827fdccd565a4409c1942b3f20b41",
+          "aebce09faa098f83441653ce7bca6cc6c9da0f643908f0adeaf39a0304fa1db8",
+          "63a163f1f17a0ba870ae45daa0696cdba07f623fccc8b1d8257077a4cabf32f8",
+          "3b65f1d57e96e5d3ee302ba854ad43916ce0692cfb125a1cc3c3142ed72c5ff2",
+          "05544384cb700d56a096a82072be0c752497c31e642c1b4db570c0812b41ef48",
+          "7a4e083208ea76f7b0625c1bea3aab7ce6bfed86971986ce73008011c22d076f",
+          "19e0c96f493f231eb4b052c43dad5052f7e52ae8c905c3bb1487113257f92779",
+          "e46c1447b97b0c5a53abeab9c680051754576d30da6af15c00bae78ec02633a2",
+          "eaaf964b2edcf45365c8892ee5d9a241736f05409423f73abaf25f017e2f7800",
+          "4a1cfb1def7c5f8990203bc61b7a2a45114f136e0b93bb27a2a2b1612d127f1e",
+          "24faec7b08f946d10e22387bb1dbf4df4ca6b45da3c7fb0cbcc78d612c9330f9",
+          "4f4066f8113bf219aeb4a426946ddfb4b11be292647275268631a12e4de75675",
+          "636434f35a8c3c8612f44979b6fa03669940a35386628f396614425b3901bda4",
+          "87e35670dae151b8d44f320de076bec08436abb4146ed7eb994cf48e448a4b8e",
+          "1bd58d2821897b35d4b81f7aa08a594b31e20cfaebc4543b69e598d0434e264e",
+          "bddd7a62310375bc9cd58ec817e87f55334fdf4b2ae1fa08a3fa0ddc5a875f3a",
+          "ec3fe13626e0391104eeeeb5e9ab93c0ad91bc28de67129bc626371b03512378",
+          "1c7682bba437a65aab90f38ee8c5a45b0bd5e9f5e3a5fd850a50af70ea13cf50",
+          "8f58f91e4e62a294aef4280eadd8684d41f180a8fb7ff48dcdffd6a052f4cde8",
+          "65d3fbb37a8d8ab8e7a5e47ec963aeebdd3bbb7c335b7e29ecf77ad691cf81e6",
+          "b528a500bad3e485cc44454dadc5b7a11afb79a70b31e07e8d4874e098ca16b0",
+          "ca816d9a7ab830da4802d38090ca91f5633c04226946ef6e8edec488e27dbb45",
+          "c41f8e8d3fb1139fa8748d376deb2a853948bd6fd365d4123d2d69870a7a89d8",
+          "37828bc48ab6eabfb22856de5d20811bcc70bca19a4a1c94fe8ff70e9626aea1",
+          "1733c32ec2809cf7bd8c8273e948738e6f57eb3c28e1c5f77241f877bf73220b",
+          "073b0bb33f891a66a991f85859df4b64bae377bc29e576c7428ec3059d395629",
+          "c6078d871108336908feee3f69de1bbc2056f5aa9a3238dfcbf8541979be4af8",
+          "cea24a42927f2ffb7662c18c72baf256283c495050f35eb04a7f0d4f5966b279",
+          "59f75a4649b77194047e705331c3bdc78f9a0d4ce0db0e79ed149d6b9e04e74d",
+          "3a2346c6c8f3bf2a145ba6a8e23fc9258f83de4a05bc55ea46eedb2defa204f2"
+        ],
+        "casePins": {
+          "api-dependency": "sha256:8a1c8913eaf2b67657df96d978be457ddf96e89c7d117e09b9b6b06158050352",
+          "negative-memory": "sha256:cc618f10fb965cdbb46a6125e982e6dc47d69b7fb490f6faecd3cff00e7891aa",
+          "source-review": "sha256:bdcfcea3009b6755b5407d983b2412c491ed20a5b8244c95c0ef8c6a2806d516"
+        }
+      }
+    ],
+    "resources": [
+      {
+        "path": "/v1/configurations/agent-templates/context-eval-controlled-compact/versions/4",
+        "sha256": "sha256:983c675580c24ef783f698587350517ad4c2309a8bd6de452a571326536ce94d"
+      },
+      {
+        "path": "/v1/configurations/agent-templates/context-eval-masking/versions/4",
+        "sha256": "sha256:2acb1a85b7d0f676b7be8802d16da75b412a8a7b4e7a90fc8d94fccc7a423597"
+      },
+      {
+        "path": "/v1/configurations/agent-templates/context-eval-terminal-off/versions/4",
+        "sha256": "sha256:2396be138fc8e5c9997b5a93802b4a4a5841af3b09423f7cb1531c3d686160ec"
+      },
+      {
+        "path": "/v1/configurations/agent-templates/context-eval-terminal-on/versions/4",
+        "sha256": "sha256:9646ecec14deb3095e15e015a833a5212742bd9c5be86c2f21575315d4b9e421"
+      },
+      {
+        "path": "/v1/configurations/agent-templates/context-eval-worker/versions/4",
+        "sha256": "sha256:b698ae7a1f43731a2797c9055ea47683d3b6750af552fd64b6da165dce68dbd0"
+      },
+      {
+        "path": "/v1/configurations/llm-gateways/local-litellm/versions/1",
+        "sha256": "sha256:0e008ba9eac78840a51012615ee29906e4ced6fc69c64e67fb9fd6558f0552aa"
+      },
+      {
+        "path": "/v1/configurations/model-policies/audit_completion_worker_glm_5_3_flash_cc78cc13596ab7d7/versions/1",
+        "sha256": "sha256:aeba88d4e87aace327cb962556392dfff36e349ed366221d937c1dd388aafa08"
+      },
+      {
+        "path": "/v1/configurations/model-policies/compactor/versions/1",
+        "sha256": "sha256:5dfc5e7352f70db2ba47b36313021265db807678e3074c2532a492c8a8aa3174"
+      },
+      {
+        "path": "/v1/configurations/model-policies/planner_glm_5_3_flash_cc78cc13596ab7d7/versions/1",
+        "sha256": "sha256:7d41f7352b3b78a06e34e7490664037e58b7eac5bc9e4b813945c6abb41c79e5"
+      },
+      {
+        "path": "/v1/configurations/model-policies/summarizer_glm_5_3_flash_cc78cc13596ab7d7/versions/1",
+        "sha256": "sha256:fbd13ecaa95042201e9adae377213444d503f627f256728d756f4452b5ccdf19"
+      },
+      {
+        "path": "/v1/configurations/model-policies/summary_continuation_planner/versions/1",
+        "sha256": "sha256:fe60a9ea7fe4a0521a2f721119799fc2f558d18ff718db1ffa54ccc9d30da293"
+      },
+      {
+        "path": "/v1/configurations/model-policies/terminal_summarizer/versions/1",
+        "sha256": "sha256:3efbd88058c36df793c39605ec0a5088881cac0ed844705ef918f121d48a2d5e"
+      },
+      {
+        "path": "/v1/configurations/model-policies/worker/versions/1",
+        "sha256": "sha256:81d9c524886a167001185b57dc4e7bb13b553c4435af42c55b5091aeeff85682"
+      },
+      {
+        "path": "/v1/configurations/model-policies/worker_compactor/versions/1",
+        "sha256": "sha256:2634032b256ba77568edc16f66a866bbc5b1bc47855dfd2bf00f975b00b0a203"
+      },
+      {
+        "path": "/v1/configurations/model-policies/worker_glm_5_3_flash_cc78cc13596ab7d7/versions/1",
+        "sha256": "sha256:929ca69e005ce335bf5c4c4bfc33355910ea9c1877bd88d45798c22bc8158908"
+      },
+      {
+        "path": "/v1/workflows/context-eval-compact-off/versions/1",
+        "sha256": "sha256:348b8273443cd43f6f5b2dcf416014a9336eb5653a279368dec86ef5bb37ec3b"
+      },
+      {
+        "path": "/v1/workflows/context-eval-compact-on/versions/1",
+        "sha256": "sha256:5b266f8110a6d1a932763469824b45d6ca3caabb758854f414e06588da92f6eb"
+      },
+      {
+        "path": "/v1/workflows/context-eval-controlled-compact/versions/1",
+        "sha256": "sha256:89f0a56550ce19dc2006913c254845a315a6de7e614c38ede4308327f2529c07"
+      },
+      {
+        "path": "/v1/workflows/context-eval-masking/versions/1",
+        "sha256": "sha256:faa943a0224367be64749ee2789ff3f4fef0896785146e01c8dde34959f2a663"
+      },
+      {
+        "path": "/v1/workflows/context-eval-terminal-handoff/versions/1",
+        "sha256": "sha256:89a3055c96323cca0c4d3e6da6e731fe1b8a8b542d554411e33566443d927871"
+      },
+      {
+        "path": "/v1/workflows/context-eval-terminal-off/versions/1",
+        "sha256": "sha256:23395a756ed47d4010d79c33eaa2ecbfc6e988b3340f1bbe7d5191519d5cb34d"
+      },
+      {
+        "path": "/v1/workflows/context-eval-terminal-on/versions/1",
+        "sha256": "sha256:9534d5f5a0635e95330683547fa26dc877c6a3a8821fbeedf9a5ccaff82e87fb"
+      }
+    ]
+  },
+  "nativePreflight": {
+    "states": {
+      "not_submitted": 120
+    },
+    "experiments": [
+      {
+        "id": "experiment-5c70f774c4af12c4a04ccc697de11bf1",
+        "members": 30,
+        "nativePairs": 15
+      },
+      {
+        "id": "experiment-18ce6d4be2553888915a72802bab4743",
+        "members": 30,
+        "nativePairs": 15
+      },
+      {
+        "id": "experiment-e2adc76cc17d1055bf4f6321744e2c00",
+        "members": 30,
+        "nativePairs": 15
+      },
+      {
+        "id": "experiment-76c76da9882ad4b44871b79629d2e6d7",
+        "members": 30,
+        "nativePairs": 15
+      }
+    ],
+    "sourceTaskPinsVerifiedBeforeDispatch": true
+  },
+  "history": "R1\u2013R5 unchanged; no retrospective rescoring",
+  "verification": {
+    "fixtureTestsPassed": 57,
+    "offlineScoredSamples": 105,
+    "runtimePassed": 6807,
+    "runtimeSkipped": 136,
+    "compactionCasesPassed": 616,
+    "postgresTouchedPackages": "passed again on refreshed main",
+    "wire": "passed443fixtures; one optional heavy I/O skip is not coverage",
+    "lint": "passed with pinned Node/Corepack/Go/Runtime tools"
+  },
+  "evidenceLocation": "/Users/ruslan/src/contractor/.local/eval-context-demo-20261128"
+}
