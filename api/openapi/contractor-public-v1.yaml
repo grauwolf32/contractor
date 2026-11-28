@@ -14056,9 +14056,12 @@ components:
       additionalProperties: false
       properties:
         assertion:
-          $ref: '#/components/schemas/AuditCommonText'
           maxLength: 32768
+          minLength: 1
+          pattern: "[^\t\n\v\f\r \N             \L\P  　]"
+          type: string
           x-max-utf8-bytes: 32768
+          x-maxUtf8Bytes: 32768
         findingId:
           $ref: '#/components/schemas/AuditCommonResourceId'
         receiptId:

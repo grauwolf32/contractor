@@ -4163,7 +4163,7 @@ export interface components {
             verdict?: "inconclusive";
         };
         FindingCheck: {
-            assertion: components["schemas"]["AuditCommonText"];
+            assertion: string;
             findingId: components["schemas"]["AuditCommonResourceId"];
             receiptId: components["schemas"]["AuditCommonResourceId"];
             revision: number;

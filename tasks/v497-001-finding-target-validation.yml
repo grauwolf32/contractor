@@ -40,11 +40,13 @@ context:
       and multiple HTTP evidence. Audit task orchestration/budgets remain with Audit.
   implementation_investigation_2026_11_28:
     authority: User assigns implementation with compact reuse and real-component checks; AGENTS.md 4.1 requires a separate unforeseen prerequisite.
-    outcome: Common completion ownership is not yet a reusable ordinary-Run capability. V497-006 now owns that prerequisite; this task returns/remains pending until it completes.
+    outcome: V497-006 is completed and merged into main; this task is resumed in_progress on the shared owner.
     scope_split: V497-006 generalizes common acceptance/receipts/retention and strict authority. V497-001 then delivers ordinary public launch, exact source selection, configured target/profile and the source-to-HTTP demonstration.
-    code_status: A small exploratory launch/pin draft compiled but was withdrawn from the implementation worktree; it did not preserve the full acceptance path and is not an implementation or test pass.
+    code_status: Public launch, exact input preparation and the shipped HTTP caller are being implemented and verified through real components.
   proposal: docs/proposals/0059-finding-validation-and-retest.md
   specification:
+    - docs/spec/findings/findings.md#FND-R246
+    - docs/spec/findings/findings.md#FND-R248
     - docs/spec/findings/findings.md#FND-R209
     - docs/spec/findings/findings.md#FND-R213
     - docs/spec/findings/findings.md#FND-R226

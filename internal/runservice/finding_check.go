@@ -37,7 +37,8 @@ func findingCompletionTarget(w resolved.ResolvedWorkflow, p PublicCreateParams) 
 		}
 	}
 	stage := w.Stages[w.EntryStage]
-	if stage.On.Failed.Kind != resolved.TransitionFail || stage.On.Interrupted.Kind != resolved.TransitionFail {
+	findingInput, hasFinding := stage.Context.Artifacts["finding"]
+	if !hasFinding || !findingInput.Required || findingInput.Namespace != "inputs" || findingInput.Name != "finding" || stage.On.Succeeded.Kind != resolved.TransitionSucceed || stage.On.Failed.Kind != resolved.TransitionFail || stage.On.Interrupted.Kind != resolved.TransitionFail {
 		return nil, ErrInvalid
 	}
 	http := false

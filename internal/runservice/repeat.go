@@ -130,6 +130,10 @@ func (h *RepeatReader) Read(ctx context.Context, ownerID, runID string) (RepeatP
 		return response, nil
 	}
 	response.Authority = RepeatAuthorityOrdinary
+	if run.AuditCompletion != nil && run.AuditCompletion.Finding != nil {
+		response.Notices = append(response.Notices, RepeatNotice{Code: "finding_check_requires_selection", Severity: "blocking", Field: "findingCheck", Message: "Select the Finding and its retained source explicitly to launch another check."})
+		return response, nil
+	}
 	projectUploadsAllowed := false
 	if run.ProjectID != nil {
 		project, projectErr := h.Projects.Get(

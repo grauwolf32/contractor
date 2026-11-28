@@ -3,6 +3,7 @@ package findingintake
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
@@ -13,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
 )
@@ -31,6 +33,13 @@ func PrepareCheck(ctx context.Context, tx pgx.Tx, storage *artifactpostgres.Stor
 	events := hookstore.NewFindingEventsTx(tx, storage)
 	if err = events.LockFindingCorrelationFence(ctx, projectID); err != nil {
 		return Receipt{}, err
+	}
+	project, err := projectstore.NewPostgresStore(tx).Get(ctx, run.OwnerID, projectID)
+	if err != nil {
+		return Receipt{}, err
+	}
+	if !reflect.DeepEqual(project.HTTPTarget, run.ProjectHTTPTarget) {
+		return Receipt{}, ErrConflict
 	}
 	if err = CheckSource(ctx, tx, storage, run.OwnerID, projectID, check); err != nil {
 		return Receipt{}, err
@@ -59,6 +68,22 @@ func PrepareCheck(ctx context.Context, tx pgx.Tx, storage *artifactpostgres.Stor
 	if bytes > auditdomain.MaximumExpandedBytes {
 		return Receipt{}, ErrInvalid
 	}
+	// Verify the selected receipt against exact retained metadata, in bounded batches.
+	store, _ := artifacts.NewService(storage.Repository(tx)).Project(projectID)
+	sources := append([]contracts.ExactArtifact{*receipt.ProjectProposal}, receipt.ProjectEvidence...)
+	refs := make([]contracts.ArtifactRef, len(sources))
+	for i, source := range sources {
+		refs[i] = source.Ref
+	}
+	actual, err := store.DescribeExact(ctx, refs)
+	if err != nil {
+		return Receipt{}, err
+	}
+	for i, source := range sources {
+		if err := source.Verify(actual[i]); err != nil {
+			return Receipt{}, err
+		}
+	}
 	data, err := strictjson.Canonical(map[string]any{"schema": auditdomain.FindingSourceHistorySchema, "kind": "validation", "receiptId": check.ReceiptID, "runId": runID, "finding": check, "workflow": json.RawMessage(run.WorkflowSnapshot), "target": run.ProjectHTTPTarget, "proposal": receipt.ProjectProposal, "evidence": receipt.ProjectEvidence})
 	if err != nil {
 		return Receipt{}, err
@@ -75,4 +100,41 @@ func PrepareCheck(ctx context.Context, tx pgx.Tx, storage *artifactpostgres.Stor
 		return Receipt{}, err
 	}
 	return receipt, nil
+}
+
+// RetainCheckRunOutcome freezes the execution outcome before ordinary Run purge.
+// Project purge needs no additional hold or history; it deletes these bindings.
+func RetainCheckRunOutcome(ctx context.Context, tx pgx.Tx, storage *artifactpostgres.Storage, runID string) error {
+	run, err := runstore.NewPostgresStore(tx, storage).GetRun(ctx, runID)
+	if err != nil {
+		return err
+	}
+	if run.AuditCompletion == nil || run.AuditCompletion.Finding == nil {
+		return nil
+	}
+	if run.ProjectID == nil || !runstore.RunLifecycleTerminal.Includes(run.State) {
+		return ErrInvalid
+	}
+	project, err := projectstore.NewPostgresStore(tx).Get(ctx, run.OwnerID, *run.ProjectID)
+	if err != nil {
+		return err
+	}
+	if project.Lifecycle == projectstore.LifecycleDeleting {
+		return nil
+	}
+	events := hookstore.NewFindingEventsTx(tx, storage)
+	if err := events.LockFindingCorrelationFence(ctx, project.ProjectID); err != nil {
+		return err
+	}
+	check := *run.AuditCompletion.Finding
+	data, err := strictjson.Canonical(map[string]any{"schema": auditdomain.FindingSourceHistorySchema, "kind": "execution", "receiptId": check.ReceiptID, "runId": runID, "finding": check, "state": run.State, "reasonCode": run.StateReason.Code, "finishedAt": run.FinishedAt})
+	if err != nil {
+		return err
+	}
+	scope, _ := artifacts.ProjectScope(project.ProjectID)
+	_, err = artifacts.NewService(storage.Repository(tx)).CreateFrozen(ctx, scope, contracts.ArtifactRef{Namespace: artifactpolicy.FindingHistoryNamespace, Name: auditdomain.FindingSourceHistoryName(check.ReceiptID, "check-execution", runID)}, artifacts.Payload{MediaType: "application/json", Data: data})
+	if err != nil {
+		return err
+	}
+	return events.AdvanceFindingHistory(ctx, project.ProjectID)
 }

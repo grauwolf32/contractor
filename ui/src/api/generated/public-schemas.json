@@ -5552,9 +5552,12 @@
       "additionalProperties": false,
       "properties": {
         "assertion": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonText",
           "maxLength": 32768,
-          "x-max-utf8-bytes": 32768
+          "minLength": 1,
+          "pattern": "[^\t\n\u000b\f\r                  　]",
+          "type": "string",
+          "x-max-utf8-bytes": 32768,
+          "x-maxUtf8Bytes": 32768
         },
         "findingId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonResourceId"

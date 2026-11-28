@@ -9426,7 +9426,7 @@ type FindingCandidatesPageTargetBasis string
 
 // FindingCheck defines model for FindingCheck.
 type FindingCheck struct {
-	Assertion AuditCommonText       `json:"assertion"`
+	Assertion string                `json:"assertion"`
 	FindingId AuditCommonResourceId `json:"findingId"`
 	ReceiptId AuditCommonResourceId `json:"receiptId"`
 	Revision  int                   `json:"revision"`
