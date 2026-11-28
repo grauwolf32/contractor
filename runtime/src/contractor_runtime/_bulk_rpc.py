@@ -115,10 +115,15 @@ def _read_chunk(frame, remaining):
 
 
 async def _write_frame(call, message):
+    await _upload_step(call, lambda: call.write(message))
+
+
+async def _upload_step(call, send):
     try:
-        await call.write(message)
-    except asyncio.InvalidStateError:
-        # Obtain the actual native rejection if the peer finished early.
+        await send()
+    except (asyncio.InvalidStateError, grpc.aio.AioRpcError):
+        # Local send completion may race the final peer status. Join the native
+        # call before classifying it; never retry a frame or overwrite its verdict.
         await call
         raise ArtifactTransportError("bulk RPC finished before upload EOF") from None
 
@@ -234,7 +239,7 @@ class BulkRPC:
                         name="bulk-write-chunk",
                     )
                     await _write_frame(call, frame)
-                await call.done_writing()
+                await _upload_step(call, call.done_writing)
                 response = await call
                 raw, _ = await to_thread_until_done(_metadata, response, name="bulk-write-receipt")
                 return raw
@@ -268,7 +273,7 @@ class BulkRPC:
                             name="finding-stream-chunk",
                         )
                         await _write_frame(call, frame)
-                await call.done_writing()
+                await _upload_step(call, call.done_writing)
                 response = await call
                 if not isinstance(response, Message):
                     raise ArtifactTransportError("finding RPC returned an invalid receipt")

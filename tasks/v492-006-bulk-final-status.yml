@@ -10,8 +10,8 @@ status: in_progress
 depends_on: []
 languages:
 - python
-goal: A bulk upload preserves the final typed peer rejection when a local write or half-close error arrives
-  before its status, without replaying the upload.
+goal: A bulk upload preserves an available final typed rejection when a local send error arrives first; lost
+  trailers remain an explicit ambiguous transport failure without replay.
 context:
   authority: 'User decision 2026-11-28 requires regression tests and necessary verification for V492-001 through
     V492-005. Agent-discovered acceptance prerequisite: the full Runtime gate exposes an existing bulk-status
@@ -32,7 +32,10 @@ context:
   boundary_decision: Join the existing native call before classifying a failed upload step. Parsing SDK error
     text or replaying the upload would lose authority or risk duplicate writes; a new preflight acknowledgement
     would change the protocol unnecessarily. Deterministic write/half-close races and repeated native rejection
-    probes pin the behavior. Reopen when the SDK upload/status API changes.
+    probes pin the behavior. Reopen when the SDK upload/status API changes. A transport reset can lose trailers
+    entirely; the native race test must accept an explicit ambiguous transport error while deterministic tests
+    require available final status to win. Claiming guaranteed receipt across a reset would exceed the existing
+    failure model.
 scope:
   in:
   - Preserve final native rejection across frame-write and half-close races for Artifact writes and finding
@@ -42,8 +45,9 @@ scope:
   - No new metadata handshake, stream frame, retry, receipt, Server route or public API.
 acceptance_criteria:
 - id: A1
-  text: A local write or half-close error cannot mask a typed final peer rejection; the existing domain code
-    and retryability reach the caller.
+  text: An available final typed peer rejection wins over a local write or half-close error, preserving its
+    code and retryability. If the transport loses all trailers, the caller receives a bounded transport failure
+    rather than an invented domain verdict.
 - id: A2
   text: Each upload step and native call executes once, cancellation joins existing cleanup, and successful
     early EOF is still rejected rather than manufacturing a committed result.

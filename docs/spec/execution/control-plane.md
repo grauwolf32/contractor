@@ -2070,3 +2070,10 @@ Non-client-streaming RPCs permit the second bounded message needed for the SDK
 cardinality check. HTTP/2 windows alone do not bound that eager queue. Cancellation closes receive credit and joins admitted unary
 or streaming application handlers before the listener releases admission or
 its HTTP/2 writer. This also applies to Control Plane unary RPCs.
+
+When an upload frame write or half-close fails locally, Runtime joins the native
+call before classification so an available final typed peer status takes
+precedence. A reset may lose trailers entirely; that remains an explicit
+ambiguous transport failure, reconciled through the existing Artifact binding
+or finding receipt. Runtime never replays a frame or invents a domain rejection
+from an SDK diagnostic string.
