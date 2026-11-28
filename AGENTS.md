@@ -116,6 +116,8 @@ These are settled decisions. Do not reopen them without the user.
   task-owned Projects, Evals and immutable config identities on that stand,
   preserve its business data and configured models, and enable debug traces
   before live execution. Verify trace delivery before the repeated series.
+  For an OpenRouter model, use 4–8 concurrent Eval members within the stand's
+  admission/capacity limits and freeze the chosen concurrency before dispatch.
   This does not change the disposable-database rule for deterministic tests
   or recoverable-backup verification.
 - **Do not touch the user's work.** The primary checkout often holds the
