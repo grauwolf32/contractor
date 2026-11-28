@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 11 in progress, 47 pending, 13 deferred. 1768 finished: 1749 completed, 19 archived.
+72 open tasks: 12 in progress, 47 pending, 13 deferred. 1768 finished: 1749 completed, 19 archived.
 
 ## In progress
 
@@ -22,6 +22,7 @@ the epics are in [epics.yml](epics.yml).
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V500-005](v500-005-delivered-context-observer-evidence.yml) | evals | defect | P1 | Verify context continuation against delivered Worker and Planner evidence |
 | [V500-006](v500-006-context-eval-output-contract.yml) | evals | defect | P1 | Align visible context-eval output contracts with independent domain checks |
+| [V500-007](v500-007-zero-model-token-report.yml) | operations | defect | P1 | Report explicit zero tokens when Runtime observed no direct model calls |
 
 ## Pending
 
@@ -95,6 +96,7 @@ the epics are in [epics.yml](epics.yml).
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate HTTP investigation quality with frozen repeated comparisons |
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V500-005, V500-006 | Measure compaction and reasoning choices with repeated frozen live experiments |
+| [V500-008](v500-008-bounded-parallel-context-consumer.yml) | feature | P1 | — | Execute frozen context members with bounded parallel admission |
 
 ### Podman sandbox (`sandbox`)
 
@@ -115,7 +117,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V473-003](v473-003-model-recovery-diagnostics.yml) | feature | P1 | — | Explain model recovery costs and verify zero and partial fact extraction |
-| [V500-007](v500-007-zero-model-token-report.yml) | defect | P1 | — | Report explicit zero tokens when Runtime observed no direct model calls |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -180,7 +181,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 6 | 22 | 18 | 17 | 30 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 42 | 42 | 23 | 80 |
 | Audits (`audits`) | 10 | 77 | 106 | 44 | 184 |
-| Evaluations (`evals`) | 6 | 24 | 52 | 27 | 59 |
+| Evaluations (`evals`) | 7 | 25 | 52 | 27 | 59 |
 | Podman sandbox (`sandbox`) | 2 | 11 | 2 | 4 | 7 |
 | Web UI (`ui`) | 2 | 58 | 83 | 38 | 81 |
 | Operations, authentication, CLI and deployment (`operations`) | 2 | 23 | 56 | 16 | 35 |
